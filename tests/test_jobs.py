@@ -4,7 +4,7 @@ import time
 import unittest
 
 from tests import helpers
-from fx import jobs, projects
+from fx import jobs, library, projects
 
 
 def fake(j, **job):
@@ -71,6 +71,25 @@ class ProjectVideo(unittest.TestCase):
         self.assertTrue(j._fxclip(job))
         self.assertEqual(job["output"], shared)
         self.assertTrue(os.path.exists(os.path.join(projects.folder(project["id"]), "clips", shared)))
+
+
+class Export(unittest.TestCase):
+    def test_a_clip_played_backwards_has_its_copy_made_first(self):
+        """An export with a clip set to "Phát ngược" whose copy is not made yet makes it, then the video."""
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "jobsrev.mp4"), 96, 54, 12)
+        project = projects.create(src, "jobsrev.mp4")
+        fxv = helpers.make_loop(os.path.join(helpers.ROOT, "jobsrevfx.mp4"), 64, 36, 24)
+        item = library.add(fxv, "jobsrevfx.mp4")
+        tid = project["tracks"][0]["id"]
+        projects.apply(project, {"layers": [{"id": "filerv", "kind": "file", "lib": item["id"], "track": tid,
+                                             "start": 0, "end": 48, "params": {"reverse": True}}]})
+        self.assertIsNone(library.reversed_copy(library.load(item["id"])))
+        j = jobs.Jobs()
+        j.queues = {"export": queue.Queue(), "prep": queue.Queue()}  # nothing is run
+        job = fake(j, id="ex", kind="export", project=project["id"])
+        self.assertTrue(j._export(job))
+        self.assertTrue(library.reversed_copy(library.load(item["id"])))
+        self.assertTrue(os.path.exists(os.path.join(os.environ["BOKIN_FX_OUT"], job["output"])))
 
 
 if __name__ == "__main__":

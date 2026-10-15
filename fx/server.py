@@ -34,6 +34,7 @@ JSON_LIMIT = 1 << 20
 OUT_NAME = re.compile(r"^[^\\/:*?\"<>|\x00-\x1f]{1,180}\.mp4$")
 FX_NAME = re.compile(r"^fx-[0-9a-f]{12}\.(webm|mp4)$")
 PROXY_NAME = re.compile(r"^proxy\.(mp4|webm|png)$")  # a library item's
+REV_PROXY_NAME = re.compile(r"^proxy-rev\.(mp4|webm)$")  # its played-backwards light copy
 MEDIA_TYPES = {".mp4": "video/mp4", ".webm": "video/webm", ".png": "image/png", ".jpg": "image/jpeg"}
 ERRORS = (projects.UserError, video.VideoError, library.LibraryError)
 
@@ -267,6 +268,12 @@ class Handler(BaseHTTPRequestHandler):
             item = library.load(q.get("id"))
             if q.get("what") == "thumb":
                 return self.send_file(os.path.join(library.folder(item["id"]), "thumb.jpg"), "image/jpeg")
+            if q.get("what") == "reverse":
+                rev = library.reversed_copy(item)
+                name = rev["proxy"] if rev else ""
+                if not REV_PROXY_NAME.match(name):
+                    return self.fail(404, "not made yet")
+                return self.send_file(os.path.join(library.folder(item["id"]), name), MEDIA_TYPES[os.path.splitext(name)[1]])
             name = item.get("proxy") or ""
             if not PROXY_NAME.match(name):
                 return self.fail(404, "no proxy yet")
@@ -434,6 +441,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, library.public(item))
         if path == "/api/library/proxy":
             job = app.jobs.library_proxy(data.get("id"))
+            return self.send(200, {"job": job and job["id"]})
+        if path == "/api/library/reverse":  # a clip set to play backwards: the item's played-backwards copy
+            job = app.jobs.library_reverse(data.get("id"))
             return self.send(200, {"job": job and job["id"]})
         if path == "/api/cancel":
             return self.send(200, {"ok": app.jobs.cancel(str(data.get("job")))})

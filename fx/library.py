@@ -86,7 +86,66 @@ def list_all():
 
 
 def public(item):
-    return {k: item[k] for k in ("id", "name", "created", "info", "proxy", "size") if k in item}
+    out = {k: item[k] for k in ("id", "name", "created", "info", "proxy", "size") if k in item}
+    rev = reversed_copy(item)
+    out["reverse"] = rev["proxy"] if rev else None  # its played-backwards light copy, once made
+    return out
+
+
+REVERSE_V = 1  # played-backwards copies made by this version
+
+
+def reversed_copy(item):
+    """{file, info, proxy} of the item played backwards, if made (make_reverse), else None."""
+    rev = item.get("reverse") or {}
+    if rev.get("v") != REVERSE_V or not rev.get("file") or not rev.get("proxy"):
+        return None
+    folder = os.path.join(root(), item["id"])
+    if not (os.path.exists(os.path.join(folder, rev["file"])) and os.path.exists(os.path.join(folder, rev["proxy"]))):
+        return None
+    return rev
+
+
+def reversed_path(item):
+    rev = reversed_copy(item)
+    return (os.path.join(root(), item["id"], rev["file"]), rev["info"]) if rev else (None, None)
+
+
+_MAKING = {}  # item id -> lock held while its played-backwards copy is made (a prep job and an export may both ask)
+
+
+def make_reverse(iid, cancelled=None, progress=None):
+    """Makes the item played backwards, at full size and as a light copy (in the background, or before an export
+    that needs it); returns the item, or None if cancelled."""
+    item = load(iid)
+    if reversed_copy(item):
+        return item
+    if item["info"].get("image"):
+        raise LibraryError("Ảnh không phát ngược được.")
+    with LOCK:
+        making = _MAKING.setdefault(item["id"], threading.Lock())
+    while not making.acquire(timeout=0.5):  # the other one is making it: wait, then use what it made
+        if cancelled and cancelled():
+            return None
+    try:
+        item = load(iid)
+        if reversed_copy(item):
+            return item
+        folder = os.path.join(root(), item["id"])
+        out = video.reverse(source_path(item), item["info"], os.path.join(folder, "reverse"), cancelled, progress)
+        if out is None:
+            return None
+        info = video.probe(out, overlay=True)
+        proxy = os.path.basename(video.make_proxy(out, info, os.path.join(folder, "proxy-rev"), PROXY_WIDTH))
+        with LOCK:
+            try:
+                fresh = load(iid)
+            except LibraryError:  # deleted meanwhile
+                return None
+            fresh["reverse"] = {"file": os.path.basename(out), "info": info, "proxy": proxy, "v": REVERSE_V}
+            return save(fresh)
+    finally:
+        making.release()
 
 
 def _clean_text(text, fallback="Hiệu ứng"):

@@ -11,6 +11,7 @@ and settings are dropped on the way.
 """
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 
@@ -309,6 +310,69 @@ class ClipWriter:
             pass
         self.err.close()
         _remove(self.path)
+
+
+class _SeeThroughPiece:
+    """RGBA frames into a VP9 WebM piece that keeps them well (BT.709, tagged, as probe() reads it back)."""
+
+    def __init__(self, path, w, h, fps):
+        self.err = tempfile.TemporaryFile()
+        args = [ffmpeg_exe(), "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{w}x{h}",
+                "-framerate", str(fps), "-i", "-", "-vf",
+                "scale=flags=accurate_rnd+full_chroma_int:out_color_matrix=bt709:out_range=tv,format=yuva420p",
+                "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-b:v", "0", "-crf", "16",
+                "-deadline", "good", "-cpu-used", "4", "-row-mt", "1", *BT709, "-an", *CLEAN, path]
+        self.proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=self.err,
+                                     **NO_WINDOW)
+
+    write, close = ClipWriter.write, ClipWriter.close
+
+
+def reverse(src, info, dst, cancelled=None, progress=None, budget=160_000_000):
+    """The video played backwards, at its full size (a clip set to "Phát ngược"): `dst` with .mp4 (H.264), or
+    .webm (VP9 keeping the transparency). The file is read once, in order, a run of frames at a time (as many as
+    `budget` bytes hold); each run is written backwards as a piece, and the pieces are joined last one first.
+    Returns the file written, or None if `cancelled`."""
+    alpha = bool(info.get("alpha"))
+    w, h, ext = info["w"], info["h"], ".webm" if alpha else ".mp4"
+    run_of = max(1, int(budget // (w * h * (4 if alpha else 3))))
+    out = os.path.splitext(dst)[0] + ext
+    folder = os.path.splitext(dst)[0] + ".parts"
+    shutil.rmtree(folder, ignore_errors=True)
+    os.makedirs(folder)
+    parts, frames_read = [], 0
+    try:
+        def backwards(frames):
+            path = os.path.join(folder, f"{len(parts):05d}{ext}")
+            writer = (_SeeThroughPiece(path, w, h, info["fps"]) if alpha else
+                      Encoder(path, w, h, info["fps"], crf=12, preset="veryfast", part=True))
+            for frame in reversed(frames):
+                writer.write(frame)
+            writer.close()
+            parts.append(path)
+        with Frames(src, info, alpha=alpha) as frames:
+            run = []
+            for frame in frames:
+                if cancelled and cancelled():
+                    return None
+                run.append(frame)
+                frames_read += 1
+                if len(run) >= run_of:
+                    backwards(run)
+                    run = []
+                if progress:
+                    progress(0.9 * frames_read / max(1, info["frames"]))
+            if run:
+                backwards(run)
+        if not parts:
+            raise VideoError("Không đọc được khung hình nào của video.")
+        tmp = os.path.splitext(dst)[0] + ".part" + ext
+        join(list(reversed(parts)), tmp, alpha=alpha)
+        os.replace(tmp, out)
+        return out
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+        _remove(os.path.splitext(dst)[0] + ".part" + ext)
 
 
 def plays_in_browser(info):

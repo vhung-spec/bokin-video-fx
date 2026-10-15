@@ -280,6 +280,15 @@ def run(page, folder, edge):
     page.keyboard.press("Control+z")
     page.wait_for_timeout(200)
 
+    # played backwards: its copy is made in the background, then the live preview plays it (and so does the export)
+    page.click('#ec input[data-param="reverse"]')
+    page.wait_for_function(f"(() => {{ const it = libItem(clipById('{fid}').file.lib); return it && it.reverse; }})()",
+                           timeout=180000)
+    page.wait_for_timeout(800)
+    src = page.evaluate(f"S.els['{fid}'] ? S.els['{fid}'].media.src : ''")
+    check("play an effect video backwards", page.evaluate(f"clipById('{fid}').params.reverse") is True and
+          "what=reverse" in src, src)
+
     # a Mix where two clips meet: the button on the join adds it; the page and the renderer weigh it alike
     ids = page.evaluate("""(() => {
         const t = {id: newId("t"), on: true}; S.project.tracks.push(t);

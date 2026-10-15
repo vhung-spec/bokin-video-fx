@@ -122,7 +122,12 @@ def clip_file(folder, clip):
             item = library.load(source["lib"])
         except library.LibraryError:
             return None, None
-        path, info = library.source_path(item), item["info"]
+        if (clip.get("params") or {}).get("reverse") and not item["info"].get("image"):
+            path, info = library.reversed_path(item)  # played backwards: its own copy, nothing until it is made
+            if path is None:
+                return None, None
+        else:
+            path, info = library.source_path(item), item["info"]
     elif source.get("stored"):  # made by an older version, kept in the project
         path, info = os.path.join(folder, "files", source["stored"]), source.get("info")
     else:

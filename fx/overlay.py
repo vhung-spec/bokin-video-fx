@@ -36,6 +36,7 @@ SCHEMA = {"label": "Video / ảnh ngoài", "params": [
      "value": 0},
     {"key": "fade", "label": "Hoà mượt khi file lặp lại (giây)", "type": "range", "min": 0, "max": 3, "step": 0.1,
      "value": 1.0},
+    {"key": "reverse", "label": "Phát ngược (tua ngược)", "type": "toggle", "value": False},
 ]}
 
 

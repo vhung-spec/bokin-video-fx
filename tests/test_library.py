@@ -83,3 +83,71 @@ class Library(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Backwards(unittest.TestCase):
+    def test_a_video_played_backwards(self):
+        """The played-backwards copy: its frame k is frame n-1-k of the file (opaque: H.264; see-through: VP9 with
+        its transparency), with a light copy for the page; a clip set to "Phát ngược" uses it."""
+        import numpy as np
+        from fx import engine
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "fwd.mp4"), 160, 90, 12)
+        item = library.make_reverse(library.add(src, "fwd.mp4")["id"])
+        src = library.source_path(item)  # (the upload was moved into the library)
+        path, info = library.reversed_path(item)
+        n = item["info"]["frames"]
+        self.assertEqual(info["frames"], n)
+        for k in (0, 5, n - 1):
+            a = video.read_frame(src, item["info"], n - 1 - k).astype(np.int16)
+            b = video.read_frame(path, info, k).astype(np.int16)
+            self.assertLess(float(np.abs(a - b).mean()), 2.0, f"frame {k}")
+        self.assertTrue(library.public(item)["reverse"])
+        clip = {"kind": "file", "file": {"lib": item["id"]}, "params": {"reverse": True}}
+        self.assertEqual(engine.clip_file(helpers.ROOT, clip)[0], path)
+        self.assertEqual(engine.clip_file(helpers.ROOT, dict(clip, params={}))[0], library.source_path(item))
+
+    def test_in_pieces_and_asked_twice_at_once(self):
+        """A file too big for one run is turned round piece by piece; a prep job and an export asking for the same
+        copy at once get the one copy (made once)."""
+        import threading
+        import numpy as np
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "long.mp4"), 64, 36, 30)
+        info = video.probe(src, overlay=True)
+        out = video.reverse(src, info, os.path.join(helpers.ROOT, "pieces"), budget=64 * 36 * 3 * 7)  # 7 a piece
+        back = video.probe(out, overlay=True)
+        self.assertEqual(back["frames"], info["frames"])
+        for k in (0, 6, 7, 13, 29):  # either side of where two pieces meet
+            a = video.read_frame(src, info, 29 - k).astype(np.int16)
+            self.assertLess(float(np.abs(a - video.read_frame(out, back, k)).mean()), 2.0, f"frame {k}")
+        iid = library.add(src, "long.mp4")["id"]
+        got = []
+        runs = [threading.Thread(target=lambda: got.append(library.make_reverse(iid))) for _ in range(2)]
+        for t in runs:
+            t.start()
+        for t in runs:
+            t.join()
+        self.assertEqual(len(got), 2)
+        self.assertTrue(all(g and g["reverse"] == got[0]["reverse"] for g in got))
+        self.assertTrue(os.path.exists(library.reversed_path(library.load(iid))[0]))
+        self.assertFalse(os.path.exists(os.path.join(library.folder(iid), "reverse.parts")))
+
+    def test_see_through_played_backwards(self):
+        import subprocess
+        import numpy as np
+        path = os.path.join(helpers.ROOT, "moving.mov")
+        graph = ("color=c=black@0.0:s=96x64:r=12:d=1,format=rgba[bg];color=c=orange:s=16x16:r=12:d=1,format=rgba[fg];"
+                 "[bg][fg]overlay=x='t*60':y=24:format=auto,format=rgba")
+        subprocess.run([video.ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i", graph, "-c:v", "prores_ks",
+                        "-profile:v", "4444", "-pix_fmt", "yuva444p10le", path], check=True)
+        item = library.make_reverse(library.add(path, "moving.mov")["id"])
+        path = library.source_path(item)
+        rpath, info = library.reversed_path(item)
+        self.assertTrue(info["alpha"])
+        n = item["info"]["frames"]
+        with video.Frames(path, item["info"], alpha=True) as f:
+            fwd = list(f)
+        with video.Frames(rpath, info, alpha=True) as f:
+            back = list(f)
+        self.assertEqual(len(back), n)
+        for k in (0, n // 2, n - 1):
+            self.assertLess(float(np.abs(fwd[n - 1 - k][..., 3].astype(np.int16) - back[k][..., 3]).mean()), 3.0)

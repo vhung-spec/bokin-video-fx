@@ -932,6 +932,8 @@ function mediaFor(c) {  // what the live preview plays for a clip: {kind: "video
   if (c.kind === "file") {
     const lib = c.file && c.file.lib ? libItem(c.file.lib) : (c.lib ? libItem(c.lib) : null);
     if (!lib || !lib.proxy) return null;
+    if (c.params.reverse && !lib.info.image)  // played backwards: its own light copy, nothing until it is made
+      return lib.reverse ? {kind: "video", src: `/media/lib?id=${lib.id}&what=reverse&v=${encodeURIComponent(lib.reverse)}`, info: lib.info} : null;
     return {kind: lib.info.image ? "img" : "video", src: `/media/lib?id=${lib.id}&what=proxy&v=${encodeURIComponent(lib.proxy)}`, info: lib.info};
   }
   const fx = S.fx[c.id];
@@ -1303,6 +1305,7 @@ function updateWaiting() {
     if (c.kind === "file") {
       const it = libItem(c.file ? c.file.lib : c.lib);
       if (it && !it.proxy) (f[it.id] ? failed : wait).push(c.name);
+      else if (it && c.params.reverse && !it.info.image && !it.reverse) (f["rev" + it.id] ? failed : wait).push(c.name + " (phát ngược)");
     } else { const fx = S.fx[c.id]; if (!fx || !fx.ready) (f[c.id] ? failed : wait).push(c.name); }
   }
   const list = a => [...new Set(a)].slice(0, 3).join(", ") + (new Set(a).size > 3 ? "…" : "");
@@ -2245,7 +2248,7 @@ function renderControls() {
     const by = Object.fromEntries(sch.params.map((d, i) => [d.key, params[i]]));
     return `<h4>Hoà trộn</h4>${by.blend}${by.opacity}<p class="note">Hiệu ứng trên nền đen: Screen. File nền trong suốt (MOV, WebM, PNG): Bình thường.</p>
       <h4>Vị trí và cỡ</h4>${by.fit}${by.scale}${by.x}${by.y}<div class="flips">${by.flip_h}${by.flip_v}</div>
-      ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}`;
+      ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}${by.reverse}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}`;
   })() : `<h4>Hiệu ứng</h4>${params.join("")}`;
   const hasArea = p.masks.includes(c.id) || (S.masks[c.id] && !S.masks[c.id].full);
   const mixRow = (b, label) => {  // the Mix of b with the clip before it
@@ -2650,7 +2653,7 @@ async function poll() {
     failures = 0; $("#offline").style.display = "none";
     if (version && st.version !== version) { location.reload(); return; }  // updated: the new page
     version = st.version;
-    const libKey = () => JSON.stringify(S.lib.map(i => [i.id, i.proxy, i.name, !!(S.failed || {})[i.id]]));
+    const libKey = () => JSON.stringify(S.lib.map(i => [i.id, i.proxy, i.reverse, i.name, !!(S.failed || {})[i.id]]));
     const libBefore = libKey();
     S.state = st; S.lib = st.library || [];
     $("#ver").textContent = st.version === "dev" ? "bản chạy từ mã nguồn" : "phiên bản " + st.version;
@@ -2682,6 +2685,13 @@ async function poll() {
       const j = latest(x => x.kind === "libproxy" && x.item === it.id);
       if (j && j.state === "error") S.failed[it.id] = j.message;
       else if (ask(j)) post("/api/library/proxy", {id: it.id}).catch(() => {});
+    }
+    const backwards = new Set(p ? p.layers.filter(c => c.kind === "file" && c.params.reverse).map(c => c.file && c.file.lib) : []);
+    for (const it of S.lib) {  // played-backwards copies the open project's clips need
+      if (!backwards.has(it.id) || it.reverse || it.info.image) continue;
+      const j = latest(x => x.kind === "librev" && x.item === it.id);
+      if (j && j.state === "error") S.failed["rev" + it.id] = j.message;
+      else if (ask(j)) post("/api/library/reverse", {id: it.id}).catch(() => {});
     }
     if (p && !p.proxy) {
       const j = latest(x => x.kind === "proxy" && x.project === p.id && x.source === p.video.file);

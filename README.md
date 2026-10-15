@@ -57,7 +57,9 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
      ProRes 4444 có kênh alpha.
    - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài, chọn clip là trên màn hình hiện một khung trắng: kéo bên trong
      khung để di chuyển, kéo một góc để phóng to/thu nhỏ (góc đối diện đứng yên, như Premiere; giữ `Alt` để đổi cỡ
-     quanh tâm), bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. **Lật ngang**, **Lật dọc**: ô đánh dấu bên dưới. Bấm vào
+     quanh tâm), bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. **Lật ngang**, **Lật dọc**: ô đánh dấu bên dưới.
+     **Phát ngược** (tua ngược, chỉ với video): ô trong mục **Phát file**; lần đầu app làm sẵn một bản phát ngược của
+     file (vài giây đến vài phút), clip hiện lại khi xong. Bấm vào
      hình của một clip trên màn hình để chọn clip đó; bấm rồi kéo luôn để di chuyển nó. Phóng to màn hình để đặt
      clip thật chính xác (mỗi bước nhích khoảng một điểm ảnh).
    - **Vùng**: bấm **✎ Vẽ vùng** để tô chỗ hiệu ứng được hiện.

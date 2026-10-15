@@ -89,6 +89,13 @@ class Jobs:
         mine = lambda j: j["kind"] == "libproxy" and j["item"] == iid  # noqa: E731
         return self._pending(mine) or self._failed_lately(mine) or self._new("libproxy", None, "prep", item=iid)
 
+    def library_reverse(self, iid):
+        """The played-backwards copy of a library video, unless it is there or being made."""
+        if library.reversed_copy(library.load(iid)):
+            return None
+        mine = lambda j: j["kind"] == "librev" and j["item"] == iid  # noqa: E731
+        return self._pending(mine) or self._failed_lately(mine) or self._new("librev", None, "prep", item=iid)
+
     def fx_clip(self, pid, lid, name, wanted):
         """The preview clip `name` of built-in effect clip `lid`. Clips still waiting that no clip of the project
         wants any more (`wanted`: the names its clips need now) are dropped."""
@@ -154,6 +161,16 @@ class Jobs:
         if free < need:
             raise projects.UserError(f"Ổ đĩa không đủ chỗ: cần khoảng {need / 1e9:.1f} GB, còn {free / 1e9:.1f} GB. "
                                      "Hãy dọn bớt ổ đĩa.")
+        for lay in project["layers"]:  # clips played backwards: their copies first (made once, kept in the library)
+            lib = (lay.get("file") or {}).get("lib")
+            if lay["kind"] == "file" and lib and (lay.get("params") or {}).get("reverse") and lay.get("on", True):
+                job["message"] = "Đang chuẩn bị bản phát ngược…"
+                try:
+                    if library.make_reverse(lib, cancelled=lambda: job["cancel"]) is None and job["cancel"]:
+                        return False
+                except library.LibraryError:
+                    pass  # gone from the library: the clip draws nothing
+                job["message"] = ""
         seconds = total / video.fps_value(info["fps"])
         final = free_name(out_dir, f"{project['name']}-fx-{length_tag(round(seconds))}")
         made = os.path.join(folder, f"export-{job['id']}.mp4")
@@ -185,6 +202,9 @@ class Jobs:
             return False  # the video was replaced meanwhile: this copy was of the old one, and is gone
         job["output"] = name
         return True
+
+    def _librev(self, job):
+        return library.make_reverse(job["item"], cancelled=lambda: job["cancel"], progress=self._progress(job)) is not None
 
     def _libproxy(self, job):
         job["output"] = library.make_proxy(job["item"]).get("proxy")
