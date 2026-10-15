@@ -87,6 +87,27 @@ class Engine(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(helpers.ROOT, "x.mp4")))
         projects.apply(projects.load(self.project["id"]), {"layers": []})
 
+    def test_long_video_in_pieces(self):
+        """A 4-loop video rendered by two processes: right length, pieces joined without a jump, end joins start,
+        and the same picture as one process makes."""
+        project = projects.apply(projects.load(self.project["id"]), {"layers": [
+            {"id": "snowpp", "kind": "snow", "params": {"amount": 80}, "seed": 3}]})
+        one, two = os.path.join(helpers.ROOT, "long-1.mp4"), os.path.join(helpers.ROOT, "long-2.mp4")
+        self.assertTrue(engine.render(self.folder, project, one, seconds=4, processes=1, preset="veryfast"))
+        self.assertTrue(engine.render(self.folder, project, two, seconds=4, processes=2, preset="veryfast"))
+        info = video.probe(two)
+        self.assertEqual(info["frames"], 4 * P)
+        with video.Frames(two, info) as frames:
+            b = [f.astype(np.int16) for f in frames]
+        with video.Frames(one, video.probe(one)) as frames:
+            a = [f.astype(np.int16) for f in frames]
+        self.assertLess(max(float(np.abs(x - y).mean()) for x, y in zip(a, b)), 1.5)
+        steps = [float(np.abs(b[(i + 1) % len(b)] - b[i]).mean()) for i in range(len(b))]
+        usual = float(np.median(steps))
+        for at in (len(b) // 2 - 1, len(b) - 1):  # where the two pieces meet, and where the end meets the start
+            self.assertLess(steps[at], usual * 1.6 + 0.5, f"jump at frame {at}: {steps[at]:.2f}, usual {usual:.2f}")
+        projects.apply(projects.load(self.project["id"]), {"layers": []})
+
     def test_outside_file_layer(self):
         clip = helpers.make_loop(os.path.join(helpers.ROOT, "clip.mp4"), 160, 90, 40, "30")
         project = projects.apply(projects.load(self.project["id"]), {"layers": [{"id": "fileaa", "kind": "file"}]})

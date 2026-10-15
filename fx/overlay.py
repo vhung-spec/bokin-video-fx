@@ -9,8 +9,7 @@ the loop plus the fade is first played over and over, each repeat dissolving int
 import math
 import os
 
-import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps
 
 from . import video
 
@@ -145,70 +144,74 @@ class Cursors:
         self.open = []
 
 
-def _premultiplied(frame):
-    f = frame.astype(np.float32) * (1 / 255.0)
-    if f.shape[2] == 3:
-        return np.dstack([f, np.ones(f.shape[:2], np.float32)])
-    f[..., :3] *= f[..., 3:4]
-    return f
-
-
 class Overlay:
-    """One layer from a file, drawn at w x h for a loop of `frames` frames at `fps`."""
+    """One layer from a file, laid over w x h frames of a video `frames` long at `fps` (its period).
 
-    def __init__(self, path, info, params, frames, fps, w, h):
+    Works on 8-bit Pillow images (the blend modes and masks are Pillow's C routines: fast, and exact where a mask
+    is fully on or off). `weight` (an "L" image of the whole frame, or None for "everywhere, fully") already
+    includes the layer's area, its foreground and its opacity."""
+
+    def __init__(self, path, info, params, frames, fps, w, h, weight=None):
         self.info, self.p = info, params
         self.frames, self.fps = int(frames), float(fps)
         k = (max if params["fit"] == "cover" else min)(w / info["w"], h / info["h"]) * params["scale"] / 100
-        self.sw, self.sh = max(2, round(info["w"] * k)), max(2, round(info["h"] * k))
-        self.ox = round((w - self.sw) / 2 + params["x"] / 100 * w)
-        self.oy = round((h - self.sh) / 2 + params["y"] / 100 * h)
-        self.w, self.h = w, h
+        sw, sh = max(2, round(info["w"] * k)), max(2, round(info["h"] * k))
+        ox = round((w - sw) / 2 + params["x"] / 100 * w)
+        oy = round((h - sh) / 2 + params["y"] / 100 * h)
+        x0, y0, x1, y1 = max(ox, 0), max(oy, 0), min(ox + sw, w), min(oy + sh, h)
+        self.empty = x0 >= x1 or y0 >= y1
+        self.box, self.full = (x0, y0, x1, y1), (x0, y0, x1, y1) == (0, 0, w, h)
+        self.crop = (x0 - ox, y0 - oy, x1 - ox, y1 - oy)  # the part of the placed file inside the frame
+        self.whole = self.crop == (0, 0, sw, sh)
+        self.weight = None if weight is None or self.empty else (weight if self.full else weight.crop(self.box))
         self.still, self.cursors = None, None
+        if self.empty:
+            return
         if info.get("image"):
             with Image.open(path) as im:
-                im = ImageOps.exif_transpose(im).convert("RGBA").resize((self.sw, self.sh), Image.Resampling.LANCZOS)
-                self.still = _premultiplied(np.asarray(im))
+                im = ImageOps.exif_transpose(im).convert("RGBA").resize((sw, sh), Image.Resampling.LANCZOS)
+                self.still = im if self.whole else im.crop(self.crop)
         else:
-            self.cursors = Cursors(path, info, (self.sw, self.sh), bool(info.get("alpha")))
+            self.cursors = Cursors(path, info, (sw, sh), bool(info.get("alpha")))
 
-    def layer(self, t):
-        """The file's picture for frame t (premultiplied RGBA float32, at its placed size)."""
+    def picture(self, t):
+        """The file's picture for frame t (RGB, or RGBA with transparency), cut to the part inside the frame."""
         if self.still is not None:
             return self.still
         fps_in = video.fps_value(self.info["fps"])
-        out = None
+        out, total = None, 0.0
         for when, weight in timeline(t, self.fps, self.frames, self.info["seconds"], self.p["start"], self.p["fade"]):
-            f = _premultiplied(self.cursors.get(int(when * fps_in + 1e-6)))
-            if out is None:
-                out = f * weight if weight != 1.0 else f
-            else:
-                out += f * weight
-        return out
+            frame = Image.fromarray(self.cursors.get(int(when * fps_in + 1e-6)))
+            total += weight
+            out = frame if out is None else Image.blend(out, frame, weight / total)
+        return out if self.whole else out.crop(self.crop)
 
-    def draw(self, t, picture, mask):
-        """Lay frame t of the file over `picture` (float32 RGB 0..1, changed in place)."""
-        x0, y0 = max(self.ox, 0), max(self.oy, 0)
-        x1, y1 = min(self.ox + self.sw, self.w), min(self.oy + self.sh, self.h)
-        if x0 >= x1 or y0 >= y1 or self.p["opacity"] <= 0:
-            return
-        src = self.layer(t)[y0 - self.oy:y1 - self.oy, x0 - self.ox:x1 - self.ox]
-        k = self.p["opacity"] / 100
-        weight = np.full((y1 - y0, x1 - x0), k, np.float32) if mask is None else mask[y0:y1, x0:x1] * k
-        colour = src[..., :3] * weight[..., None]
-        out = picture[y0:y1, x0:x1]
-        blend = self.p["blend"]
-        if blend == "screen":
-            out[:] = 1.0 - (1.0 - out) * (1.0 - np.minimum(colour, 1.0))
-        elif blend == "add":
-            out += colour
-            np.minimum(out, 1.0, out=out)
-        elif blend == "multiply":
-            a = (src[..., 3] * weight)[..., None]
-            out *= 1.0 - a + colour
+    def draw(self, t, img):
+        """Lay frame t of the file over `img` (an RGB image of the whole frame, changed in place); returns it."""
+        if self.empty or self.p["opacity"] <= 0:
+            return img
+        top = self.picture(t)
+        alpha = top.getchannel("A") if top.mode == "RGBA" else None
+        rgb = top.convert("RGB") if alpha is not None else top
+        region = img if self.full else img.crop(self.box)
+        weight, blend = self.weight, self.p["blend"]
+        if blend == "normal":
+            mask = alpha if weight is None else (weight if alpha is None else ImageChops.multiply(alpha, weight))
+            out = rgb if mask is None else Image.composite(rgb, region, mask)
         else:
-            out *= 1.0 - (src[..., 3] * weight)[..., None]
-            out += colour
+            if blend == "multiply":
+                if alpha is not None:  # see-through parts multiply by white: no change
+                    rgb = Image.composite(rgb, Image.new("RGB", rgb.size, (255, 255, 255)), alpha)
+                mixed = ImageChops.multiply(region, rgb)
+            else:
+                if alpha is not None:  # see-through parts add nothing
+                    rgb = ImageChops.multiply(rgb, Image.merge("RGB", (alpha, alpha, alpha)))
+                mixed = ImageChops.screen(region, rgb) if blend == "screen" else ImageChops.add(region, rgb)
+            out = mixed if weight is None else Image.composite(mixed, region, weight)
+        if self.full:
+            return out
+        img.paste(out, self.box[:2])
+        return img
 
     def close(self):
         if self.cursors:

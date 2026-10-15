@@ -117,7 +117,7 @@ def probe(path, overlay=False):
     # VP8/VP9 keep transparency in a side stream that only libvpx decodes
     vpx_alpha = codec in ("vp8", "vp9") and re.search(r"alpha_mode\s*:\s*1", err) is not None
     return {"w": w, "h": h, "fps": fps, "frames": frames, "seconds": round(frames / fps_value(fps), 3),
-            "matrix": matrix, "range": colour_range, "codec": codec,
+            "matrix": matrix, "range": colour_range, "codec": codec, "pix": pix,
             "alpha": bool(ALPHA_FORMATS.match(pix)) or vpx_alpha,
             "decoder": ("libvpx-vp9" if codec == "vp9" else "libvpx") if vpx_alpha else None}
 
@@ -186,20 +186,25 @@ def remux(src, dst, fast_start=True):
 
 
 class Encoder:
-    """Writes RGB uint8 frames into the delivery file `path`. close() finishes it; abort() leaves nothing."""
+    """Writes RGB uint8 frames into the delivery file `path`. close() finishes it; abort() leaves nothing.
+    A `part` (one piece of a video rendered in pieces) is written as is; join() makes the delivery file."""
 
-    def __init__(self, path, w, h, fps, crf=16, preset="slow"):
-        self.path, self.tmp = path, path + ".enc.mp4"
+    def __init__(self, path, w, h, fps, crf=16, preset="medium", threads=0, part=False):
+        self.path, self.part = path, part
+        self.tmp = path if part else path + ".enc.mp4"
         self.err = tempfile.TemporaryFile()
         args = [ffmpeg_exe(), "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
                 "-s", f"{w}x{h}", "-framerate", str(fps), "-i", "-", "-vf", TO_BT709, "-c:v", "libx264",
-                "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p", *BT709, *DROP_SEI, "-an", self.tmp]
+                "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p", *BT709, *DROP_SEI, "-an"] \
+            + (["-threads", str(threads)] if threads else []) + [self.tmp]
         self.proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=self.err,
                                      **NO_WINDOW)
 
     def write(self, frame):
+        """A frame: a uint8 RGB array, or an RGB Pillow image."""
+        data = frame.tobytes() if hasattr(frame, "getbands") else np.ascontiguousarray(frame, dtype=np.uint8).tobytes()
         try:
-            self.proc.stdin.write(np.ascontiguousarray(frame, dtype=np.uint8).tobytes())
+            self.proc.stdin.write(data)
         except (BrokenPipeError, OSError) as e:
             raise RuntimeError(f"ffmpeg stopped: {self._error()}") from e
 
@@ -216,10 +221,12 @@ class Encoder:
         try:
             if code != 0:
                 raise RuntimeError(f"ffmpeg failed ({code}): {self._error()}")
-            remux(self.tmp, self.path)
+            if not self.part:
+                remux(self.tmp, self.path)
         finally:
             self.err.close()
-            _remove(self.tmp)
+            if not self.part:
+                _remove(self.tmp)
 
     def abort(self):
         if self.proc.poll() is None:
@@ -235,6 +242,79 @@ def _remove(path):
         os.remove(path)
     except OSError:
         pass
+
+
+def join(parts, dst):
+    """`dst` = the pieces played one after another, copied (no encoding) into a clean delivery file."""
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+        for part in parts:
+            f.write("file '" + os.path.abspath(part).replace("\\", "/").replace("'", "'\\''") + "'\n")
+        listing = f.name
+    try:
+        run(["-y", "-f", "concat", "-safe", "0", "-i", listing, "-map", "0:v:0", "-c", "copy", *CLEAN,
+             "-movflags", "+faststart", dst])
+    finally:
+        _remove(listing)
+
+
+class ClipWriter:
+    """A small clip for the page's live preview: RGBA frames into WebM (VP9 keeps the transparency), or RGB
+    frames into H.264."""
+
+    def __init__(self, path, w, h, fps, alpha):
+        self.err = tempfile.TemporaryFile()
+        codec = (["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-deadline", "realtime",
+                  "-cpu-used", "8", "-b:v", "0", "-crf", "34", "-row-mt", "1"] if alpha else
+                 ["-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p", "-vf", TO_BT709])
+        args = [ffmpeg_exe(), "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgba" if alpha else "rgb24",
+                "-s", f"{w}x{h}", "-framerate", str(fps), "-i", "-", *codec, "-an", *CLEAN, path]
+        self.path = path
+        self.proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=self.err,
+                                     **NO_WINDOW)
+
+    def write(self, frame):
+        try:
+            self.proc.stdin.write(np.ascontiguousarray(frame, dtype=np.uint8).tobytes())
+        except (BrokenPipeError, OSError) as e:
+            self.err.seek(0)
+            raise RuntimeError(f"ffmpeg stopped: {_tail(self.err.read().decode('utf-8', 'replace'))}") from e
+
+    def close(self):
+        try:
+            self.proc.stdin.close()
+        except OSError:
+            pass
+        code = self.proc.wait()
+        self.err.seek(0)
+        message = _tail(self.err.read().decode("utf-8", "replace"))
+        self.err.close()
+        if code != 0:
+            _remove(self.path)
+            raise RuntimeError(f"ffmpeg failed ({code}): {message}")
+
+
+def plays_in_browser(info):
+    """Whether Edge/Chrome can play the file as it is (H.264 8-bit 4:2:0, or VP8/VP9 WebM)."""
+    return (info["codec"] == "h264" and info.get("pix") in ("yuv420p", "yuvj420p")) or info["codec"] in ("vp8", "vp9")
+
+
+def make_proxy(src, info, dst, width=1280):
+    """A light copy of a video for the page's live preview: VP9 WebM when it has transparency, else H.264.
+    Returns the file name written (dst with the right extension)."""
+    w = min(width, info["w"])
+    h = max(2, round(info["h"] * w / info["w"] / 2) * 2)
+    w -= w % 2
+    alpha = bool(info.get("alpha"))
+    out = os.path.splitext(dst)[0] + (".webm" if alpha else ".mp4")
+    args = ["-y"] + (["-c:v", info["decoder"]] if alpha and info.get("decoder") else []) + ["-i", src, "-map", "0:v:0"]
+    if alpha:
+        args += ["-vf", f"scale={w}:{h}:flags=area,format=yuva420p", "-c:v", "libvpx-vp9", "-auto-alt-ref", "0",
+                 "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "34", "-row-mt", "1"]
+    else:
+        args += ["-vf", _from_yuv(info, (w, h)) + ",format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
+                 "-crf", "24", "-pix_fmt", "yuv420p", *BT709, "-movflags", "+faststart"]
+    run(args + ["-an", *CLEAN, out], timeout=1800)
+    return out
 
 
 def repeat(src, dst, times, seconds=None, progress=None, cancelled=None):
