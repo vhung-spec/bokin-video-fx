@@ -13,10 +13,18 @@ Premiere Pro:
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
   khoanh cho kỹ.
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
-- **Hiệu ứng tạo sẵn**: tuyết, lá rơi, mưa, đom đóm / bụi sáng. App tự vẽ, chỉnh được mật độ, cỡ, gió…
+- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, lá rơi, đom đóm / bụi sáng. App tự vẽ, chỉnh được mật độ, cỡ, gió…
   - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
     dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt gần to và nhoè),
     màn mưa bay theo gió, hơi nước, nước bắn và gợn nước khi có mặt đất trong hình, chớp sáng.
+  - **Tuyết**: **Kiểu tuyết** (tuyết nhẹ, vừa, dày, bão tuyết, lấp lánh, bông to bay chậm) và **Hình bông tuyết** (tròn
+    mềm, tinh thể sáu cánh, tự nhiên). Chỉnh thêm: đung đưa, xoáy nhẹ, gió giật, bông to sát ống kính (nhoè), màn tuyết
+    mờ trắng xoá, lấp lánh, quầng sáng, màu bông ở gần và ở xa.
+  - **Nước trên kính**: kính mờ hơi nước làm nhoè cảnh bên ngoài, giọt nước đọng, giọt chảy xuống để lại vệt trong,
+    giọt mưa mới bám vào kính; trong mỗi giọt thấy cảnh lộn ngược như thật. Thường dùng cho ô cửa kính: thêm hiệu ứng,
+    rồi **✎ Vẽ vùng** khoanh đúng ô kính (khung cửa thì để ngoài). Muốn mưa rơi bên ngoài: thêm **Mưa** ở track dưới,
+    cũng khoanh vùng ô kính. Lúc phát chỉ xem gần đúng; độ nhoè và cảnh trong giọt nước thấy khi dừng hình và trong
+    video xuất ra.
 
 ## Cài đặt
 

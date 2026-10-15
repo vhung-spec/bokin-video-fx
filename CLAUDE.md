@@ -33,7 +33,12 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/library.py`: thư viện hiệu ứng dùng chung trong `%APPDATA%\Bokin\FX\library\<id>` (file gốc, ảnh nhỏ, bản nhẹ).
 - `fx/engine.py`: ghép một khung (video → vùng đứng yên → các clip theo track, mờ dần), kết xuất song song nhiều đoạn,
   khung chính xác cho trang (`Looks`), clip xem nhanh của hiệu ứng tạo sẵn (`fx_clip`), bản nhẹ của video gốc.
-- `fx/effects.py`: tuyết, lá, mưa, hạt sáng; `SCHEMA` là nguồn duy nhất của các thông số (trang đọc từ `/api/schema`).
+- `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), lá, hạt sáng, và danh sách `KINDS`
+  / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
+  kiểu có sẵn đặt nhiều thông số một lúc). `fx/snow.py`, `fx/rain.py`, `fx/glass.py`: tuyết, mưa, nước trên kính, mỗi
+  cái một file. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên
+  kính) đổi cả hình bên dưới: `apply()` cho video xuất và khung chính xác; trang chỉ phát `draw()` (phần phủ lên), nên
+  xem nhanh gần đúng và dừng hình thì hiện khung chính xác (`liveIncomplete`).
 - `fx/sprites.py`: hình hạt vẽ bằng mã. `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()` cho clip suốt video,
   `playing()` cho clip ngắn hơn).
 - `fx/video.py`: ffmpeg (bản đi kèm imageio-ffmpeg): đọc khung, ghi H.264, nối các đoạn bằng stream copy, bản nhẹ cho

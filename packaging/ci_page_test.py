@@ -175,6 +175,8 @@ def run(page, folder, edge):
     check("a double-click adds 5 s at the playhead", snow["start"] == 240 and snow["end"] == 360,
           str([snow["start"], snow["end"]]))
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
+    glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
+    check("the built-in effects offered", glass == ["snow", "rain", "glass", "leaves", "glow"], str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
     check("snow over the whole video, with its preview clip", True)

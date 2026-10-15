@@ -341,11 +341,13 @@ def render_part(folder, project, size, period, crf, preset, threads, start, end,
         scene.close()
 
 
-def workers(encoder_threads=True):
+def workers(encoder_threads=True, pixels=0):
     """Worker processes for a render: half the logical CPUs when the encoders need the rest, else all but one;
-    1 to 8."""
+    1 to 8, and at most 4 for frames bigger than 1440p (each worker holds a few full frames, more with water on
+    glass: about 0.6 GB at 4K)."""
     cpus = os.cpu_count() or 2
-    return max(1, min(8, cpus // 2 if encoder_threads else cpus - 1))
+    most = 4 if pixels > 2560 * 1440 else 8
+    return max(1, min(most, cpus // 2 if encoder_threads else cpus - 1))
 
 
 def _in_pieces(work, args, total, parts, progress=None, cancelled=None):
@@ -444,7 +446,7 @@ def render(folder, project, out_path, seconds=None, size=None, crf=16, preset="f
     info = project["video"]
     size = tuple(size or (info["w"], info["h"]))
     period = output_frames(info, seconds) if seconds else project_frames(project)
-    count = max(1, min(processes or workers(), period // 24))  # pieces of at least a second
+    count = max(1, min(processes or workers(pixels=size[0] * size[1]), period // 24))  # pieces of at least a second
     work = os.path.join(folder, "render-" + secrets.token_hex(3))
     os.makedirs(work)
     parts = [os.path.join(work, f"part-{i:02d}.mp4") for i in range(count)]
