@@ -14,6 +14,9 @@ Premiere Pro:
   khoanh cho kỹ.
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
 - **Hiệu ứng tạo sẵn**: tuyết, lá rơi, mưa, đom đóm / bụi sáng. App tự vẽ, chỉnh được mật độ, cỡ, gió…
+  - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
+    dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt gần to và nhoè),
+    màn mưa bay theo gió, hơi nước, nước bắn và gợn nước khi có mặt đất trong hình, chớp sáng.
 
 ## Cài đặt
 
