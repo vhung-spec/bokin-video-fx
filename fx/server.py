@@ -211,6 +211,7 @@ class Handler(BaseHTTPRequestHandler):
                                    "min_edge_fade": timeline.MIN_EDGE_FADE, "max_fade": timeline.MAX_FADE,
                                    "max_mix": timeline.MAX_MIX,
                                    "blend": {k: c.blend for k, c in effects.KINDS.items()},
+                                   "lens": {k: c.lens for k, c in effects.KINDS.items()},
                                    "max_clips": projects.MAX_LAYERS, "max_tracks": projects.MAX_TRACKS})
         if path == "/api/project":
             return self.send(200, self.project_view(projects.load(q.get("id"))))

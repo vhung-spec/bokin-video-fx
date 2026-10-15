@@ -20,25 +20,25 @@ from PIL import Image, ImageFilter
 from . import overlay, sprites
 
 
-def _num(key, label, value, lo=0, hi=100):
-    return {"key": key, "label": label, "type": "range", "min": lo, "max": hi, "value": value}
+# A parameter may also have a "group": the page shows a heading where the group changes (e.g. "Hạt", "Gió").
+def _num(key, label, value, lo=0, hi=100, **extra):
+    return {"key": key, "label": label, "type": "range", "min": lo, "max": hi, "value": value, **extra}
 
 
-def _choice(key, label, value, options, presets=None):
+def _choice(key, label, value, options, presets=None, **extra):
     return {"key": key, "label": label, "type": "choice", "value": value,
-            "options": [{"value": v, "label": t} for v, t in options], "presets": presets or {}}
+            "options": [{"value": v, "label": t} for v, t in options], "presets": presets or {}, **extra}
 
 
-def _colour(key, label, value):
-    return {"key": key, "label": label, "type": "color", "value": value}
+def _colour(key, label, value, **extra):
+    return {"key": key, "label": label, "type": "color", "value": value, **extra}
+
+
+def _toggle(key, label, value=False, **extra):
+    return {"key": key, "label": label, "type": "toggle", "value": value, **extra}
 
 
 SCHEMA = {
-    "snow": {"label": "Tuyết rơi", "params": [
-        _num("amount", "Mật độ", 45), _num("size", "Cỡ bông", 40), _num("speed", "Tốc độ rơi", 35),
-        _num("wind", "Gió (trái ← → phải)", 10, -100, 100), _num("sway", "Đung đưa", 40),
-        _num("depth", "Chiều sâu (xa nhỏ, gần to)", 60), _num("blur", "Nhoè bông ở gần", 40),
-        _num("opacity", "Độ đậm", 85), _colour("color", "Màu", "#ffffff")]},
     "leaves": {"label": "Lá rơi", "params": [
         _choice("style", "Kiểu", "autumn", [("autumn", "Lá thu"), ("green", "Lá xanh"),
                                              ("petal", "Cánh hoa anh đào")]),
@@ -46,10 +46,6 @@ SCHEMA = {
         _num("wind", "Gió (trái ← → phải)", 15, -100, 100), _num("spin", "Xoay, lật", 50),
         _num("sway", "Đung đưa", 50), _num("depth", "Chiều sâu (xa nhỏ, gần to)", 50),
         _num("blur", "Nhoè lá ở gần", 30), _num("opacity", "Độ đậm", 100)]},
-    "rain": {"label": "Mưa", "params": [
-        _num("amount", "Mật độ", 45), _num("speed", "Tốc độ rơi", 60), _num("length", "Độ dài vệt", 50),
-        _num("size", "Độ dày hạt", 35), _num("wind", "Gió (nghiêng)", 10, -100, 100),
-        _num("depth", "Chiều sâu", 50), _num("opacity", "Độ đậm", 45), _colour("color", "Màu", "#d4dce6")]},
     "glow": {"label": "Hạt sáng", "params": [
         _choice("style", "Kiểu", "firefly", [("firefly", "Đom đóm"), ("dust", "Bụi sáng lơ lửng")],
                 presets={"firefly": {"color": "#f2ff8c"}, "dust": {"color": "#fff1d6"}}),
@@ -60,6 +56,7 @@ SCHEMA = {
 
 
 SCHEMA["file"] = overlay.SCHEMA  # a layer from an outside file (video or picture)
+# (snow, rain and water on glass: their own modules, added at the end)
 
 
 def defaults(kind):
@@ -195,6 +192,10 @@ class Canvas:
 class Effect:
     blend = "over"
     CAP = 1000  # particles with fixed random draws; how many are used follows the "amount" slider
+    VERSION = 1  # raised when the picture an effect draws changes (its preview clips are made again)
+    # lens: the effect also changes the picture under it (blur, refraction), in apply(); draw() is then only what
+    # it lays over the picture, which is all the page's live preview shows
+    lens = False
 
     def __init__(self, params, seed, frames, fps, w, h):
         self.p, self.seed = params, int(seed)
@@ -265,52 +266,6 @@ class Falling(Effect):
         s = np.mod(self.s0 + self.k * self.len * tau, self.len)
         d = s - self.extra
         return self.xe + d * self.sin, -self.my + d * self.cos, d >= 0
-
-
-class Snow(Falling):
-    CAP = 4000
-
-    def __init__(self, *a):
-        super().__init__(*a)
-        p, px = self.p, self.px
-        u = self.rng.random((self.CAP, 10))
-        z = u[:, 0] ** 1.6
-        ds = p["depth"] / 100
-        size_k = (1 - ds) + ds * (0.3 + 2.2 * z ** 1.5)
-        speed_k = (1 - ds) + ds * (0.45 + 1.3 * z)
-        radius = _lerp(0.9, 4.2, p["size"] / 100) * size_k * (0.75 + 0.5 * u[:, 4])
-        defocus = p["blur"] / 100 * np.clip((z - 0.55) / 0.45, 0, 1) ** 1.5
-        soft = np.maximum(0.75, 0.3 * radius) + defocus * radius * 2.5
-        radius = radius * (1 + 0.8 * defocus)
-        opacity = p["opacity"] / 100 * _lerp(0.5, 0.95, z) * (0.8 + 0.2 * u[:, 8]) * (1 - 0.5 * defocus)
-        self.angle = math.radians(45) * p["wind"] / 100
-        angle = self.angle + np.radians(4) * (u[:, 9] - 0.5)
-        sway = p["sway"] / 100 * _lerp(0.004, 0.025, u[:, 5]) * (0.5 + 0.7 * z)
-        speed = _lerp(0.12, 0.85, p["speed"] / 100) * speed_k * (0.85 + 0.3 * u[:, 3])
-        reach_px = float((radius + soft).max()) * px + 2
-        margin_y = reach_px / self.h + 0.25 * float(speed.max()) / self.fps
-        share = self.paths(u[:, 1], u[:, 2], speed, angle, margin_y, margin_y + float(sway.max()) + 0.03)
-        wanted = p["amount"] / 100 * 900 * self.aspect / (16 / 9)
-        kept = self.choose(share, wanted, {"z": z, "radius": radius, "soft": soft, "opacity": opacity,
-                                           "sway": sway, "m": self.cycles(_lerp(0.15, 0.5, u[:, 6])),
-                                           "phi": u[:, 7] * 2 * math.pi})
-        self.__dict__.update(kept)
-        self.gusts(0.02 * abs(p["wind"]) / 100 + 0.012 * p["sway"] / 100)
-        streak = 0.5 * self.speed * self.h / self.fps  # a 180-degree shutter: half a frame of motion
-        self.keys = [(sprites.bucket(r * px), sprites.bucket(s * px), sprites.bucket(st, floor=0.5))
-                     for r, s, st in zip(self.radius, self.soft, streak)]
-        self.colour = _rgb(p["color"])
-        self.cache = sprites.SpriteCache(lambda key, fx, fy: sprites.dot(key[0], key[1], key[2], self.angle, fx, fy))
-
-    def draw(self, t, canvas, mask):
-        x, y, on = self.where(t)
-        tau = self.tau(t)
-        x = x + self.sway * np.sin(2 * math.pi * self.m * tau + self.phi) + self.gust_at(tau) * (0.3 + 0.7 * self.z)
-        xs, ys = x * self.h, y * self.h
-        for i in np.flatnonzero(on & (xs > -60) & (xs < self.w + 60)):
-            ix, iy = math.floor(xs[i]), math.floor(ys[i])
-            cover, x0, y0 = self.cache.get(self.keys[i], xs[i] - ix, ys[i] - iy)
-            canvas.over(ix + x0, iy + y0, cover, self.colour, self.opacity[i], mask)
 
 
 _LEAVES = {}
@@ -411,42 +366,6 @@ class Leaves(Falling):
         return x0, y0, arr
 
 
-class Rain(Falling):
-    CAP = 6000
-
-    def __init__(self, *a):
-        super().__init__(*a)
-        p, px = self.p, self.px
-        u = self.rng.random((self.CAP, 8))
-        z = u[:, 0]
-        ds = p["depth"] / 100
-        speed = _lerp(1.4, 4.2, p["speed"] / 100) * ((1 - ds) + ds * (0.55 + 0.9 * z)) * (0.9 + 0.2 * u[:, 3])
-        self.angle = math.radians(30) * p["wind"] / 100
-        angle = self.angle + np.radians(3) * (u[:, 7] - 0.5)
-        width = _lerp(0.6, 1.8, p["size"] / 100) * ((1 - ds) + ds * (0.5 + z)) * px
-        shutter = _lerp(0.25, 1.1, p["length"] / 100)
-        longest = shutter * float(speed.max()) * 1.3 / self.fps
-        share = self.paths(u[:, 1], u[:, 2], speed, angle, longest + 0.02, longest + 0.04)
-        wanted = p["amount"] / 100 * 1400 * self.aspect / (16 / 9)
-        opacity = np.minimum(1.0, p["opacity"] / 100 * _lerp(0.25, 0.85, z) * (0.75 + 0.5 * u[:, 5]))
-        kept = self.choose(share, wanted, {"z": z, "width": width, "opacity": opacity})
-        self.__dict__.update(kept)
-        self.gusts(0.006 * abs(p["wind"]) / 100)
-        length = shutter * self.speed * self.h / self.fps
-        self.keys = [(sprites.bucket(ln, 1.1, 1.0), sprites.bucket(wd, 1.1, 0.3)) for ln, wd in zip(length, self.width)]
-        self.colour = _rgb(p["color"])
-        self.cache = sprites.SpriteCache(lambda key, fx, fy: sprites.streak(key[0], key[1], self.angle, fx, fy))
-
-    def draw(self, t, canvas, mask):
-        x, y, on = self.where(t)
-        x = x + self.gust_at(self.tau(t)) * (0.3 + 0.7 * self.z)
-        xs, ys = x * self.h, y * self.h
-        for i in np.flatnonzero(on & (xs > -100) & (xs < self.w + 100)):
-            ix, iy = math.floor(xs[i]), math.floor(ys[i])
-            cover, x0, y0 = self.cache.get(self.keys[i], xs[i] - ix, ys[i] - iy)
-            canvas.over(ix + x0, iy + y0, cover, self.colour, self.opacity[i], mask)
-
-
 class Glow(Effect):
     """Points of light that wander and twinkle in place: fireflies, or dust catching the light."""
     blend = "screen"
@@ -500,7 +419,10 @@ class Glow(Effect):
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)
 
 
-KINDS = {"snow": Snow, "leaves": Leaves, "rain": Rain, "glow": Glow}
+from . import glass, rain, snow  # (here: they build on the classes above)
+
+SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, **SCHEMA}
+KINDS = {"snow": snow.Snow, "leaves": Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass}
 
 
 def make(kind, params, seed, frames, fps, w, h):

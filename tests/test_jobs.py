@@ -4,7 +4,7 @@ import time
 import unittest
 
 from tests import helpers
-from fx import jobs, library, projects
+from fx import jobs, library, projects, timeline
 
 
 def fake(j, **job):
@@ -90,6 +90,38 @@ class Export(unittest.TestCase):
         self.assertTrue(j._export(job))
         self.assertTrue(library.reversed_copy(library.load(item["id"])))
         self.assertEqual(job["message"], "")
+
+    def test_copies_for_clips_ticked_meanwhile_and_none_past_the_end(self):
+        """A clip set to play backwards while the export makes the first copies gets its copy too; a clip past
+        the video's end (never drawn) gets none."""
+        from unittest import mock
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "jobsrev2.mp4"), 96, 54, 12)
+        project = projects.create(src, "jobsrev2.mp4")
+        first = library.add(helpers.make_loop(os.path.join(helpers.ROOT, "jr1.mp4"), 64, 36, 24), "jr1.mp4")
+        second = library.add(helpers.make_loop(os.path.join(helpers.ROOT, "jr2.mp4"), 64, 36, 24), "jr2.mp4")
+        late = library.add(helpers.make_loop(os.path.join(helpers.ROOT, "jr3.mp4"), 64, 36, 24), "jr3.mp4")
+        tid = project["tracks"][0]["id"]
+        total = timeline.project_frames(project)
+        clip = {"kind": "file", "track": tid, "params": {"reverse": True}}
+        projects.apply(project, {"layers": [dict(clip, id="filej1", lib=first["id"], start=0, end=24),
+                                            dict(clip, id="filej2", lib=second["id"], start=24, end=48,
+                                                 params={}),
+                                            dict(clip, id="filej3", lib=late["id"], start=total, end=total + 24)]})
+        real = library.make_reverse
+
+        def tick_the_second(iid, **kw):  # the page ticks "Phát ngược" on the second clip meanwhile
+            p = projects.load(project["id"])
+            layers = [dict(lay, params=dict(lay["params"], reverse=True)) if lay["id"] == "filej2" else lay
+                      for lay in p["layers"]]
+            projects.apply(p, {"layers": layers})
+            return real(iid, **kw)
+        j = jobs.Jobs()
+        j.queues = {"export": queue.Queue(), "prep": queue.Queue()}  # nothing is run
+        job = fake(j, id="ex2", kind="export", project=project["id"])
+        with mock.patch.object(library, "make_reverse", side_effect=tick_the_second):
+            self.assertTrue(j._export(job))
+        self.assertTrue(library.reversed_copy(library.load(second["id"])))
+        self.assertIsNone(library.reversed_copy(library.load(late["id"])))
         self.assertTrue(os.path.exists(os.path.join(os.environ["BOKIN_FX_OUT"], job["output"])))
 
 

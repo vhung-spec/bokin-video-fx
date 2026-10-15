@@ -151,9 +151,13 @@ class Jobs:
         return report
 
     def _export(self, job):
-        if not self._reversed_copies(job):
-            return False
-        project = projects.load(job["project"])  # (as it is now: the page may have changed it meanwhile)
+        while True:  # the copies first; the page may change the project meanwhile: until a read needs none
+            project = projects.load(job["project"])
+            made = self._reversed_copies(job, project)
+            if made is None:
+                return False
+            if not made:
+                break
         folder = projects.folder(job["project"])
         info = project["video"]
         total = timeline.project_frames(project)
@@ -195,14 +199,16 @@ class Jobs:
         job["output"] = name
         return True
 
-    def _reversed_copies(self, job):
-        """Before an export: the played-backwards copies its clips need (made once, kept in the library).
-        False if cancelled."""
-        project = projects.load(job["project"])
+    def _reversed_copies(self, job, project):
+        """Before an export: the played-backwards copies the clips of `project` need (made once, kept in the
+        library). How many it made; None if cancelled."""
+        total, made = timeline.project_frames(project), 0
         for lay in engine.clip_order(project):
             lib = (lay.get("file") or {}).get("lib")
             if lay["kind"] != "file" or not lib or not (lay.get("params") or {}).get("reverse"):
                 continue
+            if int(lay.get("start", 0)) >= total:
+                continue  # past the video's end: not in it
             try:
                 if library.reversed_copy(library.load(lib)):
                     continue
@@ -210,17 +216,18 @@ class Jobs:
                 continue  # gone from the library: the clip draws nothing
             job["message"] = "Đang chuẩn bị bản phát ngược…"
             try:
-                made = library.make_reverse(lib, cancelled=lambda: job["cancel"], progress=self._progress(job))
+                item = library.make_reverse(lib, cancelled=lambda: job["cancel"], progress=self._progress(job))
             except library.LibraryError:
-                made = True
+                item = False  # gone from the library meanwhile: the clip draws nothing
             except Exception as e:
                 traceback.print_exc()
                 raise projects.UserError(f"Không làm được bản phát ngược của clip \"{lay.get('name', '')}\". "
                                          "Hãy bỏ ô Phát ngược của clip đó rồi xuất lại.") from e
-            if made is None and job["cancel"]:
-                return False
+            if job["cancel"]:
+                return None
+            made += bool(item)
             job["message"], job["progress"], job["started"] = "", 0.0, time.time()  # (the time left: rendering only)
-        return True
+        return made
 
     def _librev(self, job):
         return library.make_reverse(job["item"], cancelled=lambda: job["cancel"], progress=self._progress(job)) is not None

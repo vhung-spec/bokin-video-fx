@@ -235,6 +235,12 @@ class Scene:
             for drawer, area, gain in run:
                 if gain <= 0:
                     continue
+                if drawer.lens:  # it changes the picture under it: what was drawn before goes on first
+                    if mode:
+                        self.canvas.flush(picture, mode)
+                        mode = None
+                    drawer.apply(t, picture, area, gain)
+                    continue
                 if mode and (drawer.blend != mode or gain < 1):
                     self.canvas.flush(picture, mode)
                 mode = drawer.blend
@@ -271,8 +277,11 @@ class Scene:
         if isinstance(drawer, overlay.Overlay):
             return drawer.draw(t, img.copy())
         picture = np.asarray(img, np.float32) * (1 / 255.0)
-        drawer.draw(t, self.canvas, area)
-        self.canvas.flush(picture, drawer.blend)
+        if drawer.lens:
+            drawer.apply(t, picture, area, 1.0)
+        else:
+            drawer.draw(t, self.canvas, area)
+            self.canvas.flush(picture, drawer.blend)
         np.clip(picture, 0.0, 1.0, out=picture)
         return Image.fromarray((picture * 255.0 + 0.5).astype(np.uint8))
 
@@ -462,7 +471,8 @@ def fx_clip_name(project, layer):
     place on the timeline: the effect is drawn over the whole length), so the two halves of a cut clip share it."""
     info = project["video"]
     key = json.dumps([layer["kind"], layer.get("params"), layer.get("seed", 1), project_frames(project), info["fps"],
-                      fx_clip_size(info)], sort_keys=True)
+                      fx_clip_size(info)] + [effects.KINDS[layer["kind"]].VERSION] * (
+                          effects.KINDS[layer["kind"]].VERSION > 1), sort_keys=True)  # (version 1: as before)
     alpha = effects.KINDS[layer["kind"]].blend != "screen"
     return f"fx-{hashlib.sha1(key.encode()).hexdigest()[:12]}" + (".webm" if alpha else ".mp4")
 
