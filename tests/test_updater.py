@@ -107,16 +107,21 @@ class Updates(unittest.TestCase):
             time.sleep(0.1)
         first = u.state["checked"]
         self.assertIsNotNone(first)
-        u.check_soon()  # a moment after the first look: nothing
+        self.assertFalse(u.check_soon())  # a moment after the first look: nothing
         self.assertFalse(u.wake.is_set())
         u.state["checked"] = first - 120  # as if two minutes had passed
         FakeGitHub.releases = [self.release("fx-v1.0.6")]
-        u.check_soon()
+        self.assertTrue(u.check_soon())
         for _ in range(100):
             if u.state["ready"]:
                 break
             time.sleep(0.1)
         self.assertEqual(u.state["available"], "1.0.6")
+        self.assertIsNone(u.state["downloading"])
+        self.assertGreater(u.state["checked"], first - 120)  # set once the installer is in, not before
+
+    def test_every_five_minutes(self):
+        self.assertEqual(updater.CHECK_EVERY, 5 * 60)
 
 
 if __name__ == "__main__":

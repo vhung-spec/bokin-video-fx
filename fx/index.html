@@ -2420,16 +2420,20 @@ $("#ver").onclick = async () => {  // look for a newer version now
   try {
     const before = await post("/api/update/check", {});
     if (before.current && !/^\d/.test(before.current)) return toast("Bản chạy từ mã nguồn không tự cập nhật.");
+    const said = up => {  // what the last look found
+      if (up.ready) return toast(`Có bản mới ${up.available}: bấm "Cập nhật ngay" ở góc trên.`, false, 8000);
+      if (up.downloading) return toast(`Đang tải bản mới ${up.downloading}. Nút "Cập nhật ngay" sẽ hiện khi xong.`, false, 8000);
+      if (up.error) return toast("Chưa kiểm tra được (mạng hoặc GitHub bận). App sẽ tự thử lại sau 5 phút.", true);
+      toast(`Bạn đang dùng bản mới nhất (${up.current}).`);
+    };
+    if (!before.started) return said(before);  // looked a moment ago, or downloading now
     toast("Đang kiểm tra bản mới…", false, 8000);
     for (let i = 0; i < 20; i++) {
       await new Promise(r => setTimeout(r, 1500));
       const up = (await get("/api/state")).update || {};
-      if (up.ready) return toast(`Có bản mới ${up.available}: bấm "Cập nhật ngay" ở góc trên.`, false, 8000);
-      if ((up.checked || 0) > (before.checked || 0)) {
-        return up.error ? toast("Chưa kiểm tra được (mạng hoặc GitHub bận). Thử lại sau.", true) : toast(`Bạn đang dùng bản mới nhất (${up.current}).`);
-      }
+      if (up.ready || up.downloading || (up.checked || 0) > (before.checked || 0)) return said(up);
     }
-    toast("Bản mới đang được tải về. Nút \"Cập nhật ngay\" sẽ hiện khi xong.", false, 8000);
+    toast("GitHub chưa trả lời. App sẽ tự thử lại sau 5 phút.", true);
   } catch (e) { fail(e); }
 };
 $("#updateBtn").onclick = async () => {

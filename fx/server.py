@@ -458,9 +458,8 @@ class Handler(BaseHTTPRequestHandler):
                 open_in_explorer(paths.out_dir())
             return self.send(200, {"ok": True})
         if path == "/api/update/check":  # look for a newer version now (the window opened, or the version was clicked)
-            if app.updater:
-                app.updater.check_soon()
-            return self.send(200, app.state()["update"])
+            started = bool(app.updater and app.updater.check_soon())
+            return self.send(200, {**app.state()["update"], "started": started})
         if path == "/api/update":
             up = app.updater
             if not up or not up.state.get("ready") or not up.installer or not os.path.exists(up.installer):

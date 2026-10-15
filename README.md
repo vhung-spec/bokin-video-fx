@@ -21,7 +21,7 @@ Premiere Pro:
 2. Bấm đúp vào file để cài. Không cần quyền quản trị.
 3. Mở **Bokin FX** từ menu Start hoặc biểu tượng ngoài màn hình. App mở trong một cửa sổ riêng (Edge hoặc Chrome).
 
-App tự kiểm tra bản mới khi mở cửa sổ và mỗi 30 phút. Muốn kiểm tra ngay thì bấm vào dòng **phiên bản** ở góc
+App tự kiểm tra bản mới khi mở cửa sổ và mỗi 5 phút. Muốn kiểm tra ngay thì bấm vào dòng **phiên bản** ở góc
 dưới. Khi có bản mới, góc trên có nút **Cập nhật ngay**. Nếu không bấm, bản mới sẽ được cài lúc app tự đóng.
 
 ## Màn hình
@@ -43,7 +43,7 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 4. **Thêm vào video**: kéo hiệu ứng từ Thư viện xuống một track trên timeline. Clip chạy từ chỗ thả đến hết video.
    Bấm đúp vào hiệu ứng để thêm suốt video.
 5. **Chỉnh clip**: bấm vào clip trên timeline, rồi chỉnh ở **Bảng chỉnh hiệu ứng**:
-   - **Thời gian**: bắt đầu, kết thúc, mờ dần vào/ra.
+   - **Thời gian**: bắt đầu, kết thúc, mờ dần vào/ra. Gõ số giây (`2.5` hay `2,5` đều được), rồi bấm Enter.
    - **Hoà trộn**: video hiệu ứng trên nền đen dùng **Screen**. File nền trong suốt dùng **Bình thường**. App tự chọn
      khi bạn thêm file.
    - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài, chọn clip là trên màn hình hiện một khung trắng: kéo bên trong
@@ -66,7 +66,7 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 |---|---|
 | Di chuyển clip | Kéo clip. Kéo lên hàng **+ track mới** để tạo track mới |
 | Cắt bớt đầu / cuối | Kéo mép trái / phải của clip |
-| Cắt đôi | Chọn dao cắt ✂ (phím `C`) rồi bấm vào clip, hoặc `Ctrl+K` để cắt tại đầu phát |
+| Cắt đôi | Chọn dao cắt ✂ (phím `C`) rồi bấm vào clip. Hoặc `Ctrl+K`: cắt clip đang chọn tại đầu phát (không chọn clip nào thì cắt mọi clip ở đầu phát). Không cắt ở chỗ clip đang mờ dần |
 | Nhân đôi | Giữ `Alt` rồi kéo clip, hoặc bấm chuột phải vào clip |
 | Xoá clip | Chọn clip rồi bấm `Delete` |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Shift+Z` |
@@ -89,7 +89,10 @@ hiện trong cột đó, hình không bị thu nhỏ.
 | Thêm / bớt | **＋ Thêm**, **－ Bớt** (phím `X` để đổi) |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` |
 | Phóng to, kéo hình | Lăn chuột trên hình để phóng to. Giữ chuột phải (hoặc phím cách) rồi kéo |
+| Xoá cả vùng | **Xoá vùng** (vùng đứng yên, tiền cảnh) hoặc **Cả khung hình** (vùng của clip). Bấm `Ctrl+Z` để lấy lại |
 | Xong | Bấm **Xong** hoặc `Esc`. Vùng của clip vẫn hiện bằng viền xanh để bạn kéo clip vào đúng chỗ (tắt bằng ô **Hiện vùng của clip**) |
+
+Vùng của một clip lúc đầu là cả khung hình. Nét tô (hoặc vùng khoanh) đầu tiên thay cả khung hình bằng chỗ bạn tô.
 
 ### Phím tắt khác
 

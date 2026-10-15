@@ -1,8 +1,9 @@
 """Self-update from this repository's GitHub releases (a public repository: no login, no key).
 
 A release is tagged fx-v<version> and carries the installer BokinFX-Setup-<version>.exe; GitHub Actions only
-publishes one after building, installing and testing it. AutoUpdate looks when the app starts, every 30 minutes,
-and when the page asks (each time its window opens, or the version is clicked),
+publishes one after building, installing and testing it. AutoUpdate looks when the app starts, every 5 minutes
+(12 requests an hour, well inside GitHub's 60 for a computer without a login), and when the page asks (each time its
+window opens, or the version is clicked),
 fetches a newer installer in the background and keeps it only if its size and SHA-256 are the ones GitHub lists for
 the file (the asset's "digest", else the "SHA-256:" line the workflow writes into the release notes). A release
 whose file cannot be checked is never used.
@@ -24,7 +25,7 @@ import urllib.request
 RELEASES = "https://api.github.com/repos/vhung-spec/bokin-video-fx/releases?per_page=50"
 TAG = "fx-v"
 INSTALLER = re.compile(r"^BokinFX-Setup-[0-9.]+\.exe$")
-CHECK_EVERY = 30 * 60
+CHECK_EVERY = 5 * 60
 SOONEST = 60  # seconds between two checks the page asks for
 
 Release = collections.namedtuple("Release", "version numbers url name size sha256")
@@ -118,7 +119,8 @@ class AutoUpdate:
     def __init__(self, current, folder, every=CHECK_EVERY):
         self.numbers, self.folder, self.every = parse_version(current), folder, every
         self.installer = None
-        self.state = {"current": current, "available": None, "ready": False, "error": None, "checked": None}
+        self.state = {"current": current, "available": None, "ready": False, "error": None, "checked": None,
+                      "downloading": None}
         self.wake = threading.Event()
 
     def start(self):
@@ -134,15 +136,18 @@ class AutoUpdate:
             self.wake.clear()
 
     def check_soon(self):
-        """Look again now (the page asked), unless that was done a moment ago."""
-        if time.time() - (self.state.get("checked") or 0) > SOONEST:
-            self.wake.set()
+        """Look again now (the page asked), unless that was done a moment ago. True if a look was started."""
+        if self.state.get("downloading") or time.time() - (self.state.get("checked") or 0) <= SOONEST:
+            return False
+        self.wake.set()
+        return True
 
     def check(self):
+        """One look; "checked" is set once it is over (the installer downloaded too), so the page can tell."""
         try:
             release = latest()
-            self.state["checked"] = time.time()
             if release and release.numbers > self.numbers:
+                self.state["downloading"] = release.version
                 installer = fetch(release, self.folder)
                 self.installer = installer
                 self.state.update(available=release.version, ready=True)
@@ -150,6 +155,8 @@ class AutoUpdate:
             self.state["error"] = None
         except Exception as e:  # noqa: BLE001 - offline or GitHub busy: next time
             self.state["error"] = str(e)[:200]
+        finally:
+            self.state.update(downloading=None, checked=time.time())
 
     def run_installer(self, restart):
         """Start the verified installer on its own, silently (it closes this app). False if there is none."""
