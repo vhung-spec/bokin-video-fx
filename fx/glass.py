@@ -29,11 +29,14 @@ LOOKS = {
                "size": 50, "speed": 35, "hits": 12, "rim": 55},
     "storm": {"haze": 30, "blur": 45, "uneven": 35, "refog": 4, "beads": 55, "bead_size": 50, "drops": 75,
               "size": 60, "speed": 70, "wiggle": 55, "hits": 85, "highlight": 60},
+    "clear": {"haze": 12, "blur": 80, "uneven": 20, "refog": 5, "beads": 65, "bead_size": 55, "drops": 40,
+              "size": 55, "speed": 45, "hits": 45, "refraction": 60, "highlight": 60, "rim": 55},
 }
 
 SCHEMA = {"label": "Nước trên kính", "params": [
     _choice("look", "Kiểu", "rain", [("rain", "Mưa trên kính"), ("mist", "Hơi nước nhẹ"),
-                                    ("steamy", "Kính đọng nhiều hơi nước"), ("storm", "Mưa to, nước chảy nhiều")],
+                                    ("steamy", "Kính đọng nhiều hơi nước"), ("storm", "Mưa to, nước chảy nhiều"),
+                                    ("clear", "Kính trong, giọt mưa đọng")],
             presets={k: {**DEFAULTS, **v} for k, v in LOOKS.items()}, group="Kiểu"),
     _num("haze", "Hơi nước (kính mờ)", 45, group="Hơi nước"),
     _num("blur", "Nhoè cảnh sau kính", 50, group="Hơi nước"),
@@ -117,26 +120,32 @@ class Glass(Effect):
 
     # --- what stays: the fog and the beads -------------------------------------------------------------------
 
-    def _noise(self, g, cells):
-        """Smooth noise 0..1 with `cells` cells per frame height, the same at any frame size."""
+    def _noise(self, g, cells, size=None):
+        """Smooth noise 0..1 with `cells` cells per frame height, the same at any frame size (made at `size`, the
+        frame's by default)."""
         nx = int(math.ceil(cells * self.aspect)) + 3
         grid = g.random((int(cells) + 3, nx)).astype(np.float32)
-        im = Image.fromarray(grid, "F").resize((self.w, self.h), Image.Resampling.BICUBIC,
+        im = Image.fromarray(grid, "F").resize(size or (self.w, self.h), Image.Resampling.BICUBIC,
                                                 box=(1, 1, 1 + cells * self.aspect, 1 + cells))
-        return np.asarray(im, np.float32)
+        return np.array(im, np.float32)
 
     def _fog_map(self):
         """How fogged the glass is at each pixel (0..1) before drops and trails clear it."""
         p = self.p
         g = self._rng(1)
-        n = 0.55 * self._noise(g, 2.5) + 0.3 * self._noise(g, 6) + 0.15 * self._noise(g, 14) - 0.5
-        self.grain = self._noise(g, 400)  # the fine texture of condensation
-        self.mottle = self._noise(g, 120)  # where a trail fogs over first
-        self.clusters = 0.6 * self._noise(g, 4) + 0.4 * self._noise(g, 11) - 0.5  # where beads gather
-        k = p["uneven"] / 100 * 3.0
-        rows = np.linspace(0.9, 1.12, self.h, dtype=np.float32)[:, None]  # a little thicker low on the glass
-        fog = p["haze"] / 100 * np.clip(1 + k * n, 0.08, 1.9) * rows * (0.95 + 0.1 * self.grain)
-        return np.clip(fog, 0.0, 1.0).astype(np.float32)
+        lo_h = min(self.h, 270)  # the smooth parts are made small, then enlarged once
+        self.lo = lo = (max(1, round(lo_h * self.aspect)), lo_h)
+        n = 0.55 * self._noise(g, 2.5, lo) + 0.3 * self._noise(g, 6, lo) + 0.15 * self._noise(g, 14, lo) - 0.5
+        grain = self._noise(g, 400)  # the fine texture of condensation
+        self.mottle = self._noise(g, 120).astype(np.float16)  # where a trail fogs over first
+        self.clusters = 0.6 * self._noise(g, 4, lo) + 0.4 * self._noise(g, 11, lo) - 0.5  # where beads gather
+        shape = np.clip(1 + p["uneven"] / 100 * 3.0 * n, 0.08, 1.9)
+        fog = np.array(Image.fromarray(shape, "F").resize((self.w, self.h), Image.Resampling.BICUBIC), np.float32)
+        fog *= np.linspace(0.9, 1.12, self.h, dtype=np.float32)[:, None] * (p["haze"] / 100)  # thicker low down
+        grain *= 0.1
+        grain += 0.95
+        fog *= grain
+        return np.clip(fog, 0.0, 1.0, out=fog)
 
     def _beads(self):
         """The beads that stay on the glass: big, middle and small ones, each size on its own grid of cells with at
@@ -157,7 +166,9 @@ class Glass(Effect):
             cx = (gx * cpx + m + u[..., 1] * np.maximum(cpx - 2 * m, 0)).ravel()
             cy = (gy * cpx + m + u[..., 2] * np.maximum(cpx - 2 * m, 0)).ravel()
             r, m = r.ravel(), m.ravel()
-            here = self.clusters[np.clip(cy.astype(int), 0, h - 1), np.clip(cx.astype(int), 0, self.w - 1)]
+            lw, lh = self.lo
+            here = self.clusters[np.clip((cy * lh / h).astype(int), 0, lh - 1),
+                                 np.clip((cx * lw / self.w).astype(int), 0, lw - 1)]
             kept = (cx < self.w + m) & (cy < h + m) & (
                 u[..., 3].ravel() < amount * keep * np.clip(1 + 4.0 * here, 0.1, 1.8))
             for big in levels:  # not touching a bigger bead
@@ -269,13 +280,13 @@ class Glass(Effect):
         u = uv[:n]
         R = _lerp(4.0, 15.0, size) * (0.75 + 0.5 * u[..., 0]) * px
         Tc = T[:, None]
-        t_grow = _lerp(0.5, 1.1, u[..., 4])
-        t_hold = _lerp(0.3, 2.5, u[..., 5])
+        # seconds: growing, holding, running; the rest of the cycle it rests, then shrinks away (all within it)
         t_fade = np.minimum(0.6, 0.12 * Tc)
+        t_grow = np.minimum(_lerp(0.5, 1.1, u[..., 4]), 0.2 * Tc)
+        room = 0.97 * Tc - t_grow - t_fade
+        t_hold = np.minimum(_lerp(0.3, 2.5, u[..., 5]), 0.35 * room)
         v_avg = _lerp(30.0, 240.0, speed) * (0.7 + 0.6 * u[..., 6]) * px
         L = _lerp(0.12, 1.25, u[..., 3]) * h
-        room = np.maximum(Tc - t_grow - t_fade - 0.1, 0.4)
-        t_hold = np.minimum(t_hold, 0.35 * room)
         L = np.minimum(L, v_avg * (room - t_hold))
         t_run = L / v_avg
         self.r_R = R
@@ -617,7 +628,10 @@ class Glass(Effect):
                     c += alpha[:, None]
                 ca = ca * (1 - alpha) + alpha
             rgb[yy, xx], a[yy, xx] = c, ca
-        canvas.over_rgba(box[0], box[1], rgb * self.opacity, a * self.opacity, mask)
+        if self.opacity < 1:
+            rgb *= self.opacity
+            a *= self.opacity
+        canvas.over_rgba(box[0], box[1], rgb, a, mask)
 
     def apply(self, t, picture, mask, gain):
         """The whole effect on `picture` (float32 RGB 0..1, changed in place) where `mask` (0..1, None: everywhere)
@@ -630,8 +644,6 @@ class Glass(Effect):
         bw, bh = x1 - x0, y1 - y0
         self._fields(t)
         pic = picture[y0:y1, x0:x1]
-        fog, veil = self._veil(box, False)
-        kk = np.float32(k) if mask is None else k * mask[y0:y1, x0:x1]
         # the picture and its halves: the scene squeezed into a drop is read from the level that fits
         levels = [pic]
         if bw >= 2 and bh >= 2:
@@ -643,54 +655,67 @@ class Glass(Effect):
         ims = [None, Image.fromarray((np.clip(levels[1], 0, 1) * 255 + 0.5).astype(np.uint8))]
         while len(ims) < LEVELS:
             ims.append(ims[-1].reduce(2) if min(ims[-1].size) >= 2 else ims[-1])
-        yy, xx, f = self._dots(box)
-        base = pic[yy, xx]
-        # fogged glass spreads the light: a blur where it is fogged (with a wide glow), under a milky veil; all
-        # in one pass: picture * q1 + blurred * q2 + colour * q3
-        q3 = kk * veil
-        if self.blur_r >= 0.5:
+        levels += [None] * (LEVELS - len(levels))
+        wide = None
+        if self.blur_r >= 0.5:  # fogged glass spreads the light: a blur, with a wide glow
             lv = int(np.clip(math.floor(math.log2(max(self.blur_r / 3, 2))), 1, LEVELS - 1))
             src = ims[lv]
             r = self.blur_r * src.size[0] / bw
             wide = Image.blend(src.filter(ImageFilter.GaussianBlur(r)), src.filter(ImageFilter.GaussianBlur(r * 2.5)),
                                0.4)
-            blurred = np.asarray(wide.resize((bw, bh), Image.Resampling.BILINEAR)).astype(np.float32)
-            wgt = self.blur_k ** 0.7 * np.sqrt(np.minimum(1, fog * 1.8))
-            q2 = kk * wgt * (1 - veil)
-            glass = base + wgt[yy, xx, None] * (blurred[yy, xx] * (1 / 255.0) - base)
-            q1 = 1 - q2 - q3
-            blurred *= (q2 * (1 / 255.0))[..., None]
-            pic *= q1[..., None]
-            pic += blurred
-        else:
-            glass = base
-            pic *= (1 - q3)[..., None]
-        pic += q3[..., None] * self.colour
-        if len(yy):  # the drops, pixel by pixel: the scene upside down and smaller, rim, glint, then the veil
-            sx, sy = xx + 0.5 + f[DX], yy + 0.5 + f[DY]
-            lod = f[LOD]
-            lo = lod.astype(np.int32)
-            seen = np.empty((len(yy), 3), np.float32)
-            for lv in np.unique(lo):
-                sel = np.flatnonzero(lo == lv)
-                pair = []
-                for k2 in (lv, lv + 1):
-                    if len(levels) <= k2:
-                        levels += [None] * (k2 + 1 - len(levels))
-                    if levels[k2] is None:
-                        levels[k2] = np.asarray(ims[k2], np.float32) * (1 / 255.0)
-                    sc = levels[k2].shape[1] / bw
-                    pair.append(_bilinear(levels[k2], sx[sel] * sc, sy[sel] * sc))
-                seen[sel] = pair[0] + (pair[1] - pair[0]) * (lod[sel] - lv)[:, None]
-            out = glass + f[A][:, None] * (seen - glass)
-            out *= (1 - f[RIM])[:, None]
-            # glints are brighter where there is more light around (the deepest level: the light of a wide area)
-            sc = ims[-1].size[0] / bw
-            near = _bilinear(np.asarray(ims[-1], np.float32) * (1 / 255.0), (xx + 0.5) * sc, (yy + 0.5) * sc) @ _LUMA
-            hl = np.minimum(1.0, f[HL] * (0.55 + 1.1 * near))[:, None]
-            out *= 1 - hl
-            out += hl
-            v = veil[yy, xx][:, None]
-            out += v * (self.colour - out)
-            kd = kk if mask is None else kk[yy, xx][:, None]
-            pic[yy, xx] = base + kd * (out - base)
+        yy, xx, f = self._dots(box)  # (row by row)
+        base = pic[yy, xx]
+        glass, veil_at = base.copy(), np.zeros(len(yy), np.float32)  # the fogged glass under each drop pixel
+        # the glass where it is fogged: picture * q1 + blurred * q2 + colour * q3 (the veil), in bands of rows
+        band = max(8, (1 << 18) // bw)
+        starts = np.searchsorted(yy, np.arange(0, bh + band, band))
+        for n, r0 in enumerate(range(0, bh, band)):
+            r1 = min(bh, r0 + band)
+            fog, veil = self._veil((x0, y0 + r0, x1, y0 + r1), False)
+            kk = k if mask is None else k * mask[y0 + r0:y0 + r1, x0:x1]
+            q3 = kk * veil
+            p = pic[r0:r1]
+            d0, d1 = starts[n], starts[n + 1]
+            ry, rx = yy[d0:d1] - r0, xx[d0:d1]
+            veil_at[d0:d1] = veil[ry, rx]
+            if wide is not None:
+                sy = wide.size[1] / bh
+                blurred = np.asarray(wide.resize((bw, r1 - r0), Image.Resampling.BILINEAR,
+                                                 box=(0, r0 * sy, wide.size[0], r1 * sy))).astype(np.float32)
+                wgt = self.blur_k ** 0.7 * np.sqrt(np.minimum(1, fog * 1.8))
+                g = glass[d0:d1]
+                g += wgt[ry, rx, None] * (blurred[ry, rx] * (1 / 255.0) - g)
+                q2 = kk * wgt * (1 - veil)
+                blurred *= (q2 * (1 / 255.0))[..., None]
+                p *= (1 - q2 - q3)[..., None]
+                p += blurred
+            else:
+                p *= (1 - q3)[..., None]
+            p += q3[..., None] * self.colour
+        if not len(yy):
+            return
+        # the drops, pixel by pixel: the scene upside down and smaller, rim, glint, then the veil
+        sx, sy = xx + 0.5 + f[DX], yy + 0.5 + f[DY]
+        lod = f[LOD]
+        lo = lod.astype(np.int32)
+        seen = np.empty((len(yy), 3), np.float32)
+        for lv in np.unique(lo):
+            sel = np.flatnonzero(lo == lv)
+            pair = []
+            for k2 in (lv, lv + 1):
+                if levels[k2] is None:
+                    levels[k2] = np.asarray(ims[k2], np.float32) * (1 / 255.0)
+                sc = levels[k2].shape[1] / bw
+                pair.append(_bilinear(levels[k2], sx[sel] * sc, sy[sel] * sc))
+            seen[sel] = pair[0] + (pair[1] - pair[0]) * (lod[sel] - lv)[:, None]
+        out = glass + f[A][:, None] * (seen - glass)
+        out *= (1 - f[RIM])[:, None]
+        # glints are brighter where there is more light around (the deepest level: the light of a wide area)
+        sc = ims[-1].size[0] / bw
+        near = _bilinear(np.asarray(ims[-1], np.float32) * (1 / 255.0), (xx + 0.5) * sc, (yy + 0.5) * sc) @ _LUMA
+        hl = np.minimum(1.0, f[HL] * (0.55 + 1.1 * near))[:, None]
+        out *= 1 - hl
+        out += hl
+        out += veil_at[:, None] * (self.colour - out)
+        kd = k if mask is None else k * mask[y0 + yy, x0 + xx][:, None]
+        pic[yy, xx] = base + kd * (out - base)

@@ -35,7 +35,7 @@ class Loops(unittest.TestCase):
         """The exact frame and the preview both come back to frame 0 after one loop, whatever the settings."""
         mask = np.zeros((H, W), np.float32)
         mask[20:150, 30:300] = 1
-        for frames, fps in ((144, 24), (150, 25), (90, 30), (720, 24), (1800, 30)):
+        for frames, fps in ((144, 24), (150, 25), (90, 30), (720, 24), (1800, 30), (24, 24)):
             for params in self.CASES:
                 fx = glass.Glass(effects.clean_params("glass", params), 3, frames, fps, W, H)
                 for m in (None, mask):
