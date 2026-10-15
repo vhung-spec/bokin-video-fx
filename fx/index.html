@@ -85,11 +85,20 @@ header .prep { color: var(--dim); font-size: 12px; }
 .screen .layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; mask-size: 100% 100%; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; }
 .screen .layer > * { position: absolute; }
 #exact { display: none; z-index: 50; }
-#paintCanvas { z-index: 60; display: none; touch-action: none; }
+#paintCanvas { z-index: 60; display: none; touch-action: none; opacity: .45; }
+#polyCanvas { z-index: 61; display: none; pointer-events: none; }
 .badge { position: absolute; right: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--dim); z-index: 70; pointer-events: none; display: none; }
 .waiting { position: absolute; left: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--warn); z-index: 70; pointer-events: none; display: none; max-width: 70%; }
 .cursor { position: absolute; border: 1.5px solid #fff; border-radius: 50%; pointer-events: none; mix-blend-mode: difference; display: none; z-index: 80; }
-.paintbar { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 75; background: #1d1d1dee; border: 1px solid #444; border-radius: 7px; padding: 5px 8px; display: none; flex-wrap: wrap; gap: 5px 8px; align-items: center; max-width: calc(100% - 16px); box-shadow: 0 6px 20px #0009; }
+.xform { position: absolute; z-index: 65; display: none; border: 1px solid #fff; box-shadow: 0 0 0 1px #0009, inset 0 0 0 1px #0006; cursor: move; touch-action: none; }
+.xform.off { border-style: dashed; }
+.xform i { position: absolute; width: 11px; height: 11px; background: #fff; border: 1px solid #222; }
+.xform i[data-h=nw] { left: -6px; top: -6px; cursor: nwse-resize; }
+.xform i[data-h=ne] { right: -6px; top: -6px; cursor: nesw-resize; }
+.xform i[data-h=sw] { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.xform i[data-h=se] { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.xform .lab { position: absolute; left: -1px; top: -21px; font-size: 11px; background: #000c; color: #fff; padding: 1px 6px; white-space: nowrap; pointer-events: none; border-radius: 3px; }
+.paintbar { flex: none; background: #1d2a38; border-bottom: 1px solid #000; padding: 5px 8px; display: none; flex-wrap: wrap; gap: 5px 8px; align-items: center; }
 .paintbar .grp { display: flex; gap: 3px; align-items: center; }
 .paintbar .who { font-weight: 600; }
 .paintbar input[type=range] { width: 90px; }
@@ -228,6 +237,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
     <div class="split-v" id="splitV"></div>
     <section class="panel" id="monitor">
       <div class="panel-head"><span class="tab on">Chương trình</span><span class="note" id="monName"></span><div class="grow"></div><span class="note" id="monInfo"></span></div>
+      <div class="paintbar" id="paintbar"></div>
       <div class="stage" id="stage">
         <div class="screen" id="screen">
           <video id="baseVid" muted playsinline preload="auto" loop></video>
@@ -236,8 +246,9 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
           <div id="layers" style="width:100%;height:100%"></div>
           <img id="exact" alt="">
           <canvas id="paintCanvas"></canvas>
+          <canvas id="polyCanvas"></canvas>
         </div>
-        <div class="paintbar" id="paintbar"></div>
+        <div class="xform" id="xform" title="Kéo để di chuyển, kéo góc để đổi cỡ (Shift: đi thẳng, Alt: không bám giữa)"><span class="lab" id="xformLab"></span><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div>
         <div class="cursor" id="cursor"></div>
         <div class="badge" id="badge"></div>
         <div class="waiting" id="waiting"></div>
@@ -547,7 +558,7 @@ function history(step) {
 function edited(opts = {}) {  // after a change of the timeline or of a clip
   renderTimeline();
   if (opts.controls !== false) renderControls();
-  syncLayers(); applyTime();
+  syncLayers(); applyTime(); showXform();
   invalidateExact();
   scheduleSave(opts.wait);
   if (opts.remember !== false) remember();
@@ -557,9 +568,11 @@ function edited(opts = {}) {  // after a change of the timeline or of a clip
 function blankMask(full) {
   const c = document.createElement("canvas");
   c.width = S.project.mask_w; c.height = S.project.mask_h;
-  if (full) { const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); }
+  const g = c.getContext("2d", {willReadFrequently: true});  // read back often (undo, sending): kept in memory
+  if (full) { g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); }
   return c;
 }
+function mctx(m) { return m.canvas.getContext("2d", {willReadFrequently: true}); }
 function maskKind(name) { return name === "freeze" ? "freeze" : name === "fg" ? "fg" : "area"; }
 function newMask(name, p) {
   const full = maskKind(name) === "area";
@@ -591,9 +604,14 @@ function measure(m) {  // is the mask empty, or full?
   for (let i = 3; i < a.length; i += 4) { if (a[i]) any = true; if (a[i] !== 255) all = false; if (any && !all) break; }
   m.empty = !any; m.full = all;
 }
-function rememberPaint(m) {
-  const g = m.canvas.getContext("2d", {willReadFrequently: true});
-  m.undo.push(g.getImageData(0, 0, m.canvas.width, m.canvas.height));
+function snapshotSoon(m) {  // the mask as it is, kept while nothing happens: the undo step of the next stroke
+  clearTimeout(m.snapTimer);
+  m.snapTimer = setTimeout(() => { m.pre = mctx(m).getImageData(0, 0, m.canvas.width, m.canvas.height); m.preVer = m.ver; }, 350);
+}
+function rememberPaint(m) {  // before a stroke: what undo brings back
+  const now = m.pre && m.preVer === m.ver ? m.pre : mctx(m).getImageData(0, 0, m.canvas.width, m.canvas.height);
+  m.pre = null;
+  m.undo.push(now);
   if (m.undo.length > 20) m.undo.shift();
   m.redo = [];
 }
@@ -601,21 +619,31 @@ function undoPaint(redo) {
   const m = S.masks[S.paint]; if (!m) return;
   const from = redo ? m.redo : m.undo, to = redo ? m.undo : m.redo;
   if (!from.length) return;
-  const g = m.canvas.getContext("2d", {willReadFrequently: true});
+  const g = mctx(m);
   to.push(g.getImageData(0, 0, m.canvas.width, m.canvas.height));
   g.putImageData(from.pop(), 0, 0);
-  maskChanged(S.paint);
+  retint();
+  maskChanged(S.paint, null);
 }
-let cssTimer = 0;
-function maskChanged(name, send = true) {
+function maskChanged(name, how) {  // after a stroke ("add" / "sub"), a fill ("set") or an undo (null: look again)
   const m = S.masks[name]; if (!m) return;
   m.ver++;
-  drawPaint();
-  clearTimeout(cssTimer);
-  cssTimer = setTimeout(() => { for (const mm of Object.values(S.masks)) if (mm.measureDue) { measure(mm); mm.measureDue = false; } styleAll(); renderControls(); }, 160);
-  m.measureDue = true;
+  if (how === "add") m.empty = false;
+  else if (how === "sub") m.full = false;
+  else if (how === null) measure(m);
   invalidateExact();
-  if (send) { clearTimeout(m.timer); m.timer = setTimeout(() => queueMask(name, m), 500); }
+  // the live preview, the panels and the app follow once the painting pauses: never during a stroke
+  clearTimeout(m.useTimer); m.useTimer = setTimeout(() => maskUsed(name), S.paint ? 450 : 120);
+  clearTimeout(m.timer); m.timer = setTimeout(() => queueMask(name, m), 900);
+  snapshotSoon(m);
+}
+function maskUsed(name) {  // what shows a mask is styled again with it
+  const m = S.masks[name]; if (!S.project || !m) return;
+  if (name === "freeze") styleBase();
+  else if (name === "fg") { for (const c of S.project.layers) if (c.behind && S.els[c.id]) styleLayer(c, S.els[c.id]); }
+  else { const c = clipById(name); if (c && S.els[c.id]) styleLayer(c, S.els[c.id]); }
+  const area = maskKind(name) === "area" ? !m.full : !m.empty;
+  if (m.shownArea !== area) { m.shownArea = area; renderControls(); renderTimeline(); }
 }
 function queueMask(name, m) {  // sends of one mask go one after another, to the project the mask belongs to
   clearTimeout(m.timer); m.timer = 0;
@@ -631,8 +659,10 @@ async function sendMask(name, m) {
   const gone = () => name !== "freeze" && name !== "fg" && !p.layers.some(l => l.id === name);
   if (gone()) return true;  // its clip was deleted
   if (maskKind(name) === "area" && p.saved && !p.saved.has(name)) { m.afterSave = true; return true; }  // sent after the clip
+  const before = [m.empty, m.full];
   measure(m);
-  const keep = maskKind(name) === "area" ? !m.full : !m.empty;
+  if (before[0] !== m.empty || before[1] !== m.full) maskUsed(name);
+  const keep = maskKind(name) === "area" ? !m.full : !m.empty, had = p.masks.includes(name);
   const body = keep ? await new Promise(r => m.canvas.toBlob(r, "image/png")) : new Blob([]);
   try {
     const r = await call("POST", `/api/mask?id=${p.id}&name=${name}`, null, body);
@@ -641,7 +671,7 @@ async function sendMask(name, m) {
     if (keep) list.push(name);
     p.masks = list;
     if (S.project !== p) return true;
-    if (!document.activeElement || !document.activeElement.closest("#ec")) renderControls();
+    if (keep !== had) { renderControls(); renderTimeline(); }  // "vùng đã vẽ" / "cả khung hình"
     refreshExact();
     return true;
   } catch (e) {
@@ -654,19 +684,38 @@ async function sendMask(name, m) {
 function fillMask(name, how) {
   const m = S.masks[name]; if (!m) return;
   rememberPaint(m);
-  const g = m.canvas.getContext("2d");
+  const g = mctx(m);
   g.save();
-  if (how === "all") { g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height); }
-  else if (how === "none") g.clearRect(0, 0, m.canvas.width, m.canvas.height);
-  else { g.globalCompositeOperation = "xor"; g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height); }
+  if (how === "all") { g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height); m.full = true; m.empty = false; }
+  else if (how === "none") { g.clearRect(0, 0, m.canvas.width, m.canvas.height); m.empty = true; m.full = false; }
+  else {
+    g.globalCompositeOperation = "xor"; g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height);
+    [m.empty, m.full] = [m.full, m.empty];
+  }
   g.restore();
-  maskChanged(name);
+  if (S.paint === name) retint();
+  maskChanged(name, "set");
 }
-// a softened copy of a mask for the live preview (CSS mask-image), cached per mask version and softness
-function maskURL(name, feather, invert) {
+// a softened copy of a mask for the live preview (CSS mask-image), per mask version and softness: encoded in the
+// background, the previous copy shown meanwhile; `done` restyles once the new one is ready
+function maskURL(name, feather, invert, done) {
   const m = S.masks[name]; if (!m) return null;
-  const key = `${m.ver}|${feather}|${invert ? 1 : 0}`;
-  if (m.css[key]) return m.css[key].url;
+  const slot = m.css[invert ? "inv" : "pos"] || (m.css[invert ? "inv" : "pos"] = {});
+  const key = `${m.ver}|${feather}`;
+  if (slot.key === key) return slot.url;
+  if (slot.want !== key) {
+    slot.want = key;
+    softMask(m, feather, invert).toBlob(blob => {
+      if (slot.want !== key || !blob) return;  // a newer one was asked for meanwhile
+      const old = slot.url;
+      slot.url = URL.createObjectURL(blob); slot.key = key;
+      if (done) done();
+      if (old) setTimeout(() => URL.revokeObjectURL(old), 3000);
+    }, "image/png");
+  }
+  return slot.url || null;
+}
+function softMask(m, feather, invert) {
   const w = Math.min(MASK_CSS_W, m.canvas.width), h = Math.max(2, Math.round(m.canvas.height * w / m.canvas.width));
   const r = feather * h / info().h, pad = Math.ceil(r * 3) + 1;
   const c = document.createElement("canvas"); c.width = w + 2 * pad; c.height = h + 2 * pad;
@@ -686,8 +735,7 @@ function maskURL(name, feather, invert) {
     o.filter = "none";
     o.globalCompositeOperation = "xor"; o.fillStyle = "#fff"; o.fillRect(0, 0, w, h);
   }
-  m.css = {[key]: {url: out.toDataURL("image/png")}};
-  return m.css[key].url;
+  return out;
 }
 
 // --- the monitor: a live preview made of the light videos, laid like the renderer lays them ------------
@@ -695,11 +743,10 @@ const stage = $("#stage"), screenEl = $("#screen"), baseVid = $("#baseVid"), sti
 const baseFrame = $("#baseFrame");
 baseVid.addEventListener("error", () => { S.baseBroken = !!baseVid.getAttribute("src"); applyTime(); });
 baseVid.addEventListener("loadeddata", () => { S.baseBroken = false; applyTime(); });
-const paintCanvas = $("#paintCanvas"), layersEl = $("#layers");
-const tint = document.createElement("canvas");
+const paintCanvas = $("#paintCanvas"), polyCanvas = $("#polyCanvas"), layersEl = $("#layers");
 function setupScreen() {
   const p = S.project;
-  paintCanvas.width = tint.width = p.mask_w; paintCanvas.height = tint.height = p.mask_h;
+  paintCanvas.width = polyCanvas.width = p.mask_w; paintCanvas.height = polyCanvas.height = p.mask_h;
   const src = p.proxy ? `/media/base?id=${p.id}&v=${encodeURIComponent(p.proxy)}` : "";
   S.baseBroken = false;
   if (src) { if (!baseVid.src.endsWith(src)) baseVid.src = src; } else { baseVid.removeAttribute("src"); baseVid.load(); }
@@ -723,7 +770,7 @@ function layoutScreen() {
   screenEl.style.width = f.w + "px"; screenEl.style.height = f.h + "px";
   const x = (f.sw - f.w * S.scale) / 2 + S.panX, y = (f.sh - f.h * S.scale) / 2 + S.panY;
   screenEl.style.transform = `translate(${x}px, ${y}px) scale(${S.scale})`;
-  drawPaint();
+  drawPoly(); showXform();
 }
 function clearLayers() {
   for (const el of Object.values(S.els)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); }
@@ -776,10 +823,12 @@ function styleBase() {
     const st = p.still || {};
     const src = st.source === "image" && p.has_still_image ? `/api/still?id=${p.id}&r=${p.rev}` : `/api/frame?id=${p.id}&t=${st.frame || 0}`;
     if (stillImg.dataset.src !== src) { stillImg.src = src; stillImg.dataset.src = src; }
-    const url = maskURL("freeze", p.freeze.feather, false);
-    stillImg.style.maskImage = stillImg.style.webkitMaskImage = `url(${url})`;
-    stillImg.style.maskSize = stillImg.style.webkitMaskSize = "100% 100%";
-    stillImg.style.display = onlyBase() ? "none" : "block";
+    const url = maskURL("freeze", p.freeze.feather, false, styleBase);
+    if (url) {
+      stillImg.style.maskImage = stillImg.style.webkitMaskImage = `url(${url})`;
+      stillImg.style.maskSize = stillImg.style.webkitMaskSize = "100% 100%";
+    }
+    stillImg.style.display = url && !onlyBase() ? "block" : "none";
   } else stillImg.style.display = "none";
 }
 function styleLayer(c, el) {
@@ -787,22 +836,85 @@ function styleLayer(c, el) {
   const blend = c.kind === "file" ? c.params.blend : (S.schema.blend[c.kind] === "screen" ? "screen" : "normal");
   w.style.mixBlendMode = BLEND_CSS[blend] || "normal";
   const masks = [];
+  const again = () => { const e = S.els[c.id]; if (e && clipById(c.id) === c) styleLayer(c, e); };
   const am = S.masks[c.id];
-  if (am && !am.full) masks.push(`url(${maskURL(c.id, c.feather || 0, false)})`);
+  const area = am && !am.full ? maskURL(c.id, c.feather || 0, false, again) : null;
+  if (area) masks.push(`url(${area})`);
   const fg = S.masks.fg;
-  if (c.behind && fg && !fg.empty) masks.push(`url(${maskURL("fg", p.fg.feather, true)})`);
+  const hide = c.behind && fg && !fg.empty ? maskURL("fg", p.fg.feather, true, again) : null;
+  if (hide) masks.push(`url(${hide})`);
   const mi = masks.length ? masks.join(", ") : "none";
   w.style.maskImage = w.style.webkitMaskImage = mi;
   w.style.maskComposite = "intersect"; w.style.webkitMaskComposite = "source-in";
   if (c.kind === "file") {
-    const inf = el.m.info, pr = c.params, W = info().w, H = info().h;
-    const k = (pr.fit === "cover" ? Math.max : Math.min)(W / inf.w, H / inf.h) * pr.scale / 100;
-    const sw = inf.w * k, sh = inf.h * k, ox = (W - sw) / 2 + pr.x / 100 * W, oy = (H - sh) / 2 + pr.y / 100 * H;
-    Object.assign(media.style, {left: (100 * ox / W) + "%", top: (100 * oy / H) + "%", width: (100 * sw / W) + "%", height: (100 * sh / H) + "%"});
+    const r = placed(c, el.m.info), W = info().w, H = info().h;
+    Object.assign(media.style, {left: (100 * r.x / W) + "%", top: (100 * r.y / H) + "%", width: (100 * r.w / W) + "%", height: (100 * r.h / H) + "%"});
   } else Object.assign(media.style, {left: 0, top: 0, width: "100%", height: "100%"});
   el.opacity = c.kind === "file" ? c.params.opacity / 100 : 1;
 }
-function onlyBase() { return !!S.paint && S.onlyBase; }  // painting the still area or foreground on the bare video
+function onlyBase() { return !!S.paint && S.onlyBase; }
+
+// --- moving and sizing a clip on the monitor, as with Premiere's Motion box ---------------------------------
+const xform = $("#xform");
+function placed(c, inf) {  // where a file clip lies in the video, in its pixels (as overlay.Overlay places it)
+  inf = inf || (c.file && c.file.info);
+  if (!inf) return null;
+  const pr = c.params, W = info().w, H = info().h;
+  const k = (pr.fit === "cover" ? Math.max : Math.min)(W / inf.w, H / inf.h) * pr.scale / 100;
+  const w = inf.w * k, h = inf.h * k;
+  return {x: (W - w) / 2 + pr.x / 100 * W, y: (H - h) / 2 + pr.y / 100 * H, w, h};
+}
+function showXform() {  // the box of the selected file clip, over the picture
+  const c = S.project && clipById(S.sel);
+  const r = c && c.kind === "file" && !S.paint && !S.playing ? placed(c) : null;
+  if (!r) { xform.style.display = "none"; return; }
+  const st = stage.getBoundingClientRect(), sc = screenEl.getBoundingClientRect();
+  const kx = sc.width / info().w, ky = sc.height / info().h;
+  Object.assign(xform.style, {display: "block", left: (sc.left - st.left + r.x * kx) + "px", top: (sc.top - st.top + r.y * ky) + "px",
+    width: Math.max(4, r.w * kx) + "px", height: Math.max(4, r.h * ky) + "px"});
+  xform.classList.toggle("off", weight(span(c), curFrame()) === 0);
+  $("#xformLab").textContent = `${c.name} · cỡ ${c.params.scale}% · ${c.params.x}, ${c.params.y}`;
+}
+function fileParam(key, v) { const d = S.schema.kinds.file.params.find(x => x.key === key); return clamp(Math.round(v), d.min, d.max); }
+xform.addEventListener("pointerdown", e => {
+  const c = clipById(S.sel); if (!c || e.button !== 0) return;
+  e.stopPropagation(); e.preventDefault();
+  xform.setPointerCapture(e.pointerId);
+  const sc = screenEl.getBoundingClientRect(), xr = xform.getBoundingClientRect();
+  const cx = xr.left + xr.width / 2, cy = xr.top + xr.height / 2;
+  S.xdrag = {c, scale: !!e.target.dataset.h, x0: e.clientX, y0: e.clientY, p0: Object.assign({}, c.params), sc, cx, cy,
+    d0: Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy))};
+  invalidateExact();
+});
+xform.addEventListener("pointermove", e => {
+  const d = S.xdrag; if (!d) return;
+  const c = d.c, pr = c.params;
+  if (d.scale) pr.scale = fileParam("scale", d.p0.scale * Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.d0);
+  else {
+    let x = d.p0.x + (e.clientX - d.x0) / d.sc.width * 100, y = d.p0.y + (e.clientY - d.y0) / d.sc.height * 100;
+    if (e.shiftKey) { if (Math.abs(x - d.p0.x) > Math.abs(y - d.p0.y)) y = d.p0.y; else x = d.p0.x; }  // straight
+    if (!e.altKey) { if (Math.abs(x) < 1.5) x = 0; if (Math.abs(y) < 1.5) y = 0; }  // the middle catches it
+    pr.x = fileParam("x", x); pr.y = fileParam("y", y);
+  }
+  if (S.els[c.id]) styleLayer(c, S.els[c.id]);
+  showXform();
+  for (const key of ["x", "y", "scale"]) {  // the sliders follow
+    const input = $(`#ec [data-param="${key}"]`), lab = $("#v-" + key);
+    if (input) input.value = pr[key];
+    if (lab) lab.textContent = pr[key];
+  }
+});
+xform.addEventListener("pointerup", () => {
+  const d = S.xdrag; if (!d) return;
+  S.xdrag = null;
+  if (["x", "y", "scale"].some(k => d.c.params[k] !== d.p0[k])) { scheduleSave(); remember(); renderControls(); }
+  refreshExact();
+});
+xform.addEventListener("dblclick", e => {  // back to the middle, at its size
+  const c = clipById(S.sel); if (!c) return;
+  e.stopPropagation();
+  c.params.x = 0; c.params.y = 0; edited();
+});  // painting the still area or foreground on the bare video
 
 // the clock: one time for every element
 function applyTime() {
@@ -871,7 +983,7 @@ function play() {
   S.baseClock = baseUsable();
   if (S.baseClock) { baseVid.playbackRate = 1; baseVid.currentTime = lastBase + 0.25 / fps(); baseShown = null; watchBase(); }
   $("#tPlay").textContent = "⏸";
-  invalidateExact();
+  invalidateExact(); showXform();
   const step = now => {
     if (!S.playing) return;
     let t;
@@ -908,7 +1020,7 @@ function pause() {
   S.baseClock = false;
   S.time = curFrame() / fps();  // on a frame
   $("#tPlay").textContent = "▶";
-  applyTime(); refreshExact();
+  applyTime(); refreshExact(); showXform();
 }
 function seek(sec) {
   if (!S.project) return;
@@ -917,7 +1029,7 @@ function seek(sec) {
     playFrom = S.time; playAt = performance.now(); lapsAt(S.time);
     if (S.baseClock) baseVid.currentTime = lastBase + 0.25 / fps();
   }
-  applyTime(); invalidateExact(); refreshExact();
+  applyTime(); invalidateExact(); refreshExact(); showXform();
   followPlayhead();
 }
 function step(frames) { pause(); seek((curFrame() + frames) / fps()); }
@@ -1000,20 +1112,23 @@ function enterPaint(name) {
   pause();
   S.paint = name; S.poly = [];
   S.onlyBase = name === "freeze" || name === "fg";
-  paintCanvas.style.display = "block";
-  invalidateExact();
+  paintCanvas.style.display = polyCanvas.style.display = "block";
+  invalidateExact(); showXform();
   renderPaintbar(); styleAll(); applyTime(); drawPaint();
+  snapshotSoon(S.masks[name]);
 }
 function exitPaint() {
   if (!S.paint) return;
   S.paint = null; S.poly = [];
-  paintCanvas.style.display = "none"; $("#paintbar").style.display = "none"; $("#cursor").style.display = "none";
-  styleAll(); applyTime(); renderControls(); refreshExact();
+  paintCanvas.style.display = polyCanvas.style.display = "none"; renderPaintbar(); $("#cursor").style.display = "none";
+  styleAll(); applyTime(); renderControls(); refreshExact(); showXform();
 }
 function renderPaintbar() {
   const b = $("#paintbar"), br = S.brush;
-  if (!S.paint) { b.style.display = "none"; return; }
+  const was = b.style.display;
+  if (!S.paint) { b.style.display = "none"; if (was === "flex") layoutScreen(); return; }
   b.style.display = "flex";
+  if (was !== "flex") requestAnimationFrame(layoutScreen);
   b.innerHTML = `<span class="who">✎ Đang vẽ: ${esc(paintName(S.paint))}</span>
     <div class="grp"><button class="small ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X)">＋ Thêm</button><button class="small ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X)">－ Bớt</button></div>
     <div class="grp"><button class="small ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ (B)">🖌 Cọ</button><button class="small ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh vùng: bấm từng điểm (L)">⬠ Khoanh</button></div>
@@ -1025,8 +1140,8 @@ function renderPaintbar() {
 }
 $("#paintbar").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b || !S.paint) return;
-  if (b.dataset.mode) { S.brush.mode = b.dataset.mode; renderPaintbar(); drawPaint(); }
-  if (b.dataset.ptool) { S.brush.tool = b.dataset.ptool; S.poly = []; renderPaintbar(); drawPaint(); }
+  if (b.dataset.mode) { S.brush.mode = b.dataset.mode; renderPaintbar(); drawPoly(); }
+  if (b.dataset.ptool) { S.brush.tool = b.dataset.ptool; S.poly = []; renderPaintbar(); drawPoly(); }
   if (b.dataset.fill) fillMask(S.paint, b.dataset.fill);
   if (b.dataset.pundo) undoPaint(false);
   if (b.dataset.predo) undoPaint(true);
@@ -1036,72 +1151,75 @@ $("#paintbar").addEventListener("input", e => {
   if (e.target.id === "brushSize") S.brush.size = +e.target.value;
   if (e.target.id === "onlyBase") { S.onlyBase = e.target.checked; styleAll(); applyTime(); }
 });
-let drawQueued = false;
-function drawPaint() {
-  if (drawQueued || !S.paint) return;
-  drawQueued = true;
+function retint() {  // the colour over the area being painted, made again from the mask (after an undo, a fill)
+  const g = paintCanvas.getContext("2d");
+  g.globalCompositeOperation = "source-over";
+  g.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+  const m = S.paint && S.masks[S.paint]; if (!m) return;
+  g.drawImage(m.canvas, 0, 0);
+  g.globalCompositeOperation = "source-in";
+  g.fillStyle = COLORS[maskKind(S.paint)];
+  g.fillRect(0, 0, paintCanvas.width, paintCanvas.height);
+  g.globalCompositeOperation = "source-over";
+}
+let polyQueued = false;
+function drawPoly() {  // the polygon being drawn, on its own layer
+  if (polyQueued) return;
+  polyQueued = true;
   requestAnimationFrame(() => {
-    drawQueued = false;
-    if (!S.project || !S.paint) return;
-    const g = paintCanvas.getContext("2d");
-    g.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
-    const m = S.masks[S.paint];
-    if (m) {
-      const tg = tint.getContext("2d");
-      tg.globalCompositeOperation = "source-over";
-      tg.clearRect(0, 0, tint.width, tint.height);
-      tg.drawImage(m.canvas, 0, 0);
-      tg.globalCompositeOperation = "source-in";
-      tg.fillStyle = COLORS[maskKind(S.paint)];
-      tg.fillRect(0, 0, tint.width, tint.height);
-      g.globalAlpha = 0.45; g.drawImage(tint, 0, 0); g.globalAlpha = 1;
-    }
-    if (S.poly.length) {
-      const k = 1 / screenScale();
-      g.lineWidth = 2 * k; g.strokeStyle = S.brush.mode === "add" ? "#fff" : "#ff6b6b"; g.setLineDash([6 * k, 4 * k]);
-      g.beginPath(); S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
-      if (S.hover) g.lineTo(S.hover[0], S.hover[1]);
-      g.stroke(); g.setLineDash([]);
-      g.fillStyle = "#fff";
-      for (const pt of S.poly) { g.beginPath(); g.arc(pt[0], pt[1], 3.5 * k, 0, 7); g.fill(); }
-    }
+    polyQueued = false;
+    const g = polyCanvas.getContext("2d");
+    g.clearRect(0, 0, polyCanvas.width, polyCanvas.height);
+    if (!S.project || !S.paint || !S.poly.length) return;
+    const k = 1 / screenScale();
+    g.lineWidth = 2 * k; g.strokeStyle = S.brush.mode === "add" ? "#fff" : "#ff6b6b"; g.setLineDash([6 * k, 4 * k]);
+    g.beginPath(); S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
+    if (S.hover) g.lineTo(S.hover[0], S.hover[1]);
+    g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#fff";
+    for (const pt of S.poly) { g.beginPath(); g.arc(pt[0], pt[1], 3.5 * k, 0, 7); g.fill(); }
   });
 }
-function toMask(e) {
-  const r = paintCanvas.getBoundingClientRect();
+function drawPaint() { retint(); drawPoly(); }
+function toMask(e, rect) {
+  const r = rect || paintCanvas.getBoundingClientRect();
   return [(e.clientX - r.left) * paintCanvas.width / r.width, (e.clientY - r.top) * paintCanvas.height / r.height];
 }
 function screenScale() { return paintCanvas.getBoundingClientRect().width / paintCanvas.width; }
 function moveCursor(e) {
   const c = $("#cursor");
   if (!S.paint || S.brush.tool !== "brush") { c.style.display = "none"; return; }
-  const sr = stage.getBoundingClientRect(), d = S.brush.size * screenScale();
+  const sr = S.stageRect || stage.getBoundingClientRect(), pr = S.paintRect || paintCanvas.getBoundingClientRect();
+  const d = S.brush.size * pr.width / paintCanvas.width;
   c.style.display = "block"; c.style.width = c.style.height = d + "px";
-  c.style.left = (e.clientX - sr.left - d / 2) + "px"; c.style.top = (e.clientY - sr.top - d / 2) + "px";
+  c.style.left = c.style.top = "0px";
+  c.style.transform = `translate(${e.clientX - sr.left - d / 2}px, ${e.clientY - sr.top - d / 2}px)`;
 }
-function stroke(from, to) {
-  const m = S.masks[S.paint];
-  const g = m.canvas.getContext("2d");
-  g.save();
-  g.globalCompositeOperation = S.brush.mode === "add" ? "source-over" : "destination-out";
-  g.strokeStyle = g.fillStyle = "#fff"; g.lineWidth = S.brush.size; g.lineCap = g.lineJoin = "round";
-  g.beginPath(); g.moveTo(from[0], from[1]); g.lineTo(to[0], to[1]); g.stroke();
-  g.beginPath(); g.arc(to[0], to[1], S.brush.size / 2, 0, 7); g.fill();
-  g.restore();
-  drawPaint();
+function stroke(from, to) {  // one piece of a brush stroke: on the mask, and in colour on the screen
+  const m = S.masks[S.paint], add = S.brush.mode === "add", size = S.brush.size;
+  for (const [g, colour] of [[mctx(m), "#fff"], [paintCanvas.getContext("2d"), COLORS[maskKind(S.paint)]]]) {
+    g.globalCompositeOperation = add ? "source-over" : "destination-out";
+    g.strokeStyle = g.fillStyle = colour; g.lineWidth = size; g.lineCap = g.lineJoin = "round";
+    if (from[0] === to[0] && from[1] === to[1]) { g.beginPath(); g.arc(to[0], to[1], size / 2, 0, 7); g.fill(); }
+    else { g.beginPath(); g.moveTo(from[0], from[1]); g.lineTo(to[0], to[1]); g.stroke(); }
+    g.globalCompositeOperation = "source-over";
+  }
 }
 function closePoly() {
   const m = S.masks[S.paint];
-  if (!m || S.poly.length < 3) { S.poly = []; drawPaint(); return; }
+  if (!m || S.poly.length < 3) { S.poly = []; drawPoly(); return; }
   rememberPaint(m);
-  const g = m.canvas.getContext("2d");
-  g.save();
-  g.globalCompositeOperation = S.brush.mode === "add" ? "source-over" : "destination-out";
-  g.fillStyle = "#fff"; g.beginPath();
-  S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
-  g.closePath(); g.fill(); g.restore();
+  const add = S.brush.mode === "add";
+  for (const [g, colour] of [[mctx(m), "#fff"], [paintCanvas.getContext("2d"), COLORS[maskKind(S.paint)]]]) {
+    g.globalCompositeOperation = add ? "source-over" : "destination-out";
+    g.fillStyle = colour; g.beginPath();
+    S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
+    g.closePath(); g.fill();
+    g.globalCompositeOperation = "source-over";
+  }
   S.poly = [];
-  maskChanged(S.paint);
+  drawPoly();
+  maskChanged(S.paint, add ? "add" : "sub");
 }
 let panning = null, lastPt = null, painting = false;
 stage.addEventListener("pointerdown", e => {
@@ -1110,27 +1228,40 @@ stage.addEventListener("pointerdown", e => {
     if (S.zoom === "fit") { S.zoom = String(S.scale * fitSize().w * devicePixelRatio / info().w); $("#zoomSel").value = ""; }
     panning = {x: e.clientX, y: e.clientY, px: S.panX, py: S.panY}; stage.setPointerCapture(e.pointerId); e.preventDefault(); return;
   }
+  if (!S.paint && e.button === 0) {  // a click on a clip's picture selects it (the top one there)
+    const sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
+    const vx = (e.clientX - sc.left) / sc.width * W, vy = (e.clientY - sc.top) / sc.height * H, t = curFrame();
+    const hit = clipOrder().reverse().find(c => c.kind === "file" && weight(span(c), t) > 0 &&
+      (r => r && vx >= r.x && vx <= r.x + r.w && vy >= r.y && vy <= r.y + r.h)(placed(c)));
+    if (hit && hit.id !== S.sel) select(hit.id);
+    return;
+  }
   if (!S.paint || e.button !== 0 || !S.masks[S.paint]) return;
   const pt = toMask(e);
   if (S.brush.tool === "brush") {
+    S.paintRect = paintCanvas.getBoundingClientRect(); S.stageRect = stage.getBoundingClientRect();  // fixed while painting
     rememberPaint(S.masks[S.paint]); painting = true; lastPt = pt; stroke(pt, pt); stage.setPointerCapture(e.pointerId);
   } else {
     if (S.poly.length >= 3) {
       const f = S.poly[0], d = Math.hypot(pt[0] - f[0], pt[1] - f[1]) * screenScale();
       if (d < 12) { closePoly(); return; }
     }
-    S.poly.push(pt); drawPaint();
+    S.poly.push(pt); drawPoly();
   }
 });
 stage.addEventListener("pointermove", e => {
   moveCursor(e);
   if (panning) { S.panX = panning.px + e.clientX - panning.x; S.panY = panning.py + e.clientY - panning.y; layoutScreen(); return; }
-  if (painting) { const pt = toMask(e); stroke(lastPt, pt); lastPt = pt; return; }
-  if (S.paint && S.brush.tool === "poly" && S.poly.length) { S.hover = toMask(e); drawPaint(); }
+  if (painting) {  // every point the mouse went through, not only the last: smooth lines when moving fast
+    const all = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    for (const ev of all.length ? all : [e]) { const pt = toMask(ev, S.paintRect); stroke(lastPt, pt); lastPt = pt; }
+    return;
+  }
+  if (S.paint && S.brush.tool === "poly" && S.poly.length) { S.hover = toMask(e); drawPoly(); }
 });
 stage.addEventListener("pointerup", () => {
   if (panning) { panning = null; refreshExact(); return; }
-  if (painting) { painting = false; maskChanged(S.paint); }
+  if (painting) { painting = false; S.paintRect = S.stageRect = null; maskChanged(S.paint, S.brush.mode === "add" ? "add" : "sub"); }
 });
 stage.addEventListener("pointerleave", () => { $("#cursor").style.display = "none"; });
 stage.addEventListener("dblclick", e => { if (S.paint && S.brush.tool === "poly") { e.preventDefault(); closePoly(); } });
@@ -1443,7 +1574,7 @@ function deleteClip(c) {
 }
 function select(id) {
   if (S.paint && S.paint !== id && !(id === "base" && (S.paint === "freeze" || S.paint === "fg"))) exitPaint();
-  S.sel = id; renderTimeline(); renderControls();
+  S.sel = id; renderTimeline(); renderControls(); showXform();
 }
 
 // the track heads
@@ -1607,6 +1738,7 @@ function addClip(item, trackId, s, en) {
     const it = libItem(item.lib); if (!it) return;
     c.lib = it.id; c.name = it.name; c.file = {lib: it.id, name: it.name, info: it.info};
     params.blend = it.info.alpha ? "normal" : "screen";
+    if (it.info.image) params.fit = "contain";  // a picture (a logo, a frame) whole, its corners in reach
   } else {
     const n = p.layers.filter(l => l.kind === kind).length + 1;
     c.name = name + (n > 1 ? " " + n : "");
@@ -1771,7 +1903,7 @@ $("#ec").addEventListener("input", e => {
     c.params[key] = v;
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
     if (S.els[c.id]) styleLayer(c, S.els[c.id]);
-    applyTime(); invalidateExact(); scheduleSave(); renderTimeline();
+    applyTime(); invalidateExact(); scheduleSave(); renderTimeline(); showXform();
   }
 });
 $("#ec").addEventListener("change", e => {
@@ -1855,7 +1987,10 @@ $("#bin").addEventListener("click", async e => {
   const open = e.target.closest("[data-open]");
   if (open) return openProject(open.dataset.open);
   const tile = e.target.closest(".tile[data-lib]");
-  if (tile) { S.binSel = tile.dataset.lib; renderBin(); }
+  if (tile) {  // marked in place: drawing the list again would lose a double click
+    S.binSel = tile.dataset.lib;
+    for (const t of $$("#bin .tile[data-lib]")) t.classList.toggle("sel", t === tile);
+  }
 });
 $("#bin").addEventListener("dblclick", e => {
   const tile = e.target.closest(".tile"); if (!tile || !S.project) return;
@@ -2089,8 +2224,8 @@ document.addEventListener("keydown", e => {
   }
   if (S.paint) {
     if (k === "Enter") closePoly();
-    else if (k === "Escape") { if (S.poly.length) { S.poly = []; drawPaint(); } else exitPaint(); }
-    else if (k === "Backspace" && S.poly.length) { S.poly.pop(); drawPaint(); }
+    else if (k === "Escape") { if (S.poly.length) { S.poly = []; drawPoly(); } else exitPaint(); }
+    else if (k === "Backspace" && S.poly.length) { S.poly.pop(); drawPoly(); }
     else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderPaintbar(); }
     else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; renderPaintbar(); }
     else if (k === "l" || k === "L") { S.brush.tool = "poly"; renderPaintbar(); }
