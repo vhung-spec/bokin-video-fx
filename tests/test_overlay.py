@@ -84,10 +84,17 @@ class Files(unittest.TestCase):
 
     def test_hdr_is_refused(self):
         path = os.path.join(helpers.ROOT, "hlg.mp4")
+        # the tags written into the H.264 stream itself (as cameras do), the same with every ffmpeg build
         ffmpeg("-f", "lavfi", "-i", "testsrc2=s=64x48:r=24:d=1", "-c:v", "libx264", "-pix_fmt", "yuv420p",
-               "-color_primaries", "bt2020", "-color_trc", "arib-std-b67", "-colorspace", "bt2020nc", path)
-        with self.assertRaises(video.VideoError):
-            video.probe(path)
+               "-bsf:v", "h264_metadata=video_full_range_flag=0:colour_primaries=9:transfer_characteristics=18:"
+               "matrix_coefficients=9", path)
+        try:
+            info = video.probe(path)
+        except video.VideoError as e:
+            self.assertIn("HDR", str(e))
+            return
+        described = subprocess.run([video.ffmpeg_exe(), "-hide_banner", "-i", path], capture_output=True, text=True).stderr
+        self.fail(f"an HLG / BT.2020 video was accepted: {info}\n{described}")
 
 
 if __name__ == "__main__":
