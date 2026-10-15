@@ -84,7 +84,8 @@ header .prep { color: var(--dim); font-size: 12px; }
 .screen video, .screen img { display: block; object-fit: fill; }
 .screen .layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; mask-size: 100% 100%; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; }
 .screen .layer > * { position: absolute; }
-#exact { display: none; z-index: 50; }
+#exact { display: none; z-index: 50; animation: fadein .15s ease-out; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 #paintCanvas { z-index: 60; display: none; touch-action: none; opacity: .45; }
 #polyCanvas { z-index: 61; display: none; pointer-events: none; }
 .badge { position: absolute; right: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--dim); z-index: 70; pointer-events: none; display: none; }
@@ -269,6 +270,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
           <button class="icon" id="tNext" title="Khung sau (→)">|▶</button>
           <button class="icon" id="tEnd" title="Về cuối (End)">⏭</button>
           <button class="icon on" id="tLoop" title="Phát lặp lại để xem chỗ nối loop">🔁</button>
+          <button class="icon" id="tExact" title="Khung chính xác: khi dừng hình, xem đúng như video sẽ xuất ra (app dựng mất chút thời gian)">🎯</button>
         </div>
         <span class="tc dur" id="tcDur"></span>
       </div>
@@ -917,7 +919,7 @@ xform.addEventListener("dblclick", e => {  // back to the middle, at its size
 });  // painting the still area or foreground on the bare video
 
 // the clock: one time for every element
-function applyTime() {
+function applyTime(hold) {  // hold: right after a pause, videos a frame off stay where they are (no visible jump)
   if (!S.project) return;
   const t = S.time * fps(), playing = S.playing, f = fps();
   const loopSec = loopFrames() / f;
@@ -925,7 +927,7 @@ function applyTime() {
   // play, its frame as a picture
   if (baseVid.getAttribute("src")) {
     if (playing && S.baseClock) { if (baseVid.paused) baseVid.play().catch(() => {}); }
-    else syncMedia(baseVid, (S.time % loopSec) + 0.25 / f, loopSec, playing);
+    else syncMedia(baseVid, (S.time % loopSec) + 0.25 / f, loopSec, playing, hold);
   }
   const still = !!S.paint || S.baseBroken || !baseVid.getAttribute("src") || baseVid.readyState < 2;
   if (still && !playing) {
@@ -944,11 +946,11 @@ function applyTime() {
     if (!show) { if (!el.media.paused) el.media.pause(); continue; }
     const want = el.m.fx ? S.time : fileTime(c, sp, t, el.m.info);
     const len = el.m.fx ? duration() : el.m.info.seconds;
-    syncMedia(el.media, Math.min(want + 0.25 / f, len - 0.01), len, playing);
+    syncMedia(el.media, Math.min(want + 0.25 / f, len - 0.01), len, playing, hold);
   }
   updateClock();
 }
-function syncMedia(v, want, len, playing) {
+function syncMedia(v, want, len, playing, hold) {  // hold: just paused, so what is on screen stays if nearly right
   if (v.readyState < 1) return;
   if (playing) {  // a small lag is caught up by playing a little faster or slower, a large one by a jump
     let drift = v.currentTime - want;
@@ -960,7 +962,7 @@ function syncMedia(v, want, len, playing) {
   } else {
     if (!v.paused) v.pause();
     v.playbackRate = 1;
-    if (Math.abs(v.currentTime - want) > 0.004) v.currentTime = want;
+    if (Math.abs(v.currentTime - want) > (hold ? 1.5 / fps() : 0.004)) v.currentTime = want;
   }
 }
 function baseUsable() { return !!baseVid.getAttribute("src") && !S.baseBroken && baseVid.readyState >= 2 && !S.paint; }
@@ -1020,7 +1022,7 @@ function pause() {
   S.baseClock = false;
   S.time = curFrame() / fps();  // on a frame
   $("#tPlay").textContent = "▶";
-  applyTime(); refreshExact(); showXform();
+  applyTime(true); refreshExact(); showXform();
 }
 function seek(sec) {
   if (!S.project) return;
@@ -1045,12 +1047,24 @@ function updateClock() {
   $("#tcNow").textContent = label; $("#tlTime").textContent = label;
 }
 
-// the exact frame from the renderer, shown when the picture stands still
+// the exact frame from the renderer, shown when the picture stands still: when asked for (🎯), or when the live
+// preview cannot show everything yet (its light copies are being made). Otherwise a pause keeps what is on screen.
 let exactTimer = 0, exactSeq = 0;
+try { S.exactOn = localStorage.getItem("fx.exact") === "1"; } catch (e) { /* storage blocked */ }
 function invalidateExact() { exactSeq++; exact.style.display = "none"; clearTimeout(exactTimer); setBadge(""); }
+function liveIncomplete() {  // something that shows now has no light copy ready yet
+  const p = S.project; if (!p) return false;
+  if (!p.proxy || S.baseBroken || !baseVid.getAttribute("src") || baseVid.readyState < 2) return true;
+  const t = curFrame();
+  return clipOrder().some(c => {
+    if (weight(span(c), t) <= 0) return false;
+    const el = S.els[c.id];
+    return !el || (el.media.tagName === "VIDEO" ? el.media.readyState < 2 : !el.media.complete);
+  });
+}
 function refreshExact() {
   clearTimeout(exactTimer);
-  if (!S.project || S.playing || S.drag || S.paint) return;
+  if (!S.project || S.playing || S.drag || S.paint || !(S.exactOn || liveIncomplete())) return;
   exactTimer = setTimeout(() => {
     const p = S.project; if (!p || S.playing || S.paint) return;
     const seq = ++exactSeq;
@@ -2266,6 +2280,14 @@ $("#tNext").onclick = () => step(1);
 $("#tStart").onclick = () => { pause(); seek(0); };
 $("#tEnd").onclick = () => { pause(); seek(duration()); };
 $("#tLoop").onclick = () => { S.loop = !S.loop; $("#tLoop").classList.toggle("on", S.loop); };
+$("#tExact").classList.toggle("on", !!S.exactOn);
+$("#tExact").onclick = () => {
+  S.exactOn = !S.exactOn;
+  $("#tExact").classList.toggle("on", S.exactOn);
+  try { localStorage.setItem("fx.exact", S.exactOn ? "1" : "0"); } catch (e) { /* storage blocked */ }
+  if (S.exactOn) refreshExact(); else invalidateExact();
+  toast(S.exactOn ? "Khi dừng hình: hiện khung chính xác như video xuất ra." : "Khi dừng hình: giữ nguyên hình xem nhanh.", false, 2500);
+};
 
 $("#newBtn").onclick = () => $("#fileVideo").click();
 $("#fileVideo").onchange = e => { newProjectFrom(e.target.files[0]); e.target.value = ""; };

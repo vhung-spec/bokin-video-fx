@@ -52,7 +52,8 @@ hiệu ứng. Cách dùng: `README.md`.
   thêm tiền cảnh đảo ngược, `mask-composite: intersect`). Một đồng hồ chung giữ mọi video khớp nhau.
 - Hiệu ứng tạo sẵn: app kết xuất cả độ dài video thành clip nhỏ (WebM trong suốt, hoặc H.264 cho hạt sáng dùng
   Screen). Tên file theo nội dung (`fx-<khoá>.webm`), hai nửa của clip bị cắt dùng chung.
-- Dừng hình thì trang lấy khung chính xác từ `engine.Looks` (`/api/look`): đó là thứ video xuất ra.
+- Khung chính xác từ `engine.Looks` (`/api/look`) là thứ video xuất ra. Trang chỉ hiện nó khi dừng hình nếu người dùng
+  bật 🎯, hoặc khi bản xem nhanh còn thiếu (`liveIncomplete`). Không tự thay ảnh khi dừng: mắt thấy như hình bị giật.
 - Khi phát, video gốc là đồng hồ; dừng thì giữ khung đang hiện (`requestVideoFrameCallback`). Bản nhẹ đánh số khung
   đều (`setpts=N/(fps*TB)`, `-fps_mode cfr`), nên khung n của trang là khung n của app.
 - Vẽ vùng: nét cọ vẽ thẳng lên mặt nạ và lớp màu; việc nặng (gửi vùng, làm mềm cho xem nhanh) chỉ chạy khi ngừng vẽ.

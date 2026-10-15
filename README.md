@@ -6,7 +6,8 @@ Premiere Pro:
 - **Thư viện hiệu ứng**: nhập video hiệu ứng có sẵn (nền đen hoặc nền trong suốt) và ảnh PNG. Thư viện dùng chung cho
   mọi dự án.
 - **Timeline**: kéo hiệu ứng xuống track, đặt trong một đoạn thời gian, kéo, cắt bớt, cắt đôi, mờ dần vào/ra.
-- **Xem nhanh**: bấm phát là thấy ngay kết quả. Dừng hình thì app hiện khung chính xác như video sẽ xuất ra.
+- **Xem nhanh**: bấm phát là thấy ngay kết quả. Bật nút **🎯** để khi dừng hình, app hiện khung chính xác như video sẽ
+  xuất ra.
 - **Vùng đứng yên**: tô chỗ nào trong hình phải đứng yên tuyệt đối. Ở đó app lấy hình từ ảnh gốc, hoặc từ một khung
   của video.
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
@@ -53,7 +54,8 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
    **✎ Vẽ tiền cảnh**.
    - **Đổi video gốc**: bấm vào **V1 Video gốc** rồi **Đổi video gốc…**, hoặc kéo file video thả vào hàng V1.
      Timeline, các clip và vùng đã vẽ được giữ nguyên (thời gian clip giữ theo giây).
-7. **Xem**: bấm **▶** (hoặc phím cách). Dừng hình để xem khung chính xác.
+7. **Xem**: bấm **▶** (hoặc phím cách). Dừng thì hình đứng yên đúng khung đang thấy. Muốn xem đúng như video sẽ
+   xuất ra, bật **🎯 Khung chính xác** rồi dừng hình (app dựng khung đó, mất chút thời gian).
 8. **Xuất video**: bấm **Xuất video** ở góc trên bên phải. Video nằm trong thư mục **Videos\Bokin FX**.
 
 ### Timeline

@@ -10,6 +10,7 @@ Screenshots of each step go to the folder given (default: page-test).
 
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
 """
+import io
 import math
 import os
 import shutil
@@ -186,7 +187,17 @@ def run(page, folder, edge):
     if edge:  # the pause keeps the frame that was on screen
         check("pause keeps the frame on screen", shown["shown"] is not None and
               int(shown["shown"] * 24 + 1e-6) == shown["frame"], str(shown))
-    live = disc(page.locator("#screen").screenshot())
+    first = page.locator("#screen").screenshot()
+    live = disc(first)
+    if edge:  # everything plays in Edge: a pause keeps the picture as it is (no other picture swapped in)
+        page.wait_for_timeout(1200)
+        later = page.locator("#screen").screenshot()
+        change = float(np.abs(np.asarray(Image.open(io.BytesIO(first)).convert("L"), np.float32) -
+                              np.asarray(Image.open(io.BytesIO(later)).convert("L"), np.float32)).mean())
+        check("a pause keeps the picture still", change < 1.5 and
+              page.evaluate("document.querySelector('#exact').style.display") != "block", f"mean change {change:.2f}")
+    if not page.evaluate("S.exactOn"):
+        page.click("#tExact")  # the exact frame, asked for
     page.wait_for_function("document.querySelector('#exact').style.display === 'block'", timeout=60000)
     page.wait_for_timeout(300)
     ready = disc(page.locator("#screen").screenshot())
