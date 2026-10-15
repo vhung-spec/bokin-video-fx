@@ -49,7 +49,7 @@ SCHEMA = {"label": "Mưa", "params": [
     _p("waves", "Mưa từng đợt (lúc dày, lúc thưa)", 15, "Gió"),
     _p("depth", "Chiều sâu (xa mảnh, gần to)", 50, "Chiều sâu"), _p("blur", "Nhoè hạt ở gần", 35, "Chiều sâu"),
     _p("veil", "Màn mưa bay theo gió", 30, "Màn mưa"), _p("mist", "Hơi nước mờ", 0, "Màn mưa"),
-    _p("ground", "Mặt đất ở đâu (tính từ mép trên xuống, %; 100: không thấy đất)", 100, "Bắn nước", 10, 100),
+    _p("ground", "Mặt đất bắt đầu cách mép trên (% chiều cao; 100 = không thấy đất)", 100, "Bắn nước", 10, 100),
     _p("splash", "Nước bắn khi hạt chạm đất", 50, "Bắn nước"), _p("ripple", "Gợn nước trên mặt đất", 30, "Bắn nước"),
     _p("lightning", "Chớp sáng (0: không chớp)", 0, "Chớp"),
     _p("flashes", "Số lần chớp trong 30 giây", 2, "Chớp", 1, 10),
@@ -327,6 +327,10 @@ class Rain(Falling):
         self.move_a = (side * max(1, round(drift / 4)) * 4, max(1, round(0.15 * down / 2)) * 2)
         self.move_b = (side * max(1, round(drift * 1.6 / 4)) * 4, max(1, round(0.1 * down / 2)) * 2)
         self.move_h = side * max(1, round(drift * 0.4 / 4)) * 4
+        # the veil lies only where the pattern is densest (its top quarter), so the air between sheets stays clear
+        gx, gy = np.meshgrid(np.linspace(0, self.aspect, 64), np.linspace(0, 1, 36))
+        probe = np.concatenate([self.pattern(tau, gx, gy).ravel() for tau in np.arange(12) / 12])
+        self.sheet_lo, self.sheet_hi = (float(q) for q in np.percentile(probe, (75, 99.5)))
 
         # lightning
         self.flash = p["lightning"] / 100
@@ -356,8 +360,8 @@ class Rain(Falling):
                 best, side = e, s
         return min(1.0, best), side
 
-    def sheets(self, tau, x, y):
-        """How dense the sheets of rain are (0..1) at x, y (frame heights)."""
+    def pattern(self, tau, x, y):
+        """The two drifting patterns the sheets of rain are made of, added (0..2), at x, y (frame heights)."""
         slope = math.tan(self.angle) + float(_at(self.gusting, tau)) / math.cos(self.angle)
         push = self.mean_speed * self.loop_s * float(_at(self.carried, tau))
         across = x - (y - 0.5) * slope + push
@@ -365,7 +369,11 @@ class Rain(Falling):
         for tex, (mx, my) in ((self.sheet_a, self.move_a), (self.sheet_b, self.move_b)):
             h, w = tex.shape
             out = out + _sample(tex, (across - mx * tau) * (w / 4), (y - my * tau) * (h / 2))
-        return _smooth(0.7, 1.5, out)
+        return out
+
+    def sheets(self, tau, x, y):
+        """How dense the rain is in the sheets (0..1) at x, y (frame heights): the drops there are brighter."""
+        return _smooth(0.7, 1.5, self.pattern(tau, x, y))
 
     def drops(self, t):
         """Every drop's head (x, y, px), the way it moves (unit vector), streak length (px), where it is on its
@@ -552,7 +560,7 @@ class Rain(Falling):
         dens = float(_at(self.density, tau))
         a = np.zeros((h8, w8), np.float32)
         if self.veil > 0:
-            a += self.veil * (0.6 + 0.4 * dens) * self.sheets(tau, x, y)
+            a += self.veil * (0.6 + 0.4 * dens) * _smooth(self.sheet_lo, self.sheet_hi, self.pattern(tau, x, y))
         if self.mist > 0:
             hh, hw = self.haze.shape
             haze = _sample(self.haze, (x - self.move_h * tau) * (hw / 4), y * (hh / 4))

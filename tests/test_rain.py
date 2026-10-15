@@ -188,6 +188,24 @@ class Look(unittest.TestCase):
             seen = [int(fx.drops(t)[-1].sum()) for t in range(0, 750, 5)]
             self.assertTrue(low <= max(seen) / min(seen) <= high, (waves, min(seen), max(seen)))
 
+    def test_defaults_lay_no_haze(self):
+        """Medium rain (the defaults) keeps the dark parts of the picture as they were between the drops; sheets of
+        rain lie only here and there, with clear air between them."""
+        dark = np.full((H, W, 3), 0.03, np.float32)
+        for seed in (1, 2, 3):
+            fx = effects.make("rain", {}, seed, 750, 25, W, H)
+            for t in (10, 300, 600):
+                lift = (frame(fx, t, pic=dark) - dark).mean(axis=2)
+                self.assertLess(float(np.median(lift)), 0.5 / 255, (seed, t))
+            sheets = effects.make("rain", {"veil": 100, "opacity": 0, "edge": 0}, seed, 750, 25, W, H)
+            shares, peaks = [], []
+            for t in range(0, 750, 75):
+                lift = (frame(sheets, t, pic=dark) - dark).mean(axis=2)
+                shares.append(float((lift > 1 / 255).mean()))
+                peaks.append(float(lift.max()))
+            self.assertLess(np.mean(shares), 0.35, seed)
+            self.assertGreater(max(peaks), 0.05, seed)
+
     def test_small_drops_fall_slower_and_wander(self):
         """Drizzle (small drops) falls slower and drifts a little; the default rain is as it was."""
         fine = effects.make("rain", {"size": 12}, 3, 750, 25, W, H)
