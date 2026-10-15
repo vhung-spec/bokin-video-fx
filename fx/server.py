@@ -290,7 +290,11 @@ class Handler(BaseHTTPRequestHandler):
         folder = projects.folder(project["id"])
         masks = sorted(n[:-4] for n in os.listdir(os.path.join(folder, "masks")) if n.endswith(".png"))
         w, h = projects.mask_size(project["video"])
-        return {**project, "masks": masks, "mask_w": w, "mask_h": h, "frames_out": timeline.project_frames(project),
+        # every setting a clip's effect has now, as it is drawn (one saved by an older version lacks the newer ones)
+        layers = [{**lay, "params": effects.clean_params(lay["kind"], lay.get("params"))}
+                  if lay.get("kind") in effects.SCHEMA else lay for lay in project.get("layers", [])]
+        return {**project, "layers": layers, "masks": masks, "mask_w": w, "mask_h": h,
+                "frames_out": timeline.project_frames(project),
                 "has_still_image": os.path.exists(os.path.join(folder, "still.png"))}
 
     def do_POST(self):

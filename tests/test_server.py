@@ -146,6 +146,29 @@ class Server(unittest.TestCase):
             time.sleep(0.25)
         self.fail("timed out")
 
+    def test_old_clips_get_every_setting(self):
+        """A rain or snow clip saved before their settings grew gets every setting, as drawn, when opened."""
+        from fx import effects, projects
+        clip = helpers.make_loop(os.path.join(helpers.ROOT, "server-old.mp4"), 160, 90, 12)
+        project = projects.create(clip, "old.mp4")
+        tid = project["tracks"][0]["id"]
+        project = projects.apply(project, {"layers": [
+            {"id": "rainol", "kind": "rain", "track": tid, "params": {"amount": 60}},
+            {"id": "snowol", "kind": "snow", "track": tid, "params": {"blur": 70}}]})
+        path = os.path.join(projects.folder(project["id"]), "project.json")
+        with open(path, encoding="utf-8") as f:
+            saved = json.load(f)
+        saved["layers"][0]["params"] = {"amount": 60, "speed": 60, "length": 50, "size": 35, "wind": 10, "depth": 50,
+                                        "opacity": 45, "color": "#d4dce6"}  # as the previous version saved it
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(saved, f)
+        code, body, _ = request(self.base + f"/api/project?id={project['id']}")
+        self.assertEqual(code, 200)
+        layers = {lay["id"]: lay for lay in json.loads(body)["layers"]}
+        self.assertEqual(layers["rainol"]["params"], effects.clean_params("rain", {**saved["layers"][0]["params"]}))
+        self.assertEqual(set(layers["snowol"]["params"]), {d["key"] for d in effects.SCHEMA["snow"]["params"]})
+        self.assertEqual(layers["rainol"]["params"]["amount"], 60)
+
     def test_refused_request_body_is_not_run(self):
         """A cross-site POST is refused, and its body is never read as a second request."""
         import socket as sk

@@ -130,6 +130,20 @@ class Look(unittest.TestCase):
                 slants.append(np.degrees(np.arctan2(ux[show], uy[show])).mean() * np.sign(wind))
             self.assertGreater(slants[0], slants[1] + 10)
 
+    def test_sheets_go_with_the_wind_in_gusts(self):
+        """The sheets of rain drift with the wind, faster in a gust, never back against it."""
+        for wind in (40, -40):
+            fx = effects.make("rain", {"look": "storm", "wind": wind, "gust": 75}, 3, 720, 24, W, H)
+            xs = np.linspace(0, 4, 800, endpoint=False)  # one tile across (4 frame heights)
+            step = xs[1] - xs[0]
+            for t in range(0, 720, 3):
+                a = fx.pattern(t / 720, xs, np.full_like(xs, 0.5))
+                b = fx.pattern((t + 1) / 720, xs, np.full_like(xs, 0.5))
+                lags = np.arange(-40, 41)
+                best = lags[np.argmax([np.dot(a - a.mean(), np.roll(b, int(k)) - b.mean()) for k in lags])]
+                moved = -best * step  # (b rolled back by what it moved matches a)
+                self.assertGreaterEqual(moved * np.sign(wind), 0, f"wind {wind}, frame {t}: {moved:.3f}")
+
     def test_streaks_stop_at_the_ground(self):
         layer = rain.Layer(40, 60)
         one = np.array([1.0])
@@ -256,7 +270,7 @@ class Settings(unittest.TestCase):
         p = effects.clean_params("rain", {"amount": 80, "wind": -40, "color": "#aabbcc"})
         self.assertEqual((p["amount"], p["wind"], p["color"]), (80, -40, "#aabbcc"))
         self.assertEqual((p["ground"], p["lightning"]), (100, 0))  # new parts start out of the way
-        self.assertEqual(rain.Rain.VERSION, 2)
+        self.assertEqual(rain.Rain.VERSION, 3)
 
     def test_every_setting_has_a_group(self):
         groups = [p.get("group") for p in rain.SCHEMA["params"]]

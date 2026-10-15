@@ -245,7 +245,7 @@ class Layer:
 
 class Rain(Falling):
     CAP = 16000
-    VERSION = 2
+    VERSION = 3
 
     def __init__(self, *a):
         super().__init__(*a)
@@ -323,9 +323,10 @@ class Rain(Falling):
         self.clumps = p["veil"] / 100
         drift = (0.06 + 0.3 * abs(p["wind"]) / 100) * self.loop_s  # frame heights a loop
         down = self.mean_speed * self.loop_s
+        gusted = down * abs(self.gust_mean)  # the gusts' steady share (`carried` leaves it out)
         # how far each pattern moves in a loop, frame heights: whole tiles (4 wide, 2 tall), so it loops
-        self.move_a = (side * max(1, round(drift / 4)) * 4, max(1, round(0.15 * down / 2)) * 2)
-        self.move_b = (side * max(1, round(drift * 1.6 / 4)) * 4, max(1, round(0.1 * down / 2)) * 2)
+        self.move_a = (side * max(1, math.ceil((drift + gusted) / 4)) * 4, max(1, round(0.15 * down / 2)) * 2)
+        self.move_b = (side * max(1, math.ceil((drift * 1.6 + gusted) / 4)) * 4, max(1, round(0.1 * down / 2)) * 2)
         self.move_h = side * max(1, round(drift * 0.4 / 4)) * 4
         # the veil lies only where the pattern is densest (its top quarter), so the air between sheets stays clear
         gx, gy = np.meshgrid(np.linspace(0, self.aspect, 64), np.linspace(0, 1, 36))
@@ -364,7 +365,7 @@ class Rain(Falling):
         """The two drifting patterns the sheets of rain are made of, added (0..2), at x, y (frame heights)."""
         slope = math.tan(self.angle) + float(_at(self.gusting, tau)) / math.cos(self.angle)
         push = self.mean_speed * self.loop_s * float(_at(self.carried, tau))
-        across = x - (y - 0.5) * slope + push
+        across = x - (y - 0.5) * slope - push  # (a gust carries the sheets with the wind, as it does the drops)
         out = 0
         for tex, (mx, my) in ((self.sheet_a, self.move_a), (self.sheet_b, self.move_b)):
             h, w = tex.shape

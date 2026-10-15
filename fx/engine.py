@@ -212,6 +212,9 @@ class Scene:
             box = self.freeze_box
             img.paste(Image.composite(self.still, img.crop(box), self.freeze), box[:2])
         layers, i = self.layers, 0
+        for drawer, _, span in layers:  # clips not showing now give back their big buffers (made again later)
+            if hasattr(drawer, "release") and span.weight(t) <= 0:
+                drawer.release()
         while i < len(layers):
             both = self._mix_at(i, t)
             if both:  # a Mix: the picture with each clip alone, then the two crossfaded (no dip in the middle)
