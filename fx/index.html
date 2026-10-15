@@ -186,6 +186,12 @@ header .prep { color: var(--dim); font-size: 12px; }
 .head button.off { color: #555; }
 .beyond { position: absolute; top: 0; bottom: 0; background: #0009; pointer-events: none; border-left: 1px solid #555; }
 .seam { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #ffffff18; pointer-events: none; }
+.join { position: absolute; width: 18px; height: 18px; padding: 0; border-radius: 4px; z-index: 3; font-size: 12px; line-height: 16px;
+  background: #1b1b1b; color: #bbb; border: 1px solid #555; cursor: pointer; }
+.join:hover { color: #fff; border-color: #aaa; }
+.join.on { background: #6a4fd8; color: #fff; border-color: #b9a8ff; }
+.mixband { position: absolute; height: 36px; z-index: 2; pointer-events: none; border-radius: 3px;
+  background: repeating-linear-gradient(135deg, #b9a8ff55 0 6px, #b9a8ff22 6px 12px); outline: 1px solid #b9a8ff; }
 .clip { position: absolute; height: 36px; border-radius: 4px; overflow: hidden; cursor: grab; border: 1px solid #0006; color: #fff; font-size: 12px; user-select: none; }
 .clip.file { background: var(--c-file); }
 .clip.fx { background: var(--c-fx); }
@@ -424,7 +430,20 @@ function tc(sec, withFrames = true) {
 function secLabel(sec) { return (Math.round(sec * 100) / 100).toLocaleString("vi-VN") + " giây"; }
 
 // the timeline's timing rules: the same as fx/timeline.py and fx/overlay.py
-function span(c) {
+function shownClip(x) { return x.on !== false && !S.project.tracks.some(t => t.id === x.track && !t.on); }
+function mixAt(c) {  // its crossfades in seconds: [with the clip before, with the clip after] (timeline.mixes)
+  const N = total(), f = fps(), M = S.schema.max_mix, len = x => (x.end - x.start) / f;
+  let lead = 0, tail = 0;
+  if (!shownClip(c)) return [0, 0];
+  for (const o of S.project.layers) {
+    if (o === c || o.track !== c.track || !shownClip(o)) continue;
+    if (o.end === c.start && c.mix > 0 && c.start < N) lead = Math.min(c.mix, M, len(o), len(c));
+    if (c.end === o.start && o.mix > 0 && o.start < N) tail = Math.min(o.mix, M, len(o), len(c));
+  }
+  return [Math.max(0, lead), Math.max(0, tail)];
+}
+function mixFrames(sec) { return sec > 0 ? Math.max(1, Math.floor(sec * fps() / 2 + 0.5)) : 0; }  // half of one
+function span(c, withMix = true) {  // withMix false: the clip's own ends (as drawn on the timeline)
   const N = total(), f = fps(), MAXF = S.schema.max_fade, EDGE = S.schema.min_edge_fade;
   const start = clamp(c.start | 0, 0, N), end = clamp(c.end | 0, start, N);
   const full = start === 0 && end === N;
@@ -438,7 +457,13 @@ function span(c) {
   }
   const skip = Math.max(0, +c.skip || 0);  // need: as timeline.Span (the first half of a cut plays as the whole)
   const seamIn = !full && start === 0 ? EDGE * f : 0, seamOut = !full && end === N ? EDGE * f : 0;  // never shortened
-  return {start, end, full, fin, fout, seamIn, seamOut, skip, need: Math.max(skip + (end - start) / f, +c.need || 0)};
+  const sp = {start, end, full, fin, fout, seamIn, seamOut, skip, anchor: start, need: Math.max(skip + (end - start) / f, +c.need || 0)};
+  if (withMix) {  // a crossfade with the clip before or after: from half of it before its start to half past its end
+    const [mi, mo] = mixAt(c), lead = mixFrames(mi), tail = mixFrames(mo);
+    if (lead) { sp.start -= lead; sp.fin = 2 * lead; }
+    if (tail) { sp.end += tail; sp.fout = 2 * tail; }
+  }
+  return sp;
 }
 function weight(sp, t) {
   if (t < sp.start || t >= sp.end) return 0;
@@ -457,6 +482,7 @@ function plan(seconds, start, fade, need, f) {
   return {start, step: Math.max(0, avail - join), join};
 }
 function played(e, pl) {  // the file time that shows most at e seconds into the played file
+  e = Math.max(0, e);
   if (pl.step === null) return pl.start + e;
   if (pl.step <= 0) return pl.start;
   const j = Math.floor(e / pl.step + 1e-9), local = Math.max(0, e - j * pl.step);
@@ -473,7 +499,11 @@ function fileTime(c, sp, t, inf) {  // seconds into the clip's file at frame t (
     if (fade <= 0 || s < loop - fade) return played(fade > 0 ? fade + s : s, pl);
     return (s - (loop - fade)) / fade < 0.5 ? played(fade + s, pl) : played(s - (loop - fade), pl);
   }
-  return played((t - sp.start) / f + sp.skip, plan(inf.seconds, p.start, p.fade, sp.need, f));
+  const pl = plan(inf.seconds, p.start, p.fade, sp.need, f);
+  let e = (t - sp.anchor) / f + sp.skip;  // before its start or past its run (a crossfade): the file goes round
+  if (pl.step === null) { const avail = inf.seconds - pl.start; if (avail > 0 && !(e >= 0 && e < avail)) e = ((e % avail) + avail) % avail; }
+  else if (pl.step > 0 && e < 0) e = ((e % pl.step) + pl.step) % pl.step;
+  return played(e, pl);
 }
 function fullSkip(c) {  // a clip over the whole video plays its file from params.fade on (overlay.timeline)
   return c.kind === "file" ? clamp(+c.params.fade || 0, 0, duration() / 2) : 0;
@@ -1691,6 +1721,13 @@ function renderTimeline() {
     const r = rs.find(x => x.type === "track" && x.track.id === c.track); if (!r) continue;
     lane.push(clipHTML(c, r));
   }
+  for (const b of p.layers) {  // where two clips meet: a button for a Mix (crossfade), and its length when there is one
+    const a = clipBefore(b), r = a && rs.find(x => x.type === "track" && x.track.id === b.track); if (!r) continue;
+    const x = b.start / f * pps, m = b.mix > 0 ? Math.min(b.mix, mixMost(b)) : 0, mw = m * pps;
+    if (m) lane.push(`<div class="mixband" style="left:${x - mw / 2}px;width:${mw}px;top:${r.y + 4}px"></div>`);
+    lane.push(`<button class="join${m ? " on" : ""}" data-join="${b.id}" style="left:${x - 9}px;top:${r.y + (ROW_H - 18) / 2}px"
+      title="${m ? `Mix ${num(m)} giây: bấm để chỉnh` : "Thêm hiệu ứng nối Mix (hoà trộn hai clip)"}">⧓</button>`);
+  }
   lane.push(`<div class="beyond" style="left:${N / f * pps}px;width:${Math.max(0, W - N / f * pps)}px"></div>`);
   lane.push(`<div class="ghost" id="ghost"></div><div class="razorline" id="razorLine"></div><div class="playhead" id="tlPlayheadEl" style="left:${S.time * pps}px"></div>`);
   tlHeads.innerHTML = `<div style="height:${H}px">${head.join("")}</div>`;
@@ -1703,7 +1740,7 @@ function renderTimeline() {
   drawRuler();
 }
 function clipHTML(c, r) {
-  const f = fps(), pps = S.pps, sp = span(c);
+  const f = fps(), pps = S.pps, sp = span(c, false);
   const x = c.start / f * pps, w = Math.max(3, (c.end - c.start) / f * pps);
   const cls = ["clip", c.kind === "file" ? "file" : "fx", S.sel === c.id ? "sel" : "", c.on === false ? "off" : ""].join(" ");
   const fin = Math.min(w, sp.fin / f * pps), fout = Math.min(w, sp.fout / f * pps);
@@ -1800,6 +1837,14 @@ function frameAtX(clientX) { const r = tlLanes.getBoundingClientRect(); return M
 
 tlLanes.addEventListener("pointerdown", e => {
   if (!S.project || e.button !== 0) return;
+  const jb = e.target.closest("[data-join]");
+  if (jb) {  // a join: a Mix there (or its settings)
+    e.preventDefault();
+    const b = clipById(jb.dataset.join); if (!b) return;
+    if (!(b.mix > 0)) { setMix(b, 0.5); toast("Đã thêm Mix (hoà trộn) ở chỗ nối. Chỉnh độ dài hoặc bỏ trong Bảng chỉnh hiệu ứng.", false, 4000); }
+    select(b.id);
+    return;
+  }
   const el = e.target.closest(".clip");
   if (!el) {  // empty space: no selection, the playhead goes there
     if (S.sel) { S.sel = null; renderTimeline(); renderControls(); }
@@ -1888,9 +1933,22 @@ tlLanes.addEventListener("pointerup", () => {
   } else joinFades(c);
   edited();
 });
+function clipBefore(b) {  // the clip that ends where b starts, on its track
+  return S.project.layers.find(a => a !== b && a.track === b.track && a.end === b.start) || null;
+}
+function clipAfter(a) { return S.project.layers.find(b => b !== a && b.track === a.track && b.start === a.end) || null; }
+function mixMost(b) {  // the longest Mix b can have with the clip before it
+  const a = clipBefore(b), f = fps();
+  return a ? Math.min(S.schema.max_mix, (a.end - a.start) / f, (b.end - b.start) / f) : 0;
+}
+function setMix(b, sec) {  // the crossfade of b with the clip before it (0: none)
+  b.mix = sec > 0 ? Math.max(0.1, Math.min(sec, mixMost(b))) : 0;
+  edited();
+}
 function cloneClip(c) {
   const copy = JSON.parse(JSON.stringify(c));
   copy.id = newId(c.kind.slice(0, 2));
+  copy.mix = 0;  // a copy (or the second half of a cut) does not crossfade with what it is put next to
   if (S.masks[c.id]) {
     const m = newMask(copy.id, S.project);
     m.canvas.getContext("2d").clearRect(0, 0, m.canvas.width, m.canvas.height);
@@ -2004,6 +2062,8 @@ tlLanes.addEventListener("contextmenu", e => {
     ["✂ Cắt đôi tại đây", () => splitClip(c, fr), "C"],
     ["⧉ Nhân đôi", () => duplicate(c), "Alt+kéo"],
     [c.on === false ? "Bật clip" : "Tắt clip", () => { c.on = c.on === false; edited(); }],
+    ...(clipBefore(c) ? [[c.mix > 0 ? "Bỏ Mix với clip trước" : "⧓ Mix với clip trước", () => setMix(c, c.mix > 0 ? 0 : 0.5)]] : []),
+    ...(clipAfter(c) ? [[clipAfter(c).mix > 0 ? "Bỏ Mix với clip sau" : "⧓ Mix với clip sau", () => { const b = clipAfter(c); setMix(b, b.mix > 0 ? 0 : 0.5); }]] : []),
     ["Kéo dài suốt video", () => { if (overlaps(c.track, 0, total(), c.id)) toast("Track này còn clip khác: hãy chuyển clip sang track trống.", true); else { c.start = 0; c.end = total(); c.skip = 0; edited(); } }],
     null,
     ["Xoá clip", () => deleteClip(c), "Delete"]]);
@@ -2188,8 +2248,17 @@ function renderControls() {
       ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}`;
   })() : `<h4>Hiệu ứng</h4>${params.join("")}`;
   const hasArea = p.masks.includes(c.id) || (S.masks[c.id] && !S.masks[c.id].full);
+  const mixRow = (b, label) => {  // the Mix of b with the clip before it
+    const most = mixMost(b), v = Math.min(b.mix || 0, most);
+    return `<label class="check"><input type="checkbox" data-mix="${b.id}" ${b.mix > 0 ? "checked" : ""}> ${label}</label>
+      ${b.mix > 0 ? `<div class="row"><div class="lab"><span>Dài (giây)</span><b id="v-mix-${b.id}">${num(v)}</b></div>
+        <input type="range" data-mixlen="${b.id}" min="0.1" max="${most}" step="0.1" value="${v}"></div>` : ""}`;
+  };
+  const before = clipBefore(c), after = clipAfter(c);
+  const transition = before || after ? `<h4>Chuyển cảnh</h4>${before ? mixRow(c, "Mix (hoà trộn) với clip trước") : ""}${after ? mixRow(after, "Mix (hoà trộn) với clip sau") : ""}
+    <p class="note">Mix: hai clip nối nhau hoà dần vào nhau, mỗi bên chỗ nối một nửa thời gian. Bấm nút ⧓ ở chỗ nối trên timeline cũng được.</p>` : "";
   el.innerHTML = `<div data-for="${c.id}"><div class="title"><span style="font-size:18px">${KIND_ICON[c.kind]}</span><input type="text" id="clipName" value="${esc(c.name)}" maxlength="60"></div>
-    ${source}${timing}${fileParams}
+    ${source}${timing}${transition}${fileParams}
     <h4>Vùng</h4>
     <div class="row"><div class="lab"><span>Hiệu ứng hiện ở</span><b>${hasArea ? "vùng đã vẽ" : "cả khung hình"}</b></div></div>
     <div class="btns"><button class="small ${S.paint === c.id ? "on" : ""}" id="paintArea">✎ Vẽ vùng</button>${hasArea ? '<button class="small" id="clearArea">Cả khung hình</button>' : ""}</div>
@@ -2297,6 +2366,11 @@ $("#ec").addEventListener("input", e => {
     p[t.dataset.base].feather = v; styleAll(); invalidateExact(); scheduleSave(); return;
   }
   if (!c) return;
+  if (t.dataset.mixlen) {  // a Mix's length
+    const b = clipById(t.dataset.mixlen); if (!b) return;
+    b.mix = Math.max(0.1, +t.value); $("#v-mix-" + b.id).textContent = num(b.mix);
+    edited({controls: false, remember: false}); return;
+  }
   if (t.id === "clipName") { c.name = t.value; scheduleSave(); renderTimeline(); return; }
   if (t.dataset.clipnum) {
     const v = +t.value; $("#v-" + t.dataset.clipnum).textContent = v;
@@ -2319,6 +2393,7 @@ $("#ec").addEventListener("change", e => {
   const c = ownerClip(t);
   if (t.id === "stillSource") { p.still.source = t.value; renderControls(); styleBase(); scheduleSave(); invalidateExact(); return; }
   if (!c) { remember(); return; }
+  if (t.dataset.mix) { const b = clipById(t.dataset.mix); if (b) setMix(b, t.checked ? 0.5 : 0); return; }
   if (t.id === "behind") { c.behind = t.checked; edited(); return; }
   if (t.dataset.time) {
     const raw = t.value.trim().replace(",", "."), sec = raw === "" ? NaN : Number(raw);  // "2,5" as well as "2.5"

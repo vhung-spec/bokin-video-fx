@@ -181,6 +181,24 @@ class Engine(unittest.TestCase):
             self.assertTrue((a[t] == b[t]).all(), f"frame {t} differs")
         projects.apply(projects.load(self.project["id"]), {"layers": []})
 
+    def test_a_mix_where_two_clips_meet(self):
+        """Two clips of a file joined with a Mix: outside the crossfade each looks as without it; inside it the second
+        clip shows already (before its own start) and the first one still (past its own end)."""
+        clip = helpers.make_loop(os.path.join(helpers.ROOT, "mixed.mp4"), 160, 90, 48, "24")  # 2 s
+        item = library.add(clip, "mixed.mp4")
+        tid = self.project["tracks"][0]["id"]
+        a = {"id": "filema", "kind": "file", "lib": item["id"], "track": tid, "start": 24, "end": 72,
+             "params": {"blend": "screen", "fade": 0.3}}
+        b = dict(a, id="filemb", start=72, end=120)
+        times = [30, 58, 62, 66, 70, 74, 78, 82, 86, 110]
+        plain = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": [a, b]}), times)
+        mixed = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": [a, dict(b, mix=1.0)]}), times)
+        for t in (30, 58, 86, 110):  # the Mix is 1 s: frames 60..83 around 72
+            self.assertTrue((plain[t] == mixed[t]).all(), f"frame {t} differs")
+        for t in (62, 66, 70, 74, 78, 82):
+            self.assertFalse((plain[t] == mixed[t]).all(), f"frame {t} has no crossfade")
+        projects.apply(projects.load(self.project["id"]), {"layers": []})
+
     def test_cut_full_clip_keeps_its_picture(self):
         """A clip over the whole video cut in two: each half starts where the whole clip was in its file
         (skip = its seam fade, as the page sets it), so the frames are the same away from the video's ends."""

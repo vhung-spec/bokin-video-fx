@@ -68,3 +68,38 @@ class Spans(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Mix(unittest.TestCase):
+    A = {"id": "aa", "track": "t1", "start": 100, "end": 200, "fade_in": 0.5, "fade_out": 0.5}
+    B = {"id": "bb", "track": "t1", "start": 200, "end": 320, "fade_in": 0.5, "fade_out": 0.5, "mix": 1.0}
+
+    def test_a_crossfade_where_two_clips_meet(self):
+        """Over the Mix, centred on where the clips meet, one fades out as the other fades in: together 1."""
+        m = timeline.mixes([self.A, self.B], N, FPS)
+        self.assertEqual(m, {"aa": (0.0, 1.0), "bb": (1.0, 0.0)})
+        a, b = timeline.Span(self.A, N, FPS, m["aa"]), timeline.Span(self.B, N, FPS, m["bb"])
+        self.assertEqual((a.end, b.start, a.anchor, b.anchor), (212, 188, 100, 200))
+        for t in range(188, 212):
+            self.assertAlmostEqual(a.weight(t) + b.weight(t), 1.0, places=9)
+        self.assertEqual(a.weight(150), 1.0)  # the rest of each clip as it was
+        self.assertEqual(b.weight(260), 1.0)
+        self.assertEqual(a.weight(212), 0.0)
+        self.assertEqual(b.weight(187), 0.0)
+
+    def test_only_where_they_meet(self):
+        apart = dict(self.B, start=201)
+        self.assertEqual(timeline.mixes([self.A, apart], N, FPS), {})
+        other = dict(self.B, track="t2")
+        self.assertEqual(timeline.mixes([self.A, other], N, FPS), {})
+        long = dict(self.B, mix=60)  # at most MAX_MIX and the shorter clip
+        self.assertEqual(timeline.mixes([self.A, long], N, FPS)["bb"][0], min(timeline.MAX_MIX, 100 / FPS))
+        outside = dict(self.B, start=N, end=N + 50)
+        self.assertEqual(timeline.mixes([dict(self.A, end=N), outside], N, FPS), {})  # never across the loop's end
+
+    def test_the_file_goes_round_in_the_crossfade(self):
+        """Before the clip's start or past its run, a file played once goes round (a loop runs on)."""
+        from fx import overlay
+        self.assertAlmostEqual(overlay.playing(-0.5, 24, 3.0, 3.0, 0.0, 0.0)[0][0], 2.5)
+        self.assertAlmostEqual(overlay.playing(3.25, 24, 3.0, 3.0, 0.0, 0.0)[0][0], 0.25)
+        self.assertAlmostEqual(overlay.playing(1.0, 24, 3.0, 3.0, 0.0, 0.0)[0][0], 1.0)  # inside: as before

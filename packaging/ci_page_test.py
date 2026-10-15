@@ -31,7 +31,7 @@ import numpy as np  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
-from fx import server, video  # noqa: E402
+from fx import server, timeline, video  # noqa: E402
 
 SHOTS = sys.argv[1] if len(sys.argv) > 1 else "page-test"
 FAILED = []
@@ -191,6 +191,7 @@ def run(page, folder, edge):
     shown = page.evaluate("(() => { pause(); return {frame: curFrame() % loopFrames(), base: baseVid.currentTime}; })()")
     if edge:  # the pause keeps the frame the video stopped on
         check("pause keeps the frame on screen", int(shown["base"] * 24 + 0.01) == shown["frame"], str(shown))
+    page.wait_for_function("baseFrame.style.display === 'none' || baseFrame.complete")  # (no H.264: a picture of it)
     first = page.locator("#screen").screenshot()
     live = disc(first)
     if edge:  # everything plays in Edge: a pause keeps the picture as it is (no other picture swapped in)
@@ -277,6 +278,26 @@ def run(page, folder, edge):
           "scale(-1" in page.evaluate(f"S.els['{fid}'].media.style.transform"))
     page.keyboard.press("Control+z")
     page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+
+    # a Mix where two clips meet: the button on the join adds it; the page and the renderer weigh it alike
+    ids = page.evaluate("""(() => {
+        const t = {id: newId("t"), on: true}; S.project.tracks.push(t);
+        addClip({kind: 'rain'}, t.id, 300, 400); const a = S.sel; addClip({kind: 'rain'}, t.id, 400, 500);
+        return [a, S.sel]; })()""")
+    page.wait_for_timeout(300)
+    page.click(f'[data-join="{ids[1]}"]')
+    page.wait_for_timeout(200)
+    shown = page.evaluate("clipOrder().map(c => Object.assign({}, c))")
+    mixes = timeline.mixes(shown, 720, 24)
+    want = {c["id"]: [timeline.Span(c, 720, 24, mixes.get(c["id"], (0.0, 0.0))).weight(t) for t in range(380, 420)]
+            for c in shown if c["id"] in ids}
+    got = page.evaluate(f"Object.fromEntries({ids}.map(id => [id, Array.from({{length: 40}}, (_, i) => weight(span(clipById(id)), 380 + i))]))")
+    same = all(abs(got[i][k] - want[i][k]) < 1e-9 for i in ids for k in range(40))
+    check("a Mix where two clips meet, weighed alike on the page and in the renderer",
+          page.evaluate(f"clipById('{ids[1]}').mix") == 0.5 and same and
+          all(abs(got[ids[0]][k] + got[ids[1]][k] - 1) < 1e-9 for k in range(14, 26)), str(mixes))
+    page.evaluate(f"(() => {{ for (const id of {ids}) deleteClip(clipById(id)); }})()")
     page.wait_for_timeout(200)
 
     page.evaluate("saveNow()")

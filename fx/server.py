@@ -208,6 +208,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/schema":
             return self.send(200, {"kinds": effects.SCHEMA, "lengths": list(timeline.LENGTHS),
                                    "min_edge_fade": timeline.MIN_EDGE_FADE, "max_fade": timeline.MAX_FADE,
+                                   "max_mix": timeline.MAX_MIX,
                                    "blend": {k: c.blend for k, c in effects.KINDS.items()},
                                    "max_clips": projects.MAX_LAYERS, "max_tracks": projects.MAX_TRACKS})
         if path == "/api/project":

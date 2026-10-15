@@ -124,8 +124,15 @@ def timeline(t, fps, frames, seconds, start, fade):
 
 def playing(e, fps, need, seconds, start, fade):
     """[(time in the file, weight), ...] `e` seconds into a clip that plays the file from `start` for `need`
-    seconds (a clip shorter than the whole video: it fades in and out, so its ends need not join)."""
+    seconds (a clip shorter than the whole video: it fades in and out, so its ends need not join). Before the
+    clip's start or past its run (a crossfade with the clip before or after), the file goes round."""
     start, step, join = _plan(seconds, start, fade, need, fps)
+    if step is None:
+        avail = seconds - start
+        if avail > 0 and not 0 <= e < avail:
+            e %= avail
+    elif step > 0 and e < 0:
+        e %= step
     return [(ft, w) for ft, w in _played(max(0.0, e), start, step, join) if w > 1e-4]
 
 
@@ -232,7 +239,7 @@ class Overlay:
         if sp is None:
             parts = timeline(t, self.fps, self.frames, self.info["seconds"], self.p["start"], self.p["fade"])
         else:  # from the clip's own start (plus what was trimmed off its head), for as long as it shows
-            parts = playing((t - sp.start) / self.fps + sp.skip, self.fps, sp.need,
+            parts = playing((t - sp.anchor) / self.fps + sp.skip, self.fps, sp.need,
                             self.info["seconds"], self.p["start"], self.p["fade"])
         for when, weight in parts:
             frame = Image.fromarray(self.cursors.get(int(when * fps_in + 1e-6)))

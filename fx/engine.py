@@ -154,8 +154,10 @@ class Scene:
             fg = None
         self.layers = []  # (drawer, area as float or None (built-in effects), timeline.Span)
         try:
-            for layer in clip_order(project):
-                span = timeline.Span(layer, self.frames, fps)
+            shown = clip_order(project)
+            mixes = timeline.mixes(shown, self.frames, fps)
+            for layer in shown:
+                span = timeline.Span(layer, self.frames, fps, mixes.get(layer["id"], (0.0, 0.0)))
                 if span.empty:
                     continue
                 area = mask_image(folder, layer["id"], size, layer.get("feather", 0), vh, saved, inside=True)

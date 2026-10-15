@@ -45,6 +45,9 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
    - Muốn dài hơn: kéo mép phải của clip, hoặc bấm **Nhân đôi** để nối thêm một bản ngay sau. Hai clip cùng hiệu ứng
      nối liền nhau thì chỗ nối không mờ dần, nên file loop nối vào nhau liền mạch.
    - Muốn hiệu ứng chạy suốt video và tự lặp liền mạch: bấm **Suốt video** trong Bảng chỉnh hiệu ứng.
+   - **Hiệu ứng nối Mix** (như CapCut): ở chỗ hai clip nối nhau trên cùng một track có nút **⧓**. Bấm vào là hai clip
+     hoà dần vào nhau (mặc định 0,5 giây, mỗi bên chỗ nối một nửa). Chỉnh độ dài hoặc bỏ Mix ở mục **Chuyển cảnh**
+     trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip.
 5. **Chỉnh clip**: bấm vào clip trên timeline, rồi chỉnh ở **Bảng chỉnh hiệu ứng**:
    - **Thời gian**: bắt đầu, kết thúc, mờ dần vào/ra. Gõ số giây (`2.5` hay `2,5` đều được), rồi bấm Enter.
    - **Hoà trộn**: video hiệu ứng trên nền đen dùng **Screen**. File nền trong suốt dùng **Bình thường**. App tự chọn
