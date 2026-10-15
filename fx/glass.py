@@ -11,9 +11,10 @@ trails, the rims, glints and a hint of the upside-down sky in each drop.
 
 Like every effect it loops (see effects.py). A running drop's slot goes round a whole number of cycles per loop and
 its cycles are chained: a drop grows, holds, runs, rests, and the next cycle carries it on from where it stopped,
-until the chain's last cycle runs it off the bottom, so no drop vanishes in place. Trails' ages wrap with the cycle,
-beads wiped by a drop grow back as a function of the time since, modulo the loop. Sizes are pixels of a 1080-line
-frame.
+until the chain's last cycle runs it off the bottom, so no drop vanishes in place. How often a slot goes round does
+not depend on how slowly trails fog over: a trail is drawn from its cycle and as many later ones of its slot as it
+takes to fog over (its age wraps with the loop), and beads wiped by a drop grow back as a function of the time
+since, modulo the loop. Sizes are pixels of a 1080-line frame.
 """
 import math
 
@@ -118,7 +119,7 @@ def _split(total, share, cap):
 
 class Glass(Effect):
     lens = True
-    VERSION = 2  # (1: the first release drew only the haze)
+    VERSION = 3  # (1: the first release drew only the haze; 2: trails slow to fog over meant fewer running drops)
     RUNS = 64  # running-drop slots with fixed random draws
     HITS = 200  # rain-hit slots
     VARIANTS = 64  # a slot's cycles in one loop, at most
@@ -138,10 +139,14 @@ class Glass(Effect):
         self.view = _lerp(30.0, 320.0, refr ** 1.5) * px  # how far around it a drop sees (pixels of the scene)
         self.hl_k = p["highlight"] / 100 * 1.5
         self.rim_k = p["rim"] / 100 * 0.6
-        self.bbox = self.buf = None  # the drop buffer covers only the area's box (made on first use)
-        self.dirty = None  # (entries, trail rectangles) of the last frame, cleared before the next
+        # what grows with the frame is made when a frame is drawn and freed by release(): the drop buffer (it
+        # covers only the area's box), the beads drawn (over the frame, and in the box), the fog and where trails
+        # fog over first
+        self.bbox = self.buf = self.flat = self.dirty = None
+        self.beads_all = self.b_idx = self.b_id = self.b_f = None
+        self.fog = self.mottle = None
         self._box_of = (None, None)
-        self.fog = self._fog_map()
+        self._layout()
         self._beads()
         self._runs()
         self._hits()
@@ -153,33 +158,48 @@ class Glass(Effect):
 
     # --- what stays: the fog and the beads -------------------------------------------------------------------
 
-    def _noise(self, g, cells, size=None):
-        """Smooth noise 0..1 with `cells` cells per frame height, the same at any frame size (made at `size`, the
-        frame's by default)."""
-        nx = int(math.ceil(cells * self.aspect)) + 3
-        grid = g.random((int(cells) + 3, nx)).astype(np.float32)
-        im = Image.fromarray(grid, "F").resize(size or (self.w, self.h), Image.Resampling.BICUBIC,
-                                                box=(1, 1, 1 + cells * self.aspect, 1 + cells))
+    def _grids(self):
+        """The random grids of the fog's noise, always drawn in this order (so whatever is made from them is the
+        same each time): the fog's shape (three), its grain, where a trail fogs over first, where beads gather
+        (two); each as (cells per frame height, grid)."""
+        g = self._rng(1)
+        out = []
+        for cells in (2.5, 6, 14, 400, 120, 4, 11):
+            nx = int(math.ceil(cells * self.aspect)) + 3
+            out.append((cells, g.random((int(cells) + 3, nx)).astype(np.float32)))
+        return out
+
+    def _noise(self, grid, size=None):
+        """Smooth noise 0..1 from one of _grids(), the same at any frame size (made at `size`, the frame's by
+        default)."""
+        cells, values = grid
+        im = Image.fromarray(values, "F").resize(size or (self.w, self.h), Image.Resampling.BICUBIC,
+                                                  box=(1, 1, 1 + cells * self.aspect, 1 + cells))
         return np.array(im, np.float32)
 
-    def _fog_map(self):
-        """How fogged the glass is at each pixel (0..1) before drops and trails clear it."""
-        p = self.p
-        g = self._rng(1)
-        lo_h = min(self.h, 270)  # the smooth parts are made small, then enlarged once
+    def _layout(self):
+        """Where beads gather (a small map: the smooth parts are made small, then enlarged once if need be)."""
+        lo_h = min(self.h, 270)
         self.lo = lo = (max(1, round(lo_h * self.aspect)), lo_h)
-        n = 0.55 * self._noise(g, 2.5, lo) + 0.3 * self._noise(g, 6, lo) + 0.15 * self._noise(g, 14, lo) - 0.5
-        grain = self._noise(g, 400)  # the fine texture of condensation
-        self.mottle = self._noise(g, 120)  # where a trail fogs over first
-        self.mottle *= 0.35
-        self.clusters = 0.6 * self._noise(g, 4, lo) + 0.4 * self._noise(g, 11, lo) - 0.5  # where beads gather
+        c0, c1 = self._grids()[5:]
+        self.clusters = 0.6 * self._noise(c0, lo) + 0.4 * self._noise(c1, lo) - 0.5
+
+    def _fog_map(self):
+        """How fogged the glass is at each pixel (0..1) before drops and trails clear it, and where a trail fogs
+        over first (0..0.35): two maps as big as the frame, made when a frame is drawn (again after release())."""
+        p, lo = self.p, self.lo
+        s0, s1, s2, grain, mottle = self._grids()[:5]
+        n = 0.55 * self._noise(s0, lo) + 0.3 * self._noise(s1, lo) + 0.15 * self._noise(s2, lo) - 0.5
+        grain = self._noise(grain)  # the fine texture of condensation
+        mottle = self._noise(mottle)
+        mottle *= 0.35
         shape = np.clip(1 + p["uneven"] / 100 * 3.0 * n, 0.08, 1.9)
         fog = np.array(Image.fromarray(shape, "F").resize((self.w, self.h), Image.Resampling.BICUBIC), np.float32)
         fog *= np.linspace(0.9, 1.12, self.h, dtype=np.float32)[:, None] * (p["haze"] / 100)  # thicker low down
         grain *= 0.1
         grain += 0.95
         fog *= grain
-        return np.clip(fog, 0.0, 1.0, out=fog)
+        return np.clip(fog, 0.0, 1.0, out=fog), mottle
 
     def _beads(self):
         """The beads that stay on the glass: big, middle and small ones, each size on its own grid of cells with at
@@ -221,6 +241,11 @@ class Glass(Effect):
         for key in ("cx", "cy", "r", "e", "rot", "taper"):
             cols[key] = np.concatenate([lv[key][lv["kept"]] for lv in levels]).astype(np.float32)
         self.bead = cols
+
+    def _bead_entries(self):
+        """The beads drawn over the whole frame, as sparse entries (see _raster): (pixel index, bead number,
+        planes)."""
+        cols = self.bead
         n = len(cols["cx"])
         r, e = cols["r"], cols["e"]
         ent = self._raster(cols["cx"], cols["cy"], r * e, r / e, cols["taper"], cols["rot"], np.ones(n, np.float32),
@@ -229,7 +254,7 @@ class Glass(Effect):
         order = np.lexsort((ent["f"][A] * 2 + ent["f"][CLR], ent["idx"]))
         idx = ent["idx"][order]
         sel = order[np.r_[idx[1:] != idx[:-1], True]] if len(idx) else order
-        self.beads_all = (ent["idx"][sel], ent["id"][sel], ent["f"][:, sel])  # (whole frame)
+        return ent["idx"][sel], ent["id"][sel], ent["f"][:, sel]
 
     # --- drops: one drawing routine for all ------------------------------------------------------------------
 
@@ -317,12 +342,14 @@ class Glass(Effect):
         self.r_rip = g.random((self.RUNS, 2, 64)).astype(np.float32)  # how uneven a trail's width is, down it
         n = min(self.RUNS, int(round(p["drops"] / 100 * 36 * self.aspect / (16 / 9))))
         size, speed, wig = p["size"] / 100, p["speed"] / 100, p["wiggle"] / 100
-        refog = float(p["refog"])
         want = _lerp(5.0, 11.0, us[:n, 0]) * _lerp(1.3, 0.75, speed)
-        c = np.clip(np.floor(self.loop_s / np.maximum(want, refog)), 1, V)
+        c = np.clip(np.floor(self.loop_s / want), 1, V)
         T = self.loop_s / c
         self.r_n, self.r_c, self.r_phi, self.r_T = n, c, us[:n, 1], T
-        self.r_tau = np.minimum(refog, T)  # a trail is fogged over again before the slot's next-but-one cycle
+        # seconds a trail takes to fog over, through as many later cycles of its slot as that is (at most a loop:
+        # the slot's drop is back by then), and how many earlier cycles' trails may still show
+        self.r_tau = np.full(n, min(float(p["refog"]), self.loop_s))
+        self.r_back = np.ceil(self.r_tau / T).astype(int)
         u = uv[:n]
         # stop and go: each of KNOTS stretches is a stop (crawling) or a dash
         wgt = np.where(stops[:n], 0.03, 0.2 + ug[:n] ** 0.5)
@@ -392,6 +419,11 @@ class Glass(Effect):
         self.r_tb = (b[..., 0], (b[..., 1] - 0.5) * 1.4,
                      _lerp(0.6, 1.6, b[..., 2] ** 1.5) * px * np.sqrt(R / (8 * px))[..., None],
                      b[..., 3] < np.clip(L / (70 * px), 0.5, 10)[..., None] / 10)
+        uu = np.zeros(b.shape[:-1])  # the cycle phase the drop leaves each of them
+        for i in range(n):
+            for j in range(int(c[i])):
+                uu[i, j] = np.interp(b[i, j, :, 0], self.r_g[i, j], self.knots)
+        self.r_tb_at = sr[..., None] + uu * (se - sr)[..., None]
 
     def _sway(self, i, v, d):
         """The gentle long sway of slot i's run v, `d` pixels below where it set off (0 there)."""
@@ -534,15 +566,31 @@ class Glass(Effect):
 
     # --- one frame -------------------------------------------------------------------------------------------
 
+    def release(self):
+        """Frees what grows with the frame (the drop buffer, the beads drawn, the fog maps) while the clip is not
+        showing; the next frame drawn makes them again, so it is the same as if they had been kept."""
+        self.bbox = self.buf = self.flat = self.dirty = None
+        self.beads_all = self.b_idx = self.b_id = self.b_f = None
+        self.fog = self.mottle = None
+
     def _use(self, box):
-        """The drop buffer for `box` (made again when the area's box changes)."""
+        """The fog maps, the beads drawn, and the drop buffer for `box` (made again when the area's box
+        changes)."""
+        if self.fog is None:
+            self.fog, self.mottle = self._fog_map()
+        if self.beads_all is None:
+            self.beads_all = self._bead_entries()
         if box == self.bbox:
             return
+        self.buf = self.flat = None  # (the old one freed first)
         x0, y0, x1, y1 = self.bbox = box
         self.buf = np.zeros((8, y1 - y0, x1 - x0), np.float32)
         self.flat = self.buf.reshape(8, -1)
         self.dirty = None
         idx, ids, f = self.beads_all
+        if box == (0, 0, self.w, self.h):  # (the same entries: no copy)
+            self.b_idx, self.b_id, self.b_f = idx, ids, f
+            return
         yy, xx = np.divmod(idx, self.w)
         inside = (xx >= x0) & (xx < x1) & (yy >= y0) & (yy < y1)
         self.b_idx, self.b_id, self.b_f = (yy[inside] - y0) * (x1 - x0) + xx[inside] - x0, ids[inside], f[:, inside]
@@ -588,26 +636,26 @@ class Glass(Effect):
         self.flat[:, idx] = new
         return idx
 
-    def _slots(self, tau):
-        """Every running slot's run in this cycle and the one before, and the phase in this cycle."""
+    def _slots(self, tau, back=0):
+        """Every running slot's run `back` cycles before the one at tau, and the phase in that run (1 more for each
+        cycle back)."""
         z = tau * self.r_c + self.r_phi
         cyc = np.floor(z)
-        cur = np.mod(cyc, self.r_c).astype(int)
-        prev = np.mod(cyc - 1, self.r_c).astype(int)
-        return np.arange(self.r_n), cur, prev, z - cyc
+        return np.arange(self.r_n), np.mod(cyc - back, self.r_c).astype(int), z - cyc + back
 
     def _trails(self, tau):
-        """Clears the fog along every trail still showing; returns the rectangles touched (in the buffer)."""
+        """Clears the fog along every trail still showing (this cycle's, and earlier ones' until they have fogged
+        over); returns the rectangles touched (in the buffer)."""
         rects = []
         if not self.r_n:
             return rects
         bx0, by0, bx1, by1 = self.bbox
-        i_all, cur, prev, s_all = self._slots(tau)
+        runs = [self._slots(tau, k)[1:] for k in range(int(self.r_back.max()) + 1)]
         clr = self.buf[CLR]
         soft = 1.2 * self.px + 0.5
-        for i in i_all:
+        for i in range(self.r_n):
             T, tau_r = self.r_T[i], self.r_tau[i]
-            for v, s in ((cur[i], s_all[i]), (prev[i], s_all[i] + 1)):
+            for v, s in ((runs[k][0][i], runs[k][1][i]) for k in range(self.r_back[i] + 1)):
                 sr, se = self.r_sr[i, v], self.r_se[i, v]
                 s_head, s_tail = min(s, se), max(sr, s - tau_r / T)
                 if s <= sr or s_tail >= s_head:
@@ -654,7 +702,8 @@ class Glass(Effect):
 
     def _running(self, tau):
         """The running drops at tau: x, y of the centre, radii across and down, taper, vis, how open the top is."""
-        i, v, prev, s = self._slots(tau)
+        i, v, s = self._slots(tau)
+        prev = self._slots(tau, 1)[1]  # the run that brought it here (unless it is a new drop)
         y = self._pos(i, v, s)
         T = self.r_T
         dt = 0.08  # seconds: the speed over a short while, so the shape does not jump
@@ -715,19 +764,15 @@ class Glass(Effect):
                 sr = (rr * gk[:, None])[there]
                 add((self.h_x[ik, vk][:, None] + ox)[there], (self.h_y[ik, vk][:, None] + oy)[there], sr, sr,
                     np.zeros(len(sr)), np.broadcast_to(vis[k][:, None], there.shape)[there])
-        if self.r_n:  # tiny beads left in the trails
-            i, cur, prev, s_all = self._slots(tau)
-            for v, s in ((cur, s_all), (prev, s_all + 1)):
+        if self.r_n:  # tiny beads left in the trails (this cycle's and earlier ones', until they have fogged over)
+            for k in range(int(self.r_back.max()) + 1):
+                i, v, s = self._slots(tau, k)
                 f, side, rad, there = (a[i, v] for a in self.r_tb)
                 y = self.r_y0[i, v][:, None] + f * self.r_L[i, v][:, None]
-                uu = np.empty_like(f)
-                for j in range(len(i)):
-                    uu[j] = np.interp(f[j], self.r_g[i[j], v[j]], self.knots)
-                s_at = self.r_sr[i, v][:, None] + uu * (self.r_se[i, v] - self.r_sr[i, v])[:, None]
-                age = (s[:, None] - s_at) * self.r_T[i][:, None]
+                age = (s[:, None] - self.r_tb_at[i, v]) * self.r_T[i][:, None]
                 tau_r = self.r_tau[i][:, None]
                 life = np.where(age > 0, 1 - _smooth((age - 0.7 * tau_r) / (0.3 * tau_r)), 0) * _smooth(age / 0.15)
-                ok = there & (life > 0.01) & (y < self.h + 4)
+                ok = there & (life > 0.01) & (y < self.h + 4) & (k <= self.r_back)[:, None]
                 if ok.any():
                     ii = np.broadcast_to(i[:, None], ok.shape)[ok]
                     vv = np.broadcast_to(v[:, None], ok.shape)[ok]
