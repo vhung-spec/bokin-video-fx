@@ -85,14 +85,15 @@ hiện trong cột đó, hình không bị thu nhỏ.
 | Thao tác | Cách làm |
 |---|---|
 | Tô | Chọn **🖌 Cọ** rồi kéo chuột. Chỉnh **Cỡ**, hoặc bấm phím `[` `]` |
-| Khoanh vùng | Chọn **⬠ Khoanh**, bấm từng điểm, rồi bấm lại điểm đầu (hoặc bấm đúp, hoặc Enter) |
-| Thêm / bớt | **＋ Thêm**, **－ Bớt** (phím `X` để đổi) |
+| Khoanh vùng | Chọn **⬠ Khoanh**, bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (nó sáng vòng vàng khi chuột tới gần), bấm đúp, bấm **Khép vùng** hoặc Enter. Bấm **Xong** khi chưa khép thì vùng cũng được khép. `Backspace` bỏ điểm cuối |
+| Thêm / bớt | **＋ Thêm**, **－ Bớt** (phím `X` để đổi). Ở chế độ Bớt, nét và đường khoanh có màu đỏ |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` |
 | Phóng to, kéo hình | Lăn chuột trên hình để phóng to. Giữ chuột phải (hoặc phím cách) rồi kéo |
 | Xoá cả vùng | **Xoá vùng** (vùng đứng yên, tiền cảnh) hoặc **Cả khung hình** (vùng của clip). Bấm `Ctrl+Z` để lấy lại |
 | Xong | Bấm **Xong** hoặc `Esc`. Vùng của clip vẫn hiện bằng viền xanh để bạn kéo clip vào đúng chỗ (tắt bằng ô **Hiện vùng của clip**) |
 
 Vùng của một clip lúc đầu là cả khung hình. Nét tô (hoặc vùng khoanh) đầu tiên thay cả khung hình bằng chỗ bạn tô.
+Mép mềm của vùng clip nằm bên trong đường viền xanh: ra ngoài đường viền là không còn gì của clip.
 
 ### Phím tắt khác
 

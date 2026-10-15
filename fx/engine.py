@@ -41,9 +41,13 @@ def mask_path(folder, name):
     return os.path.join(folder, "masks", name + ".png")
 
 
-def mask_image(folder, name, size, feather, video_h, saved=None):
+INSIDE = [max(0, 2 * v - 255) for v in range(256)]  # a softened edge moved in: 0 from the painted line outwards
+
+
+def mask_image(folder, name, size, feather, video_h, saved=None, inside=False):
     """A mask as an "L" image at `size`, softened by `feather` px of the full video; None if none. `saved`: the
-    masks as read before a render was handed out (found_files)."""
+    masks as read before a render was handed out (found_files). `inside`: the soft edge lies within what was
+    painted (a clip's area: nothing of the clip shows outside its outline), else across the painted line."""
     if saved is not None:
         path = saved.get(name) and io.BytesIO(saved[name])
     else:
@@ -59,6 +63,8 @@ def mask_image(folder, name, size, feather, video_h, saved=None):
     radius = feather * size[1] / video_h
     if radius >= 0.3:
         m = m.filter(ImageFilter.GaussianBlur(radius))
+        if inside:
+            m = m.point(INSIDE)
     return m
 
 
@@ -152,7 +158,7 @@ class Scene:
                 span = timeline.Span(layer, self.frames, fps)
                 if span.empty:
                     continue
-                area = mask_image(folder, layer["id"], size, layer.get("feather", 0), vh, saved)
+                area = mask_image(folder, layer["id"], size, layer.get("feather", 0), vh, saved, inside=True)
                 if layer.get("behind") and fg is not None:
                     hidden = ImageChops.invert(fg)
                     area = hidden if area is None else ImageChops.multiply(area, hidden)

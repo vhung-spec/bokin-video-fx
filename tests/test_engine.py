@@ -51,14 +51,14 @@ class Engine(unittest.TestCase):
     def test_areas_and_foreground(self):
         project = projects.load(self.project["id"])
         project = projects.apply(project, {"layers": [
-            {"id": "snowaa", "kind": "snow", "params": {"amount": 100, "size": 100}, "seed": 1},
+            {"id": "snowaa", "kind": "snow", "params": {"amount": 100, "size": 100}, "seed": 1, "feather": 20},
             {"id": "snowbb", "kind": "snow", "behind": True, "params": {"amount": 100, "size": 100}, "seed": 2}]})
         project = projects.save_mask(project, "snowaa", png([0, 0, W // 2 - 1, H], (W, H)))
         project = projects.save_mask(project, "fg", png([0, 0, W, H], (W, H)))  # everything is in front
         scene = engine.Scene(self.folder, dict(project, fg={"feather": 0}), (W, H))
         self.assertEqual(len(scene.layers), 1)  # the second one is hidden everywhere
         changed = scene.frame(5, self.base(5)) != self.base(5)
-        self.assertFalse(changed[:, W // 2 + 30:].any())  # 20 px feather around the area
+        self.assertFalse(changed[:, W // 2 + 1:].any())  # the soft edge is inside the area: nothing outside it
         self.assertTrue(changed[:, :W // 2 - 30].any())
         projects.save_mask(projects.load(self.project["id"]), "fg", b"")
         projects.apply(projects.load(self.project["id"]), {"layers": []})

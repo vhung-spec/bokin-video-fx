@@ -800,7 +800,7 @@ function maskURL(name, feather, invert, done) {
   if (slot.key === key) return slot.url;
   if (slot.want !== key) {
     slot.want = key;
-    softMask(m, feather, invert).toBlob(blob => {
+    softMask(m, feather, invert, maskKind(name) === "area").toBlob(blob => {
       if (slot.want !== key || !blob) return;  // a newer one was asked for meanwhile
       const old = slot.url;
       slot.url = URL.createObjectURL(blob); slot.key = key;
@@ -813,7 +813,7 @@ function maskURL(name, feather, invert, done) {
   if (done) (slot.waiting || (slot.waiting = new Set())).add(done);
   return slot.url || null;
 }
-function softMask(m, feather, invert) {
+function softMask(m, feather, invert, inside) {  // inside: the soft edge within the painted line (engine.mask_image)
   const w = Math.min(MASK_CSS_W, m.canvas.width), h = Math.max(2, Math.round(m.canvas.height * w / m.canvas.width));
   const r = feather * h / info().h, pad = Math.ceil(r * 3) + 1;
   const c = document.createElement("canvas"); c.width = w + 2 * pad; c.height = h + 2 * pad;
@@ -830,6 +830,12 @@ function softMask(m, feather, invert) {
   const o = out.getContext("2d");
   if (r >= 0.3) o.filter = `blur(${r}px)`;
   o.drawImage(c, -pad, -pad);  // the whole padded canvas: the blur sees the edges carried outwards
+  if (inside && r >= 0.3) {  // a clip's area: nothing of it outside the painted line
+    o.filter = "none";
+    const d = o.getImageData(0, 0, w, h), a = d.data;
+    for (let i = 3; i < a.length; i += 4) a[i] = Math.max(0, 2 * a[i] - 255);
+    o.putImageData(d, 0, 0);
+  }
   if (invert) {
     o.filter = "none";
     o.globalCompositeOperation = "xor"; o.fillStyle = "#fff"; o.fillRect(0, 0, w, h);
@@ -1297,6 +1303,8 @@ function enterPaint(name) {
 function exitPaint() {
   endStroke();
   if (!S.paint) return;
+  const pm = S.masks[S.paint];
+  if (S.poly.length >= 3 && pm && !(S.brush.mode === "sub" && pm.empty)) closePoly();  // done: the shape is kept
   const name = S.paint, m = S.masks[name];
   S.paint = null; S.poly = [];
   if (m) { clearTimeout(m.useTimer); maskUsed(name); }  // the live preview follows at once
@@ -1356,6 +1364,8 @@ function renderTools() {  // the tool column at the right of the monitor: painti
       <h5>Mép mềm</h5>
       <div class="lab"><span>độ mềm (điểm ảnh)</span><b id="paintFeatherVal">${featherOf(S.paint)}</b></div>
       <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}">
+      ${br.tool === "poly" ? `<p class="tip">Bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (vòng sáng), bấm đúp, hoặc Enter. Backspace: bỏ điểm cuối.</p>
+        ${S.poly.length >= 3 ? '<button class="small primary wide" data-pclose="1" title="Khép vùng (Enter)">Khép vùng</button>' : ""}` : ""}
       <div class="two" style="margin-top:12px"><button class="small" data-pundo="1" title="Hoàn tác (Ctrl+Z)">↶ Hoàn tác</button><button class="small" data-predo="1" title="Làm lại (Ctrl+Y)">↷ Làm lại</button></div>
       <label class="check"><input type="checkbox" id="onlyBase" ${S.onlyBase ? "checked" : ""}> Chỉ xem video gốc</label>
       <button class="primary done" data-done="1" title="Xong (Esc)">Xong</button>
@@ -1389,6 +1399,7 @@ $("#tools").addEventListener("click", e => {
   }
   if (!S.paint) return;
   if (b.dataset.mode) { S.brush.mode = b.dataset.mode; renderTools(); drawPoly(); }
+  if (b.dataset.pclose) closePoly();
   if (b.dataset.ptool) { S.brush.tool = b.dataset.ptool; S.poly = []; renderTools(); drawPoly(); }
   if (b.dataset.fill) fillMask(S.paint, b.dataset.fill);
   if (b.dataset.pundo) undoPaint(false);
@@ -1439,14 +1450,30 @@ function drawPoly() {  // the polygon being drawn, on its own layer
     const g = polyCanvas.getContext("2d");
     g.clearRect(0, 0, polyCanvas.width, polyCanvas.height);
     if (!S.project || !S.paint || !S.poly.length) return;
-    const k = 1 / screenScale();
-    g.lineWidth = 2 * k; g.strokeStyle = S.brush.mode === "add" ? "#fff" : "#ff6b6b"; g.setLineDash([6 * k, 4 * k]);
+    const k = 1 / screenScale(), add = S.brush.mode === "add", f0 = S.poly[0], closing = nearFirst(S.hover);
+    const pts = S.hover && !closing ? [...S.poly, S.hover] : S.poly;
+    if (pts.length >= 3) {  // the shape it will make, lightly: added in the area's colour, taken away in red
+      g.fillStyle = add ? COLORS[maskKind(S.paint)] : "#ff6b6b"; g.globalAlpha = 0.22;
+      g.beginPath(); pts.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1])); g.closePath(); g.fill();
+      g.globalAlpha = 1;
+    }
+    g.lineWidth = 2 * k; g.strokeStyle = add ? "#fff" : "#ff6b6b"; g.setLineDash([6 * k, 4 * k]);
     g.beginPath(); S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
-    if (S.hover) g.lineTo(S.hover[0], S.hover[1]);
+    if (S.hover) g.lineTo(closing ? f0[0] : S.hover[0], closing ? f0[1] : S.hover[1]);
     g.stroke(); g.setLineDash([]);
     g.fillStyle = "#fff";
     for (const pt of S.poly) { g.beginPath(); g.arc(pt[0], pt[1], 3.5 * k, 0, 7); g.fill(); }
+    if (S.poly.length >= 3) {  // the first point: a click there closes the shape
+      g.lineWidth = 2.5 * k; g.strokeStyle = closing ? "#ffd84d" : "#fff";
+      g.beginPath(); g.arc(f0[0], f0[1], (closing ? CLOSE_PX : 8) * k, 0, 7); g.stroke();
+    }
   });
+}
+const CLOSE_PX = 18;  // a click this near the first point (on screen) closes the shape
+function nearFirst(pt) {
+  if (!pt || S.poly.length < 3) return false;
+  const f = S.poly[0];
+  return Math.hypot(pt[0] - f[0], pt[1] - f[1]) * screenScale() <= CLOSE_PX;
 }
 function drawPaint() { retint(); drawPoly(); }
 function toMask(e, rect) {
@@ -1478,9 +1505,19 @@ function startArea(m) {  // a clip's area is still the whole frame: the first th
   mctx(m).clearRect(0, 0, m.canvas.width, m.canvas.height); m.full = false; m.empty = true;
   retint();
 }
+function warnTakingAway() {  // "－ Bớt" on an area with nothing in it yet does nothing: say so
+  const m = S.masks[S.paint];
+  if (S.brush.mode !== "sub" || !m || !m.empty) return false;
+  toast('Đang ở chế độ "－ Bớt" (xoá vùng), mà vùng còn trống. Muốn tô hoặc khoanh vùng mới, bấm "＋ Thêm" (phím X).', true, 7000);
+  return true;
+}
 function closePoly() {
   const m = S.masks[S.paint];
-  if (!m || S.poly.length < 3) { S.poly = []; drawPoly(); return; }
+  if (!m || S.poly.length < 3) { S.poly = []; drawPoly(); renderTools(); return; }
+  if (S.brush.mode === "sub" && m.empty) {  // kept: after "＋ Thêm", Enter (or the first point) makes it the area
+    toast('Vòng này đang ở chế độ "－ Bớt" nên không thêm gì. Bấm "＋ Thêm", rồi bấm Enter để dùng vòng vừa khoanh.', true, 8000);
+    return;
+  }
   rememberPaint(m); startArea(m);
   const add = S.brush.mode === "add";
   for (const [g, colour] of [[mctx(m), "#fff"], [paintCanvas.getContext("2d"), COLORS[maskKind(S.paint)]]]) {
@@ -1490,8 +1527,8 @@ function closePoly() {
     g.closePath(); g.fill();
     g.globalCompositeOperation = "source-over";
   }
-  S.poly = [];
-  drawPoly();
+  S.poly = []; S.hover = null;
+  drawPoly(); renderTools();
   maskChanged(S.paint, add ? "add" : "sub");
 }
 let panning = null, lastPt = null, painting = false;
@@ -1517,13 +1554,13 @@ stage.addEventListener("pointerdown", e => {
   const pt = toMask(e);
   if (S.brush.tool === "brush") {
     S.paintRect = paintCanvas.getBoundingClientRect(); S.stageRect = stage.getBoundingClientRect();  // fixed while painting
+    warnTakingAway();
     rememberPaint(S.masks[S.paint]); startArea(S.masks[S.paint]); painting = true; lastPt = pt; stroke(pt, pt); stage.setPointerCapture(e.pointerId);
   } else {
-    if (S.poly.length >= 3) {
-      const f = S.poly[0], d = Math.hypot(pt[0] - f[0], pt[1] - f[1]) * screenScale();
-      if (d < 12) { closePoly(); return; }
-    }
+    if (nearFirst(pt)) { closePoly(); return; }
+    if (!S.poly.length) warnTakingAway();
     S.poly.push(pt); drawPoly();
+    if (S.poly.length === 3) renderTools();  // its "Khép vùng" button
   }
 });
 stage.addEventListener("pointermove", e => {
@@ -2581,9 +2618,9 @@ document.addEventListener("keydown", e => {
   }
   if (S.paint) {
     if (k === "Enter") closePoly();
-    else if (k === "Escape") { if (S.poly.length) { S.poly = []; drawPoly(); } else exitPaint(); }
-    else if (k === "Backspace" && S.poly.length) { S.poly.pop(); drawPoly(); }
-    else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderTools(); }
+    else if (k === "Escape") { if (S.poly.length) { S.poly = []; S.hover = null; drawPoly(); renderTools(); } else exitPaint(); }
+    else if (k === "Backspace" && S.poly.length) { S.poly.pop(); drawPoly(); if (S.poly.length === 2) renderTools(); }
+    else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderTools(); drawPoly(); }
     else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; S.hover = null; renderTools(); drawPoly(); }
     else if (k === "l" || k === "L") { S.brush.tool = "poly"; renderTools(); }
     else if (k === "[" || k === "]") { S.brush.size = clamp(Math.round(S.brush.size * (k === "]" ? 1.2 : 1 / 1.2)), 2, 400); renderTools(); }
