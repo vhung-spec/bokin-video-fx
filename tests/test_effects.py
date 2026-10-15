@@ -72,6 +72,11 @@ class Params(unittest.TestCase):
         p = effects.clean_params("file", {"fade": "1.26", "start": float("nan")})
         self.assertEqual((p["fade"], p["start"]), (1.3, 0))
 
+    def test_place_and_size_finely(self):
+        """A clip is moved about a pixel at a time and sized in tenths of a percent, not whole percents."""
+        p = effects.clean_params("file", {"x": 20.45, "y": -7.333, "scale": 87.66})
+        self.assertEqual((p["x"], p["y"], p["scale"]), (20.45, -7.35, 87.7))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -78,8 +78,9 @@ class Jobs:
         project = projects.load(pid)
         if project.get("proxy") and os.path.exists(os.path.join(projects.folder(pid), project["proxy"])):
             return None
-        mine = lambda j: j["kind"] == "proxy" and j["project"] == pid  # noqa: E731
-        return self._pending(mine) or self._failed_lately(mine) or self._new("proxy", pid, "prep")
+        source = project["video"]["file"]  # a job for a video since replaced is not this one's
+        mine = lambda j: j["kind"] == "proxy" and j["project"] == pid and j.get("source") == source  # noqa: E731
+        return self._pending(mine) or self._failed_lately(mine) or self._new("proxy", pid, "prep", source=source)
 
     def library_proxy(self, iid):
         item = library.load(iid)
@@ -171,13 +172,17 @@ class Jobs:
     def _proxy(self, job):
         pid = job["project"]
         project = projects.load(pid)
+        if project["video"]["file"] != job.get("source", project["video"]["file"]):
+            return False  # the video was replaced before this started
         try:
             name = engine.make_base_proxy(projects.folder(pid), project)
-            projects.set_proxy(pid, name, project["video"]["file"])
+            kept = projects.set_proxy(pid, name, project["video"]["file"]).get("proxy") == name
         except Exception:
             if job["cancel"]:  # the project was deleted meanwhile
                 return False
             raise
+        if not kept:
+            return False  # the video was replaced meanwhile: this copy was of the old one, and is gone
         job["output"] = name
         return True
 
@@ -199,7 +204,7 @@ class Jobs:
             return False
         job["output"] = name
         try:
-            projects.sweep_files(projects.load(pid))  # clips made for older settings
+            projects.sweep_files(project)  # clips made for older settings (on the newest copy of the project)
         except projects.UserError:
             pass
         return True

@@ -182,11 +182,9 @@ def run(page, folder, edge):
                 layers: live.map(e => [e.media.readyState, e.media.currentTime, e.media.paused])};
     })()""")
     shot("03-playing")
-    shown = page.evaluate("(() => { const s = baseShown, l = laps; pause(); "
-                          "return {shown: s, frame: curFrame() % loopFrames(), base: baseVid.currentTime}; })()")
-    if edge:  # the pause keeps the frame that was on screen
-        check("pause keeps the frame on screen", shown["shown"] is not None and
-              int(shown["shown"] * 24 + 1e-6) == shown["frame"], str(shown))
+    shown = page.evaluate("(() => { pause(); return {frame: curFrame() % loopFrames(), base: baseVid.currentTime}; })()")
+    if edge:  # the pause keeps the frame the video stopped on
+        check("pause keeps the frame on screen", int(shown["base"] * 24 + 0.01) == shown["frame"], str(shown))
     first = page.locator("#screen").screenshot()
     live = disc(first)
     if edge:  # everything plays in Edge: a pause keeps the picture as it is (no other picture swapped in)
@@ -233,6 +231,28 @@ def run(page, folder, edge):
     page.keyboard.press("Escape")
     page.wait_for_function("S.project.masks.includes('freeze')", timeout=30000)
     check("still area painted and saved", True)
+
+    # an effect's picture on the monitor: a double-click selects it and leaves it in place; a press and drag moves it
+    fid = page.evaluate("S.project.layers.find(c => c.kind === 'file').id")
+    params = f"Object.assign({{}}, clipById('{fid}').params)"
+    page.evaluate("(() => { S.sel = null; renderControls(); showXform(); seek(16); })()")
+    page.wait_for_timeout(300)
+    before = page.evaluate(params)
+    mid = page.evaluate(f"(() => {{ const q = placed(clipById('{fid}')), sc = screenEl.getBoundingClientRect(); "
+                        "return [sc.left + (q.x + q.w / 2) / info().w * sc.width, sc.top + (q.y + q.h / 2) / info().h * sc.height]; })()")
+    page.mouse.dblclick(*mid)
+    page.wait_for_timeout(300)
+    after = page.evaluate(params)
+    check("a double-click on an effect's picture selects it", page.evaluate(f"S.sel === '{fid}'") and
+          (after["x"], after["y"]) == (before["x"], before["y"]), f"{before} -> {after}")
+    page.evaluate("(() => { S.sel = null; renderControls(); showXform(); })()")
+    drag(mid[0], mid[1], mid[0] + 60, mid[1])
+    after = page.evaluate(params)
+    check("a press and drag on an effect's picture moves it", page.evaluate(f"S.sel === '{fid}'") and
+          after["x"] > before["x"] + 2 and abs(after["y"] - before["y"]) < 0.5, f"{before} -> {after}")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    check("undo the move", page.evaluate(params)["x"] == before["x"])
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

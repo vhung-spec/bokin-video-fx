@@ -529,9 +529,10 @@ function saveNow() {  // resolves to true once the settings are saved; saves go 
   return S.saving;
 }
 async function sendSave(p) {  // the project as it is now, not as it was when the save was asked for
-  const mark = ++S.edits;
+  const mark = ++S.edits, body = pageProject(p);
+  const sent = Object.fromEntries(body.layers.map(l => [l.id, JSON.stringify(l.params)]));
   try {
-    const fresh = await post("/api/save", pageProject(p));
+    const fresh = await post("/api/save", body);
     p.rev = fresh.rev; p.masks = fresh.masks;
     p.saved = new Set(fresh.layers.map(l => l.id));
     const quiet = S.edits === mark;  // nothing changed on the page while this was being saved
@@ -540,7 +541,7 @@ async function sendSave(p) {  // the project as it is now, not as it was when th
       const mine = p.layers.find(x => x.id === l.id);
       if (!mine) continue;
       if (l.file) { mine.file = l.file; delete mine.lib; }
-      if (quiet) mine.params = l.params;
+      if (JSON.stringify(mine.params) === sent[l.id]) mine.params = l.params;  // unchanged since: the app's tidy copy
     }
     if (S.project === p) {
       for (const [name, m] of Object.entries(S.masks)) if (m.afterSave && p.saved.has(name)) { m.afterSave = false; queueMask(name, m); }
@@ -648,7 +649,7 @@ function undoPaint(redo) {
 }
 function maskChanged(name, how) {  // after a stroke ("add" / "sub"), a fill ("set") or an undo (null: look again)
   const m = S.masks[name]; if (!m) return;
-  m.ver++;
+  m.ver++; m.unsent = true;
   if (how === "add") m.empty = false;
   else if (how === "sub") m.full = false;
   else if (how === null) measure(m);
@@ -676,11 +677,51 @@ async function flushMasks() {  // true once every painted change is on the app's
   const waits = Object.entries(S.masks).map(([n, m]) => m.timer ? queueMask(n, m) : (m.sending || true));
   return (await Promise.all(waits)).every(Boolean);
 }
+// the window is being closed: the settings and painting that have not reached the app yet go now, in requests that
+// outlive the page. Those are limited to 64 KB in all; if more is waiting, the browser asks before closing.
+const CLOSE_BYTES = 60000;
+function sendBeforeClose() {
+  const p = S.project; if (!p) return true;
+  let room = CLOSE_BYTES, all = true;
+  const send = (path, body, type) => {
+    const n = typeof body === "string" ? new Blob([body]).size : body.length;
+    if (n > room) return false;
+    room -= n;
+    const headers = {"X-Bokin": "1"}; if (type) headers["Content-Type"] = type;
+    fetch(path, {method: "POST", headers, body, keepalive: true}).catch(() => {});
+    return true;
+  };
+  if (S.saveTimer || Object.values(S.masks).some(m => m.afterSave)) {
+    if (send("/api/save", JSON.stringify(pageProject(p)), "application/json")) { clearTimeout(S.saveTimer); S.saveTimer = 0; }
+    else all = false;
+  }
+  for (const [name, m] of Object.entries(S.masks)) {
+    if (!(m.unsent || m.afterSave) || m.project !== p) continue;
+    if (name !== "freeze" && name !== "fg" && !p.layers.some(l => l.id === name)) continue;  // its clip is gone
+    measure(m);
+    let body = new Uint8Array(0);
+    if (maskKind(name) === "area" ? !m.full : !m.empty) {
+      const bin = atob(m.canvas.toDataURL("image/png").split(",")[1]);
+      body = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) body[i] = bin.charCodeAt(i);
+    }
+    if (send(`/api/mask?id=${p.id}&name=${name}`, body)) { clearTimeout(m.timer); m.timer = 0; m.unsent = m.afterSave = false; }
+    else all = false;
+  }
+  return all;
+}
+addEventListener("beforeunload", e => {
+  if (!S.project || !(S.saveTimer || Object.values(S.masks).some(m => m.unsent || m.afterSave))) return;
+  if (sendBeforeClose()) return;
+  readyToRender();  // the usual way, if the window stays open
+  e.preventDefault(); e.returnValue = "";
+});
 async function sendMask(name, m) {
   const p = m.project; if (!p) return true;
   const gone = () => name !== "freeze" && name !== "fg" && !p.layers.some(l => l.id === name);
   if (gone()) return true;  // its clip was deleted
   if (maskKind(name) === "area" && p.saved && !p.saved.has(name)) { m.afterSave = true; return true; }  // sent after the clip
+  m.unsent = false;
   const before = [m.empty, m.full];
   measure(m);
   if (before[0] !== m.empty || before[1] !== m.full) maskUsed(name);
@@ -731,10 +772,13 @@ function maskURL(name, feather, invert, done) {
       if (slot.want !== key || !blob) return;  // a newer one was asked for meanwhile
       const old = slot.url;
       slot.url = URL.createObjectURL(blob); slot.key = key;
-      if (done) done();
+      // every user of this mask that asked while it was being made (they restyle, so a stale one is harmless)
+      const waiting = slot.waiting; slot.waiting = null;
+      if (waiting) for (const f of waiting) f();
       if (old) setTimeout(() => URL.revokeObjectURL(old), 3000);
     }, "image/png");
   }
+  if (done) (slot.waiting || (slot.waiting = new Set())).add(done);
   return slot.url || null;
 }
 function softMask(m, feather, invert) {
@@ -768,7 +812,11 @@ baseVid.addEventListener("loadeddata", () => { S.baseBroken = false; applyTime()
 const paintCanvas = $("#paintCanvas"), polyCanvas = $("#polyCanvas"), areaCanvas = $("#areaCanvas"), layersEl = $("#layers");
 function setupScreen() {
   const p = S.project;
-  paintCanvas.width = polyCanvas.width = areaCanvas.width = p.mask_w; paintCanvas.height = polyCanvas.height = areaCanvas.height = p.mask_h;
+  if (paintCanvas.width !== p.mask_w || paintCanvas.height !== p.mask_h) {  // a canvas is cleared when sized
+    paintCanvas.width = polyCanvas.width = areaCanvas.width = p.mask_w;
+    paintCanvas.height = polyCanvas.height = areaCanvas.height = p.mask_h;
+    if (S.paint) retint();
+  }
   areaCanvas.dataset.key = "";
   const src = p.proxy ? `/media/base?id=${p.id}&v=${encodeURIComponent(p.proxy)}` : "";
   S.baseBroken = false;
@@ -794,6 +842,8 @@ function layoutScreen() {
   const x = (f.sw - f.w * S.scale) / 2 + S.panX, y = (f.sh - f.h * S.scale) / 2 + S.panY;
   screenEl.style.transform = `translate(${x}px, ${y}px) scale(${S.scale})`;
   drawPoly(); showXform(); drawArea();
+  // a stroke goes on where the mouse is, though the picture moved or was zoomed under it
+  if (S.paintRect) { S.paintRect = paintCanvas.getBoundingClientRect(); S.stageRect = stage.getBoundingClientRect(); }
 }
 function clearLayers() {
   for (const el of Object.values(S.els)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); }
@@ -890,24 +940,37 @@ function placed(c, inf) {  // where a file clip lies in the video, in its pixels
 function showXform() {  // the box of the selected file clip, over the picture
   const c = S.project && clipById(S.sel);
   const r = c && c.kind === "file" && !S.paint && !S.playing ? placed(c) : null;
-  if (!r) { xform.style.display = "none"; return; }
+  // nothing to move when the clip is not shown at all (its track hidden, the clip turned off)
+  if (!r || !clipOrder().includes(c)) { xform.style.display = "none"; return; }
   const st = stage.getBoundingClientRect(), sc = screenEl.getBoundingClientRect();
   const kx = sc.width / info().w, ky = sc.height / info().h;
   Object.assign(xform.style, {display: "block", left: (sc.left - st.left + r.x * kx) + "px", top: (sc.top - st.top + r.y * ky) + "px",
     width: Math.max(4, r.w * kx) + "px", height: Math.max(4, r.h * ky) + "px"});
-  xform.classList.toggle("off", weight(span(c), curFrame()) === 0);
-  $("#xformLab").textContent = `${c.name} · cỡ ${c.params.scale}% · ${c.params.x}, ${c.params.y}`;
+  const now = weight(span(c), curFrame()) > 0;
+  xform.classList.toggle("off", !now);
+  xform.style.pointerEvents = now ? "" : "none";  // not at this time: an outline only, clicks go to what is shown
+  $("#xformLab").textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}`;
 }
-function fileParam(key, v) { const d = S.schema.kinds.file.params.find(x => x.key === key); return clamp(Math.round(v), d.min, d.max); }
-xform.addEventListener("pointerdown", e => {
-  const c = clipById(S.sel); if (!c || e.button !== 0) return;
-  e.stopPropagation(); e.preventDefault();
+function num(v) { return String(+(+v).toFixed(2)); }
+function fileParam(key, v) {  // on the parameter's own step (a twentieth of a percent: about a pixel)
+  const d = S.schema.kinds.file.params.find(x => x.key === key), step = d.step || 1;
+  return clamp(+(Math.round(v / step) * step).toFixed(3), d.min, d.max);
+}
+function startXdrag(e) {  // a press on the selected clip's box, or on its picture
+  const c = clipById(S.sel); if (!c || xform.style.display !== "block") return;
+  e.preventDefault();
   xform.setPointerCapture(e.pointerId);
   const sc = screenEl.getBoundingClientRect(), xr = xform.getBoundingClientRect();
   const cx = xr.left + xr.width / 2, cy = xr.top + xr.height / 2;
   S.xdrag = {c, scale: !!e.target.dataset.h, x0: e.clientX, y0: e.clientY, p0: Object.assign({}, c.params), sc, cx, cy,
     d0: Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy))};
   invalidateExact();
+}
+xform.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  S.xdowns = [(S.xdowns || [])[1], {id: S.sel, t: e.timeStamp}];  // the last two presses: a double-click is on one clip
+  startXdrag(e);
 });
 xform.addEventListener("pointermove", e => {
   const d = S.xdrag; if (!d) return;
@@ -915,7 +978,7 @@ xform.addEventListener("pointermove", e => {
   if (d.scale) pr.scale = fileParam("scale", d.p0.scale * Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.d0);
   else {
     let x = d.p0.x + (e.clientX - d.x0) / d.sc.width * 100, y = d.p0.y + (e.clientY - d.y0) / d.sc.height * 100;
-    if (e.shiftKey) { if (Math.abs(x - d.p0.x) > Math.abs(y - d.p0.y)) y = d.p0.y; else x = d.p0.x; }  // straight
+    if (e.shiftKey) { if (Math.abs(e.clientX - d.x0) > Math.abs(e.clientY - d.y0)) y = d.p0.y; else x = d.p0.x; }  // straight
     if (!e.altKey) { if (Math.abs(x) < 1.5) x = 0; if (Math.abs(y) < 1.5) y = 0; }  // the middle catches it
     pr.x = fileParam("x", x); pr.y = fileParam("y", y);
   }
@@ -924,33 +987,40 @@ xform.addEventListener("pointermove", e => {
   for (const key of ["x", "y", "scale"]) {  // the sliders follow
     const input = $(`#ec [data-param="${key}"]`), lab = $("#v-" + key);
     if (input) input.value = pr[key];
-    if (lab) lab.textContent = pr[key];
+    if (lab) lab.textContent = num(pr[key]);
   }
 });
 xform.addEventListener("pointerup", () => {
   const d = S.xdrag; if (!d) return;
   S.xdrag = null;
-  if (["x", "y", "scale"].some(k => d.c.params[k] !== d.p0[k])) { scheduleSave(); remember(); renderControls(); renderTools(); }
-  refreshExact();
+  if (["x", "y", "scale"].some(k => d.c.params[k] !== d.p0[k])) {
+    if (S.els[d.c.id]) styleLayer(d.c, S.els[d.c.id]);
+    showXform(); scheduleSave(); remember(); renderControls(); renderTools();
+    invalidateExact();  // the exact frame is asked for once the save is in (sendSave)
+  } else refreshExact();
 });
 xform.addEventListener("dblclick", e => {  // back to the middle, at its size
-  const c = clipById(S.sel); if (!c) return;
+  const c = clipById(S.sel), [a, b] = S.xdowns || [];
   e.stopPropagation();
+  // both clicks on this clip's box: not the click that selected it on the picture, then one on the box
+  if (!c || !a || !b || a.id !== c.id || b.id !== c.id || a.picked || b.t - a.t > 800) return;
   c.params.x = 0; c.params.y = 0; edited();
 });  // painting the still area or foreground on the bare video
 
 // the clock: one time for every element
-function applyTime(hold) {  // hold: right after a pause, videos a frame off stay where they are (no visible jump)
+function applyTime(hold) {  // hold: after a pause, videos a frame or two off stay where they are (no visible jump)
   if (!S.project) return;
+  hold = hold || S.held;  // until the time is moved again
   const t = S.time * fps(), playing = S.playing, f = fps();
   const loopSec = loopFrames() / f;
   // the project's video (while playing it is the clock itself); while painting, or when its light copy cannot
   // play, its frame as a picture
   if (baseVid.getAttribute("src")) {
     if (playing && S.baseClock) { if (baseVid.paused) baseVid.play().catch(() => {}); }
-    else syncMedia(baseVid, (S.time % loopSec) + 0.25 / f, loopSec, playing, hold);
+    else if (!(hold && !playing)) syncMedia(baseVid, (S.time % loopSec) + 0.25 / f, loopSec, playing, hold);
   }
-  const still = !!S.paint || S.baseBroken || !baseVid.getAttribute("src") || baseVid.readyState < 2;
+  const still = !!S.paint || S.baseBroken || !baseVid.getAttribute("src") ||
+    baseVid.readyState < (playing && S.baseClock ? 1 : 2);
   if (still && !playing) {
     const src = `/api/frame?id=${S.project.id}&t=${curFrame() % loopFrames()}`;
     if (baseFrame.dataset.src !== src) { baseFrame.src = src; baseFrame.dataset.src = src; }
@@ -983,16 +1053,20 @@ function syncMedia(v, want, len, playing, hold) {  // hold: just paused, so what
   } else {
     if (!v.paused) v.pause();
     v.playbackRate = 1;
-    if (Math.abs(v.currentTime - want) > (hold ? 1.5 / fps() : 0.004)) v.currentTime = want;
+    if (Math.abs(v.currentTime - want) > (hold ? 3.5 / fps() : 0.004)) v.currentTime = want;  // held: a few frames off is kept
   }
 }
 function baseUsable() { return !!baseVid.getAttribute("src") && !S.baseBroken && baseVid.readyState >= 2 && !S.paint; }
-// the frame of the project's video on screen right now (what a pause must keep)
-let baseShown = null;
+// the time of the frame of the project's video that is on screen (requestVideoFrameCallback): what a pause keeps
+let baseShown = null, pausedAt = 0;
 function watchBase() {
   if (!baseVid.requestVideoFrameCallback) return;
-  baseVid.requestVideoFrameCallback((now, meta) => { baseShown = meta.mediaTime; if (S.playing) watchBase(); });
+  baseVid.requestVideoFrameCallback((now, meta) => {
+    baseShown = meta.mediaTime;
+    if (S.playing || performance.now() - pausedAt < 600) watchBase();  // a frame put up just after the pause counts
+  });
 }
+
 let rafId = 0, playFrom = 0, playAt = 0, laps = 0, lastBase = 0;
 function loopSec() { return loopFrames() / fps(); }
 function lapsAt(t) { laps = Math.floor(t / loopSec() + 1e-9); lastBase = t - laps * loopSec(); }
@@ -1000,6 +1074,7 @@ function play() {
   if (!S.project || S.playing) return;
   if (S.paint) exitPaint();
   if (S.time >= duration() - 1 / fps()) S.time = 0;
+  S.held = false;
   S.playing = true; playFrom = S.time; playAt = performance.now();
   lapsAt(S.time);
   // the project's video is the clock: the other videos follow it, so what is on screen is the time shown
@@ -1010,6 +1085,11 @@ function play() {
   const step = now => {
     if (!S.playing) return;
     let t;
+    if (!S.baseClock && baseUsable() && !baseVid.seeking) {  // it became ready while playing: the clock from now on
+      const w = Math.min(playFrom + (now - playAt) / 1000, duration() - 1 / fps());
+      S.baseClock = true; playFrom = w; playAt = now; lapsAt(w);
+      baseVid.playbackRate = 1; baseVid.currentTime = lastBase + 0.25 / fps(); baseShown = null; watchBase();
+    }
     if (S.baseClock && baseUsable() && !baseVid.paused && !baseVid.seeking) {
       const b = baseVid.currentTime, L = loopSec();
       if (b < lastBase - L / 2) laps++;  // it went round
@@ -1027,30 +1107,49 @@ function play() {
   };
   rafId = requestAnimationFrame(step);
 }
+let pauseSeq = 0;
 function pause() {
   if (!S.playing) return;
   S.playing = false; cancelAnimationFrame(rafId);
-  if (S.baseClock && baseUsable()) {  // stop on the frame that is on screen, not where the clock had got to
-    const shown = baseShown !== null ? baseShown : baseVid.currentTime;
-    baseVid.pause();
-    let t = laps * loopSec() + shown;
-    if (shown > lastBase + loopSec() / 2) t -= loopSec();  // shown just before the video went round
-    else if (shown < lastBase - loopSec() / 2) t += loopSec();  // it went round since the clock last looked
+  const clock = S.baseClock && baseUsable(), seq = ++pauseSeq;
+  S.baseClock = false; S.held = true;
+  $("#tPlay").textContent = "▶";
+  if (!clock) { S.time = curFrame() / fps(); applyTime(true); refreshExact(); showXform(); return; }
+  // stop on the frame that is on screen, not where the clock had got to: the video stops first (it may still put
+  // up a frame while stopping), then, once the screen has settled, the frame it shows is the time
+  baseVid.pause();
+  pausedAt = performance.now();
+  const settle = () => {
+    if (S.playing || seq !== pauseSeq) return;
+    const f = fps(), L = loopSec();
+    const shown = baseShown !== null ? Math.round(baseShown * f) / f  // a frame's own time: n / fps, rounded
+      : Math.floor(baseVid.currentTime * f + 0.01) / f;
+    let t = laps * L + shown;
+    if (shown > lastBase + L / 2) t -= L;  // shown just before the video went round
+    else if (shown < lastBase - L / 2) t += L;  // it went round since the clock last looked
     if (t >= duration()) t -= duration();
     if (t < 0) t += duration();
-    S.time = t;
-  }
-  S.baseClock = false;
-  S.time = curFrame() / fps();  // on a frame
-  $("#tPlay").textContent = "▶";
-  applyTime(true); refreshExact(); showXform();
+    S.time = Math.floor(t * f + 1e-6) / f;
+    // the project's video is set on that very frame if its clock has gone past it (no visible change: it is the
+    // frame on screen); the others stay where they are unless a few frames off (they followed it closely)
+    const n = Math.round((S.time % L) * f);
+    if (Math.floor(baseVid.currentTime * f + 0.01) !== n && !baseVid.seeking) baseVid.currentTime = (n + 0.25) / f;
+    applyTime(true); showXform();
+  };
+  settle();
+  requestAnimationFrame(() => requestAnimationFrame(() => { settle(); refreshExact(); }));
 }
 function seek(sec) {
   if (!S.project) return;
+  S.held = false;  // a new time: every video is set exactly on it
   S.time = clamp(Math.floor(sec * fps() + 1e-6), 0, total() - 1) / fps();
   if (S.playing) {
     playFrom = S.time; playAt = performance.now(); lapsAt(S.time);
-    if (S.baseClock) baseVid.currentTime = lastBase + 0.25 / fps();
+    if (S.baseClock) {  // only when not already there (an undo while playing keeps the time): a seek stalls it
+      const want = lastBase + 0.25 / fps(), L = loopSec();
+      let d = Math.abs(baseVid.currentTime - want); d = Math.min(d, L - d);
+      if (d > 1 / fps()) { baseVid.currentTime = want; baseShown = null; }
+    }
   }
   applyTime(); invalidateExact(); refreshExact(); showXform();
   followPlayhead();
@@ -1075,24 +1174,26 @@ try { S.exactOn = localStorage.getItem("fx.exact") === "1"; } catch (e) { /* sto
 function invalidateExact() { exactSeq++; exact.style.display = "none"; clearTimeout(exactTimer); setBadge(""); }
 function liveIncomplete() {  // something that shows now has no light copy ready yet
   const p = S.project; if (!p) return false;
-  if (!p.proxy || S.baseBroken || !baseVid.getAttribute("src") || baseVid.readyState < 2) return true;
+  // a video that is only seeking still shows its last frame: that is not missing
+  const blank = v => v.readyState < 1 || (v.readyState < 2 && !v.seeking);
+  if (!p.proxy || S.baseBroken || !baseVid.getAttribute("src") || blank(baseVid)) return true;
   const t = curFrame();
   return clipOrder().some(c => {
     if (weight(span(c), t) <= 0) return false;
     const el = S.els[c.id];
-    return !el || (el.media.tagName === "VIDEO" ? el.media.readyState < 2 : !el.media.complete);
+    return !el || (el.media.tagName === "VIDEO" ? blank(el.media) : !el.media.complete);
   });
 }
 function refreshExact() {
   clearTimeout(exactTimer);
-  if (!S.project || S.playing || S.drag || S.paint || !(S.exactOn || liveIncomplete())) return;
+  if (!S.project || S.playing || S.drag || S.paint || S.xdrag || !(S.exactOn || liveIncomplete())) return;
   exactTimer = setTimeout(() => {
-    const p = S.project; if (!p || S.playing || S.paint) return;
+    const p = S.project; if (!p || S.playing || S.paint || S.xdrag) return;
     const seq = ++exactSeq;
     const w = Math.min(1920, Math.round(screenEl.getBoundingClientRect().width * devicePixelRatio));
     const img = new Image();
     setBadge("Đang dựng khung chính xác…");
-    img.onload = () => { if (seq === exactSeq && !S.playing && !S.paint) { exact.src = img.src; exact.style.display = "block"; setBadge("Khung chính xác (như video xuất ra)"); } };
+    img.onload = () => { if (seq === exactSeq && !S.playing && !S.paint && !S.xdrag) { exact.src = img.src; exact.style.display = "block"; setBadge("Khung chính xác (như video xuất ra)"); } };
     img.onerror = () => { if (seq === exactSeq) setBadge(""); };
     img.src = `/api/look?id=${p.id}&t=${curFrame()}&w=${w}&rev=${p.rev}`;
   }, 380);
@@ -1144,6 +1245,7 @@ function paintName(name) {
 }
 function enterPaint(name) {
   if (!S.masks[name]) return;
+  endStroke();
   pause();
   S.paint = name; S.poly = [];
   S.onlyBase = name === "freeze" || name === "fg";
@@ -1153,6 +1255,7 @@ function enterPaint(name) {
   snapshotSoon(S.masks[name]);
 }
 function exitPaint() {
+  endStroke();
   if (!S.paint) return;
   const name = S.paint, m = S.masks[name];
   S.paint = null; S.poly = [];
@@ -1358,7 +1461,11 @@ stage.addEventListener("pointerdown", e => {
     const vx = (e.clientX - sc.left) / sc.width * W, vy = (e.clientY - sc.top) / sc.height * H, t = curFrame();
     const hit = clipOrder().reverse().find(c => c.kind === "file" && weight(span(c), t) > 0 &&
       (r => r && vx >= r.x && vx <= r.x + r.w && vy >= r.y && vy <= r.y + r.h)(placed(c)));
-    if (hit && hit.id !== S.sel) select(hit.id);
+    if (hit) {
+      if (hit.id !== S.sel) { select(hit.id); S.xdowns = null; }
+      S.xdowns = [(S.xdowns || [])[1], {id: hit.id, t: e.timeStamp, picked: true}];
+      startXdrag(e);
+    }
     return;
   }
   if (!S.paint || e.button !== 0 || !S.masks[S.paint]) return;
@@ -1384,10 +1491,16 @@ stage.addEventListener("pointermove", e => {
   }
   if (S.paint && S.brush.tool === "poly" && S.poly.length) { S.hover = toMask(e); drawPoly(); }
 });
+function endStroke() {  // the brush lifted, or the painting stopped while the button was still down
+  if (!painting) return;
+  painting = false; S.paintRect = S.stageRect = null;
+  maskChanged(S.paint, S.brush.mode === "add" ? "add" : "sub");
+}
 stage.addEventListener("pointerup", () => {
   if (panning) { panning = null; refreshExact(); return; }
-  if (painting) { painting = false; S.paintRect = S.stageRect = null; maskChanged(S.paint, S.brush.mode === "add" ? "add" : "sub"); }
+  endStroke();
 });
+for (const ev of ["pointercancel", "lostpointercapture"]) stage.addEventListener(ev, () => { panning = null; endStroke(); });
 stage.addEventListener("pointerleave", () => { $("#cursor").style.display = "none"; });
 stage.addEventListener("dblclick", e => { if (S.paint && S.brush.tool === "poly") { e.preventDefault(); closePoly(); } });
 stage.addEventListener("contextmenu", e => e.preventDefault());
@@ -2290,7 +2403,8 @@ async function poll() {
       if (fresh && j.state === "done" && j.kind === "export") toast(`Đã xuất xong: ${j.output}`, false, 8000);
       if (fresh && j.state === "error" && j.kind === "export") toast(j.message, true, 9000);
       if (p && j.project === p.id && j.state === "done" && (fresh || before === undefined)) {
-        if (j.kind === "proxy" && !p.proxy) { p.proxy = j.output; setupScreen(); layersChanged = true; }
+        // (a copy of a video since replaced is not this one's)
+        if (j.kind === "proxy" && !p.proxy && j.source === p.video.file) { p.proxy = j.output; setupScreen(); layersChanged = true; }
         if (j.kind === "fxclip") {  // every clip with these settings (the halves of a cut clip share it)
           for (const fx of Object.values(S.fx)) if (fx.want === j.output && !fx.ready) { fx.ready = true; fx.shown = j.output; layersChanged = true; }
         }
@@ -2308,7 +2422,7 @@ async function poll() {
       else if (ask(j)) post("/api/library/proxy", {id: it.id}).catch(() => {});
     }
     if (p && !p.proxy) {
-      const j = latest(x => x.kind === "proxy" && x.project === p.id);
+      const j = latest(x => x.kind === "proxy" && x.project === p.id && x.source === p.video.file);
       if (j && j.state === "error") S.failed.base = j.message;
       else if (ask(j)) post("/api/proxy", {id: p.id}).catch(() => {});
     }
@@ -2368,7 +2482,7 @@ document.addEventListener("keydown", e => {
     else if (k === "Escape") { if (S.poly.length) { S.poly = []; drawPoly(); } else exitPaint(); }
     else if (k === "Backspace" && S.poly.length) { S.poly.pop(); drawPoly(); }
     else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderTools(); }
-    else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; renderTools(); }
+    else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; S.hover = null; renderTools(); drawPoly(); }
     else if (k === "l" || k === "L") { S.brush.tool = "poly"; renderTools(); }
     else if (k === "[" || k === "]") { S.brush.size = clamp(Math.round(S.brush.size * (k === "]" ? 1.2 : 1 / 1.2)), 2, 400); renderTools(); }
     return;

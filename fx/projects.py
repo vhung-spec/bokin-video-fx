@@ -209,25 +209,36 @@ def replace_video(project, upload, original_name):
 
         def at(frame):  # the same time, in frames of the new video
             return int(round(frame / old_fps * new_fps))
-        for layer in fresh["layers"]:
-            start = min(at(layer["start"]), most - 1)
-            end = new_total if layer["end"] == old_total else min(at(layer["end"]), most)
-            layer["start"], layer["end"] = start, max(end, start + 1)
-        fresh["still"]["frame"] = min(at(fresh["still"].get("frame", 0)), info["frames"] - 1)
         notes = []
-        if abs(new_total - old_total) / new_fps > 0.5 or abs(info["seconds"] - old["seconds"]) > 0.05:
+        moved, off = _retime(fresh, at, old_total, new_total, most, new_fps)
+        if moved:
+            notes.append(f"{moved} clip nằm sau cuối video mới đã được dời lên trước. Hãy kiểm tra lại timeline.")
+        if off:
+            notes.append(f"{off} clip không còn chỗ trên track của nó nên đã được tắt. Hãy kiểm tra lại timeline.")
+        fresh["still"]["frame"] = min(at(fresh["still"].get("frame", 0)), info["frames"] - 1)
+        if abs(new_total / new_fps - old_total / old_fps) > 0.5 or abs(info["seconds"] - old["seconds"]) > 0.05:
             notes.append(f"Video mới có loop {info['seconds']:g} giây (video cũ {old['seconds']:g} giây): video xuất ra "
                          f"dài {new_total / new_fps:g} giây.")
-        if (info["w"], info["h"]) != (old["w"], old["h"]):
-            if abs(info["w"] / info["h"] - old["w"] / old["h"]) > 0.01:
-                notes.append("Video mới có khung hình khác tỉ lệ: các vùng đã vẽ bị kéo giãn theo. Hãy kiểm tra lại.")
-            still = os.path.join(path, "still.png")
-            if os.path.exists(still):  # the original picture, fitted to the new size
+        if info["h"] != old["h"]:  # soft edges are in pixels of the video: as soft, compared with the picture
+            k = info["h"] / old["h"]
+            for item in [fresh.setdefault("freeze", {}), fresh.setdefault("fg", {})] + fresh["layers"]:
+                item["feather"] = max(0, min(200, int(round((item.get("feather") or 0) * k))))
+        if (info["w"], info["h"]) != (old["w"], old["h"]) and \
+                abs(info["w"] / info["h"] - old["w"] / old["h"]) > 0.01:
+            notes.append("Video mới có khung hình khác tỉ lệ: các vùng đã vẽ bị kéo giãn theo. Hãy kiểm tra lại.")
+        still = os.path.join(path, "still.png")
+        if os.path.exists(still) and fresh["still"].get("source") == "image":
+            source = os.path.join(path, STILL_SOURCE)
+            if (info["w"], info["h"]) != (old["w"], old["h"]):  # the original picture, fitted to the new size
+                if not os.path.exists(source):  # kept since version 1.0.10 only: the old fitted copy instead
+                    source = still
+                    if info["w"] > old["w"] or info["h"] > old["h"]:
+                        notes.append("Ảnh gốc của vùng đứng yên đã được phóng to theo video mới nên kém nét hơn. "
+                                     "Hãy chọn lại ảnh gốc.")
+                fresh["still"]["warning"] = _fit_still(path, source, info)
+            else:
                 with Image.open(still) as im:
-                    fitted = ImageOps.fit(im.convert("RGB"), (info["w"], info["h"]), Image.Resampling.LANCZOS)
-                tmp = still + ".tmp.png"
-                fitted.save(tmp, compress_level=3)
-                replace(tmp, still)
+                    fresh["still"]["warning"] = _still_warning(path, im.convert("RGB"), info)
         fresh["source_name"] = os.path.basename(original_name)[:200]
         fresh["proxy"] = None
         _remove(os.path.join(path, "thumb.jpg"))
@@ -387,7 +398,15 @@ def sweep_files(project, keep_recent=4, keep_seconds=600, keep_most=16):
     """Removes files no clip uses any more: files of older versions' clips, and preview clips of built-in
     effects made for other settings. Of those, the `keep_recent` newest stay, and any made in the last
     `keep_seconds` (up to `keep_most`): the page may still be playing one while the next is made, and a change
-    is often undone. A file Windows still holds open stays until a later sweep."""
+    is often undone. A file Windows still holds open stays until a later sweep.
+
+    Done on the newest saved copy of the project, under the lock: a copy read a moment ago may not know of a
+    video that has just replaced the old one, and would remove it."""
+    with LOCK:
+        _sweep(load(project["id"]), keep_recent, keep_seconds, keep_most)
+
+
+def _sweep(project, keep_recent, keep_seconds, keep_most):
     from .engine import fx_clip_name
     base = os.path.join(paths.projects_dir(), project["id"])
     keep = {(lay.get("file") or {}).get("stored") for lay in project["layers"]}
@@ -464,12 +483,56 @@ def save_mask(project, name, data):
         return save(project)
 
 
-def set_still_image(project, upload, original_name):
-    """The original picture for the still areas: fitted (cover, centred) to the video's size. Returns a
-    warning when it does not look like the video's own frames."""
-    info = project["video"]
+def _retime(project, at, old_total, new_total, most, fps):
+    """The clips' times in frames of a new video (`at`: an old frame to a new one): the same in seconds. Clips that
+    ran to the end still do. Clips past the end of the longest video the new one can make slide back, keeping
+    their length, without running into the clip before them on their track; one with no room left is turned off.
+    Returns (clips moved, clips turned off)."""
+    moved = off = 0
+    room = max(1, int(round(2 * timeline.MIN_EDGE_FADE * fps)))  # the least a clip can be: its two fades
+    for track in {c["track"] for c in project["layers"]}:
+        clips = sorted((c for c in project["layers"] if c["track"] == track), key=lambda c: c["start"])
+        before = 0  # where the previous clip on this track ends, in new frames
+        for c in clips:
+            s0, e0 = at(c["start"]), at(c["end"])
+            length = max(1, e0 - s0)
+            if c["end"] == old_total:  # to the end
+                s, e = min(s0, max(0, new_total - length)), new_total
+            else:
+                s, e = s0, min(e0, most)
+                if e0 > most:
+                    s, e = max(0, most - length), most
+            if s < before:
+                s = before
+            if e - s < min(room, length):
+                c["on"] = False
+                off += 1
+                s, e = min(s0, most - 1), min(max(s0 + 1, e0), most)  # left where it was, turned off
+            elif (s, e) != (s0, e0) and c["end"] != old_total:
+                moved += 1
+            c["start"], c["end"] = s, max(e, s + 1)
+            before = max(before, c["end"]) if c.get("on", True) else before
+    return moved, off
+
+
+STILL_SOURCE = "still-source"  # the original picture as chosen, to fit again to another size
+
+
+def _still_warning(path, fitted, info):
+    """A warning when the fitted original picture does not look like the video's own frames."""
+    first = video.read_frame(os.path.join(path, info["file"]), info, 0, (320, max(2, round(320 * info["h"] / info["w"]))))
+    small = np.asarray(fitted.resize((first.shape[1], first.shape[0]), Image.Resampling.BOX), np.float32)
+    diff = float(np.median(np.abs(small - first.astype(np.float32)).mean(axis=2)))
+    if diff > 18:
+        return ("Ảnh gốc có vẻ khác với video (lệch vị trí, khung hình hoặc màu). Kiểm tra lại, "
+                "hoặc dùng một khung của video cho vùng đứng yên.")
+    return None
+
+
+def _fit_still(path, source, info):
+    """still.png: the picture `source` fitted (cover, centred) to the video's size. Returns the warning, if any."""
     try:
-        with Image.open(upload) as im:
+        with Image.open(source) as im:
             if im.width * im.height > overlay.MAX_IMAGE_PIXELS:
                 raise UserError("Ảnh quá lớn.")
             im = ImageOps.exif_transpose(im).convert("RGB")
@@ -478,16 +541,22 @@ def set_still_image(project, upload, original_name):
         raise
     except Exception as e:  # noqa: BLE001
         raise UserError("Không đọc được ảnh này. Hãy chọn ảnh PNG hoặc JPG.") from e
+    still = os.path.join(path, "still.png")
+    tmp = still + ".tmp.png"
+    fitted.save(tmp, compress_level=3)
+    replace(tmp, still)
+    return _still_warning(path, fitted, info)
+
+
+def set_still_image(project, upload, original_name):
+    """The original picture for the still areas: fitted (cover, centred) to the video's size, and kept as it was
+    chosen (a new video of another size gets it fitted again). Warns when it does not look like the video's own
+    frames."""
+    info = project["video"]
     path = os.path.join(paths.projects_dir(), project["id"])
-    fitted.save(os.path.join(path, "still.png"), compress_level=3)
-    _remove(upload)
-    first = video.read_frame(os.path.join(path, info["file"]), info, 0, (320, max(2, round(320 * info["h"] / info["w"]))))
-    small = np.asarray(fitted.resize((first.shape[1], first.shape[0]), Image.Resampling.BOX), np.float32)
-    diff = float(np.median(np.abs(small - first.astype(np.float32)).mean(axis=2)))
-    warning = None
-    if diff > 18:
-        warning = ("Ảnh gốc có vẻ khác với video (lệch vị trí, khung hình hoặc màu). Kiểm tra lại, "
-                   "hoặc dùng một khung của video cho vùng đứng yên.")
+    warning = _fit_still(path, upload, info)
+    _remove(os.path.join(path, STILL_SOURCE))
+    shutil.move(upload, os.path.join(path, STILL_SOURCE))
     with LOCK:
         fresh = load(project["id"])
         fresh["still"].update({"source": "image", "image_name": os.path.basename(original_name)[:200],

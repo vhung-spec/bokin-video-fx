@@ -314,6 +314,55 @@ class Replace(unittest.TestCase):
         self.assertEqual(projects.set_proxy(project["id"], name, "input.mp4")["proxy"], None)  # made for the old one
         self.assertEqual(projects.set_proxy(project["id"], name, project["video"]["file"])["proxy"], name)
 
+    def test_clips_past_the_new_end_keep_their_length(self):
+        """A shorter longest video: a clip beyond its end slides back whole (never a one-frame flash), up to the
+        clip before it on its track; one with no room left is turned off. Clips to the end still run to it."""
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "two24.mp4"), 160, 90, 48, "24")  # 2 s: 1 min = 1440
+        project = projects.create(src, "two24.mp4")
+        t0, t1 = project["tracks"][0]["id"], project["tracks"][1]["id"]
+        project = projects.apply(project, {"length": 60, "layers": [
+            {"id": "endsnow", "kind": "snow", "track": t0, "start": 1368, "end": 1440},  # 57 s to the end
+            {"id": "lategl", "kind": "glow", "track": t1, "start": 1272, "end": 1392},  # 53-58 s
+            {"id": "lastgl", "kind": "glow", "track": t1, "start": 1392, "end": 1416}]})  # 58-59 s
+        new = helpers.make_loop(os.path.join(helpers.ROOT, "eleven24.mp4"), 160, 90, 264, "24")  # 11 s: 1 min = 55 s
+        project, notes = projects.replace_video(projects.load(project["id"]), new, "eleven.mp4")
+        clips = {c["id"]: (c["start"], c["end"], c["on"]) for c in project["layers"]}
+        self.assertEqual(timeline.project_frames(project), 1320)
+        self.assertEqual(clips["endsnow"], (1248, 1320, True))  # 52-55 s: to the end, 3 s as before
+        self.assertEqual(clips["lategl"], (1200, 1320, True))  # 50-55 s
+        self.assertFalse(clips["lastgl"][2])  # no room after it: turned off, not squeezed into a frame
+        self.assertTrue(any("dời lên trước" in n for n in notes), notes)
+        self.assertTrue(any("đã được tắt" in n for n in notes), notes)
+
+    def test_a_new_frame_rate_alone_is_no_news(self):
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "rate24.mp4"), 160, 90, 48, "24")
+        project = projects.create(src, "rate24.mp4")
+        new = helpers.make_loop(os.path.join(helpers.ROOT, "rate30.mp4"), 160, 90, 60, "30")
+        project, notes = projects.replace_video(projects.load(project["id"]), new, "rate30.mp4")
+        self.assertEqual(notes, [])
+
+    def test_a_larger_video_gets_the_original_picture_and_softness(self):
+        """The still picture is fitted again from the picture as chosen (not enlarged from the small copy), and soft
+        edges keep their share of the picture."""
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "small.mp4"), 160, 90, 24, "24")
+        project = projects.create(src, "small.mp4")
+        project = projects.apply(project, {"freeze": {"feather": 20}, "layers": [
+            {"id": "softly", "kind": "snow", "track": project["tracks"][0]["id"], "feather": 7}]})
+        rng = np.random.default_rng(3)
+        pic = os.path.join(helpers.ROOT, "pic-upload")
+        Image.fromarray(rng.integers(0, 255, (180, 320, 3), dtype=np.uint8)).save(pic, "PNG")
+        project = projects.set_still_image(project, pic, "ảnh gốc.png")
+        new = helpers.make_loop(os.path.join(helpers.ROOT, "large.mp4"), 320, 180, 24, "24")
+        project, notes = projects.replace_video(projects.load(project["id"]), new, "large.mp4")
+        folder = projects.folder(project["id"])
+        with Image.open(os.path.join(folder, "still.png")) as im:
+            still = np.asarray(im.convert("RGB"))
+        with Image.open(os.path.join(folder, projects.STILL_SOURCE)) as im:
+            self.assertTrue(np.array_equal(still, np.asarray(im.convert("RGB"))))  # the same size: every pixel
+        self.assertEqual(project["freeze"]["feather"], 40)
+        self.assertEqual(project["layers"][0]["feather"], 14)
+        self.assertFalse(any("kém nét" in n for n in notes), notes)
+
 
 class Validation(unittest.TestCase):
     def test_not_a_video(self):

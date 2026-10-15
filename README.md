@@ -21,8 +21,8 @@ Premiere Pro:
 2. Bấm đúp vào file để cài. Không cần quyền quản trị.
 3. Mở **Bokin FX** từ menu Start hoặc biểu tượng ngoài màn hình. App mở trong một cửa sổ riêng (Edge hoặc Chrome).
 
-App tự kiểm tra bản mới khi mở và mỗi 6 giờ. Khi có bản mới, góc trên có nút **Cập nhật ngay**. Nếu không bấm,
-bản mới sẽ được cài lúc app tự đóng.
+App tự kiểm tra bản mới khi mở cửa sổ và mỗi 30 phút. Muốn kiểm tra ngay thì bấm vào dòng **phiên bản** ở góc
+dưới. Khi có bản mới, góc trên có nút **Cập nhật ngay**. Nếu không bấm, bản mới sẽ được cài lúc app tự đóng.
 
 ## Màn hình
 
@@ -48,12 +48,14 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
      khi bạn thêm file.
    - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài, chọn clip là trên màn hình hiện một khung trắng: kéo bên trong
      khung để di chuyển, kéo một góc để phóng to/thu nhỏ, bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. Bấm vào
-     hình của một clip trên màn hình để chọn clip đó.
+     hình của một clip trên màn hình để chọn clip đó; bấm rồi kéo luôn để di chuyển nó. Phóng to màn hình để đặt
+     clip thật chính xác (mỗi bước nhích khoảng một điểm ảnh).
    - **Vùng**: bấm **✎ Vẽ vùng** để tô chỗ hiệu ứng được hiện.
 6. **Vùng đứng yên và tiền cảnh**: bấm vào **V1 Video gốc** trên timeline, rồi bấm **✎ Vẽ vùng đứng yên** hoặc
    **✎ Vẽ tiền cảnh**.
    - **Đổi video gốc**: bấm vào **V1 Video gốc** rồi **Đổi video gốc…**, hoặc kéo file video thả vào hàng V1.
-     Timeline, các clip và vùng đã vẽ được giữ nguyên (thời gian clip giữ theo giây).
+     Timeline, các clip và vùng đã vẽ được giữ nguyên (thời gian clip giữ theo giây). Clip nằm sau cuối video mới
+     được dời lên trước. Ảnh gốc của vùng đứng yên được khớp lại theo cỡ video mới.
 7. **Xem**: bấm **▶** (hoặc phím cách). Dừng thì hình đứng yên đúng khung đang thấy. Muốn xem đúng như video sẽ
    xuất ra, bật **🎯 Khung chính xác** rồi dừng hình (app dựng khung đó, mất chút thời gian).
 8. **Xuất video**: bấm **Xuất video** ở góc trên bên phải. Video nằm trong thư mục **Videos\Bokin FX**.
