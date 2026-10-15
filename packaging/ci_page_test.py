@@ -324,6 +324,24 @@ def run(page, folder, edge):
     page.evaluate(f"deleteClip(clipById('{ids[0]}'))")
     check("deleting one clip of a Mix takes the Mix away", page.evaluate(f"clipById('{ids[1]}').mix") == 0)
     page.evaluate(f"(() => {{ for (const id of {ids}) if (clipById(id)) deleteClip(clipById(id)); }})()")
+
+    # the other half of a cut fades in again once the first half is deleted
+    r = page.evaluate("""(() => {
+        const t = {id: newId("t"), on: true}; S.project.tracks.push(t);
+        addClip({kind: 'rain'}, t.id, 100, 300); const a = clipById(S.sel); splitClip(a, 200); const b = clipById(S.sel);
+        const cut = [a.fade_out, b.fade_in]; deleteClip(a); const back = b.fade_in; deleteClip(b);
+        S.project.tracks = S.project.tracks.filter(x => x !== t); edited(); return [cut, back]; })()""")
+    check("deleting one half of a cut: the other half fades in again", r[0] == [0, 0] and r[1] > 0, str(r))
+    # 60 s -> 30 s -> 60 s: a clip that only reached the end of the 30 s video keeps its length (saved with it)
+    r = page.evaluate("""(async () => {
+        const p = S.project, was = p.length; setLength(60);
+        const t = {id: newId("t"), on: true}; p.tracks.push(t);
+        addClip({kind: 'rain'}, t.id, 0, 720); const c = clipById(S.sel);
+        setLength(30); await saveNow();
+        const saved = (await get('/api/project?id=' + p.id)).layers.find(x => x.id === c.id).short;
+        setLength(60); const kept = [c.start, c.end];
+        deleteClip(c); p.tracks = p.tracks.filter(x => x !== t); setLength(was); return [saved, kept]; })()""")
+    check("60 s -> 30 s -> 60 s keeps a clip that only reached the 30 s end", r == [True, [0, 720]], str(r))
     page.wait_for_timeout(200)
 
     page.evaluate("saveNow()")

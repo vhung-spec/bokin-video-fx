@@ -1885,7 +1885,7 @@ tlLanes.addEventListener("pointerdown", e => {
     const b = clipById(jb.dataset.join), a = b && clipBefore(b); if (!a) return;
     const r = jb.getBoundingClientRect(), c = e.clientX < r.left + r.width / 2 ? a : b;
     if (S.tool === "razor") { splitClip(c, snapFrame(frameAtX(e.clientX), c.id)); return; }
-    detach(c);
+    detach(c); invalidateExact();
     S.drag = {c, hit: c === a ? "right" : "left", join: b, x0: e.clientX, y0: e.clientY, orig: {start: c.start, end: c.end, track: c.track, skip: c.skip || 0}, moved: false, copy: false, playhead: curFrame()};
     tlLanes.setPointerCapture(e.pointerId);
     return;
@@ -2051,9 +2051,16 @@ function splitAtPlayhead() {  // the selected clip only; with none selected, eve
   edited();
   toast(`Đã cắt ${n} clip.` + (left ? ` ${left} clip đang mờ dần ở đầu phát nên chưa cắt.` : ""), !!left, left ? 5000 : 1500);
 }
+function moveClip(c, s, en) {  // a clip given a new start and end from the panel, as a drag on the timeline does
+  const o = {start: c.start, end: c.end, track: c.track};
+  if (s !== o.start) c.mix = 0;  // next to another clip now
+  c.start = s; c.end = en;
+  fadesBack(c, o); joinFades(c);
+}
 function deleteClip(c) {
   const p = S.project;
   p.layers = p.layers.filter(x => x !== c);
+  fadesBack(Object.assign({}, c, {track: null}), c);  // a clip that ran on from it (or into it) fades again there
   if (S.paint === c.id) exitPaint();
   if (S.sel === c.id) S.sel = null;
   edited();
@@ -2100,11 +2107,12 @@ function setLength(len) {
   const after = total();
   // shorter: nothing moves (the part past the end is left out). Longer: a clip over the whole video still covers
   // it; the others keep their length (the user joins clips)
-  // (not one that only came to end there when the video was made shorter)
-  const memo = S.lenMemo && S.lenMemo.project === p.id && S.lenMemo.at === before ? S.lenMemo.ids : new Set();
-  if (after > before) for (const c of p.layers) if (c.start === 0 && c.end === before && !memo.has(c.id)) c.end = after;
-  S.lenMemo = after < before ? {project: p.id, at: after, ids: new Set(p.layers.filter(c => c.start === 0 && c.end === after).map(c => c.id))} : null;
-  for (const c of p.layers) if (c.kind === "file" && oldSkip[c.id] !== null && !span(c).full) c.skip = oldSkip[c.id];
+  // (not one that only came to end there when the video was made shorter: `short`, saved with the clip; it keeps
+  // its place in its file too)
+  const short = new Set(p.layers.filter(c => c.short).map(c => c.id));
+  if (after > before) for (const c of p.layers) if (c.start === 0 && c.end === before && !short.has(c.id)) c.end = after;
+  for (const c of p.layers) if (c.kind === "file" && oldSkip[c.id] !== null && !short.has(c.id) && !span(c).full) c.skip = oldSkip[c.id];
+  for (const c of p.layers) { if (after < before && c.start === 0 && c.end === after) c.short = true; else delete c.short; }
   S.fitTl = true;
   if (S.time >= duration()) S.time = 0;
   for (const c of p.layers) if (c.kind !== "file") delete S.fx[c.id];  // their preview clips are for one length
@@ -2430,12 +2438,12 @@ $("#ec").addEventListener("click", e => {
   if (id === "reseed") { c.seed = Math.floor(Math.random() * 2147483647); edited(); return; }
   if (id === "fullBtn") {
     if (overlaps(c.track, 0, total(), c.id)) return toast("Track này còn clip khác: hãy kéo clip sang một track trống trước.", true);
-    c.start = 0; c.end = total(); c.skip = 0; edited(); return;
+    moveClip(c, 0, total()); c.skip = 0; edited(); return;
   }
   if (id === "toHere") {
     const len = c.end - c.start, s = curFrame();
     if (s + len > total() || overlaps(c.track, s, s + len, c.id)) return toast("Không đủ chỗ trống trên track này từ đầu phát.", true);
-    detach(c); c.start = s; c.end = s + len; edited(); return;
+    detach(c); moveClip(c, s, s + len); edited(); return;
   }
   if (id === "splitBtn") { const fr = curFrame(); return c.start < fr && fr < c.end ? splitClip(c, fr) : toast("Đặt đầu phát vào trong clip này rồi bấm Cắt.", true); }
   if (id === "dupBtn") return duplicate(c);
@@ -2490,7 +2498,7 @@ $("#ec").addEventListener("change", e => {
     if (t.dataset.time === "len") en = clamp(s + Math.max(1, v), s + 1, most);
     if (overlaps(c.track, s, en, c.id)) { toast("Trùng với clip khác trên cùng track.", true); renderControls(); return; }
     detach(c);
-    c.start = s; c.end = en; edited(); return;
+    moveClip(c, s, en); edited(); return;
   }
   remember();
   if (t.dataset.param && t.tagName === "SELECT") renderControls();
