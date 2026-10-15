@@ -59,7 +59,15 @@ class Jobs:
 
     def _pending(self, test):
         with self.lock:
-            return next((j for j in self.items.values() if j["state"] in ("queued", "running") and test(j)), None)
+            return next((j for j in self.items.values()
+                         if j["state"] in ("queued", "running") and not j["cancel"] and test(j)), None)
+
+    def _failed_lately(self, test, seconds=600):
+        """A job like this failed in the last `seconds`: it is not tried again on every poll of the page."""
+        now = time.time()
+        with self.lock:
+            return next((j for j in self.items.values() if j["state"] == "error" and test(j)
+                         and now - (j["finished"] or now) < seconds), None)
 
     def export(self, pid):
         project = projects.load(pid)
@@ -70,27 +78,25 @@ class Jobs:
         project = projects.load(pid)
         if project.get("proxy") and os.path.exists(os.path.join(projects.folder(pid), project["proxy"])):
             return None
-        return self._pending(lambda j: j["kind"] == "proxy" and j["project"] == pid) or \
-            self._new("proxy", pid, "prep")
+        mine = lambda j: j["kind"] == "proxy" and j["project"] == pid  # noqa: E731
+        return self._pending(mine) or self._failed_lately(mine) or self._new("proxy", pid, "prep")
 
     def library_proxy(self, iid):
         item = library.load(iid)
         if item.get("proxy"):
             return None
-        return self._pending(lambda j: j["kind"] == "libproxy" and j["item"] == iid) or \
-            self._new("libproxy", None, "prep", item=iid)
+        mine = lambda j: j["kind"] == "libproxy" and j["item"] == iid  # noqa: E731
+        return self._pending(mine) or self._failed_lately(mine) or self._new("libproxy", None, "prep", item=iid)
 
-    def fx_clip(self, pid, lid, name):
-        """The preview clip `name` of built-in effect clip `lid`; ones still waiting for it with older settings
-        are dropped."""
-        same = self._pending(lambda j: j["kind"] == "fxclip" and j["project"] == pid and j["name"] == name)
-        if same:
-            return same
+    def fx_clip(self, pid, lid, name, wanted):
+        """The preview clip `name` of built-in effect clip `lid`. Clips still waiting that no clip of the project
+        wants any more (`wanted`: the names its clips need now) are dropped."""
         with self.lock:
             for j in self.items.values():
-                if j["kind"] == "fxclip" and j["project"] == pid and j["layer"] == lid and j["state"] == "queued":
+                if j["kind"] == "fxclip" and j["project"] == pid and j["state"] == "queued" and j["name"] not in wanted:
                     j["cancel"] = True
-        return self._new("fxclip", pid, "prep", layer=lid, name=name)
+        return self._pending(lambda j: j["kind"] == "fxclip" and j["project"] == pid and j["name"] == name) or \
+            self._new("fxclip", pid, "prep", layer=lid, name=name)
 
     def cancel(self, jid):
         with self.lock:
@@ -167,7 +173,7 @@ class Jobs:
         project = projects.load(pid)
         try:
             name = engine.make_base_proxy(projects.folder(pid), project)
-            projects.set_proxy(pid, name)
+            projects.set_proxy(pid, name, project["video"]["file"])
         except Exception:
             if job["cancel"]:  # the project was deleted meanwhile
                 return False

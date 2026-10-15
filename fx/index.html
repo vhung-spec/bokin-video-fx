@@ -300,6 +300,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
   <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn">Mở thư mục video</button><span id="ver"></span></footer>
 </div>
 <input type="file" id="fileVideo" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
+<input type="file" id="fileReplace" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
 <input type="file" id="fileStill" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden>
 <input type="file" id="fileLib" multiple accept="video/*,image/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.gif,.png,.jpg,.jpeg,.webp,.bmp" hidden>
 <div class="menu" id="menu"></div>
@@ -437,6 +438,12 @@ function fileTime(c, sp, t, inf) {  // seconds into the clip's file at frame t (
   const need = (sp.end - sp.start) / f + sp.skip;
   return played((t - sp.start) / f + sp.skip, plan(inf.seconds, p.start, p.fade, need, f));
 }
+function fullSkip(c) {  // a clip over the whole video plays its file from params.fade on (overlay.timeline)
+  return c.kind === "file" ? clamp(+c.params.fade || 0, 0, duration() / 2) : 0;
+}
+function detach(c) {  // about to stop covering the whole video: the picture stays where it is
+  if (c.kind === "file" && span(c).full) c.skip = fullSkip(c);
+}
 function clipOrder() {  // bottom first, as the renderer draws them
   const p = S.project, rank = Object.fromEntries(p.tracks.map((t, i) => [t.id, i]));
   const hidden = new Set(p.tracks.filter(t => !t.on).map(t => t.id));
@@ -448,7 +455,8 @@ function clipOrder() {  // bottom first, as the renderer draws them
 async function openProject(id) {
   try {
     const p = await get("/api/project?id=" + id);
-    if (S.project) { pause(); if (S.saveTimer) await saveNow(); await flushMasks(); }
+    if (S.project) { pause(); await readyToRender(); }  // the open project's last changes go to it, not to the next one
+    p.saved = new Set(p.layers.map(l => l.id));
     S.project = p; S.masks = {}; S.fx = {}; S.sel = null; S.paint = null; S.time = 0; S.hist = []; S.histAt = -1;
     S.fitTl = true; S.zoom = "fit"; S.panX = S.panY = 0;
     try { localStorage.setItem("fx.last", id); } catch (e) { /* storage blocked */ }
@@ -473,8 +481,7 @@ async function newProjectFrom(file) {
   } catch (e) { fail(e); }
 }
 
-function pageProject() {
-  const p = S.project;
+function pageProject(p) {
   return {id: p.id, name: p.name, length: p.length, still: p.still, freeze: p.freeze, fg: p.fg, tracks: p.tracks,
     layers: p.layers.map(l => Object.assign({}, l, {lib: l.lib || (l.file && l.file.lib) || undefined}))};
 }
@@ -483,23 +490,28 @@ function scheduleSave(ms = 350) {
   clearTimeout(S.saveTimer);
   S.saveTimer = setTimeout(saveNow, ms);
 }
-async function saveNow() {  // true once the settings are saved
+function saveNow() {  // resolves to true once the settings are saved; saves go one after another
   clearTimeout(S.saveTimer); S.saveTimer = 0;
-  const p = S.project; if (!p) return true;
+  const p = S.project; if (!p) return Promise.resolve(true);
+  S.saving = (S.saving || Promise.resolve(true)).then(() => sendSave(p));
+  return S.saving;
+}
+async function sendSave(p) {  // the project as it is now, not as it was when the save was asked for
   const mark = ++S.edits;
   try {
-    const fresh = await post("/api/save", pageProject());
-    if (S.project && S.project.id === fresh.id) {
-      p.rev = fresh.rev; p.masks = fresh.masks;
-      const quiet = S.edits === mark;  // nothing changed on the page while this was being saved
-      if (quiet) p.still = fresh.still;
-      for (const l of fresh.layers) {
-        const mine = clipById(l.id);
-        if (!mine) continue;
-        if (l.file) { mine.file = l.file; delete mine.lib; }
-        if (quiet) mine.params = l.params;
-      }
-      for (const [name, m] of Object.entries(S.masks)) if (m.afterSave && clipById(name)) { m.afterSave = false; queueMask(name, m); }
+    const fresh = await post("/api/save", pageProject(p));
+    p.rev = fresh.rev; p.masks = fresh.masks;
+    p.saved = new Set(fresh.layers.map(l => l.id));
+    const quiet = S.edits === mark;  // nothing changed on the page while this was being saved
+    if (quiet) p.still = fresh.still;
+    for (const l of fresh.layers) {
+      const mine = p.layers.find(x => x.id === l.id);
+      if (!mine) continue;
+      if (l.file) { mine.file = l.file; delete mine.lib; }
+      if (quiet) mine.params = l.params;
+    }
+    if (S.project === p) {
+      for (const [name, m] of Object.entries(S.masks)) if (m.afterSave && p.saved.has(name)) { m.afterSave = false; queueMask(name, m); }
       requestAllFx();
       refreshExact();
     }
@@ -522,12 +534,13 @@ function history(step) {
   const at = S.histAt + step;
   if (!S.project || at < 0 || at >= S.hist.length) return;
   S.histAt = at;
-  const snap = JSON.parse(S.hist[at]), p = S.project;
+  const snap = JSON.parse(S.hist[at]), p = S.project, before = p.length;
   p.length = snap.length; p.tracks = snap.tracks; p.layers = snap.layers;
   for (const c of p.layers) {
     if (!S.masks[c.id]) loadMask(c.id);
-    else if (!p.masks.includes(c.id) && !S.masks[c.id].full) queueMask(c.id, S.masks[c.id]);  // its area came back
+    else if (!p.masks.includes(c.id) && !S.masks[c.id].full) S.masks[c.id].afterSave = true;  // its area comes back too
   }
+  if (snap.length !== before) for (const c of p.layers) if (c.kind !== "file") delete S.fx[c.id];  // made for the other length
   renderAll(); scheduleSave(0); seek(S.time);  // the selection stays: a clip that comes back is selected again
   toast(step < 0 ? "Đã hoàn tác." : "Đã làm lại.", false, 1200);
 }
@@ -617,6 +630,7 @@ async function sendMask(name, m) {
   const p = m.project; if (!p) return true;
   const gone = () => name !== "freeze" && name !== "fg" && !p.layers.some(l => l.id === name);
   if (gone()) return true;  // its clip was deleted
+  if (maskKind(name) === "area" && p.saved && !p.saved.has(name)) { m.afterSave = true; return true; }  // sent after the clip
   measure(m);
   const keep = maskKind(name) === "area" ? !m.full : !m.empty;
   const body = keep ? await new Promise(r => m.canvas.toBlob(r, "image/png")) : new Blob([]);
@@ -632,6 +646,7 @@ async function sendMask(name, m) {
     return true;
   } catch (e) {
     if (gone()) return true;
+    if (maskKind(name) === "area" && /Không tìm thấy lớp/.test(e.message)) { m.afterSave = true; scheduleSave(0); return true; }
     fail(e);
     return false;
   }
@@ -901,14 +916,20 @@ function setBadge(text) { const b = $("#badge"); b.textContent = text; b.style.d
 function updateWaiting() {
   const p = S.project, el = $("#waiting");
   if (!p) { el.style.display = "none"; return; }
-  const wait = [];
-  if (!p.proxy) wait.push("video gốc");
+  const wait = [], failed = [], f = S.failed || {};
+  if (!p.proxy) (f.base ? failed : wait).push("video gốc");
   for (const c of p.layers) {
-    if (c.kind === "file") { const it = libItem(c.file ? c.file.lib : c.lib); if (it && !it.proxy) wait.push(c.name); }
-    else { const fx = S.fx[c.id]; if (!fx || !fx.ready) wait.push(c.name); }
+    if (c.kind === "file") {
+      const it = libItem(c.file ? c.file.lib : c.lib);
+      if (it && !it.proxy) (f[it.id] ? failed : wait).push(c.name);
+    } else { const fx = S.fx[c.id]; if (!fx || !fx.ready) (f[c.id] ? failed : wait).push(c.name); }
   }
-  el.textContent = wait.length ? `Đang chuẩn bị xem nhanh: ${[...new Set(wait)].slice(0, 3).join(", ")}${wait.length > 3 ? "…" : ""}. Dừng hình để xem khung chính xác.` : "";
-  el.style.display = wait.length ? "block" : "none";
+  const list = a => [...new Set(a)].slice(0, 3).join(", ") + (new Set(a).size > 3 ? "…" : "");
+  const text = [wait.length ? `Đang chuẩn bị xem nhanh: ${list(wait)}.` : "",
+    failed.length ? `Không làm được bản xem nhanh cho: ${list(failed)} (xem app.log).` : "",
+    wait.length || failed.length ? "Dừng hình để xem khung chính xác." : ""].filter(Boolean).join(" ");
+  el.textContent = text;
+  el.style.display = text ? "block" : "none";
   $("#prep").textContent = wait.length ? "⏳ Đang chuẩn bị xem nhanh…" : "";
 }
 
@@ -1271,6 +1292,7 @@ tlLanes.addEventListener("pointerdown", e => {
   if (S.tool === "razor") { splitClip(c, snapFrame(frameAtX(e.clientX), c.id)); return; }
   select(c.id);
   const hit = e.target.classList.contains("h") ? (e.target.classList.contains("l") ? "left" : "right") : "move";
+  if (hit !== "move") detach(c);
   const copy = e.altKey && hit === "move";
   S.drag = {c, hit, x0: e.clientX, y0: e.clientY, orig: {start: c.start, end: c.end, track: c.track, skip: c.skip || 0}, moved: false, copy, el: tlLanes.querySelector(`[data-clip="${c.id}"]`)};
   tlLanes.setPointerCapture(e.pointerId);
@@ -1357,6 +1379,7 @@ function cloneClip(c) {
 }
 function splitClip(c, fr) {
   if (fr <= c.start || fr >= c.end) return toast("Đặt dao cắt vào giữa clip.", true);
+  detach(c);
   const b = cloneClip(c);
   b.start = fr; b.skip = (c.skip || 0) + (fr - c.start) / fps(); b.fade_in = 0;
   c.end = fr; c.fade_out = 0;
@@ -1417,10 +1440,20 @@ $("#tlTools").addEventListener("click", e => {
 });
 function setLength(len) {
   const p = S.project; if (p.length === len) return;
-  const before = total();
+  const before = total(), oldSkip = Object.fromEntries(p.layers.map(c => [c.id, span(c).full ? fullSkip(c) : null]));
   p.length = len;
   const after = total();
-  for (const c of p.layers) if (c.end === before) c.end = after;  // clips to the end stay to the end
+  if (after < before) {  // shorter: nothing moves (the part past the end is left out); remember what ended here
+    S.lenMemo = {project: p.id, at: after, ids: new Set(p.layers.filter(c => c.end === after).map(c => c.id))};
+  } else {  // longer: clips that ran to the end run to the new end, up to the next clip on their track
+    const memo = S.lenMemo && S.lenMemo.project === p.id && S.lenMemo.at === before ? S.lenMemo.ids : new Set();
+    for (const c of p.layers) {
+      if (c.end !== before || memo.has(c.id)) continue;
+      c.end = p.layers.filter(x => x.track === c.track && x.id !== c.id && x.start >= before).reduce((m, x) => Math.min(m, x.start), after);
+    }
+    S.lenMemo = null;
+  }
+  for (const c of p.layers) if (c.kind === "file" && oldSkip[c.id] !== null && !span(c).full) c.skip = oldSkip[c.id];
   S.fitTl = true;
   if (S.time >= duration()) S.time = 0;
   for (const c of p.layers) if (c.kind !== "file") delete S.fx[c.id];  // their preview clips are for one length
@@ -1498,6 +1531,12 @@ tlScroll.addEventListener("drop", async e => {
   if (!S.project) return;
   e.preventDefault(); e.stopPropagation();
   const g = $("#ghost"); if (g) g.style.display = "none";
+  const row = rowAt(e.clientY);
+  if (row && row.type === "base") {  // a video dropped on V1 takes its place
+    if (e.dataTransfer.files.length) replaceBase(e.dataTransfer.files[0]);
+    S.dragItem = null;
+    return;
+  }
   const d = dropTarget(e); if (!d) return;
   let item = S.dragItem; S.dragItem = null;
   if (!item && e.dataTransfer.files.length) {  // a file from the computer: into the library first
@@ -1600,7 +1639,7 @@ function renderControls() {
       ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${by.start}${by.fade}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}`;
   })() : `<h4>Hiệu ứng</h4>${params.join("")}`;
   const hasArea = p.masks.includes(c.id) || (S.masks[c.id] && !S.masks[c.id].full);
-  el.innerHTML = `<div class="title"><span style="font-size:18px">${KIND_ICON[c.kind]}</span><input type="text" id="clipName" value="${esc(c.name)}" maxlength="60"></div>
+  el.innerHTML = `<div data-for="${c.id}"><div class="title"><span style="font-size:18px">${KIND_ICON[c.kind]}</span><input type="text" id="clipName" value="${esc(c.name)}" maxlength="60"></div>
     ${source}${timing}${fileParams}
     <h4>Vùng</h4>
     <div class="row"><div class="lab"><span>Hiệu ứng hiện ở</span><b>${hasArea ? "vùng đã vẽ" : "cả khung hình"}</b></div></div>
@@ -1613,13 +1652,19 @@ function renderControls() {
       <button class="small" id="dupBtn">⧉ Nhân đôi</button>
       <button class="small" id="onBtn">${c.on === false ? "Bật clip" : "Tắt clip"}</button>
       <button class="small danger" id="delBtn">Xoá clip</button>
-    </div>`;
+    </div></div>`;
+}
+function ownerClip(el) {  // the clip a control of the Effect Controls panel was made for
+  const box = el.closest("[data-for]");
+  return box ? clipById(box.dataset.for) : null;
 }
 function renderBaseControls(el) {
   const p = S.project, st = p.still || {source: "frame", frame: 0}, v = info();
   $("#ecNote").textContent = "Video gốc (V1)";
   el.innerHTML = `<div class="title"><span style="font-size:18px">🎬</span><b>${esc(p.name)}</b></div>
-    <div class="file">${v.w}×${v.h}, ${v.fps} khung/giây, loop ${v.seconds} giây (${v.frames} khung).<br>Video xuất ra: ${secLabel(duration())} = ${total() / loopFrames()} vòng loop.</div>
+    <div class="file">${p.source_name ? `<b>${esc(p.source_name)}</b><br>` : ""}${v.w}×${v.h}, ${v.fps} khung/giây, loop ${v.seconds} giây (${v.frames} khung).<br>Video xuất ra: ${secLabel(duration())} = ${total() / loopFrames()} vòng loop.</div>
+    <div class="btns"><button class="small" id="replaceBtn" title="Hoặc kéo file video thả vào hàng V1 trên timeline">Đổi video gốc…</button></div>
+    <p class="note">Đổi video gốc thì timeline, các clip và vùng đã vẽ được giữ nguyên.</p>
     <h4>Vùng đứng yên</h4>
     <p class="note">Tô những chỗ phải đứng yên tuyệt đối (tường, đồ vật bị rung…). Ở đó hình lấy y nguyên từ ảnh gốc, hoặc từ một khung của video.</p>
     <div class="btns"><button class="small ${S.paint === "freeze" ? "on" : ""}" id="paintFreeze">✎ Vẽ vùng đứng yên</button>${S.masks.freeze && !S.masks.freeze.empty ? '<button class="small" id="clearFreeze">Xoá vùng</button>' : ""}</div>
@@ -1639,13 +1684,14 @@ document.addEventListener("pointerup", () => { if (S.sliding) { S.sliding = fals
 $("#ec").addEventListener("focusout", () => setTimeout(() => { if (S.controlsDue) renderControls(); }, 0));
 $("#ec").addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || !S.project) return;
-  const p = S.project, c = clipById(S.sel);
+  const p = S.project, c = ownerClip(t);
   const id = t.id;
   if (id === "paintFreeze") return S.paint === "freeze" ? exitPaint() : (enterPaint("freeze"), renderControls());
   if (id === "paintFg") return S.paint === "fg" ? exitPaint() : (enterPaint("fg"), renderControls());
   if (id === "clearFreeze") return fillMask("freeze", "none");
   if (id === "clearFg") return fillMask("fg", "none");
   if (id === "pickStill") return $("#fileStill").click();
+  if (id === "replaceBtn") return $("#fileReplace").click();
   if (id === "useFrame") { p.still.frame = curFrame() % loopFrames(); p.still.source = "frame"; renderControls(); styleBase(); scheduleSave(); invalidateExact(); return; }
   if (!c) return;
   if (id === "paintArea") return S.paint === c.id ? exitPaint() : (enterPaint(c.id), renderControls());
@@ -1658,7 +1704,7 @@ $("#ec").addEventListener("click", e => {
   if (id === "toHere") {
     const len = c.end - c.start, s = curFrame();
     if (s + len > total() || overlaps(c.track, s, s + len, c.id)) return toast("Không đủ chỗ trống trên track này từ đầu phát.", true);
-    c.skip = c.kind === "file" ? c.skip : 0; c.start = s; c.end = s + len; edited(); return;
+    detach(c); c.start = s; c.end = s + len; edited(); return;
   }
   if (id === "splitBtn") return splitAtPlayhead();
   if (id === "dupBtn") return duplicate(c);
@@ -1667,7 +1713,7 @@ $("#ec").addEventListener("click", e => {
 });
 $("#ec").addEventListener("input", e => {
   const t = e.target, p = S.project; if (!p) return;
-  const c = clipById(S.sel);
+  const c = ownerClip(t);
   if (t.dataset.base) {
     const v = +t.value; $("#v-" + (t.dataset.base === "fg" ? "featherFg" : "feather")).textContent = v;
     p[t.dataset.base].feather = v; styleAll(); invalidateExact(); scheduleSave(); return;
@@ -1692,7 +1738,7 @@ $("#ec").addEventListener("input", e => {
 });
 $("#ec").addEventListener("change", e => {
   const t = e.target, p = S.project; if (!p) return;
-  const c = clipById(S.sel);
+  const c = ownerClip(t);
   if (t.id === "stillSource") { p.still.source = t.value; renderControls(); styleBase(); scheduleSave(); invalidateExact(); return; }
   if (!c) { remember(); return; }
   if (t.id === "behind") { c.behind = t.checked; edited(); return; }
@@ -1703,7 +1749,7 @@ $("#ec").addEventListener("change", e => {
     if (t.dataset.time === "end") en = clamp(v, s + 1, most);
     if (t.dataset.time === "len") en = clamp(s + Math.max(1, v), s + 1, most);
     if (overlaps(c.track, s, en, c.id)) { toast("Trùng với clip khác trên cùng track.", true); renderControls(); return; }
-    if (c.kind === "file" && t.dataset.time === "start") c.skip = c.skip || 0;
+    detach(c);
     c.start = s; c.end = en; edited(); return;
   }
   remember();
@@ -1839,7 +1885,8 @@ $("#recent").addEventListener("click", e => { const c = e.target.closest("[data-
 
 async function readyToRender() {  // the last painting and settings reach the app before a video is made
   if (!(await flushMasks())) return false;
-  return saveNow();
+  if (!(await saveNow())) return false;
+  return flushMasks();  // the areas of clips the app has only just got
 }
 function exportDialog() {
   const p = S.project; if (!p) return;
@@ -1871,7 +1918,7 @@ $("#updateBtn").onclick = async () => {
   try { await post("/api/update", {}); $("#updateText").textContent = "Đang cập nhật… app sẽ tự mở lại."; $("#updateBtn").style.display = "none"; S.updating = true; }
   catch (e) { fail(e); }
 };
-$("#modal").addEventListener("click", e => { if (e.target.id === "modal") { $("#modal").style.display = "none"; const v = $("#modal video"); if (v) v.pause(); } });
+$("#modal").addEventListener("click", e => { if (e.target.id === "modal" && !$("#modal").dataset.locked) { $("#modal").style.display = "none"; const v = $("#modal video"); if (v) v.pause(); } });
 function renderJobs(list) {
   const el = $("#jobs");
   const names = Object.fromEntries(((S.state && S.state.projects) || []).map(p => [p.id, p.name]));
@@ -1936,8 +1983,28 @@ async function poll() {
       }
       S.jobsSeen[j.id] = j.state;
     }
-    for (const it of S.lib) if (!it.proxy && !st.jobs.some(j => j.kind === "libproxy" && j.item === it.id && (j.state === "queued" || j.state === "running"))) post("/api/library/proxy", {id: it.id}).catch(() => {});
-    if (p && !p.proxy && !st.jobs.some(j => j.kind === "proxy" && j.project === p.id && (j.state === "queued" || j.state === "running"))) post("/api/proxy", {id: p.id}).catch(() => {});
+    // light copies still missing: asked for again unless one is on its way or has just failed (then it is shown)
+    const latest = test => st.jobs.find(test);  // newest first
+    const ask = j => !j || j.state === "cancelled" || j.state === "done";
+    S.failed = {};
+    for (const it of S.lib) {
+      if (it.proxy) continue;
+      const j = latest(x => x.kind === "libproxy" && x.item === it.id);
+      if (j && j.state === "error") S.failed[it.id] = j.message;
+      else if (ask(j)) post("/api/library/proxy", {id: it.id}).catch(() => {});
+    }
+    if (p && !p.proxy) {
+      const j = latest(x => x.kind === "proxy" && x.project === p.id);
+      if (j && j.state === "error") S.failed.base = j.message;
+      else if (ask(j)) post("/api/proxy", {id: p.id}).catch(() => {});
+    }
+    if (p) for (const c of p.layers) {  // a preview clip whose making was dropped or failed
+      const fx = S.fx[c.id];
+      if (c.kind === "file" || !fx || fx.ready || !fx.want) continue;
+      const j = latest(x => x.kind === "fxclip" && x.project === p.id && x.name === fx.want);
+      if (j && j.state === "error") S.failed[c.id] = j.message;
+      else if (j && j.state === "cancelled" && fx.retried !== j.id) { fx.retried = j.id; requestFx(c); }
+    }
     const projList = JSON.stringify(st.projects);
     if (JSON.stringify(S.lib.map(i => [i.id, i.proxy, i.name])) !== libBefore) { layersChanged = true; if (S.bin === "lib") renderBin(); }
     if (S.bin === "proj" && projList !== S.projList) renderBin();
@@ -1956,7 +2023,7 @@ async function poll() {
 document.addEventListener("keydown", e => {
   if (e.target.matches("input[type=text], input[type=number], select, textarea")) return;
   if (e.target.type === "range" && e.key.startsWith("Arrow")) return;  // the slider moves itself
-  if ($("#modal").style.display === "flex") { if (e.key === "Escape") $("#modal").style.display = "none"; return; }
+  if ($("#modal").style.display === "flex") { if (e.key === "Escape" && !$("#modal").dataset.locked) $("#modal").style.display = "none"; return; }
   const k = e.key, ctrl = e.ctrlKey || e.metaKey;
   if (e.code === "Space") {
     S.space = true;
@@ -2014,6 +2081,26 @@ $("#tLoop").onclick = () => { S.loop = !S.loop; $("#tLoop").classList.toggle("on
 $("#newBtn").onclick = () => $("#fileVideo").click();
 $("#fileVideo").onchange = e => { newProjectFrom(e.target.files[0]); e.target.value = ""; };
 $("#fileLib").onchange = e => { const fs = [...e.target.files]; e.target.value = ""; importFiles(fs); };
+$("#fileReplace").onchange = e => { const f = e.target.files[0]; e.target.value = ""; replaceBase(f); };
+async function replaceBase(file) {  // a new video for V1; the timeline, clips and areas stay
+  const p = S.project; if (!p || !file) return;
+  if (!/\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(file.name)) return toast("Hãy chọn một file video (mp4, mov…).", true);
+  if (!confirm(`Thay video gốc của dự án bằng "${file.name}"?\nTimeline, các clip và vùng đã vẽ được giữ nguyên.`)) return;
+  pause(); if (S.paint) exitPaint();
+  if (!(await readyToRender())) return;
+  const box = $("#modalBox");
+  box.innerHTML = `<h3>Đang thay video gốc…</h3><p id="replaceProgress" style="color:var(--dim)">Đang gửi file.</p>`;
+  $("#modal").style.display = "flex"; $("#modal").dataset.locked = "1";
+  try {
+    const fresh = await upload(`/api/upload?kind=replace&id=${p.id}&name=${encodeURIComponent(file.name)}`, file, "Đang gửi video");
+    clearTimeout(S.saveTimer); S.saveTimer = 0;
+    S.project = null;  // nothing from the page as it was may be saved over the new timing
+    await openProject(fresh.id);
+    const notes = fresh.notes || [];
+    toast(["Đã thay video gốc.", ...notes].join(" "), notes.some(n => n.includes("kiểm tra")), notes.length ? 10000 : 4000);
+  } catch (e) { fail(e); }
+  finally { $("#modal").style.display = "none"; delete $("#modal").dataset.locked; }
+}
 $("#fileStill").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f || !S.project) return;
   const pid = S.project.id;

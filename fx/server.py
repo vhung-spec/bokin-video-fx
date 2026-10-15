@@ -24,15 +24,16 @@ from PIL import Image
 
 from . import effects, engine, jobs, library, overlay, paths, projects, timeline, video
 
-UPLOAD_LIMITS = {"video": 4 << 30, "library": 4 << 30, "still": 200 << 20}
+UPLOAD_LIMITS = {"video": 4 << 30, "replace": 4 << 30, "library": 4 << 30, "still": 200 << 20}
 UPLOAD_TYPES = {"video": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
+                "replace": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
                 "still": (overlay.IMAGE_TYPES, "Hãy chọn ảnh PNG hoặc JPG."),
                 "library": (library.TYPES, "Hãy chọn video (mp4, mov, webm…) hoặc ảnh (png, jpg).")}
 MASK_LIMIT = 50 << 20
 JSON_LIMIT = 1 << 20
 OUT_NAME = re.compile(r"^[^\\/:*?\"<>|\x00-\x1f]{1,180}\.mp4$")
 FX_NAME = re.compile(r"^fx-[0-9a-f]{12}\.(webm|mp4)$")
-PROXY_NAME = re.compile(r"^proxy\.(mp4|webm|png)$")
+PROXY_NAME = re.compile(r"^proxy\.(mp4|webm|png)$")  # a library item's
 MEDIA_TYPES = {".mp4": "video/mp4", ".webm": "video/webm", ".png": "image/png", ".jpg": "image/jpeg"}
 ERRORS = (projects.UserError, video.VideoError, library.LibraryError)
 
@@ -247,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/media/base":  # the project's video for the live preview: its light copy
             project = projects.load(q.get("id"))
             name = project.get("proxy") or ""
-            if not PROXY_NAME.match(name):
+            if not projects.PROXY_NAME.match(name):
                 return self.fail(404, "no proxy yet")
             return self.send_file(os.path.join(projects.folder(project["id"]), name), MEDIA_TYPES[os.path.splitext(name)[1]])
         if path == "/media/fx":  # a built-in effect's preview clip
@@ -350,7 +351,12 @@ class Handler(BaseHTTPRequestHandler):
             name = stem[:200 - len(ext)] + ext  # a long name keeps its extension
             if ext.lower() not in UPLOAD_TYPES[kind][0]:  # before receiving gigabytes
                 raise projects.UserError(UPLOAD_TYPES[kind][1])
-            project = projects.load(q.get("id")) if kind == "still" else None
+            project = projects.load(q.get("id")) if kind in ("still", "replace") else None
+            notes = []
+            if kind == "replace":
+                mine = [j for j in app.jobs.public() if j["project"] == project["id"] and j["state"] in ("queued", "running")]
+                if any(j["kind"] == "export" for j in mine):
+                    raise projects.UserError("Dự án đang được xuất video. Chờ xong rồi hãy đổi video gốc.")
             app.uploading(+1)
             try:
                 upload = self.receive(UPLOAD_LIMITS[kind])
@@ -360,6 +366,13 @@ class Handler(BaseHTTPRequestHandler):
                         app.jobs.project_proxy(project["id"])
                     elif kind == "still":
                         project = projects.set_still_image(project, upload, name)
+                    elif kind == "replace":
+                        for j in app.jobs.public():  # what was being prepared was for the old video
+                            if j["project"] == project["id"] and j["kind"] in ("proxy", "fxclip"):
+                                app.jobs.cancel(j["id"])
+                        app.looks.forget(projects.folder(project["id"]))
+                        project, notes = projects.replace_video(project, upload, name)
+                        app.jobs.project_proxy(project["id"])
                     else:
                         item = library.add(upload, name)
                         if not item["info"].get("image"):
@@ -370,7 +383,7 @@ class Handler(BaseHTTPRequestHandler):
                     _remove(upload + os.path.splitext(name)[1].lower())
             finally:
                 app.uploading(-1)
-            return self.send(200, self.project_view(project))
+            return self.send(200, {**self.project_view(project), "notes": notes})
         if path == "/api/mask":
             project = projects.load(q.get("id"))
             data = self.rfile.read(self.length(MASK_LIMIT))
@@ -396,7 +409,8 @@ class Handler(BaseHTTPRequestHandler):
             name = engine.fx_clip_name(project, layer)
             if os.path.exists(os.path.join(projects.folder(project["id"]), "clips", name)):
                 return self.send(200, {"name": name, "ready": True})
-            job = app.jobs.fx_clip(project["id"], layer["id"], name)
+            wanted = {engine.fx_clip_name(project, lay) for lay in project["layers"] if lay["kind"] != "file"}
+            job = app.jobs.fx_clip(project["id"], layer["id"], name, wanted)
             return self.send(200, {"name": name, "ready": False, "job": job["id"]})
         if path == "/api/copymask":  # a clip cut in two: the second half gets the first one's area
             project = projects.copy_mask(projects.load(data.get("id")), data.get("src"), data.get("dst"))

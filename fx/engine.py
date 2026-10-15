@@ -240,6 +240,7 @@ def base_frames(folder, project, size, start, end):
 
 
 _done = _stop = None  # set in each worker process: frames done (shared counter), stop request (shared event)
+_here = threading.local()  # the same, when a single piece is made in this process (by this thread)
 
 
 def _worker_init(done, stop):
@@ -300,11 +301,11 @@ def _in_pieces(work, args, total, parts, progress=None, cancelled=None):
             def is_set(self):
                 return bool(cancelled and cancelled())
 
-        _worker_init(Counter(), Stop())
+        _here.done, _here.stop = Counter(), Stop()
         try:
             return work(*args, 0, total, parts[0])
         finally:
-            _worker_init(None, None)
+            _here.done = _here.stop = None
     ctx = multiprocessing.get_context("spawn")
     shared, stop = ctx.Value("i", 0), ctx.Event()
     with concurrent.futures.ProcessPoolExecutor(count, mp_context=ctx, initializer=_worker_init,
@@ -326,13 +327,15 @@ def _in_pieces(work, args, total, parts, progress=None, cancelled=None):
 
 
 def _count_frame():
-    if _done is not None:
-        with _done.get_lock():
-            _done.value += 1
+    done = getattr(_here, "done", None) or _done
+    if done is not None:
+        with done.get_lock():
+            done.value += 1
 
 
 def _stopped():
-    return _stop is not None and _stop.is_set()
+    stop = getattr(_here, "stop", None) or _stop
+    return stop is not None and stop.is_set()
 
 
 def found_files(folder, project):
@@ -460,9 +463,11 @@ def fx_part(project, layer, total, start, end, path):
 
 
 def make_base_proxy(folder, project):
-    """The light copy of the project's video the page plays; returns its file name."""
+    """The light copy of the project's video the page plays, named after the video (input-<x>: proxy-<x>), so a
+    replaced video never shares its name; returns its file name."""
     info = project["video"]
-    return os.path.basename(video.make_proxy(input_path(folder, project), info, os.path.join(folder, "proxy"),
+    tail = os.path.splitext(info["file"])[0][len("input"):]
+    return os.path.basename(video.make_proxy(input_path(folder, project), info, os.path.join(folder, "proxy" + tail),
                                              alpha=False, keyint=6))
 
 

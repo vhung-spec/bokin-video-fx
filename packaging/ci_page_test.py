@@ -69,6 +69,13 @@ def media():
         proc.stdin.write(f.tobytes())
     proc.stdin.close()
     proc.wait()
+    enc = video.Encoder(os.path.join(folder, "loop30.mp4"), w, h, "30", crf=18, preset="veryfast")
+    for t in range(45):  # another loop, 1.5 s at 30 frames a second, to replace the first one
+        f = bg[:, ::-1].copy()
+        a = 2 * math.pi * t / 45
+        f[(xx - w * 0.4 - 150 * math.cos(a)) ** 2 + (yy - h * 0.5) ** 2 < 60 ** 2] = (120, 220, 160)
+        enc.write(f.astype(np.uint8))
+    enc.close()
     im = Image.new("RGBA", (400, 200), (0, 0, 0, 0))
     ImageDraw.Draw(im).ellipse([20, 20, 380, 180], fill=(255, 200, 0, 160))
     im.save(os.path.join(folder, "logo.png"))
@@ -213,6 +220,28 @@ def run(page, folder, edge):
         info = video.probe(os.path.join(os.environ["BOKIN_FX_OUT"], job["output"]))
         check("exported video: 30 s", info["frames"] == 720, str(info))
     shot("06-exported")
+
+    # V1 replaced by another loop (30 frames a second): the clips keep their times in seconds
+    before = page.evaluate("S.project.layers.map(c => [c.id, c.start / 24, c.end / 24])")
+    page.click(".clip.base >> nth=0")
+    page.once("dialog", lambda d: d.accept())
+    page.set_input_files("#fileReplace", upload(folder, "loop30.mp4", "Cảnh mới.mp4", "video/mp4"))
+    page.wait_for_function("S.project && S.project.video.fps === '30'", timeout=60000)
+    after = page.evaluate("S.project.layers.map(c => [c.id, c.start / 30, c.end / 30])")
+    same = len(before) == len(after) and all(a[0] == b[0] and abs(a[1] - b[1]) < 0.05 and
+                                             (abs(a[2] - b[2]) < 0.05 or abs(b[2] - 30) < 0.05)
+                                             for a, b in zip(before, after))
+    check("replace V1: clips keep their times", same, f"{before} -> {after}")
+    page.wait_for_function("S.project.proxy && S.project.proxy !== 'proxy.mp4'", timeout=120000)
+    page.wait_for_timeout(800)
+    page.keyboard.press("Space")
+    page.wait_for_timeout(1500)
+    state = page.evaluate("({t: S.time, base: baseVid.readyState, cur: baseVid.currentTime, src: baseVid.src})")
+    page.keyboard.press("Space")
+    if edge:
+        check("replace V1: the new video plays", state["base"] >= 2 and state["cur"] > 0, str(state))
+    check("replace V1: its light copy", "proxy-" in state["src"], str(state))
+    shot("07-replaced")
     check("no script errors on the page", not errors, "\n".join(errors[:10]))
 
 

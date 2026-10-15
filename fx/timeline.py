@@ -8,6 +8,8 @@ A clip that covers the whole video ("full") loops with it: no fades, its motion 
 A shorter clip always fades where it touches the start or the end of the video (at least MIN_EDGE_FADE), so
 the last frame still runs smoothly into the first one when the video plays in a loop.
 """
+import math
+
 LENGTHS = (30, 60)  # seconds
 DEFAULT_LENGTH = 30
 MIN_EDGE_FADE = 0.5  # seconds
@@ -15,8 +17,9 @@ MAX_FADE = 10.0  # seconds
 
 
 def output_frames(info, seconds):
-    """Frames of a video of about `seconds`: a whole number of the source loop, so the end joins the start."""
-    return max(1, round(seconds / info["seconds"])) * info["frames"]
+    """Frames of a video of about `seconds`: a whole number of the source loop, so the end joins the start.
+    Halves round up, as on the page (Python's round() would make a 12 s loop 24 s long at 30 s, the page 36 s)."""
+    return max(1, math.floor(seconds / info["seconds"] + 0.5)) * info["frames"]
 
 
 def project_frames(project):

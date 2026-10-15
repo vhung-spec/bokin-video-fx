@@ -165,6 +165,53 @@ class Engine(unittest.TestCase):
             self.assertTrue((a[t] == b[t]).all(), f"frame {t} differs")
         projects.apply(projects.load(self.project["id"]), {"layers": []})
 
+    def test_cut_full_clip_keeps_its_picture(self):
+        """A clip over the whole video cut in two: each half starts where the whole clip was in its file
+        (skip = its seam fade, as the page sets it), so the frames are the same away from the video's ends."""
+        clip = helpers.make_loop(os.path.join(helpers.ROOT, "full.mp4"), 160, 90, 40, "24")  # shorter: it repeats
+        item = library.add(clip, "full.mp4")
+        total = timeline.project_frames(self.project)
+        tid = self.project["tracks"][0]["id"]
+        whole = {"id": "fileff", "kind": "file", "lib": item["id"], "track": tid, "start": 0, "end": total,
+                 "params": {"blend": "screen", "fade": 0.5}}
+        cut = [dict(whole, id="filef1", end=360, skip=0.5), dict(whole, id="filef2", start=360, skip=0.5 + 360 / 24)]
+        times = [12, 100, 300, 359, 360, 361, 500, 700, total - 13]
+        a = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": [whole]}), times)
+        b = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": cut}), times)
+        for t in times:
+            self.assertTrue((a[t] == b[t]).all(), f"frame {t} differs")
+        projects.apply(projects.load(self.project["id"]), {"layers": []})
+
+    def test_export_and_preview_clip_at_once(self):
+        """An export and a preview clip made at the same time in this process (one piece each, as on a 2-CPU
+        computer) keep their own progress and stop request."""
+        import threading
+        project = projects.apply(projects.load(self.project["id"]), {"layers": [
+            {"id": "snowcc", "kind": "snow", "params": {"amount": 40}, "seed": 3}]})
+        got = {}
+        stop = {"n": 0}
+
+        def cancelled():
+            stop["n"] += 1
+            return stop["n"] > 5
+
+        def export():
+            got["export"] = engine.render(self.folder, project, os.path.join(helpers.ROOT, "both.mp4"), seconds=2,
+                                          processes=1, cancelled=cancelled, preset="veryfast")
+
+        def preview():
+            got["clip"] = engine.fx_clip(self.folder, project, "snowcc", processes=1)
+        threads = [threading.Thread(target=export), threading.Thread(target=preview)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+        self.assertFalse(got["export"])
+        self.assertTrue(got["clip"])
+        info = video.probe(os.path.join(self.folder, "clips", got["clip"]), overlay=True)
+        self.assertEqual(info["frames"], timeline.project_frames(project))
+        projects.apply(projects.load(self.project["id"]), {"layers": []})
+
     def test_hidden_track_and_switched_off_clip(self):
         tracks = self.project["tracks"]
         project = projects.apply(projects.load(self.project["id"]), {
@@ -231,6 +278,41 @@ class Concurrency(unittest.TestCase):
         import unicodedata
         self.assertEqual(projects.clean_name(unicodedata.normalize("NFD", "Cảnh đêm mưa.mov")), "Cảnh đêm mưa")
         self.assertEqual(projects.clean_name("../../x<>y.mp4"), "x y")
+
+
+class Replace(unittest.TestCase):
+    def test_new_video_keeps_the_timeline(self):
+        """V1 replaced by a video of another frame rate and loop length: clips keep their times in seconds, a clip
+        to the end still runs to the end, the areas stay, the light copy is made again for the new video."""
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "old24.mp4"), 160, 90, 24, "24")  # 1 s at 24 fps
+        project = projects.create(src, "old24.mp4")
+        folder = projects.folder(project["id"])
+        tid = project["tracks"][0]["id"]
+        project = projects.apply(project, {"still": {"source": "frame", "frame": 12}, "layers": [
+            {"id": "snowrr", "kind": "snow", "track": tid, "start": 24, "end": 720},
+            {"id": "glowrr", "kind": "glow", "track": project["tracks"][1]["id"], "start": 48, "end": 96}]})
+        project = projects.save_mask(project, "freeze", png([0, 0, 40, 90], (160, 90)))
+        projects.set_proxy(project["id"], engine.make_base_proxy(folder, project), project["video"]["file"])
+        new = helpers.make_loop(os.path.join(helpers.ROOT, "new30.mp4"), 160, 90, 60, "30")  # 2 s at 30 fps
+        project, notes = projects.replace_video(projects.load(project["id"]), new, "Cảnh mới.mov")
+        self.assertEqual((project["video"]["fps"], project["video"]["frames"]), ("30", 60))
+        self.assertEqual(timeline.project_frames(project), 900)
+        clips = {c["id"]: (c["start"], c["end"]) for c in project["layers"]}
+        self.assertEqual(clips, {"snowrr": (30, 900), "glowrr": (60, 120)})
+        self.assertEqual(project["still"]["frame"], 15)
+        self.assertIsNone(project["proxy"])
+        self.assertTrue(project["video"]["file"].startswith("input-"))
+        self.assertFalse(os.path.exists(os.path.join(folder, "input.mp4")))  # the old video and its copy are gone
+        self.assertFalse(os.path.exists(os.path.join(folder, "proxy.mp4")))
+        self.assertTrue(os.path.exists(engine.mask_path(folder, "freeze")))
+        self.assertTrue(any("2 giây" in n for n in notes), notes)
+        frame = engine.Scene(folder, project, (160, 90)).frame(450, video.read_frame(engine.input_path(folder, project),
+                                                                                    project["video"], 30))
+        self.assertEqual(frame.shape, (90, 160, 3))
+        name = engine.make_base_proxy(folder, project)
+        self.assertNotEqual(name, "proxy.mp4")
+        self.assertEqual(projects.set_proxy(project["id"], name, "input.mp4")["proxy"], None)  # made for the old one
+        self.assertEqual(projects.set_proxy(project["id"], name, project["video"]["file"])["proxy"], name)
 
 
 class Validation(unittest.TestCase):

@@ -49,6 +49,8 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
    - **Vùng**: bấm **✎ Vẽ vùng** để tô chỗ hiệu ứng được hiện.
 6. **Vùng đứng yên và tiền cảnh**: bấm vào **V1 Video gốc** trên timeline, rồi bấm **✎ Vẽ vùng đứng yên** hoặc
    **✎ Vẽ tiền cảnh**.
+   - **Đổi video gốc**: bấm vào **V1 Video gốc** rồi **Đổi video gốc…**, hoặc kéo file video thả vào hàng V1.
+     Timeline, các clip và vùng đã vẽ được giữ nguyên (thời gian clip giữ theo giây).
 7. **Xem**: bấm **▶** (hoặc phím cách). Dừng hình để xem khung chính xác.
 8. **Xuất video**: bấm **Xuất video** ở góc trên bên phải. Video nằm trong thư mục **Videos\Bokin FX**.
 

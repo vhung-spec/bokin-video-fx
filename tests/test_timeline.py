@@ -50,6 +50,9 @@ class Spans(unittest.TestCase):
         self.assertEqual(timeline.output_frames(info, 30), 5 * 144)
         self.assertEqual(timeline.output_frames(info, 60), 10 * 144)
         self.assertEqual(timeline.output_frames({"frames": 168, "seconds": 7.0}, 30), 4 * 168)  # 28 s
+        # halves round up, as on the page: a 12 s loop makes 36 s, not 24 s
+        self.assertEqual(timeline.output_frames({"frames": 288, "seconds": 12.0}, 30), 3 * 288)
+        self.assertEqual(timeline.output_frames({"frames": 576, "seconds": 24.0}, 60), 3 * 576)
 
 
 if __name__ == "__main__":

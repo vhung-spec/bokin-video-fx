@@ -33,6 +33,8 @@ PROJECT_ID = re.compile(r"^[0-9a-f]{12}$")
 LAYER_ID = re.compile(r"^[a-z0-9]{4,16}$")
 TRACK_ID = LAYER_ID
 MASK_NAME = re.compile(r"^(freeze|fg|[a-z0-9]{4,16})$")
+INPUT_NAME = re.compile(r"^input(-[0-9a-f]{6})?\.[a-z0-9]{2,4}$")
+PROXY_NAME = re.compile(r"^proxy(-[0-9a-f]{6})?\.(mp4|webm)$")
 VIDEO_TYPES = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
 MAX_LAYERS = 64  # clips
 MAX_TRACKS = 12
@@ -161,8 +163,7 @@ def list_all():
     return sorted(out, key=lambda p: -p["updated"])
 
 
-def create(upload, original_name):
-    """A new project from an uploaded video (`upload` is a file we wrote; it is moved into the project)."""
+def _checked_video(upload, original_name):
     ext = os.path.splitext(original_name or "")[1].lower()
     if ext not in VIDEO_TYPES:
         raise UserError("Hãy chọn một file video (mp4, mov, mkv, webm, avi).")
@@ -170,6 +171,12 @@ def create(upload, original_name):
     if info["frames"] > MAX_FRAMES:
         raise UserError(f"Video dài {info['seconds']:.0f} giây. Bokin FX dành cho video loop ngắn "
                         f"(tối đa {MAX_FRAMES // 24} giây ở 24 khung/giây).")
+    return ext, info
+
+
+def create(upload, original_name):
+    """A new project from an uploaded video (`upload` is a file we wrote; it is moved into the project)."""
+    ext, info = _checked_video(upload, original_name)
     pid = secrets.token_hex(6)
     path = os.path.join(paths.projects_dir(), pid)
     os.makedirs(os.path.join(path, "masks"))
@@ -181,6 +188,52 @@ def create(upload, original_name):
                "freeze": {"feather": 4}, "fg": {"feather": 2}, "length": timeline.DEFAULT_LENGTH,
                "tracks": [{"id": secrets.token_hex(3), "on": True} for _ in range(3)], "layers": [], "proxy": None}
     return save(project)
+
+
+def replace_video(project, upload, original_name):
+    """A new video for the project (V1), keeping its timeline, areas and clips: clip times stay the same in
+    seconds, clips that ran to the end still do. The new file gets a new name (the old one may still be open for
+    reading on Windows; it goes in a later sweep). Returns (project, notes for the page)."""
+    ext, info = _checked_video(upload, original_name)
+    with LOCK:
+        fresh = load(project["id"])
+        path = os.path.join(paths.projects_dir(), fresh["id"])
+        old = fresh["video"]
+        name = f"input-{secrets.token_hex(3)}{ext}"
+        shutil.move(upload, os.path.join(path, name))
+        info["file"] = name
+        old_total, old_fps, new_fps = timeline.project_frames(fresh), video.fps_value(old["fps"]), video.fps_value(info["fps"])
+        fresh["video"] = info
+        new_total = timeline.project_frames(fresh)
+        most = timeline.output_frames(info, max(timeline.LENGTHS))
+
+        def at(frame):  # the same time, in frames of the new video
+            return int(round(frame / old_fps * new_fps))
+        for layer in fresh["layers"]:
+            start = min(at(layer["start"]), most - 1)
+            end = new_total if layer["end"] == old_total else min(at(layer["end"]), most)
+            layer["start"], layer["end"] = start, max(end, start + 1)
+        fresh["still"]["frame"] = min(at(fresh["still"].get("frame", 0)), info["frames"] - 1)
+        notes = []
+        if abs(new_total - old_total) / new_fps > 0.5 or abs(info["seconds"] - old["seconds"]) > 0.05:
+            notes.append(f"Video mới có loop {info['seconds']:g} giây (video cũ {old['seconds']:g} giây): video xuất ra "
+                         f"dài {new_total / new_fps:g} giây.")
+        if (info["w"], info["h"]) != (old["w"], old["h"]):
+            if abs(info["w"] / info["h"] - old["w"] / old["h"]) > 0.01:
+                notes.append("Video mới có khung hình khác tỉ lệ: các vùng đã vẽ bị kéo giãn theo. Hãy kiểm tra lại.")
+            still = os.path.join(path, "still.png")
+            if os.path.exists(still):  # the original picture, fitted to the new size
+                with Image.open(still) as im:
+                    fitted = ImageOps.fit(im.convert("RGB"), (info["w"], info["h"]), Image.Resampling.LANCZOS)
+                tmp = still + ".tmp.png"
+                fitted.save(tmp, compress_level=3)
+                replace(tmp, still)
+        fresh["source_name"] = os.path.basename(original_name)[:200]
+        fresh["proxy"] = None
+        _remove(os.path.join(path, "thumb.jpg"))
+        saved = save(fresh)
+        sweep_files(saved)
+        return saved, notes
 
 
 def delete(pid):
@@ -330,22 +383,32 @@ def using_library(iid):
     return names
 
 
-def sweep_files(project, keep_recent=4):
+def sweep_files(project, keep_recent=4, keep_seconds=600, keep_most=16):
     """Removes files no clip uses any more: files of older versions' clips, and preview clips of built-in
-    effects made for other settings (the `keep_recent` newest stay: the page may still be playing one while the
-    next is made, and a change is often undone). A file Windows still holds open stays until a later sweep."""
+    effects made for other settings. Of those, the `keep_recent` newest stay, and any made in the last
+    `keep_seconds` (up to `keep_most`): the page may still be playing one while the next is made, and a change
+    is often undone. A file Windows still holds open stays until a later sweep."""
     from .engine import fx_clip_name
     base = os.path.join(paths.projects_dir(), project["id"])
     keep = {(lay.get("file") or {}).get("stored") for lay in project["layers"]}
     for name in _names(os.path.join(base, "files")):
         if name not in keep:
             _remove(os.path.join(base, "files", name))
+    current = project["video"]["file"]
+    copy = "proxy" + os.path.splitext(current)[0][len("input"):]  # its light copy (engine.make_base_proxy)
+    for name in _names(base):  # videos replaced by another one, and their light copies
+        if INPUT_NAME.match(name) and name != current:
+            _remove(os.path.join(base, name))
+        elif PROXY_NAME.match(name) and os.path.splitext(name)[0] != copy:
+            _remove(os.path.join(base, name))
     used = {fx_clip_name(project, lay) for lay in project["layers"] if lay["kind"] != "file"}
     clips = os.path.join(base, "clips")
     spare = sorted((n for n in _names(clips) if n not in used and ".part" not in n),
                    key=lambda n: _mtime(os.path.join(clips, n)), reverse=True)
-    for name in spare[keep_recent:]:
-        _remove(os.path.join(clips, name))
+    now = time.time()
+    for i, name in enumerate(spare):
+        if i >= keep_most or (i >= keep_recent and now - _mtime(os.path.join(clips, name)) > keep_seconds):
+            _remove(os.path.join(clips, name))
 
 
 def _names(folder):
@@ -432,9 +495,13 @@ def set_still_image(project, upload, original_name):
         return save(fresh)
 
 
-def set_proxy(pid, name):
-    """The light copy of the project's video is ready (made in the background)."""
+def set_proxy(pid, name, source):
+    """The light copy of the project's video `source` is ready (made in the background); kept only if that is
+    still the project's video."""
     with LOCK:
         fresh = load(pid)
+        if fresh["video"]["file"] != source:
+            _remove(os.path.join(paths.projects_dir(), pid, name))
+            return fresh
         fresh["proxy"] = name
         return save(fresh, bump=False)
