@@ -100,10 +100,25 @@ class Look(unittest.TestCase):
         plain = {"beads": 0, "drops": 0, "hits": 0}
         fogged = lens(effects.make("glass", {**plain, "haze": 100, "blur": 100}, 3, 144, 24, W, H), 0)
         clear = lens(effects.make("glass", {**plain, "haze": 0, "blur": 100}, 3, 144, 24, W, H), 0)
-        self.assertTrue(np.array_equal(clear, SCENE))  # no fog: nothing to blur
+        self.assertTrue(np.array_equal(clear, SCENE))  # no fog, nothing out of focus: unchanged
         edges = lambda p: np.abs(np.diff(p, axis=1)).mean()  # noqa: E731
         self.assertLess(edges(fogged), 0.5 * edges(SCENE))
         self.assertGreater(fogged.mean(), SCENE[..., :].mean() - 0.02)
+        # out of focus on clear glass: blurred, not lighter
+        far = lens(effects.make("glass", {**plain, "haze": 0, "blur": 100, "defocus": 100}, 3, 144, 24, W, H), 0)
+        self.assertLess(edges(far), 0.5 * edges(SCENE))
+        self.assertLess(abs(float(far.mean() - SCENE.mean())), 0.02)
+
+    def test_light_fog_blurs_instead_of_dimming(self):
+        """Fogged glass spreads the light: no sharp copy of the scene is left under the blur (it used to be a
+        crossfade, so a crisp edge stayed visible under a halo)."""
+        scene = np.full((H, W, 3), 0.2, np.float32)
+        scene[:, W // 2:] = 0.8
+        fx = effects.make("glass", {"beads": 0, "drops": 0, "hits": 0, "haze": 35, "uneven": 0, "blur": 50},
+                          3, 144, 24, W, H)
+        row = lens(fx, 0, scene=scene)[H // 2, :, 1]
+        jump = np.abs(np.diff(row))
+        self.assertLess(float(jump.max()), 0.12)  # the step of 0.6 is spread out
 
     def test_a_drop_shows_the_scene_upside_down(self):
         """Dark above, light below: inside a big bead the top is lighter than the bottom (and the other way round
@@ -126,6 +141,63 @@ class Look(unittest.TestCase):
                 self.assertEqual(top > bottom, flipped, (refraction, x, y, r))
                 seen += 1
             self.assertGreater(seen, 2)
+
+    def test_drops_see_the_scene_not_the_fog(self):
+        """Drops that barely bend the light (level 0 of the picture) show the scene behind, not the fogged glass
+        around them."""
+        params = {"blur": 0, "drops": 0, "hits": 0, "beads": 100, "bead_size": 100, "highlight": 0, "rim": 0,
+                  "refraction": 8}
+        fogged = effects.make("glass", {**params, "haze": 100}, 3, 144, 24, W, H)
+        clear = effects.make("glass", {**params, "haze": 0}, 3, 144, 24, W, H)
+        a, b = lens(fogged, 0), lens(clear, 0)
+        fogged._fields(0)
+        inside = fogged.buf[glass.A] > 0.99
+        self.assertGreater(int(inside.sum()), 50)
+        veil = fogged.veil * fogged.fog * (1 - fogged.buf[glass.CLR])
+        # inside a drop only the thin veil laid over the whole glass differs
+        expect = b + veil[..., None] * (fogged.colour - b)
+        self.assertLess(float(np.abs(a - expect)[inside].mean()), 0.004)
+
+    def test_running_drops_never_vanish_in_place(self):
+        """A slot's cycles are chained: a drop that stops is carried on by the next cycle from the same spot, the
+        same size, and a chain ends only by running off the bottom."""
+        for params in ({}, {"speed": 0, "drops": 100}, {"speed": 100, "size": 100, "wiggle": 100}):
+            fx = effects.make("glass", params, 3, 720, 24, W, H)
+            for i in range(fx.r_n):
+                c = int(fx.r_c[i])
+                self.assertTrue(fx.r_new[i, 0] and fx.r_last[i, c - 1])
+                for v in range(c):
+                    end = fx.r_y0[i, v] + fx.r_L[i, v]
+                    if fx.r_last[i, v]:
+                        self.assertGreater(end - fx.r_R[i, v], H)  # off the bottom
+                        continue
+                    self.assertFalse(fx.r_new[i, v + 1])
+                    self.assertAlmostEqual(fx.r_y0[i, v + 1], end, places=3)
+                    x_end = fx._x(np.array([i]), np.array([v]), np.array([end]))[0]
+                    self.assertAlmostEqual(fx.r_xk[i, v + 1, 0], x_end, places=3)
+                # at every cycle boundary the drop is where and as big as it was a moment before
+                for v in range(c):
+                    if fx.r_last[i, (v - 1) % c]:
+                        continue
+                    tau = np.mod((v - fx.r_phi[i]) / c, 1.0)
+                    before, after = fx._running(tau - 1e-7), fx._running(tau + 1e-7)
+                    for k in range(4):
+                        self.assertAlmostEqual(before[k][i], after[k][i], delta=0.05, msg=(params, i, v, k))
+
+    def test_rain_hits_stay_then_dry_up_slowly(self):
+        fx = effects.make("glass", {"hits": 60}, 3, 720, 24, W, H)
+        self.assertGreater(fx.h_n, 10)
+        life = (fx.h_end - fx.h_sa) * fx.h_T[:, None]
+        self.assertGreater(float(life[:, 0].min()), 3.0)  # seconds on the glass
+        self.assertGreaterEqual(float((fx.h_ev * fx.h_T[:, None])[:, 0].min()), 1.5 - 1e-9)  # drying up
+
+    def test_buffer_only_as_big_as_the_area(self):
+        fx = effects.make("glass", {}, 3, 144, 24, W, H)
+        mask = np.zeros((H, W), np.float32)
+        mask[40:120, 100:230] = 1
+        lens(fx, 5, mask)
+        self.assertEqual(fx.buf.shape, (8, 80, 130))
+        self.assertTrue(np.array_equal(lens(fx, 5, mask), lens(effects.make("glass", {}, 3, 144, 24, W, H), 5, mask)))
 
     def test_drops_run_and_clear_the_fog(self):
         fx = effects.make("glass", {"drops": 100, "beads": 0, "hits": 0}, 3, 240, 24, W, H)
