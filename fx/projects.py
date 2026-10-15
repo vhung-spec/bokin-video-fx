@@ -297,7 +297,7 @@ def _layer_from_page(raw, old, project, tracks):
              "fade_out": _num(raw.get("fade_out"), 0, timeline.MAX_FADE, 0),
              "skip": _num(raw.get("skip"), 0, 36000, 0, None),  # exact: the two halves of a cut clip must meet
              "need": _num(raw.get("need"), 0, 36000, 0, None),  # the first half: as long a run as the whole clip
-             "mix": _num(raw.get("mix"), 0, timeline.MAX_MIX, 0)}  # a crossfade with the clip just before it
+             "mix": _num(raw.get("mix"), 0, timeline.MAX_MIX, 0, None)}  # exact: the page rounds it to frames  # a crossfade with the clip just before it
     if kind == "file":
         before = old.get("file") if old and old.get("kind") == "file" else None
         lib = raw.get("lib")  # the page names library items by id only, never files

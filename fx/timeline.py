@@ -31,11 +31,12 @@ def project_frames(project):
     return output_frames(project["video"], project.get("length") or DEFAULT_LENGTH)
 
 
-def mixes(clips, total, fps):
-    """{clip id: (seconds of crossfade with the clip before, with the clip after)} among `clips` (those shown): a clip
+def mix_pairs(clips, total, fps):
+    """[(id of the clip before, id of the clip after, seconds)]: the crossfades among `clips` (those shown). A clip
     with a `mix` that starts where another one on its track ends, inside the video, crossfades with it, over at
-    most MAX_MIX and the length of either clip. The page has the same rule (mixAt)."""
-    out = {}
+    most MAX_MIX and the length of either clip (the later one only up to the video's end, so the earlier one never
+    runs on past it). The page has the same rule (mixAt)."""
+    out = []
     for b in clips:
         m = float(b.get("mix", 0) or 0)
         if m <= 0 or int(b["start"]) >= total:
@@ -44,10 +45,18 @@ def mixes(clips, total, fps):
                   and int(c["end"]) == int(b["start"])), None)
         if a is None:
             continue
-        m = min(m, MAX_MIX, (int(a["end"]) - int(a["start"])) / fps, (int(b["end"]) - int(b["start"])) / fps)
+        m = min(m, MAX_MIX, (int(a["end"]) - int(a["start"])) / fps, (min(int(b["end"]), total) - int(b["start"])) / fps)
         if m > 0:
-            out[b["id"]] = (m, out.get(b["id"], (0.0, 0.0))[1])
-            out[a["id"]] = (out.get(a["id"], (0.0, 0.0))[0], m)
+            out.append((a["id"], b["id"], m))
+    return out
+
+
+def mixes(clips, total, fps):
+    """{clip id: (seconds of crossfade with the clip before, with the clip after)} (mix_pairs)."""
+    out = {}
+    for a, b, m in mix_pairs(clips, total, fps):
+        out[b] = (m, out.get(b, (0.0, 0.0))[1])
+        out[a] = (out.get(a, (0.0, 0.0))[0], m)
     return out
 
 

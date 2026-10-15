@@ -194,13 +194,13 @@ class Encoder:
     """Writes RGB uint8 frames into the delivery file `path`. close() finishes it; abort() leaves nothing.
     A `part` (one piece of a video rendered in pieces) is written as is; join() makes the delivery file."""
 
-    def __init__(self, path, w, h, fps, crf=16, preset="medium", threads=0, part=False):
+    def __init__(self, path, w, h, fps, crf=16, preset="medium", threads=0, part=False, pix="yuv420p"):
         self.path, self.part = path, part
         self.tmp = path if part else path + ".enc.mp4"
         self.err = tempfile.TemporaryFile()
         args = [ffmpeg_exe(), "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                "-s", f"{w}x{h}", "-framerate", str(fps), "-i", "-", "-vf", TO_BT709, "-c:v", "libx264",
-                "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p", *BT709, *DROP_SEI, "-an"] \
+                "-s", f"{w}x{h}", "-framerate", str(fps), "-i", "-", "-vf", TO_BT709.replace("yuv420p", pix),
+                "-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", pix, *BT709, *DROP_SEI, "-an"] \
             + (["-threads", str(threads)] if threads else []) + [self.tmp]
         self.proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=self.err,
                                      **NO_WINDOW)
@@ -316,7 +316,7 @@ class _SeeThroughPiece:
     """RGBA frames into a VP9 WebM piece that keeps them well (BT.709, tagged, as probe() reads it back)."""
 
     def __init__(self, path, w, h, fps):
-        self.err = tempfile.TemporaryFile()
+        self.path, self.err = path, tempfile.TemporaryFile()
         args = [ffmpeg_exe(), "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{w}x{h}",
                 "-framerate", str(fps), "-i", "-", "-vf",
                 "scale=flags=accurate_rnd+full_chroma_int:out_color_matrix=bt709:out_range=tv,format=yuva420p",
@@ -344,8 +344,9 @@ def reverse(src, info, dst, cancelled=None, progress=None, budget=160_000_000):
     try:
         def backwards(frames):
             path = os.path.join(folder, f"{len(parts):05d}{ext}")
-            writer = (_SeeThroughPiece(path, w, h, info["fps"]) if alpha else
-                      Encoder(path, w, h, info["fps"], crf=12, preset="veryfast", part=True))
+            writer = (_SeeThroughPiece(path, w, h, info["fps"]) if alpha else  # (4:2:0 needs even sides)
+                      Encoder(path, w, h, info["fps"], crf=12, preset="veryfast", part=True,
+                              pix="yuv444p" if w % 2 or h % 2 else "yuv420p"))
             for frame in reversed(frames):
                 writer.write(frame)
             writer.close()

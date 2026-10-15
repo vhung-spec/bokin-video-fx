@@ -151,7 +151,9 @@ class Jobs:
         return report
 
     def _export(self, job):
-        project = projects.load(job["project"])
+        if not self._reversed_copies(job):
+            return False
+        project = projects.load(job["project"])  # (as it is now: the page may have changed it meanwhile)
         folder = projects.folder(job["project"])
         info = project["video"]
         total = timeline.project_frames(project)
@@ -161,16 +163,6 @@ class Jobs:
         if free < need:
             raise projects.UserError(f"Ổ đĩa không đủ chỗ: cần khoảng {need / 1e9:.1f} GB, còn {free / 1e9:.1f} GB. "
                                      "Hãy dọn bớt ổ đĩa.")
-        for lay in project["layers"]:  # clips played backwards: their copies first (made once, kept in the library)
-            lib = (lay.get("file") or {}).get("lib")
-            if lay["kind"] == "file" and lib and (lay.get("params") or {}).get("reverse") and lay.get("on", True):
-                job["message"] = "Đang chuẩn bị bản phát ngược…"
-                try:
-                    if library.make_reverse(lib, cancelled=lambda: job["cancel"]) is None and job["cancel"]:
-                        return False
-                except library.LibraryError:
-                    pass  # gone from the library: the clip draws nothing
-                job["message"] = ""
         seconds = total / video.fps_value(info["fps"])
         final = free_name(out_dir, f"{project['name']}-fx-{length_tag(round(seconds))}")
         made = os.path.join(folder, f"export-{job['id']}.mp4")
@@ -201,6 +193,33 @@ class Jobs:
         if not kept:
             return False  # the video was replaced meanwhile: this copy was of the old one, and is gone
         job["output"] = name
+        return True
+
+    def _reversed_copies(self, job):
+        """Before an export: the played-backwards copies its clips need (made once, kept in the library).
+        False if cancelled."""
+        project = projects.load(job["project"])
+        for lay in engine.clip_order(project):
+            lib = (lay.get("file") or {}).get("lib")
+            if lay["kind"] != "file" or not lib or not (lay.get("params") or {}).get("reverse"):
+                continue
+            try:
+                if library.reversed_copy(library.load(lib)):
+                    continue
+            except library.LibraryError:
+                continue  # gone from the library: the clip draws nothing
+            job["message"] = "Đang chuẩn bị bản phát ngược…"
+            try:
+                made = library.make_reverse(lib, cancelled=lambda: job["cancel"], progress=self._progress(job))
+            except library.LibraryError:
+                made = True
+            except Exception as e:
+                traceback.print_exc()
+                raise projects.UserError(f"Không làm được bản phát ngược của clip \"{lay.get('name', '')}\". "
+                                         "Hãy bỏ ô Phát ngược của clip đó rồi xuất lại.") from e
+            if made is None and job["cancel"]:
+                return False
+            job["message"], job["progress"], job["started"] = "", 0.0, time.time()  # (the time left: rendering only)
         return True
 
     def _librev(self, job):

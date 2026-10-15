@@ -89,6 +89,7 @@ class Export(unittest.TestCase):
         job = fake(j, id="ex", kind="export", project=project["id"])
         self.assertTrue(j._export(job))
         self.assertTrue(library.reversed_copy(library.load(item["id"])))
+        self.assertEqual(job["message"], "")
         self.assertTrue(os.path.exists(os.path.join(os.environ["BOKIN_FX_OUT"], job["output"])))
 
 

@@ -131,6 +131,33 @@ class Backwards(unittest.TestCase):
         self.assertTrue(os.path.exists(library.reversed_path(library.load(iid))[0]))
         self.assertFalse(os.path.exists(os.path.join(library.folder(iid), "reverse.parts")))
 
+    def test_odd_sizes_and_the_exact_frame(self):
+        """An opaque video with odd sides (a GIF, a cropped download) is turned round too (4:4:4: 4:2:0 needs even
+        sides). The exact frame made while its copy was missing shows the clip once the copy is made."""
+        import subprocess
+        import numpy as np
+        from fx import engine, projects
+        odd = os.path.join(helpers.ROOT, "odd.mp4")
+        subprocess.run([video.ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i",
+                        "testsrc=size=99x55:rate=12:duration=1", "-c:v", "libx264", "-pix_fmt", "yuv444p", odd],
+                       check=True)
+        iid = library.add(odd, "odd.mp4")["id"]
+        project = projects.create(helpers.make_loop(os.path.join(helpers.ROOT, "oddbase.mp4"), 96, 54, 12), "b.mp4")
+        tid = project["tracks"][0]["id"]
+        project = projects.apply(project, {"layers": [{"id": "fileod", "kind": "file", "lib": iid, "track": tid,
+                                                       "start": 0, "end": 12, "params": {"reverse": True}}]})
+        folder, looks = projects.folder(project["id"]), engine.Looks()
+        before = looks.frame(folder, project, 3)
+        item = library.make_reverse(iid)
+        path, info = library.reversed_path(item)
+        self.assertEqual((info["w"], info["h"], info["frames"]), (99, 55, 12))
+        src = library.source_path(item)
+        for k in (0, 11):
+            a = video.read_frame(src, item["info"], 11 - k).astype(np.int16)
+            self.assertLess(float(np.abs(a - video.read_frame(path, info, k)).mean()), 3.0, f"frame {k}")
+        after = looks.frame(folder, project, 3)
+        self.assertGreater(float(np.abs(np.asarray(before, np.int16) - np.asarray(after, np.int16)).mean()), 1.0)
+
     def test_see_through_played_backwards(self):
         import subprocess
         import numpy as np

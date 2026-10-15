@@ -86,6 +86,7 @@ header .prep { color: var(--dim); font-size: 12px; }
 .screen video, .screen img { display: block; object-fit: fill; }
 .screen .layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; mask-size: 100% 100%; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; }
 .screen .layer > * { position: absolute; }
+.screen .trk { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 #exact { display: none; z-index: 50; animation: fadein .15s ease-out; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 #paintCanvas { z-index: 60; display: none; touch-action: none; opacity: .45; }
@@ -405,7 +406,7 @@ const fail = e => toast(e.message || String(e), true, 7000);
 const S = {schema: null, state: null, project: null, lib: [], time: 0, playing: false, loop: true, sel: null,
   tool: "select", snap: true, pps: 40, fitTl: true, paint: null, brush: {tool: "brush", mode: "add", size: 60},
   zoom: "fit", scale: 1, panX: 0, panY: 0, masks: {}, fx: {}, hist: [], histAt: -1, edits: 0, saveTimer: 0,
-  jobsSeen: {}, bin: "lib", binSel: null, filter: "", els: {}, drag: null, dragItem: null, onlyBase: false};
+  jobsSeen: {}, bin: "lib", binSel: null, filter: "", els: {}, trackEls: {}, mixRole: {}, drag: null, dragItem: null, onlyBase: false};
 
 function fpsValue(fps) { const [a, b] = String(fps).split("/"); return (+a) / (+b || 1); }
 function info() { return S.project.video; }
@@ -433,12 +434,13 @@ function secLabel(sec) { return (Math.round(sec * 100) / 100).toLocaleString("vi
 function shownClip(x) { return x.on !== false && !S.project.tracks.some(t => t.id === x.track && !t.on); }
 function mixAt(c) {  // its crossfades in seconds: [with the clip before, with the clip after] (timeline.mixes)
   const N = total(), f = fps(), M = S.schema.max_mix, len = x => (x.end - x.start) / f;
+  const seen = x => (Math.min(x.end, N) - x.start) / f;  // the later clip: only up to the video's end
   let lead = 0, tail = 0;
   if (!shownClip(c)) return [0, 0];
   for (const o of S.project.layers) {
     if (o === c || o.track !== c.track || !shownClip(o)) continue;
-    if (o.end === c.start && c.mix > 0 && c.start < N) lead = Math.min(c.mix, M, len(o), len(c));
-    if (c.end === o.start && o.mix > 0 && o.start < N) tail = Math.min(o.mix, M, len(o), len(c));
+    if (o.end === c.start && c.mix > 0 && c.start < N) lead = Math.min(c.mix, M, len(o), seen(c));
+    if (c.end === o.start && o.mix > 0 && o.start < N) tail = Math.min(o.mix, M, len(c), seen(o));
   }
   return [Math.max(0, lead), Math.max(0, tail)];
 }
@@ -477,7 +479,7 @@ function weight(sp, t) {
 function plan(seconds, start, fade, need, f) {
   start = Math.min(Math.max(0, start), Math.max(0, seconds - 1 / f));
   const avail = seconds - start;
-  if (avail >= need) return {start, step: null, join: 0};
+  if (avail >= need - 0.5 / f) return {start, step: null, join: 0};  // (a file's length is kept to the millisecond)
   const join = Math.min(Math.max(0, fade), avail / 3);
   return {start, step: Math.max(0, avail - join), join};
 }
@@ -627,6 +629,8 @@ function history(step) {
   toast(step < 0 ? "Đã hoàn tác." : "Đã làm lại.", false, 1200);
 }
 function edited(opts = {}) {  // after a change of the timeline or of a clip
+  // a Mix belongs to two clips that meet: once the one before is gone (deleted, moved, trimmed), so is the Mix
+  if (S.project) for (const b of S.project.layers) if (b.mix > 0 && !clipBefore(b)) b.mix = 0;
   renderTimeline();
   if (opts.controls !== false) { renderControls(); if (!S.paint) renderTools(); }
   syncLayers(); applyTime(); showXform(); drawArea();
@@ -925,7 +929,13 @@ function layoutScreen() {
 }
 function clearLayers() {
   for (const el of Object.values(S.els)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); }
-  S.els = {};
+  for (const box of Object.values(S.trackEls)) box.remove();
+  S.els = {}; S.trackEls = {}; S.mixRole = {};
+}
+function trackBox(id) {  // a track's clips lie in one box: in a Mix its two clips are laid there as one picture
+  let box = S.trackEls[id];
+  if (!box) { box = S.trackEls[id] = document.createElement("div"); box.className = "trk"; }
+  return box;
 }
 function mediaFor(c) {  // what the live preview plays for a clip: {kind: "video"|"img", src, info} or null
   const p = S.project;
@@ -946,6 +956,8 @@ function syncLayers() {  // one element per clip, in drawing order
   for (const [id, el] of Object.entries(S.els)) {
     if (!want.has(id)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); delete S.els[id]; }
   }
+  for (const [id, box] of Object.entries(S.trackEls)) if (!S.project.tracks.some(t => t.id === id)) { box.remove(); delete S.trackEls[id]; }
+  for (const t of S.project.tracks) layersEl.appendChild(trackBox(t.id));  // bottom first
   for (const c of order) {
     const m = mediaFor(c);
     let el = S.els[c.id];
@@ -963,7 +975,7 @@ function syncLayers() {  // one element per clip, in drawing order
       el = S.els[c.id] = {wrap, media, src: m.src, m};
       media.addEventListener("loadeddata", () => applyTime());
     }
-    layersEl.appendChild(el.wrap);  // in order
+    trackBox(c.track).appendChild(el.wrap);  // in order
     styleLayer(c, el);
   }
   updateWaiting();
@@ -984,10 +996,10 @@ function styleBase() {
     stillImg.style.display = url && !onlyBase() ? "block" : "none";
   } else stillImg.style.display = "none";
 }
+function blendOf(c) { return c.kind === "file" ? c.params.blend : (S.schema.blend[c.kind] === "screen" ? "screen" : "normal"); }
 function styleLayer(c, el) {
   const p = S.project, w = el.wrap, media = el.media;
-  const blend = c.kind === "file" ? c.params.blend : (S.schema.blend[c.kind] === "screen" ? "screen" : "normal");
-  w.style.mixBlendMode = BLEND_CSS[blend] || "normal";
+  w.style.mixBlendMode = S.mixRole[c.id] || BLEND_CSS[blendOf(c)] || "normal";
   const masks = [];
   const again = () => { const e = S.els[c.id]; if (e && clipById(c.id) === c) styleLayer(c, e); };
   const am = S.masks[c.id];
@@ -1119,10 +1131,12 @@ function applyTime(hold) {  // hold: after a pause, videos a frame or two off st
     if (baseFrame.dataset.src !== src) { baseFrame.src = src; baseFrame.dataset.src = src; }
   }
   baseFrame.style.display = still ? "block" : "none";
-  const only = onlyBase();
+  const only = onlyBase(), spans = {}, ws = {};
+  for (const c of S.project.layers) if (S.els[c.id]) { spans[c.id] = span(c); ws[c.id] = only ? 0 : weight(spans[c.id], t); }
+  mixGroups(ws);
   for (const c of S.project.layers) {
     const el = S.els[c.id]; if (!el) continue;
-    const sp = span(c), w = only ? 0 : weight(sp, t);
+    const sp = spans[c.id], w = ws[c.id];
     const show = w > 0.001;
     el.wrap.style.display = show ? "" : "none";
     el.wrap.style.opacity = (w * el.opacity).toFixed(3);
@@ -1135,6 +1149,29 @@ function applyTime(hold) {  // hold: after a pause, videos a frame or two off st
     syncMedia(el.media, Math.min(at, len - 0.01), len, playing, hold);
   }
   updateClock();
+}
+function mixGroups(ws) {  // a Mix showing: its track's box lays the two clips as one picture with their blend mode;
+  // in it the earlier clip lies as it is and the later one adds to it (plus-lighter), so the box holds
+  // wa * A + wb * B, as the renderer crossfades them. Two clips with different blend modes: each is laid in turn.
+  const role = {}, boxes = {};
+  for (const b of S.project.layers) {
+    if (!(b.mix > 0) || !(ws[b.id] > 0.001)) continue;
+    const a = clipBefore(b);
+    if (!a || !(ws[a.id] > 0.001) || blendOf(a) !== blendOf(b) || !(mixAt(b)[0] > 0)) continue;
+    role[a.id] = "normal"; role[b.id] = "plus-lighter"; boxes[b.track] = BLEND_CSS[blendOf(b)] || "normal";
+  }
+  for (const [id, box] of Object.entries(S.trackEls)) {
+    const mode = boxes[id] || "";
+    if (box.dataset.mix === mode) continue;
+    box.dataset.mix = mode;
+    box.style.isolation = mode ? "isolate" : ""; box.style.mixBlendMode = mode;
+  }
+  for (const c of S.project.layers) {
+    const el = S.els[c.id]; if (!el) continue;
+    const want = role[c.id] || BLEND_CSS[blendOf(c)] || "normal";
+    if (el.wrap.style.mixBlendMode !== want) el.wrap.style.mixBlendMode = want;
+  }
+  S.mixRole = role;
 }
 function syncMedia(v, want, len, playing, hold) {  // hold: just paused, so what is on screen stays if nearly right
   if (v.readyState < 1) return;
@@ -1841,11 +1878,14 @@ function frameAtX(clientX) { const r = tlLanes.getBoundingClientRect(); return M
 tlLanes.addEventListener("pointerdown", e => {
   if (!S.project || e.button !== 0) return;
   const jb = e.target.closest("[data-join]");
-  if (jb) {  // a join: a Mix there (or its settings)
+  if (jb) {  // a join: a click adds a Mix there (or shows it); a press that moves trims the clip on that side
     e.preventDefault();
-    const b = clipById(jb.dataset.join); if (!b) return;
-    if (!(b.mix > 0)) { setMix(b, 0.5); toast("Đã thêm Mix (hoà trộn) ở chỗ nối. Chỉnh độ dài hoặc bỏ trong Bảng chỉnh hiệu ứng.", false, 4000); }
-    select(b.id);
+    const b = clipById(jb.dataset.join), a = b && clipBefore(b); if (!a) return;
+    const r = jb.getBoundingClientRect(), c = e.clientX < r.left + r.width / 2 ? a : b;
+    if (S.tool === "razor") { splitClip(c, snapFrame(frameAtX(e.clientX), c.id)); return; }
+    detach(c);
+    S.drag = {c, hit: c === a ? "right" : "left", join: b, x0: e.clientX, y0: e.clientY, orig: {start: c.start, end: c.end, track: c.track, skip: c.skip || 0}, moved: false, copy: false, playhead: curFrame()};
+    tlLanes.setPointerCapture(e.pointerId);
     return;
   }
   const el = e.target.closest(".clip");
@@ -1918,6 +1958,11 @@ tlLanes.addEventListener("pointerup", () => {
   const d = S.drag; if (!d) return;
   S.drag = null;
   const c = d.c, o = d.orig;
+  if (!d.moved && d.join) {  // a click on a join
+    if (!(d.join.mix > 0)) { setMix(d.join, 0.5); toast("Đã thêm Mix (hoà trộn) ở chỗ nối. Chỉnh độ dài hoặc bỏ trong Bảng chỉnh hiệu ứng.", false, 4000); }
+    select(d.join.id);
+    return;
+  }
   if (!d.moved) { renderTimeline(); refreshExact(); return; }
   if (d.bad) {
     Object.assign(c, o);
@@ -1933,7 +1978,12 @@ tlLanes.addEventListener("pointerup", () => {
     const copy = cloneClip(c);
     Object.assign(c, o);
     S.project.layers.push(copy); S.sel = copy.id; joinFades(copy);
-  } else joinFades(c);
+  } else {
+    if (d.hit === "move" && (c.start !== o.start || c.track !== o.track)) c.mix = 0;  // next to another clip now
+    fadesBack(c, o);
+    joinFades(c);
+    if (d.join) S.sel = c.id;
+  }
   edited();
 });
 function clipBefore(b) {  // the clip that ends where b starts, on its track
@@ -1942,10 +1992,11 @@ function clipBefore(b) {  // the clip that ends where b starts, on its track
 function clipAfter(a) { return S.project.layers.find(b => b !== a && b.track === a.track && b.start === a.end) || null; }
 function mixMost(b) {  // the longest Mix b can have with the clip before it
   const a = clipBefore(b), f = fps();
-  return a ? Math.min(S.schema.max_mix, (a.end - a.start) / f, (b.end - b.start) / f) : 0;
+  return a ? Math.max(0, Math.min(S.schema.max_mix, (a.end - a.start) / f, (Math.min(b.end, total()) - b.start) / f)) : 0;
 }
 function setMix(b, sec) {  // the crossfade of b with the clip before it (0: none)
-  b.mix = sec > 0 ? Math.max(0.1, Math.min(sec, mixMost(b))) : 0;
+  const most = mixMost(b);
+  b.mix = sec > 0 && most > 0 ? Math.max(Math.min(0.1, most), Math.min(sec, most)) : 0;
   edited();
 }
 function cloneClip(c) {
@@ -1972,6 +2023,9 @@ function splitClip(c, fr, many) {  // many: one of several cut at once (the call
   const sp = span(c);
   if (fr - sp.start < Math.max(sp.fin, sp.seamIn) || sp.end - fr < Math.max(sp.fout, sp.seamOut))  // a half's fade would start over or get shorter: a jump
     return toast("Chỗ này clip đang mờ dần, cắt ở đây hình sẽ bị giật. Hãy cắt ở chỗ clip đã hiện rõ.", true);
+  const [mi, mo] = mixAt(c);  // each half at least as long as its Mix (a Mix is never longer than its clips)
+  if ((fr - c.start) / fps() < mi - 1e-9 || (c.end - fr) / fps() < mo - 1e-9)
+    return toast("Chỗ này gần chỗ Mix quá: cắt ở đây Mix sẽ ngắn lại. Hãy cắt xa chỗ nối hơn.", true);
   detach(c);
   c.need = span(c).need;  // the first half plays its file as the whole clip did
   const b = cloneClip(c);
@@ -2044,7 +2098,10 @@ function setLength(len) {
   const after = total();
   // shorter: nothing moves (the part past the end is left out). Longer: a clip over the whole video still covers
   // it; the others keep their length (the user joins clips)
-  if (after > before) for (const c of p.layers) if (c.start === 0 && c.end === before) c.end = after;
+  // (not one that only came to end there when the video was made shorter)
+  const memo = S.lenMemo && S.lenMemo.project === p.id && S.lenMemo.at === before ? S.lenMemo.ids : new Set();
+  if (after > before) for (const c of p.layers) if (c.start === 0 && c.end === before && !memo.has(c.id)) c.end = after;
+  S.lenMemo = after < before ? {project: p.id, at: after, ids: new Set(p.layers.filter(c => c.start === 0 && c.end === after).map(c => c.id))} : null;
   for (const c of p.layers) if (c.kind === "file" && oldSkip[c.id] !== null && !span(c).full) c.skip = oldSkip[c.id];
   S.fitTl = true;
   if (S.time >= duration()) S.time = 0;
@@ -2150,18 +2207,37 @@ function naturalFrames(item) {  // how long a new clip is: its video file's own 
   return Math.round(STILL_SECONDS * fps());
 }
 function sameSource(a, b) { return a.kind === b.kind && (a.kind !== "file" || (a.lib || (a.file && a.file.lib)) === (b.lib || (b.file && b.file.lib))); }
-function joinFades(c) {  // clips of the same effect that meet on a track: no fade where they meet (they run on)
+function sameParams(p, q) { const k = Object.keys(p || {}); return k.length === Object.keys(q || {}).length && k.every(x => p[x] === q[x]); }
+function continues(a, b) {  // b runs on from a with nothing to see where they meet: a cut's halves, a copy of a file
+  // played to its end placed after it (then from the start again: an effect video loops), the same built-in effect
+  if (!sameSource(a, b) || !sameParams(a.params, b.params) || !!a.behind !== !!b.behind) return false;
+  if (a.kind !== "file") return (a.seed || 0) === (b.seed || 0);  // drawn from the video's own time
+  const f = fps(), inf = a.file && a.file.info, aEnd = (+a.skip || 0) + (a.end - a.start) / f, bAt = +b.skip || 0;
+  if (!inf || inf.image) return !!inf;
+  if (Math.abs(bAt - aEnd) < 0.5 / f) return true;  // the file goes on where a stopped
+  const pl = plan(inf.seconds, a.params.start, a.params.fade, span(a, false).need, f);
+  return pl.step === null && aEnd >= inf.seconds - pl.start - 0.5 / f && bAt < 0.5 / f;
+}
+function joinFades(c) {  // a clip that runs on from the one before it (or into the one after): no fade where they meet
   for (const o of S.project.layers) {
-    if (o === c || o.track !== c.track || !sameSource(o, c)) continue;
-    if (o.end === c.start) { o.fade_out = 0; c.fade_in = 0; }
-    if (c.end === o.start) { c.fade_out = 0; o.fade_in = 0; }
+    if (o === c || o.track !== c.track) continue;
+    if (o.end === c.start && continues(o, c)) { o.fade_out = 0; c.fade_in = 0; }
+    if (c.end === o.start && continues(c, o)) { c.fade_out = 0; o.fade_in = 0; }
+  }
+}
+function fadesBack(c, o) {  // c moved or trimmed from o (start, end, track): clips it no longer meets fade again there
+  for (const x of S.project.layers) {
+    if (x === c || x.track !== o.track || !sameSource(x, c)) continue;
+    const before = x.end === o.start, after = x.start === o.end;
+    if (before && !(x.track === c.track && x.end === c.start) && !(x.fade_out > 0) && !(c.fade_in > 0)) { x.fade_out = 0.5; c.fade_in = 0.5; }
+    if (after && !(x.track === c.track && x.start === c.end) && !(c.fade_out > 0) && !(x.fade_in > 0)) { c.fade_out = 0.5; x.fade_in = 0.5; }
   }
 }
 function addClip(item, trackId, s, en) {
   const p = S.project;
   if (p.layers.length >= S.schema.max_clips) return toast(`Tối đa ${S.schema.max_clips} clip.`, true);
   if (!trackId) {
-    const free = p.tracks.find(t => !p.layers.some(c => c.track === t.id));
+    const free = p.tracks.find(t => t.on !== false && !p.layers.some(c => c.track === t.id));
     if (free && s === 0 && en === total()) trackId = free.id;
     else {
       if (p.tracks.length >= S.schema.max_tracks) return toast(`Tối đa ${S.schema.max_tracks} track.`, true);
@@ -2387,7 +2463,8 @@ $("#ec").addEventListener("input", e => {
     const lab = $("#v-" + key); if (lab) lab.textContent = v;
     c.params[key] = v;
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
-    if (S.els[c.id]) styleLayer(c, S.els[c.id]);
+    if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
+    else if (S.els[c.id]) styleLayer(c, S.els[c.id]);
     applyTime(); invalidateExact(); scheduleSave(); renderTimeline(); showXform();
   }
 });
@@ -2511,7 +2588,7 @@ function addHere(item) {  // a double-click in the bin: at the playhead, as long
   if (!S.project) return toast("Mở một video trước.", true);
   const N = total(), len = Math.min(naturalFrames(item), N);
   const s = Math.max(0, Math.min(curFrame(), N - len)), en = s + len;
-  const free = S.project.tracks.find(t => !overlaps(t.id, s, en, null));
+  const free = S.project.tracks.find(t => t.on !== false && !overlaps(t.id, s, en, null));  // a shown track
   addClip(item, free ? free.id : null, s, en);
 }
 async function importFiles(files) {
@@ -2619,6 +2696,7 @@ function renderJobs(list) {
     const what = `Xuất ${j.seconds === 60 ? "1 phút" : j.seconds + " giây"} · ${esc(names[j.project] || "")}`;
     let status = "";
     if (j.state === "queued") status = "đang chờ";
+    else if (j.state === "running" && j.message) status = esc(j.message) + (j.progress > 0 ? ` ${Math.round(j.progress * 100)}%` : "");
     else if (j.state === "running") {
       const pct = Math.round(j.progress * 100), took = now - j.started;
       const left = j.progress > 0.03 ? Math.max(0, took / j.progress - took) : null;
@@ -2706,10 +2784,12 @@ async function poll() {
       else if (j && j.state === "cancelled" && fx.retried !== j.id) { fx.retried = j.id; requestFx(c); }
     }
     const projList = JSON.stringify(st.projects);
-    if (libKey() !== libBefore) { layersChanged = true; if (S.bin === "lib") renderBin(); }
+    let libChanged = false;
+    if (libKey() !== libBefore) { layersChanged = libChanged = true; if (S.bin === "lib") renderBin(); }
     if (S.bin === "proj" && projList !== S.projList) renderBin();
     S.projList = projList;
     if (layersChanged && p) { syncLayers(); applyTime(); bgControls(); }
+    if (libChanged && p) { invalidateExact(); refreshExact(); }  // e.g. a played-backwards copy now made
     renderJobs(st.jobs);
     updateWaiting();
     if (!S.project) renderRecent();

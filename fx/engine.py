@@ -158,8 +158,11 @@ class Scene:
         if fg is not None and fg.getbbox() is None:
             fg = None
         self.layers = []  # (drawer, area as float or None (built-in effects), timeline.Span)
+        self.missing = []  # file clips left out, their file not there (yet: a played-backwards copy being made)
+        ids = []
         try:
             shown = clip_order(project)
+            pairs = timeline.mix_pairs(shown, self.frames, fps)
             mixes = timeline.mixes(shown, self.frames, fps)
             for layer in shown:
                 span = timeline.Span(layer, self.frames, fps, mixes.get(layer["id"], (0.0, 0.0)))
@@ -176,6 +179,7 @@ class Scene:
                 if layer["kind"] == "file":
                     path, source = clip_file(folder, layer)
                     if path is None:
+                        self.missing.append(layer)
                         continue
                     params = effects.clean_params("file", layer.get("params"))
                     opacity = params["opacity"] / 100
@@ -184,14 +188,19 @@ class Scene:
                                 else area.point(lambda v: round(v * opacity)))
                     drawer = overlay.Overlay(path, source, params, self.frames, fps, self.w, self.h, area, span)
                     self.layers.append((drawer, None, span))
+                    ids.append(layer["id"])
                 else:
                     drawer = effects.make(layer["kind"], layer.get("params"), layer.get("seed", 1), self.frames, fps,
                                           self.w, self.h)
                     self.layers.append((drawer, None if area is None else np.asarray(area, np.float32) * (1 / 255.0),
                                         span))
+                    ids.append(layer["id"])
         except Exception:
             self.close()
             raise
+        # layer i and the next one crossfade (a Mix): on a track, by start, so drawn one right after the other
+        pairs = {(a, b) for a, b, _ in pairs}
+        self.mixed = [(ids[i], ids[i + 1]) in pairs for i in range(len(ids) - 1)] + [False]
         self.canvas = effects.Canvas(self.w, self.h) if any(
             not isinstance(d, overlay.Overlay) for d, _, _ in self.layers) else None
 
@@ -204,13 +213,18 @@ class Scene:
             img.paste(Image.composite(self.still, img.crop(box), self.freeze), box[:2])
         layers, i = self.layers, 0
         while i < len(layers):
+            both = self._mix_at(i, t)
+            if both:  # a Mix: the picture with each clip alone, then the two crossfaded (no dip in the middle)
+                img = self._crossfade(t, img, i, *both)
+                i += 2
+                continue
             if isinstance(layers[i][0], overlay.Overlay):
                 drawer, _, span = layers[i]
                 img = drawer.draw(t, img, span.weight(t))
                 i += 1
                 continue
-            j = i  # a run of built-in effects, drawn on a float copy of the picture
-            while j < len(layers) and not isinstance(layers[j][0], overlay.Overlay):
+            j = i + 1  # a run of built-in effects, drawn on a float copy of the picture
+            while j < len(layers) and not isinstance(layers[j][0], overlay.Overlay) and not self._mix_at(j, t):
                 j += 1
             run = [(d, area, span.weight(t)) for d, area, span in layers[i:j]]
             i = j
@@ -234,6 +248,33 @@ class Scene:
             np.clip(picture, 0.0, 1.0, out=picture)
             img = Image.fromarray((picture * 255.0 + 0.5).astype(np.uint8))
         return img
+
+    def _mix_at(self, i, t):
+        """(weight of layer i, of the next one) when the two crossfade at frame t (both showing), else None."""
+        if not self.mixed[i]:
+            return None
+        wa, wb = self.layers[i][2].weight(t), self.layers[i + 1][2].weight(t)
+        return (wa, wb) if wa > 0 and wb > 0 else None
+
+    def _crossfade(self, t, img, i, wa, wb):
+        """`img` with layers i and i+1 in a Mix: img + wa * (img with i alone - img) + wb * (img with i+1 alone - img).
+        With the same blend the page gets the same (both clips in one isolated group, the later one plus-lighter)."""
+        base = np.asarray(img, np.float32)
+        out = base.copy()
+        for k, w in ((i, wa), (i + 1, wb)):
+            out += w * (np.asarray(self._alone(k, t, img), np.float32) - base)
+        return Image.fromarray((np.clip(out, 0.0, 255.0) + 0.5).astype(np.uint8))
+
+    def _alone(self, k, t, img):
+        """A copy of `img` with layer k laid over it at full strength."""
+        drawer, area, _ = self.layers[k]
+        if isinstance(drawer, overlay.Overlay):
+            return drawer.draw(t, img.copy())
+        picture = np.asarray(img, np.float32) * (1 / 255.0)
+        drawer.draw(t, self.canvas, area)
+        self.canvas.flush(picture, drawer.blend)
+        np.clip(picture, 0.0, 1.0, out=picture)
+        return Image.fromarray((picture * 255.0 + 0.5).astype(np.uint8))
 
     def frame(self, t, base):
         """Frame t as a uint8 RGB array."""
@@ -526,7 +567,11 @@ class Looks:
         t = max(0, min(int(t), period - 1))
         with self.lock:
             key = (folder, project.get("rev", 0), size, period)
-            scene = self.scenes.pop(key, None) or Scene(folder, project, size, period)
+            scene = self.scenes.pop(key, None)
+            if scene is not None and any(clip_file(folder, c)[0] for c in scene.missing):
+                scene.close()  # a file it had to leave out is there now
+                scene = None
+            scene = scene or Scene(folder, project, size, period)
             self.scenes[key] = scene
             while len(self.scenes) > 2:
                 self.scenes.popitem(last=False)[1].close()

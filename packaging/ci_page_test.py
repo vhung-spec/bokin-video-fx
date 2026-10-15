@@ -288,6 +288,12 @@ def run(page, folder, edge):
     src = page.evaluate(f"S.els['{fid}'] ? S.els['{fid}'].media.src : ''")
     check("play an effect video backwards", page.evaluate(f"clipById('{fid}').params.reverse") is True and
           "what=reverse" in src, src)
+    page.click('#ec input[data-param="reverse"]')  # and forwards again: the preview plays the file itself
+    page.wait_for_timeout(500)
+    src = page.evaluate(f"S.els['{fid}'] ? S.els['{fid}'].media.src : ''")
+    check("and forwards again", "what=proxy" in src, src)
+    page.click('#ec input[data-param="reverse"]')
+    page.wait_for_timeout(500)
 
     # a Mix where two clips meet: the button on the join adds it; the page and the renderer weigh it alike
     ids = page.evaluate("""(() => {
@@ -295,6 +301,12 @@ def run(page, folder, edge):
         addClip({kind: 'rain'}, t.id, 300, 400); const a = S.sel; addClip({kind: 'rain'}, t.id, 400, 500);
         return [a, S.sel]; })()""")
     page.wait_for_timeout(300)
+    jb = page.locator(f'[data-join="{ids[1]}"]').bounding_box()  # a press on the join that moves: a trim, no Mix
+    drag(jb["x"] + 3, jb["y"] + jb["height"] / 2, jb["x"] + 3 - 4 * page.evaluate("S.pps"), jb["y"] + jb["height"] / 2)
+    trimmed = page.evaluate(f"[clipById('{ids[0]}').end, clipById('{ids[1]}').mix || 0]")
+    check("a press and drag on a join trims the clip on that side", trimmed[0] < 400 and trimmed[1] == 0, str(trimmed))
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
     page.click(f'[data-join="{ids[1]}"]')
     page.wait_for_timeout(200)
     shown = page.evaluate("clipOrder().map(c => Object.assign({}, c))")
@@ -306,7 +318,12 @@ def run(page, folder, edge):
     check("a Mix where two clips meet, weighed alike on the page and in the renderer",
           page.evaluate(f"clipById('{ids[1]}').mix") == 0.5 and same and
           all(abs(got[ids[0]][k] + got[ids[1]][k] - 1) < 1e-9 for k in range(14, 26)), str(mixes))
-    page.evaluate(f"(() => {{ for (const id of {ids}) deleteClip(clipById(id)); }})()")
+    roles = page.evaluate(f"(() => {{ mixGroups({{'{ids[0]}': 0.5, '{ids[1]}': 0.5}}); const b = clipById('{ids[1]}');"
+                          f" return [S.mixRole['{ids[0]}'], S.mixRole['{ids[1]}'], S.trackEls[b.track].style.isolation]; }})()")
+    check("in a Mix the two clips are laid as one picture", roles == ["normal", "plus-lighter", "isolate"], str(roles))
+    page.evaluate(f"deleteClip(clipById('{ids[0]}'))")
+    check("deleting one clip of a Mix takes the Mix away", page.evaluate(f"clipById('{ids[1]}').mix") == 0)
+    page.evaluate(f"(() => {{ for (const id of {ids}) if (clipById(id)) deleteClip(clipById(id)); }})()")
     page.wait_for_timeout(200)
 
     page.evaluate("saveNow()")

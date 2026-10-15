@@ -97,6 +97,18 @@ class Mix(unittest.TestCase):
         outside = dict(self.B, start=N, end=N + 50)
         self.assertEqual(timeline.mixes([dict(self.A, end=N), outside], N, FPS), {})  # never across the loop's end
 
+    def test_never_past_the_videos_end(self):
+        """A Mix into a clip that runs past the video's end counts that clip only up to the end, so the clip
+        before it is gone by the last frame (the loop's last frame runs into its first one)."""
+        a = {"id": "aa", "track": "t1", "start": 600, "end": 710}
+        b = {"id": "bb", "track": "t1", "start": 710, "end": 830, "mix": 2.0}
+        m = timeline.mixes([a, b], 720, 24)
+        self.assertAlmostEqual(m["bb"][0], 10 / 24)
+        sa = timeline.Span(a, 720, 24, m["aa"])
+        self.assertLessEqual(sa.end, 720)
+        self.assertEqual(sa.weight(719), 0.0)
+        self.assertEqual(timeline.mix_pairs([a, b], 720, 24), [("aa", "bb", m["bb"][0])])
+
     def test_the_file_goes_round_in_the_crossfade(self):
         """Before the clip's start or past its run, a file played once goes round (a loop runs on)."""
         from fx import overlay

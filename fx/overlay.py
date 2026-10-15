@@ -83,7 +83,7 @@ def _plan(seconds, start, fade, need, fps):
     `join` seconds. step 0: a file of a single frame there, shown still."""
     start = min(max(0.0, start), max(0.0, seconds - 1.0 / fps))
     avail = seconds - start
-    if avail >= need:
+    if avail >= need - 0.5 / fps:  # (a file's length is kept to the millisecond: a clip as long as it plays it once)
         return start, None, 0.0
     join = min(max(0.0, fade), avail / 3)
     return start, max(0.0, avail - join), join

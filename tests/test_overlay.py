@@ -56,6 +56,10 @@ class Timeline(unittest.TestCase):
                     self.assertTrue(abs(main - prev - 1 / 24) < 1e-6 or main < prev, (seconds, i, main, prev))
                 prev = main
         self.assertEqual(overlay.playing(3.0, 24, 4, 10, 2, 1), [(5.0, 1.0)])  # from "start" on
+        # a clip as long as its file (50 frames at 24 fps), the file's length kept to the millisecond (2.083 s):
+        # played once, not once and then again from its start
+        self.assertIsNone(overlay._plan(2.083, 0.0, 0.5, 50 / 24, 24)[1])
+        self.assertEqual(len(overlay.playing(49 / 24, 24, 50 / 24, 2.083, 0.0, 0.5)), 1)
 
     def test_kinds_of_files(self):
         self.assertTrue(overlay.is_image("a.PNG") and not overlay.is_image("a.mov"))

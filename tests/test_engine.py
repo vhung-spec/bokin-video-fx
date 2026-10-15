@@ -182,14 +182,14 @@ class Engine(unittest.TestCase):
         projects.apply(projects.load(self.project["id"]), {"layers": []})
 
     def test_a_mix_where_two_clips_meet(self):
-        """Two clips of a file joined with a Mix: outside the crossfade each looks as without it; inside it the second
-        clip shows already (before its own start) and the first one still (past its own end)."""
+        """Two clips of a file (the second from 1 s in) joined with a Mix: outside the crossfade each looks as without
+        it; inside it the second clip shows already (before its own start) and the first one still (past its end)."""
         clip = helpers.make_loop(os.path.join(helpers.ROOT, "mixed.mp4"), 160, 90, 48, "24")  # 2 s
         item = library.add(clip, "mixed.mp4")
         tid = self.project["tracks"][0]["id"]
         a = {"id": "filema", "kind": "file", "lib": item["id"], "track": tid, "start": 24, "end": 72,
              "params": {"blend": "screen", "fade": 0.3}}
-        b = dict(a, id="filemb", start=72, end=120)
+        b = dict(a, id="filemb", start=72, end=120, params={"blend": "screen", "fade": 0.3, "start": 1.0})
         times = [30, 58, 62, 66, 70, 74, 78, 82, 86, 110]
         plain = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": [a, b]}), times)
         mixed = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": [a, dict(b, mix=1.0)]}), times)
@@ -197,6 +197,32 @@ class Engine(unittest.TestCase):
             self.assertTrue((plain[t] == mixed[t]).all(), f"frame {t} differs")
         for t in (62, 66, 70, 74, 78, 82):
             self.assertFalse((plain[t] == mixed[t]).all(), f"frame {t} has no crossfade")
+        projects.apply(projects.load(self.project["id"]), {"layers": []})
+
+    def test_a_mix_is_a_crossfade(self):
+        """A clip cut in two with a Mix on the cut: both halves show the same frame of the file through the Mix,
+        so the picture is the uncut clip's (a crossfade of the two pictures, not two faded layers that let the
+        video show through in the middle). With a built-in effect the same holds."""
+        clip = helpers.make_loop(os.path.join(helpers.ROOT, "xfade.mp4"), 160, 90, 48, "24")
+        item = library.add(clip, "xfade.mp4")
+        tid = self.project["tracks"][0]["id"]
+        whole = {"id": "filewh", "kind": "file", "lib": item["id"], "track": tid, "start": 48, "end": 192,
+                 "fade_in": 0.5, "fade_out": 0.5, "params": {"blend": "normal", "fade": 0.5}}
+        need = (192 - 48) / 24
+        cut = [dict(whole, id="filec1", end=120, fade_out=0, need=need),
+               dict(whole, id="filec2", start=120, fade_in=0, skip=72 / 24, mix=1.0)]
+        times = [100, 108, 112, 116, 119, 120, 123, 127, 131, 140]
+        a = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": [whole]}), times)
+        b = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": cut}), times)
+        for t in times:
+            self.assertLessEqual(int(np.abs(a[t] - b[t]).max()), 1, f"frame {t}")
+        snow = {"id": "snowwh", "kind": "snow", "track": tid, "start": 48, "end": 192, "fade_in": 0.5, "fade_out": 0.5,
+                "seed": 5, "params": {"amount": 60}}
+        cut = [dict(snow, id="snowc1", end=120, fade_out=0), dict(snow, id="snowc2", start=120, fade_in=0, mix=1.0)]
+        a = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": [snow]}), times)
+        b = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": cut}), times)
+        for t in times:
+            self.assertLessEqual(int(np.abs(a[t] - b[t]).max()), 1, f"snow, frame {t}")
         projects.apply(projects.load(self.project["id"]), {"layers": []})
 
     def test_cut_full_clip_keeps_its_picture(self):
