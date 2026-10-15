@@ -485,7 +485,7 @@ class Glow(Effect):
             level = (1 - 0.8 * self.twinkle) + 0.8 * self.twinkle * ((0.5 + 0.5 * wave) ** 2)
         level = level * self.bright
         xs, ys = x * self.h, y * self.h
-        for i in np.flatnonzero((level > 0.004) & (xs > -40) & (xs < self.w + 40) & (ys > -40) & (ys < self.h + 40)):
+        for i in np.flatnonzero(level > 0.004):  # halos reach far: Canvas clips whatever falls outside
             ix, iy = math.floor(xs[i]), math.floor(ys[i])
             spot, x0, y0 = self.cache.get(self.keys[i], xs[i] - ix, ys[i] - iy)
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)

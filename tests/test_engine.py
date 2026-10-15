@@ -106,6 +106,28 @@ class Engine(unittest.TestCase):
         self.assertEqual(os.listdir(os.path.join(self.folder, "files")), [])
 
 
+class Concurrency(unittest.TestCase):
+    def test_late_writers_keep_newer_changes(self):
+        """A mask save or upload that started from an older copy must not undo what was saved meanwhile."""
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "race.mp4"), 160, 90, 12)
+        project = projects.create(src, "race.mp4")
+        stale = projects.load(project["id"])
+        newer = projects.apply(projects.load(project["id"]), {"layers": [{"id": "snowcc", "kind": "snow"}], "name": "Mới"})
+        after = projects.save_mask(stale, "freeze", png([0, 0, 40, 90], (160, 90)))
+        self.assertEqual([lay["id"] for lay in after["layers"]], ["snowcc"])
+        self.assertEqual(after["name"], "Mới")
+        self.assertGreater(after["rev"], newer["rev"])
+        stale_again = dict(stale)
+        later = projects.apply(stale_again, {"fg": {"feather": 9}})
+        self.assertEqual(later["layers"][0]["id"], "snowcc")
+        self.assertGreater(later["rev"], after["rev"])  # never a rev seen before
+
+    def test_names(self):
+        import unicodedata
+        self.assertEqual(projects.clean_name(unicodedata.normalize("NFD", "Cảnh đêm mưa.mov")), "Cảnh đêm mưa")
+        self.assertEqual(projects.clean_name("../../x<>y.mp4"), "x y")
+
+
 class Validation(unittest.TestCase):
     def test_not_a_video(self):
         bad = os.path.join(helpers.ROOT, "bad.mp4")

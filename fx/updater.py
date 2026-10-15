@@ -78,17 +78,22 @@ def verified(path, release):
     return digest.hexdigest() == release.sha256
 
 
-def fetch(release, folder):
-    """The release's installer in `folder`, downloaded once and verified. Other files there are deleted."""
-    os.makedirs(folder, exist_ok=True)
-    target = os.path.join(folder, release.name)
-    for name in os.listdir(folder):
-        if name != release.name:
+def _keep_only(folder, name):
+    for other in os.listdir(folder):
+        if other != name:
             try:
-                os.remove(os.path.join(folder, name))
+                os.remove(os.path.join(folder, other))
             except OSError:
                 pass
+
+
+def fetch(release, folder):
+    """The release's installer in `folder`, downloaded once and verified. Older files there are deleted only
+    once this one is in place, so a ready installer never disappears before its replacement is."""
+    os.makedirs(folder, exist_ok=True)
+    target = os.path.join(folder, release.name)
     if os.path.exists(target) and verified(target, release):
+        _keep_only(folder, release.name)
         return target
     partial = target + ".download"
     with _open(release.url, "application/octet-stream") as r, open(partial, "wb") as f:
@@ -101,6 +106,7 @@ def fetch(release, folder):
         os.remove(partial)
         raise ValueError("downloaded installer does not match the published SHA-256")
     os.replace(partial, target)
+    _keep_only(folder, release.name)
     return target
 
 
@@ -128,9 +134,9 @@ class AutoUpdate:
             release = latest()
             self.state["checked"] = time.time()
             if release and release.numbers > self.numbers:
-                self.state["available"] = release.version
-                self.installer = fetch(release, self.folder)
-                self.state["ready"] = True
+                installer = fetch(release, self.folder)
+                self.installer = installer
+                self.state.update(available=release.version, ready=True)
                 print(f"update {release.version} ready: it is installed when the app closes", flush=True)
             self.state["error"] = None
         except Exception as e:  # noqa: BLE001 - offline or GitHub busy: next time

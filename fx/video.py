@@ -26,6 +26,7 @@ MATRICES = {"bt709": "bt709", "bt470bg": "bt470", "smpte170m": "smpte170m", "bt2
             "bt2020c": "bt2020", "smpte240m": "smpte240m", "fcc": "fcc"}
 NTSC = {"23.98": "24000/1001", "23.976": "24000/1001", "29.97": "30000/1001", "47.95": "48000/1001",
         "59.94": "60000/1001", "119.88": "120000/1001"}
+HDR = {"smpte2084", "arib-std-b67", "bt2020", "bt2020-10", "bt2020-12"}  # PQ, HLG and BT.2020 primaries
 MAX_SIDE = 4096
 FAST_START_LIMIT = 600  # seconds: longer files skip +faststart (it rewrites the whole file once more)
 
@@ -90,6 +91,10 @@ def probe(path, overlay=False):
         raise VideoError("Không đọc được kích thước của video.")
     pix, colour, w, h = m.group(1), (m.group(2) or ""), int(m.group(3)), int(m.group(4))
     tags = [t.strip() for t in colour.split(",") if t.strip()]
+    names = {n for t in tags for n in t.split("/")}  # "space/primaries/transfer", or one name for all three
+    if names & HDR:
+        raise VideoError("Video này là HDR / BT.2020 (thường do điện thoại quay ở chế độ HDR), app chưa xử lý được "
+                         "màu của nó. Hãy xuất lại thành video thường (SDR, BT.709), hoặc tắt Video HDR khi quay.")
     colour_range = "pc" if "pc" in tags or pix.startswith("yuvj") else "tv"
     space = next((t.split("/")[0] for t in tags if t.split("/")[0] in MATRICES), None)
     matrix = MATRICES.get(space) or ("bt709" if h >= 600 else "smpte170m")  # untagged: the usual for its size
@@ -125,16 +130,14 @@ def _from_yuv(info, size):
 
 class Frames:
     """The frames of a video as RGB uint8 arrays (h, w, 3), or RGBA (h, w, 4) with `alpha`, scaled to `size`,
-    from frame `start` on (at most `count` of them). `seek` (seconds) starts there instead, faster for a frame
-    far into a file. Use it in a with-block, so ffmpeg is stopped when reading ends early."""
+    from frame number `start` on (at most `count` of them), numbered in decoding order as probe() counts them.
+    Use it in a with-block, so ffmpeg is stopped when reading ends early."""
 
-    def __init__(self, path, info, size=None, start=0, count=None, alpha=False, seek=None):
+    def __init__(self, path, info, size=None, start=0, count=None, alpha=False):
         self.w, self.h = size or (info["w"], info["h"])
         self.depth = 4 if alpha else 3
-        vf = ([f"select=gte(n\\,{int(start)})"] if start and seek is None else []) + [_from_yuv(info, (self.w, self.h))]
+        vf = ([f"select=gte(n\\,{int(start)})"] if start else []) + [_from_yuv(info, (self.w, self.h))]
         args = [ffmpeg_exe(), "-v", "error", "-nostdin"]
-        if seek:
-            args += ["-ss", f"{max(0.0, seek):.4f}"]
         if alpha and info.get("decoder"):
             args += ["-c:v", info["decoder"]]
         args += ["-i", path, "-map", "0:v:0", "-vf", ",".join(vf), "-fps_mode", "passthrough", "-an", "-sn", "-dn"]

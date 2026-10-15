@@ -14,7 +14,7 @@ vùng đứng yên; vùng riêng cho từng hiệu ứng; tiền cảnh che hi�
 ## Cấu trúc
 
 - `bokin_fx.py`: điểm vào (`--selftest`, `--close`, `--updated`).
-- `fx/app.py`: vỏ app trên máy. Cổng 7890–7899, chỉ chạy một bản. Cửa sổ Edge/Chrome `--app`. Tự thoát 2 phút sau khi
+- `fx/app.py`: vỏ app trên máy. Cổng 7890–7899, chỉ chạy một bản. Cửa sổ Edge/Chrome `--app`. Tự thoát 5 phút sau khi
   đóng cửa sổ (nếu không có việc), cài bản cập nhật lúc thoát.
 - `fx/server.py`: máy chủ `ThreadingHTTPServer`, API JSON `/api/...`. Chỉ nhận Host 127.0.0.1/localhost. Mọi POST cần
   header `X-Bokin: 1`. Trang không bao giờ đưa đường dẫn: chỉ có mã dự án/lớp, kiểm theo mẫu.

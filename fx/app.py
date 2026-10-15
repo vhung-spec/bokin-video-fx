@@ -1,6 +1,7 @@
 """Bokin FX on a computer: one local server, the page in a window of its own, updates, and quitting by itself.
 
-- One copy runs at a time: a second start only opens a window on the running one.
+- One copy runs at a time for each Windows user (a named mutex): a second start only opens a window on the
+  running one, waiting for it if it is still starting.
 - The window is Edge (or Chrome) in app mode (--app=<url>): no tabs or address bar.
 - When no page has asked anything for a while (its window was closed) and nothing is being made, the app quits,
   installing a downloaded update on the way out. "Cập nhật ngay" on the page installs at once and the installer
@@ -11,15 +12,19 @@
 import argparse
 import json
 import os
+import shutil
 import sys
 import time
 import urllib.request
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 
 from . import paths, server, updater
 
-IDLE_EXIT = 120  # seconds without the page, then quit (once nothing is being made)
+IDLE_EXIT = 300  # seconds without the page, then quit (a minimised window may only ask once a minute)
 BUSY = 3  # exit code of --close while the running app is making a video
+LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # this PC itself: never through a proxy
+_guard = None  # the single-instance mutex (or lock file), held for the life of the process
 
 
 def log_to_file():
@@ -33,20 +38,43 @@ def log_to_file():
     sys.stdout = sys.stderr = open(path, "a", encoding="utf-8", buffering=1)  # noqa: SIM115 - for the app's life
 
 
-def ping(port, timeout=0.6):
+def ping(port, timeout=1.0):
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=timeout) as r:
+        with LOCAL.open(f"http://127.0.0.1:{port}/api/ping", timeout=timeout) as r:
             return json.loads(r.read())
     except (OSError, ValueError):
         return None
 
 
 def running_port():
-    for port in paths.PORTS:
-        answer = ping(port)
-        if answer and answer.get("app") == paths.APP_ID:
+    """The port of this user's running Bokin FX (all ports asked at once: on Windows a closed port takes
+    about a second to say so), or None. Another Windows user's copy answers with another owner."""
+    with ThreadPoolExecutor(len(paths.PORTS)) as pool:
+        answers = list(pool.map(ping, paths.PORTS))
+    for port, answer in zip(paths.PORTS, answers):
+        if answer and answer.get("app") == paths.APP_ID and answer.get("owner") == paths.owner():
             return port
     return None
+
+
+def first_copy():
+    """True for the first copy of the app started by this user; later ones see the guard taken."""
+    global _guard
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateMutexW.restype = wintypes.HANDLE
+        kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+        _guard = kernel32.CreateMutexW(None, False, f"Local\\BokinFX-{paths.owner()}")
+        return ctypes.get_last_error() != 183  # ERROR_ALREADY_EXISTS
+    import fcntl
+    _guard = open(os.path.join(paths.data_dir(), "app.lock"), "w")  # noqa: SIM115 - held while running
+    try:
+        fcntl.flock(_guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
 
 
 def close_running(wait=20):
@@ -57,7 +85,7 @@ def close_running(wait=20):
     req = urllib.request.Request(f"http://127.0.0.1:{port}/api/quit", data=b"{}", method="POST",
                                  headers={"X-Bokin": "1", "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with LOCAL.open(req, timeout=5) as r:
             if json.loads(r.read()).get("busy"):
                 return BUSY
     except (OSError, ValueError):
@@ -98,10 +126,20 @@ def main(argv=None):
         from . import selftest
         return selftest.run()
 
-    port = running_port()
+    if not first_copy():  # another copy is running, or still starting: show it once it answers
+        deadline = time.time() + 40
+        while time.time() < deadline:
+            port = running_port()
+            if port:
+                show(f"http://127.0.0.1:{port}/")
+                return 0
+            time.sleep(0.5)
+        return 0
+    port = running_port()  # a copy from a version without the guard
     if port:
         show(f"http://127.0.0.1:{port}/")
         return 0
+    shutil.rmtree(os.path.join(paths.data_dir(), "tmp"), ignore_errors=True)  # uploads cut off by a quit
     app = server.App(desktop=True)
     srv = None
     for port in paths.PORTS:
@@ -127,7 +165,7 @@ def main(argv=None):
             shown = True
             if app.seen <= started:  # no window came back after the update: open one
                 show(url)
-        if time.time() - app.seen > IDLE_EXIT and not app.jobs.busy():
+        if time.time() - app.seen > IDLE_EXIT and not app.busy():
             print("no page for a while: quitting", flush=True)
             if app.updater and app.updater.state.get("ready"):
                 app.updater.run_installer(restart=False)

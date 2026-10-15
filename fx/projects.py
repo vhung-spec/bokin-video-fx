@@ -17,6 +17,7 @@ import secrets
 import shutil
 import threading
 import time
+import unicodedata
 
 import numpy as np
 from PIL import Image, ImageOps
@@ -63,11 +64,18 @@ def replace(src, dst):
 
 
 def save(project, bump=True):
+    """Writes the project. Its new rev is one above the highest seen on disk or in `project`, so two different
+    saved states never share a rev (the look cache is keyed by it)."""
     with LOCK:
-        if bump:
-            project["rev"] = project.get("rev", 0) + 1
-        project["updated"] = time.time()
         path = os.path.join(paths.projects_dir(), project["id"], "project.json")
+        if bump:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    on_disk = json.load(f).get("rev", 0)
+            except (OSError, ValueError):
+                on_disk = 0
+            project["rev"] = max(on_disk, project.get("rev", 0)) + 1
+        project["updated"] = time.time()
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(project, f, ensure_ascii=False, indent=1)
@@ -77,6 +85,7 @@ def save(project, bump=True):
 
 def clean_name(name, fallback="video"):
     stem = os.path.splitext(os.path.basename(str(name or "")))[0]
+    stem = unicodedata.normalize("NFC", stem)  # Mac/iPhone names and "Unicode tổ hợp" typing keep marks apart
     stem = re.sub(r"[^\w\- ]+", " ", stem, flags=re.UNICODE)
     stem = re.sub(r"\s+", " ", stem).strip()[:60]
     return stem or fallback
@@ -167,6 +176,7 @@ def apply(project, data):
     if not isinstance(data, dict):
         raise UserError("Dữ liệu không hợp lệ.")
     with LOCK:
+        project = load(project["id"])  # the newest copy: uploads and previews may have saved since it was read
         if "name" in data:
             project["name"] = clean_name(data["name"], project["name"])
         still = data.get("still")
@@ -186,17 +196,25 @@ def apply(project, data):
             if len({lay["id"] for lay in layers}) != len(layers):
                 raise UserError("Hai lớp trùng mã.")
             project["layers"] = layers
-            _forget_unused(project, set(old) - {lay["id"] for lay in layers}, old)
-        return save(project)
+            for lid in set(old) - {lay["id"] for lay in layers}:
+                _remove(os.path.join(paths.projects_dir(), project["id"], "masks", lid + ".png"))
+        saved = save(project)
+        sweep_files(saved)
+        return saved
 
 
-def _forget_unused(project, gone, old):
-    path = os.path.join(paths.projects_dir(), project["id"])
-    for lid in gone:
-        _remove(os.path.join(path, "masks", lid + ".png"))
-        stored = (old[lid].get("file") or {}).get("stored")
-        if stored:
-            _remove(os.path.join(path, "files", stored))
+def sweep_files(project):
+    """Removes layer files no layer uses any more. A file Windows still holds open (a render using it) stays
+    until a later sweep."""
+    path = os.path.join(paths.projects_dir(), project["id"], "files")
+    keep = {(lay.get("file") or {}).get("stored") for lay in project["layers"]}
+    try:
+        names = os.listdir(path)
+    except OSError:
+        return
+    for name in names:
+        if name not in keep:
+            _remove(os.path.join(path, name))
 
 
 def _remove(path):
@@ -208,29 +226,34 @@ def _remove(path):
 
 def save_mask(project, name, data):
     """A mask painted on the page (PNG bytes; empty: the mask is removed)."""
-    if not MASK_NAME.match(name or "") or (name not in ("freeze", "fg")
-                                           and name not in {lay["id"] for lay in project["layers"]}):
+    if not MASK_NAME.match(name or ""):
         raise UserError("Không tìm thấy lớp của vùng này.")
-    path = os.path.join(paths.projects_dir(), project["id"], "masks", name + ".png")
-    if not data:
-        _remove(path)
-    else:
+    mask = None
+    if data:
         import io
         try:
             with Image.open(io.BytesIO(data)) as im:
                 if im.format != "PNG" or im.width * im.height > 40_000_000:
                     raise ValueError
                 im.load()
-                m = im.getchannel("A") if "A" in im.getbands() else im.convert("L")
+                mask = im.getchannel("A") if "A" in im.getbands() else im.convert("L")
         except Exception as e:  # noqa: BLE001 - anything that is not a sane PNG
             raise UserError("Vùng vẽ gửi lên không hợp lệ.") from e
         size = mask_size(project["video"])
-        if m.size != size:
-            m = m.resize(size, Image.Resampling.BILINEAR)
-        tmp = path + ".tmp.png"
-        m.save(tmp, optimize=False, compress_level=3)
-        replace(tmp, path)
-    return save(project)
+        if mask.size != size:
+            mask = mask.resize(size, Image.Resampling.BILINEAR)
+    with LOCK:
+        project = load(project["id"])
+        if name not in ("freeze", "fg") and name not in {lay["id"] for lay in project["layers"]}:
+            raise UserError("Không tìm thấy lớp của vùng này.")
+        path = os.path.join(paths.projects_dir(), project["id"], "masks", name + ".png")
+        if mask is None:
+            _remove(path)
+        else:
+            tmp = f"{path}.{secrets.token_hex(3)}.tmp.png"
+            mask.save(tmp, optimize=False, compress_level=3)
+            replace(tmp, path)
+        return save(project)
 
 
 def set_still_image(project, upload, original_name):
@@ -258,15 +281,15 @@ def set_still_image(project, upload, original_name):
         warning = ("Ảnh gốc có vẻ khác với video (lệch vị trí, khung hình hoặc màu). Kiểm tra lại, "
                    "hoặc dùng một khung của video cho vùng đứng yên.")
     with LOCK:
-        project["still"].update({"source": "image", "image_name": os.path.basename(original_name)[:200],
-                                 "warning": warning})
-        return save(project)
+        fresh = load(project["id"])
+        fresh["still"].update({"source": "image", "image_name": os.path.basename(original_name)[:200],
+                               "warning": warning})
+        return save(fresh)
 
 
 def set_layer_file(project, lid, upload, original_name):
     """The outside file of a "file" layer: checked, kept in the project, its blend set to suit it."""
-    layer = next((lay for lay in project["layers"] if lay["id"] == lid and lay["kind"] == "file"), None)
-    if layer is None:
+    if not any(lay["id"] == lid and lay["kind"] == "file" for lay in project["layers"]):
         raise UserError("Không tìm thấy lớp để gắn file.")
     ext = os.path.splitext(original_name or "")[1].lower()
     if ext not in overlay.IMAGE_TYPES | overlay.VIDEO_TYPES:
@@ -274,22 +297,24 @@ def set_layer_file(project, lid, upload, original_name):
     src = _with_ext(upload, ext)
     try:
         info = overlay.probe_file(src)
-    except Exception:
+        with LOCK:  # the newest copy, and the project still there (it may have been deleted meanwhile)
+            fresh = load(project["id"])
+            layer = next((lay for lay in fresh["layers"] if lay["id"] == lid and lay["kind"] == "file"), None)
+            if layer is None:
+                raise UserError("Không tìm thấy lớp để gắn file.")
+            path = os.path.join(paths.projects_dir(), fresh["id"], "files")
+            os.makedirs(path, exist_ok=True)
+            stored = f"{lid}-{secrets.token_hex(3)}{ext}"
+            shutil.move(src, os.path.join(path, stored))
+            layer["file"] = {"stored": stored, "name": os.path.basename(original_name)[:200], "info": info}
+            layer["params"]["blend"] = "normal" if info.get("alpha") else "screen"
+            if not info.get("image"):
+                layer["params"]["start"] = 0
+            saved = save(fresh)
+            sweep_files(saved)
+            return saved
+    finally:
         _remove(src)
-        raise
-    path = os.path.join(paths.projects_dir(), project["id"], "files")
-    os.makedirs(path, exist_ok=True)
-    stored = f"{lid}-{secrets.token_hex(3)}{ext}"
-    with LOCK:
-        old = (layer.get("file") or {}).get("stored")
-        shutil.move(src, os.path.join(path, stored))
-        if old:
-            _remove(os.path.join(path, old))
-        layer["file"] = {"stored": stored, "name": os.path.basename(original_name)[:200], "info": info}
-        layer["params"]["blend"] = "normal" if info.get("alpha") else "screen"
-        if not info.get("image"):
-            layer["params"]["start"] = 0
-        return save(project)
 
 
 def _with_ext(upload, ext):

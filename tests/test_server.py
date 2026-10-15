@@ -94,9 +94,46 @@ class Server(unittest.TestCase):
             time.sleep(0.25)
         self.assertEqual(mine["state"], "done", mine)
         self.assertTrue(mine["output"].startswith("Quán cà phê-fx"))
+        long_name = urllib.parse.quote("Quán " + "x" * 250 + ".mp4")  # a long name keeps its extension
+        with open(clip, "rb") as f:
+            code, body, _ = self.post(f"/api/upload?kind=video&name={long_name}", raw=f.read(),
+                                      headers={"Content-Type": "application/octet-stream"})
+        self.assertEqual(code, 200, body)
+        self.assertEqual(self.post("/api/delete", {"id": json.loads(body)["id"]})[0], 200)
         self.assertTrue(os.path.exists(os.path.join(os.environ["BOKIN_FX_OUT"], mine["output"])))
         self.assertEqual(self.post("/api/delete", {"id": pid})[0], 200)
         self.assertEqual(request(self.base + f"/api/project?id={pid}")[0], 400)
+
+    def test_refused_request_body_is_not_run(self):
+        """A cross-site POST is refused, and its body is never read as a second request."""
+        import socket as sk
+        port = int(self.base.rsplit(":", 1)[1])
+        inner = (f"POST /api/quit HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nX-Bokin: 1\r\n"
+                 "Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}").encode()
+        outer = (f"POST /api/preview HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: text/plain\r\n"
+                 f"Content-Length: {len(inner)}\r\n\r\n").encode() + inner
+        with sk.create_connection(("127.0.0.1", port), timeout=5) as c:
+            c.sendall(outer)
+            got = b""
+            while True:
+                chunk = c.recv(65536)
+                if not chunk:
+                    break
+                got += chunk
+        self.assertIn(b"403", got.split(b"\r\n", 1)[0])
+        self.assertEqual(got.count(b"HTTP/1.1"), 1)
+        self.assertFalse(self.app.quit.is_set())
+
+    def test_wrong_type_refused_before_upload(self):
+        code, body, headers = self.post("/api/upload?kind=video&name=" + urllib.parse.quote("a" * 300 + ".exe"), raw=b"x" * 10,
+                                        headers={"Content-Type": "application/octet-stream"})
+        self.assertEqual(code, 400)
+        self.assertEqual(headers.get("Connection"), "close")
+
+    def test_ping_names_its_owner(self):
+        from fx import paths
+        answer = json.loads(request(self.base + "/api/ping")[1])
+        self.assertEqual(answer["owner"], paths.owner())
 
     def test_quit_refused_while_busy(self):
         self.assertFalse(self.app.jobs.busy())

@@ -232,10 +232,13 @@ function newId() { return Math.random().toString(36).slice(2, 10).padEnd(8, "0")
 async function openProject(id) {
   try {
     const p = await get("/api/project?id=" + id);
+    S.drawing = false;
+    if (S.saveTimer) await saveNow();  // the open project's last changes go to it, not to the next one
+    await flushMasks();
     S.project = p; S.masks = {}; S.poly = [];
     S.t = Math.min(S.t, p.video.frames - 1);
     if (!S.sel || (S.sel !== "freeze" && S.sel !== "fg" && !layerById(S.sel))) S.sel = p.layers.length ? p.layers[p.layers.length - 1].id : "freeze";
-    localStorage.setItem("fx.last", id);
+    try { localStorage.setItem("fx.last", id); } catch (e) { /* storage blocked */ }
     setupBoard();
     await Promise.all(["freeze", "fg", ...p.layers.map(l => l.id)].map(loadMask));
     renderAll();
@@ -256,21 +259,25 @@ async function newProjectFrom(file) {
 }
 
 function scheduleSave() {
+  S.edits = (S.edits || 0) + 1;
   clearTimeout(S.saveTimer);
   S.saveTimer = setTimeout(saveNow, 350);
 }
-async function saveNow() {
-  clearTimeout(S.saveTimer);
-  const p = S.project; if (!p) return;
-  S.saving = true;
+async function saveNow() {  // true once the settings are saved
+  clearTimeout(S.saveTimer); S.saveTimer = 0;
+  const p = S.project; if (!p) return true;
+  const mark = S.edits = (S.edits || 0) + 1;
   try {
     const fresh = await post("/api/save", {id: p.id, name: p.name, still: p.still, freeze: p.freeze, fg: p.fg, layers: p.layers});
     if (S.project && S.project.id === fresh.id) {
-      S.project.rev = fresh.rev; S.project.still = fresh.still; S.project.masks = fresh.masks;
-      for (const l of fresh.layers) { const mine = layerById(l.id); if (mine) { mine.params = l.params; if (l.file) mine.file = l.file; } }
+      S.project.rev = fresh.rev; S.project.masks = fresh.masks;
+      const quiet = S.edits === mark;  // nothing changed on the page while this was being saved
+      if (quiet) S.project.still = fresh.still;
+      for (const l of fresh.layers) { const mine = layerById(l.id); if (mine) { if (quiet) mine.params = l.params; if (l.file) mine.file = l.file; } }
     }
     refreshLook();
-  } catch (e) { fail(e); } finally { S.saving = false; }
+    return true;
+  } catch (e) { fail(e); return false; }
 }
 
 // --- masks ---------------------------------------------------------------------------------------------
@@ -283,7 +290,7 @@ function blankMask(full) {
 async function loadMask(name) {
   const p = S.project;
   const full = name !== "freeze" && name !== "fg";
-  const m = {canvas: blankMask(full), undo: [], redo: [], timer: 0};
+  const m = {canvas: blankMask(full), undo: [], redo: [], timer: 0, project: p};
   S.masks[name] = m;
   if (!p.masks.includes(name)) return;
   try {
@@ -317,10 +324,21 @@ function maskChanged(name) {
   drawBoard();
   const m = S.masks[name];
   clearTimeout(m.timer);
-  m.timer = setTimeout(() => sendMask(name), 500);
+  m.timer = setTimeout(() => queueMask(name, m), 500);
 }
-async function sendMask(name) {
-  const m = S.masks[name], p = S.project; if (!m || !p) return;
+function queueMask(name, m) {  // sends of one mask go one after another, to the project the mask belongs to
+  clearTimeout(m.timer); m.timer = 0;
+  m.sending = (m.sending || Promise.resolve(true)).then(() => sendMask(name, m));
+  return m.sending;
+}
+async function flushMasks() {  // true once every painted change is on the app's side
+  const waits = Object.entries(S.masks).map(([n, m]) => m.timer ? queueMask(n, m) : (m.sending || true));
+  return (await Promise.all(waits)).every(Boolean);
+}
+async function sendMask(name, m) {
+  const p = m.project; if (!p) return true;
+  const gone = () => name !== "freeze" && name !== "fg" && !p.layers.some(l => l.id === name);
+  if (gone()) return true;  // its layer was deleted
   const g = m.canvas.getContext("2d", {willReadFrequently: true});
   const a = g.getImageData(0, 0, m.canvas.width, m.canvas.height).data;
   let any = false, all = true;
@@ -330,14 +348,19 @@ async function sendMask(name) {
   if (!(full ? all : !any)) body = await new Promise(r => m.canvas.toBlob(r, "image/png"));
   try {
     const r = await call("POST", `/api/mask?id=${p.id}&name=${name}`, null, body);
-    if (S.project !== p) return;
-    p.rev = r.rev;
+    p.rev = Math.max(p.rev, r.rev);
     const has = body.size > 0, list = p.masks.filter(n => n !== name);
     if (has) list.push(name);
     p.masks = list;
+    if (S.project !== p) return true;
     if (!document.activeElement || !document.activeElement.closest("#side")) renderSide();  // not while typing there
     refreshLook();
-  } catch (e) { fail(e); }
+    return true;
+  } catch (e) {
+    if (gone()) return true;
+    fail(e);
+    return false;
+  }
 }
 function fillMask(how) {
   const m = S.masks[S.sel]; if (!m) return;
@@ -540,6 +563,9 @@ function renderAll() {
   board.style.display = has ? "block" : "none";
   $("#projName").textContent = has ? `${S.project.name} · ${S.project.video.w}×${S.project.video.h} · ${S.project.video.seconds} giây` : "";
   for (const id of ["previewBtn", "exportBtn", "length"]) $("#" + id).disabled = !has;
+  const len = $("#length"), chosen = len.value;
+  len.innerHTML = S.lengths.map(s => `<option value="${s}">${lengthLabel(s)}</option>`).join("");
+  if (chosen) len.value = chosen;
   const time = $("#time");
   time.max = has ? S.project.video.frames - 1 : 0; time.value = S.t;
   updateTimeLabel();
@@ -583,7 +609,7 @@ function renderProps() {
     el.innerHTML = `<h3 style="padding:4px 0">Vùng đứng yên</h3>
       <p class="note">Tô những chỗ phải đứng yên tuyệt đối (ví dụ: tường, đồ vật bị rung). Ở đó hình được lấy y nguyên từ ảnh gốc, hoặc từ một khung của video.</p>
       <div class="row"><div class="lab"><span>Lấy hình đứng yên từ</span></div>
-        <select id="stillSource"><option value="frame">Một khung của video</option><option value="image" ${p.has_still_image ? "" : "disabled"}>Ảnh gốc${st.image_name ? ": " + esc(st.image_name) : " (chưa có)"}</option></select></div>
+        <select id="stillSource"><option value="frame" ${st.source === "image" ? "" : "selected"}>Một khung của video</option><option value="image" ${st.source === "image" ? "selected" : ""} ${p.has_still_image ? "" : "disabled"}>Ảnh gốc${st.image_name ? ": " + esc(st.image_name) : " (chưa có)"}</option></select></div>
       ${st.source === "image" ? "" : `<div class="row"><div class="lab"><span>Khung số</span><b>${st.frame + 1}</b></div><button class="small" id="useFrame">Dùng khung đang xem (${S.t + 1})</button></div>`}
       <div class="btns"><button class="small" id="pickStill">Chọn ảnh gốc…</button></div>
       ${st.warning && st.source === "image" ? `<p class="warn">⚠ ${esc(st.warning)}</p>` : ""}
@@ -645,6 +671,7 @@ $("#side").addEventListener("click", async e => {
   if (t.id === "delLayer" && l) {
     if (!confirm(`Xoá lớp "${l.name}"?`)) return;
     p.layers = p.layers.filter(x => x !== l);
+    if (S.masks[l.id]) clearTimeout(S.masks[l.id].timer);
     delete S.masks[l.id];
     S.sel = p.layers.length ? p.layers[p.layers.length - 1].id : "freeze";
     renderSide(); renderTools(); drawBoard(); saveNow();
@@ -687,7 +714,7 @@ function addLayer(kind) {
     seed: Math.floor(Math.random() * 2147483647), params};
   p.layers.push(l);
   S.sel = l.id;
-  S.masks[l.id] = {canvas: blankMask(true), undo: [], redo: [], timer: 0};
+  S.masks[l.id] = {canvas: blankMask(true), undo: [], redo: [], timer: 0, project: p};
   renderSide(); renderTools(); drawBoard();
   saveNow().then(() => { if (kind === "file") $("#fileLayer").click(); });
   if (S.view === "video") setView("look");
@@ -742,6 +769,7 @@ $("#nextBtn").onclick = () => setTime(S.t + 1);
 // --- keyboard -------------------------------------------------------------------------------------------
 document.addEventListener("keydown", e => {
   if (e.target.matches("input[type=text], input[type=number], select, textarea")) return;
+  if (e.target.type === "range" && e.key.startsWith("Arrow")) return;  // the slider moves itself
   if (e.code === "Space") { S.space = true; if (e.target === document.body) e.preventDefault(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(e.shiftKey); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); undo(true); return; }
@@ -765,8 +793,10 @@ $("#openBtn").onclick = () => $("#fileVideo").click();
 $("#fileVideo").onchange = e => { newProjectFrom(e.target.files[0]); e.target.value = ""; };
 $("#fileStill").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f || !S.project) return;
+  const pid = S.project.id;
   try {
-    const p = await upload(`/api/upload?kind=still&id=${S.project.id}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi ảnh gốc");
+    const p = await upload(`/api/upload?kind=still&id=${pid}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi ảnh gốc");
+    if (!S.project || S.project.id !== pid) { toast("Đã dùng ảnh gốc cho vùng đứng yên."); return; }
     S.project.still = p.still; S.project.has_still_image = p.has_still_image; S.project.rev = p.rev;
     toast(p.still.warning ? "⚠ " + p.still.warning : "Đã dùng ảnh gốc cho vùng đứng yên.", !!p.still.warning, 8000);
     renderProps(); refreshLook();
@@ -775,10 +805,12 @@ $("#fileStill").onchange = async e => {
 $("#fileLayer").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f || !S.project) return;
   const l = layerById(S.sel); if (!l || l.kind !== "file") return;
+  const pid = S.project.id, lid = l.id;
   try {
-    const p = await upload(`/api/upload?kind=layer&id=${S.project.id}&layer=${l.id}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi file hiệu ứng");
-    const fresh = p.layers.find(x => x.id === l.id);
-    if (fresh) { l.file = fresh.file; l.params = fresh.params; }
+    const p = await upload(`/api/upload?kind=layer&id=${pid}&layer=${lid}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi file hiệu ứng");
+    if (!S.project || S.project.id !== pid) return;
+    const mine = layerById(lid), fresh = p.layers.find(x => x.id === lid);
+    if (mine && fresh) { mine.file = fresh.file; mine.params = fresh.params; }
     S.project.rev = p.rev;
     toast(`Đã thêm "${f.name}".`);
     renderProps(); refreshLook();
@@ -824,12 +856,19 @@ $("#recent").addEventListener("click", e => { const c = e.target.closest("[data-
 
 // --- preview, export, jobs ------------------------------------------------------------------------------
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b && S.project) setView(b.dataset.view); });
+async function readyToRender() {  // the last painting and settings reach the app before a video is made
+  if (!(await flushMasks())) return false;
+  return saveNow();
+}
 $("#previewBtn").onclick = async () => {
-  try { await saveNow(); await post("/api/preview", {id: S.project.id}); toast("Đang làm video xem thử…"); pollSoon(); } catch (e) { fail(e); }
+  try {
+    if (!(await readyToRender())) return;
+    await post("/api/preview", {id: S.project.id}); toast("Đang làm video xem thử…"); pollSoon();
+  } catch (e) { fail(e); }
 };
 $("#exportBtn").onclick = async () => {
   try {
-    await saveNow();
+    if (!(await readyToRender())) return;
     await post("/api/export", {id: S.project.id, seconds: +$("#length").value});
     toast("Đã bắt đầu xuất video. Có thể tiếp tục làm việc khác."); pollSoon();
   } catch (e) { fail(e); }
@@ -912,11 +951,10 @@ async function poll() {
     S.schema = sch; S.lengths = sch.lengths;
   } catch (e) { $("#offline").style.display = "flex"; return; }
   await poll();
-  $("#length").innerHTML = S.lengths.map(s => `<option value="${s}">${lengthLabel(s)}</option>`).join("");
-  const last = localStorage.getItem("fx.last");
+  let last = null;
+  try { last = localStorage.getItem("fx.last"); } catch (e) { /* storage blocked */ }
   if (last && (S.state.projects || []).some(p => p.id === last)) await openProject(last);
   else renderAll();
-  $("#length").innerHTML = S.lengths.map(s => `<option value="${s}">${lengthLabel(s)}</option>`).join("");
 })();
 </script>
 </body>

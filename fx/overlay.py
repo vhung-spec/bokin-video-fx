@@ -58,6 +58,9 @@ def probe_file(path):
         except Exception as e:  # noqa: BLE001 - any broken or unknown picture
             raise video.VideoError("Không đọc được ảnh này.") from e
     info = video.probe(path, overlay=True)
+    if info["codec"] == "gif":  # ffmpeg decodes every GIF with an alpha channel: is any pixel see-through?
+        with video.Frames(path, info, alpha=True) as frames:
+            info["alpha"] = any(int(f[..., 3].min()) < 255 for f in frames)
     info["image"] = False
     return info
 
@@ -81,8 +84,8 @@ def timeline(t, fps, frames, seconds, start, fade):
         if step is None:
             return [(start + e, 1.0)]
         j = math.floor(e / step + 1e-9)
-        local = e - j * step
-        if j > 0 and local < join:
+        local = max(0.0, e - j * step)  # the 1e-9 above can leave -1e-16 here
+        if j > 0 and join > 0 and local < join:
             w = local / join
             return [(start + local, w), (start + local + step, 1.0 - w)]
         return [(start + local, 1.0)]
@@ -117,9 +120,9 @@ class Cursors:
         if c is None:
             if len(self.open) >= 4:
                 self.open.pop(0)[0].close()
-            fps = video.fps_value(self.info["fps"])
-            reader = video.Frames(self.path, self.info, self.size, alpha=self.alpha,
-                                  seek=(i - 0.25) / fps if i else None)
+            # by frame number, as probe() counted them: seeking by time misses when streams start at different
+            # times, frames are uneven (GIFs, phone videos) or the file's clock does not start at 0
+            reader = video.Frames(self.path, self.info, self.size, alpha=self.alpha, start=i)
             c = [reader, iter(reader), i, None]
             self.open.append(c)
         while c[2] <= i:

@@ -22,9 +22,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import numpy as np
 from PIL import Image
 
-from . import effects, engine, jobs, paths, projects, video
+from . import effects, engine, jobs, overlay, paths, projects, video
 
 UPLOAD_LIMITS = {"video": 4 << 30, "layer": 4 << 30, "still": 200 << 20}
+UPLOAD_TYPES = {"video": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
+                "still": (overlay.IMAGE_TYPES, "Hãy chọn ảnh PNG hoặc JPG."),
+                "layer": (overlay.IMAGE_TYPES | overlay.VIDEO_TYPES, "Hãy chọn video (mp4, mov, webm…) hoặc ảnh (png, jpg).")}
 MASK_LIMIT = 50 << 20
 JSON_LIMIT = 1 << 20
 OUT_NAME = re.compile(r"^[^\\/:*?\"<>|\x00-\x1f]{1,180}\.mp4$")
@@ -42,6 +45,15 @@ class App:
         self.seen = time.time()
         self.quit = threading.Event()
         self.relaunch = False
+        self.uploads = 0  # files being received: quitting now would cut them off
+        self.counter = threading.Lock()
+
+    def busy(self):
+        return self.jobs.busy() or self.uploads > 0
+
+    def uploading(self, step):
+        with self.counter:
+            self.uploads += step
 
     def state(self):
         up = self.updater.state if self.updater else {"current": paths.version(), "available": None,
@@ -97,7 +109,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def fail(self, code, message):
-        self.send(code, {"error": message})
+        # close the connection: a body left unread must never be read as a second request
+        self.send(code, {"error": message}, headers=(("Connection", "close"),))
 
     def send_file(self, path, kind):
         """A file, with byte ranges (the video player asks for parts)."""
@@ -178,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(paths.resource_dir(), "index.html"), "rb") as f:
                 return self.send(200, f.read(), "text/html; charset=utf-8")
         if path == "/api/ping":
-            return self.send(200, {"app": paths.APP_ID, "version": paths.version()})
+            return self.send(200, {"app": paths.APP_ID, "version": paths.version(), "owner": paths.owner()})
         if path.startswith("/api/"):
             self.app.seen = time.time()
         if path == "/api/state":
@@ -310,19 +323,27 @@ class Handler(BaseHTTPRequestHandler):
             kind = q.get("kind")
             if kind not in UPLOAD_LIMITS:
                 return self.fail(400, "Yêu cầu không hợp lệ.")
-            name = os.path.basename(q.get("name") or "")[:200]
-            project = projects.load(q.get("id")) if kind != "video" else None  # checked before reading the file
-            upload = self.receive(UPLOAD_LIMITS[kind])
+            stem, ext = os.path.splitext(os.path.basename(q.get("name") or ""))
+            ext = ext[:16]
+            name = stem[:200 - len(ext)] + ext  # a long name keeps its extension
+            if ext.lower() not in UPLOAD_TYPES[kind][0]:  # before receiving gigabytes
+                raise projects.UserError(UPLOAD_TYPES[kind][1])
+            project = projects.load(q.get("id")) if kind != "video" else None
+            app.uploading(+1)
             try:
-                if kind == "video":
-                    project = projects.create(upload, name)
-                elif kind == "still":
-                    project = projects.set_still_image(project, upload, name)
-                    app.looks.forget(projects.folder(project["id"]))
-                else:
-                    project = projects.set_layer_file(project, q.get("layer"), upload, name)
+                upload = self.receive(UPLOAD_LIMITS[kind])
+                try:
+                    if kind == "video":
+                        project = projects.create(upload, name)
+                    elif kind == "still":
+                        project = projects.set_still_image(project, upload, name)
+                    else:
+                        app.looks.release(projects.folder(project["id"]))  # its readers would keep the old file
+                        project = projects.set_layer_file(project, q.get("layer"), upload, name)
+                finally:
+                    _remove(upload)
             finally:
-                _remove(upload)
+                app.uploading(-1)
             return self.send(200, self.project_view(project))
         if path == "/api/mask":
             project = projects.load(q.get("id"))
@@ -331,7 +352,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, {"rev": project["rev"]})
         data = self.body_json()
         if path == "/api/save":
-            project = projects.apply(projects.load(data.get("id")), data)
+            project = projects.load(data.get("id"))
+            app.looks.release(projects.folder(project["id"]))  # so a removed file layer's file can be deleted
+            project = projects.apply(project, data)
             return self.send(200, self.project_view(project))
         if path == "/api/preview":
             return self.send(200, app.jobs.preview(data.get("id")))
@@ -358,15 +381,16 @@ class Handler(BaseHTTPRequestHandler):
                 open_in_explorer(paths.out_dir())
             return self.send(200, {"ok": True})
         if path == "/api/update":
-            if not app.updater or not app.updater.state.get("ready"):
+            up = app.updater
+            if not up or not up.state.get("ready") or not up.installer or not os.path.exists(up.installer):
                 return self.fail(400, "Chưa có bản cập nhật sẵn sàng.")
-            if app.jobs.busy():
+            if app.busy():
                 return self.fail(400, "App đang làm video. Cập nhật sau khi xong.")
             app.relaunch = True
             app.quit.set()
             return self.send(200, {"ok": True})
         if path == "/api/quit":  # the installer asks before replacing the files
-            if app.jobs.busy():
+            if app.busy():
                 return self.send(200, {"busy": True})
             app.relaunch = None  # quit without installing anything ourselves
             app.quit.set()

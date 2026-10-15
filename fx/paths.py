@@ -5,6 +5,7 @@
   elsewhere; BOKIN_FX_DATA overrides it (tests, a server).
 - Finished videos: Videos\\Bokin FX in the user's folder (BOKIN_FX_OUT overrides it).
 """
+import hashlib
 import os
 import sys
 
@@ -40,6 +41,12 @@ def data_dir():
         path = os.path.join(base, "Bokin", "FX")
     os.makedirs(path, exist_ok=True)
     return path
+
+
+def owner():
+    """Who this copy of the app works for (its data folder): another Windows user's copy, on the same shared
+    127.0.0.1 ports, answers with a different value and is left alone."""
+    return hashlib.sha256(os.path.normcase(os.path.abspath(data_dir())).encode("utf-8")).hexdigest()[:16]
 
 
 def projects_dir():

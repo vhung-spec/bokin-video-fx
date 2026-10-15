@@ -96,15 +96,16 @@ def server_checks():
         port = s.getsockname()[1]
     srv = server.start(app, port)
     base = f"http://127.0.0.1:{port}"
+    local = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with urllib.request.urlopen(base + "/", timeout=10) as r:
+        with local.open(base + "/", timeout=10) as r:
             check("server: page", r.status == 200 and b"Bokin FX" in r.read())
-        with urllib.request.urlopen(base + "/api/state", timeout=10) as r:
+        with local.open(base + "/api/state", timeout=10) as r:
             check("server: state", json.loads(r.read())["app"] == paths.APP_ID)
 
         def status(req):
             try:
-                with urllib.request.urlopen(req, timeout=10) as r:
+                with local.open(req, timeout=10) as r:
                     return r.status
             except urllib.error.HTTPError as e:
                 return e.code

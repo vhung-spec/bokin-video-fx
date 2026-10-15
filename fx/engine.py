@@ -204,6 +204,13 @@ class Looks:
                 self.bases.popitem(last=False)
             return scene.frame(t, base)
 
+    def release(self, folder):
+        """Closes the cached scenes of `folder` (their ffmpeg readers hold layer files open, and Windows does not
+        let an open file be deleted). The video frames stay cached."""
+        with self.lock:
+            for key in [k for k in self.scenes if k[0] == folder]:
+                self.scenes.pop(key).close()
+
     def forget(self, folder):
         with self.lock:
             for key in [k for k in self.scenes if k[0] == folder]:

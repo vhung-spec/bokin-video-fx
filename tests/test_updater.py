@@ -73,7 +73,16 @@ class Updates(unittest.TestCase):
         bad = rel._replace(sha256="0" * 64, name="BokinFX-Setup-1.0.13.exe")
         with self.assertRaises(ValueError):
             updater.fetch(bad, folder)
-        self.assertEqual(os.listdir(folder), [])  # the bad one is gone, and the older one too
+        self.assertEqual(os.listdir(folder), [rel.name])  # the bad one is gone; the good one stays until replaced
+
+    def test_ready_installer_kept_until_the_next_is_in(self):
+        folder = os.path.join(helpers.ROOT, "updates4")
+        FakeGitHub.releases = [self.release("fx-v1.0.8")]
+        first = updater.fetch(updater.latest(), folder)
+        broken = updater.latest()._replace(version="1.0.9", name="BokinFX-Setup-1.0.9.exe", sha256="f" * 64)
+        with self.assertRaises(ValueError):
+            updater.fetch(broken, folder)
+        self.assertTrue(os.path.exists(first))  # still there to install
 
     def test_auto_update_state(self):
         FakeGitHub.releases = [self.release("fx-v1.0.5")]
