@@ -45,7 +45,9 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
    - **Thời gian**: bắt đầu, kết thúc, mờ dần vào/ra.
    - **Hoà trộn**: video hiệu ứng trên nền đen dùng **Screen**. File nền trong suốt dùng **Bình thường**. App tự chọn
      khi bạn thêm file.
-   - **Vị trí và cỡ**, **Độ đậm**.
+   - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài, chọn clip là trên màn hình hiện một khung trắng: kéo bên trong
+     khung để di chuyển, kéo một góc để phóng to/thu nhỏ, bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. Bấm vào
+     hình của một clip trên màn hình để chọn clip đó.
    - **Vùng**: bấm **✎ Vẽ vùng** để tô chỗ hiệu ứng được hiện.
 6. **Vùng đứng yên và tiền cảnh**: bấm vào **V1 Video gốc** trên timeline, rồi bấm **✎ Vẽ vùng đứng yên** hoặc
    **✎ Vẽ tiền cảnh**.
