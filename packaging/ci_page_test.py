@@ -172,7 +172,8 @@ def run(page, folder, edge):
     page.evaluate("seek(10)")
     page.dblclick('.tile[data-kind="snow"]')
     snow = page.evaluate("S.project.layers.find(l => l.kind === 'snow')")
-    check("a double-click adds 5 s at the playhead", snow["start"] == 240 and snow["end"] == 360, str(snow))
+    check("a double-click adds 5 s at the playhead", snow["start"] == 240 and snow["end"] == 360,
+          str([snow["start"], snow["end"]]))
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
@@ -320,6 +321,7 @@ def run(page, folder, edge):
 
 
 def main():
+    sys.stdout.reconfigure(errors="backslashreplace")  # a Windows console cannot print every Vietnamese letter
     os.makedirs(SHOTS, exist_ok=True)
     folder = media()
     with socket.socket() as s:
