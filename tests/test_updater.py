@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import time
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -95,6 +96,27 @@ class Updates(unittest.TestCase):
         self.assertFalse(same.state["ready"])
         self.assertIsNone(same.state["error"])
         self.assertFalse(same.run_installer(restart=True))
+
+    def test_the_page_can_ask_for_a_check(self):
+        """A window opened, or the version clicked: the app looks again at once, not within a minute twice."""
+        FakeGitHub.releases = [self.release("fx-v1.0.5")]
+        u = updater.AutoUpdate("1.0.5", os.path.join(helpers.ROOT, "updates4"), every=3600).start()
+        for _ in range(100):
+            if u.state["checked"]:
+                break
+            time.sleep(0.1)
+        first = u.state["checked"]
+        self.assertIsNotNone(first)
+        u.check_soon()  # a moment after the first look: nothing
+        self.assertFalse(u.wake.is_set())
+        u.state["checked"] = first - 120  # as if two minutes had passed
+        FakeGitHub.releases = [self.release("fx-v1.0.6")]
+        u.check_soon()
+        for _ in range(100):
+            if u.state["ready"]:
+                break
+            time.sleep(0.1)
+        self.assertEqual(u.state["available"], "1.0.6")
 
 
 if __name__ == "__main__":

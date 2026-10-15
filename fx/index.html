@@ -308,7 +308,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
       </div>
     </section>
   </div>
-  <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn">Mở thư mục video</button><span id="ver"></span></footer>
+  <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn">Mở thư mục video</button><span id="ver" title="Bấm để kiểm tra bản mới" style="cursor:pointer"></span></footer>
 </div>
 <input type="file" id="fileVideo" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
 <input type="file" id="fileReplace" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
@@ -2087,6 +2087,22 @@ function exportDialog() {
 }
 $("#exportBtn").onclick = exportDialog;
 $("#folderBtn").onclick = () => post("/api/open", {}).catch(fail);
+$("#ver").onclick = async () => {  // look for a newer version now
+  try {
+    const before = await post("/api/update/check", {});
+    if (before.current && !/^\d/.test(before.current)) return toast("Bản chạy từ mã nguồn không tự cập nhật.");
+    toast("Đang kiểm tra bản mới…", false, 8000);
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 1500));
+      const up = (await get("/api/state")).update || {};
+      if (up.ready) return toast(`Có bản mới ${up.available}: bấm "Cập nhật ngay" ở góc trên.`, false, 8000);
+      if ((up.checked || 0) > (before.checked || 0)) {
+        return up.error ? toast("Chưa kiểm tra được (mạng hoặc GitHub bận). Thử lại sau.", true) : toast(`Bạn đang dùng bản mới nhất (${up.current}).`);
+      }
+    }
+    toast("Bản mới đang được tải về. Nút \"Cập nhật ngay\" sẽ hiện khi xong.", false, 8000);
+  } catch (e) { fail(e); }
+};
 $("#updateBtn").onclick = async () => {
   try { await post("/api/update", {}); $("#updateText").textContent = "Đang cập nhật… app sẽ tự mở lại."; $("#updateBtn").style.display = "none"; S.updating = true; }
   catch (e) { fail(e); }
@@ -2314,6 +2330,7 @@ window.addEventListener("resize", onResize);
 // --- start ----------------------------------------------------------------------------------------------
 (async function start() {
   try { S.schema = await get("/api/schema"); } catch (e) { $("#offline").style.display = "flex"; return; }
+  post("/api/update/check", {}).catch(() => {});  // each time the window opens
   await poll();
   let last = null;
   try { last = localStorage.getItem("fx.last"); } catch (e) { /* storage blocked */ }

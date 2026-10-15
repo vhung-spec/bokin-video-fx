@@ -1,7 +1,8 @@
 """Self-update from this repository's GitHub releases (a public repository: no login, no key).
 
 A release is tagged fx-v<version> and carries the installer BokinFX-Setup-<version>.exe; GitHub Actions only
-publishes one after building, installing and testing it. AutoUpdate looks when the app starts and every 6 hours,
+publishes one after building, installing and testing it. AutoUpdate looks when the app starts, every 30 minutes,
+and when the page asks (each time its window opens, or the version is clicked),
 fetches a newer installer in the background and keeps it only if its size and SHA-256 are the ones GitHub lists for
 the file (the asset's "digest", else the "SHA-256:" line the workflow writes into the release notes). A release
 whose file cannot be checked is never used.
@@ -23,7 +24,8 @@ import urllib.request
 RELEASES = "https://api.github.com/repos/vhung-spec/bokin-video-fx/releases?per_page=50"
 TAG = "fx-v"
 INSTALLER = re.compile(r"^BokinFX-Setup-[0-9.]+\.exe$")
-CHECK_EVERY = 6 * 3600
+CHECK_EVERY = 30 * 60
+SOONEST = 60  # seconds between two checks the page asks for
 
 Release = collections.namedtuple("Release", "version numbers url name size sha256")
 
@@ -117,6 +119,7 @@ class AutoUpdate:
         self.numbers, self.folder, self.every = parse_version(current), folder, every
         self.installer = None
         self.state = {"current": current, "available": None, "ready": False, "error": None, "checked": None}
+        self.wake = threading.Event()
 
     def start(self):
         if self.numbers is not None:  # a build from the source folder ("dev") never updates itself
@@ -127,7 +130,13 @@ class AutoUpdate:
         time.sleep(3)
         while True:
             self.check()
-            time.sleep(self.every)
+            self.wake.wait(self.every)
+            self.wake.clear()
+
+    def check_soon(self):
+        """Look again now (the page asked), unless that was done a moment ago."""
+        if time.time() - (self.state.get("checked") or 0) > SOONEST:
+            self.wake.set()
 
     def check(self):
         try:
