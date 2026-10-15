@@ -133,10 +133,13 @@ class Frames:
     from frame number `start` on (at most `count` of them), numbered in decoding order as probe() counts them.
     Use it in a with-block, so ffmpeg is stopped when reading ends early."""
 
-    def __init__(self, path, info, size=None, start=0, count=None, alpha=False):
+    def __init__(self, path, info, size=None, start=0, count=None, alpha=False, src=None):
         self.w, self.h = size or (info["w"], info["h"])
         self.depth = 4 if alpha else 3
-        vf = ([f"select=gte(n\\,{int(start)})"] if start else []) + [_from_yuv(info, (self.w, self.h))]
+        vf = ([f"select=gte(n\\,{int(start)})"] if start else [])
+        if src and tuple(src) != (0, 0, info["w"], info["h"]):  # only this part of the source (x0, y0, x1, y1)
+            vf.append(f"crop={src[2] - src[0]}:{src[3] - src[1]}:{src[0]}:{src[1]}:exact=1")
+        vf.append(_from_yuv(info, (self.w, self.h)))
         args = [ffmpeg_exe(), "-v", "error", "-nostdin"]
         if alpha and info.get("decoder"):
             args += ["-c:v", info["decoder"]]
@@ -312,13 +315,16 @@ def plays_in_browser(info):
     return (info["codec"] == "h264" and info.get("pix") in ("yuv420p", "yuvj420p")) or info["codec"] in ("vp8", "vp9")
 
 
+PROXY_V = 2  # light copies with frame n at exactly n / fps and BT.709 colours; older ones are made again
+
+
 def make_proxy(src, info, dst, width=1280, alpha=None, keyint=12):
     """A light copy of a video for the page's live preview: VP9 WebM when it has transparency, else H.264, with a
     key frame every `keyint` frames so the page can jump anywhere quickly. Returns the file written (dst with the
     right extension); it is written under another name first, so a half-made copy is never served."""
     w = min(width, info["w"])
     h = max(2, round(info["h"] * w / info["w"] / 2) * 2)
-    w -= w % 2
+    w = max(2, w - w % 2)  # a 1-pixel-wide video: 2, not 0 (which ffmpeg reads as the input's width)
     alpha = bool(info.get("alpha")) if alpha is None else alpha
     out = os.path.splitext(dst)[0] + (".webm" if alpha else ".mp4")
     tmp = os.path.splitext(dst)[0] + ".part" + (".webm" if alpha else ".mp4")
@@ -332,9 +338,10 @@ def make_proxy(src, info, dst, width=1280, alpha=None, keyint=12):
                  "-auto-alt-ref", "0", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "34",
                  "-row-mt", "1", "-g", str(keyint)]
     else:
-        args += ["-vf", _from_yuv(info, (w, h)) + f",format=yuv420p,{even}", *timing, "-c:v", "libx264",
-                 "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p", "-g", str(keyint), *BT709,
-                 "-movflags", "+faststart"]
+        # SD (BT.601) and full-range data made BT.709 TV range, as tagged
+        args += ["-vf", _from_yuv(info, (w, h)) + f":out_color_matrix=bt709:out_range=tv,format=yuv420p,{even}",
+                 *timing, "-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p",
+                 "-g", str(keyint), *BT709, "-movflags", "+faststart"]
     try:
         run(args + ["-an", *CLEAN, tmp], timeout=1800)
         os.replace(tmp, out)

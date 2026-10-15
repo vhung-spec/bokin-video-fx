@@ -97,7 +97,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- answers -------------------------------------------------------------------------------------------
 
-    def send(self, code, body, kind="application/json; charset=utf-8", headers=()):
+    def send(self, code, body, kind="application/json; charset=utf-8", headers=(), cache="no-store"):
         if isinstance(body, (dict, list)):
             body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         elif isinstance(body, str):
@@ -105,8 +105,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", kind)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")  # never inside another page's frame (clickjacking)
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
         for k, v in headers:
             self.send_header(k, v)
         self.end_headers()
@@ -147,6 +149,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(end - start + 1))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
             self.end_headers()
             if self.command == "HEAD":
                 return
@@ -244,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
             project = projects.load(q.get("id"))
             arr = self.app.looks.frame(projects.folder(project["id"]), project, _int(q.get("t")),
                                        max(160, min(1920, _int(q.get("w"), engine.LOOK_WIDTH))))
-            return self.send(200, _jpeg(arr, 88), "image/jpeg")
+            return self.send(200, _jpeg(arr, 88), "image/jpeg", cache="no-cache")  # the page shows the image it loaded
         if path == "/media/base":  # the project's video for the live preview: its light copy
             project = projects.load(q.get("id"))
             name = project.get("proxy") or ""
@@ -407,11 +411,12 @@ class Handler(BaseHTTPRequestHandler):
             if layer is None or layer["kind"] == "file":
                 raise projects.UserError("Không tìm thấy clip.")
             name = engine.fx_clip_name(project, layer)
+            length = project.get("length") or timeline.DEFAULT_LENGTH  # the page drops a clip of another length
             if os.path.exists(os.path.join(projects.folder(project["id"]), "clips", name)):
-                return self.send(200, {"name": name, "ready": True})
+                return self.send(200, {"name": name, "ready": True, "length": length})
             wanted = {engine.fx_clip_name(project, lay) for lay in project["layers"] if lay["kind"] != "file"}
             job = app.jobs.fx_clip(project["id"], layer["id"], name, wanted)
-            return self.send(200, {"name": name, "ready": False, "job": job["id"]})
+            return self.send(200, {"name": name, "ready": False, "job": job["id"], "length": length})
         if path == "/api/copymask":  # a clip cut in two: the second half gets the first one's area
             project = projects.copy_mask(projects.load(data.get("id")), data.get("src"), data.get("dst"))
             return self.send(200, {"rev": project["rev"], "masks": self.project_view(project)["masks"]})

@@ -34,6 +34,8 @@ class Span:
         self.end = max(self.start, min(int(clip.get("end", total)), total))
         self.full = self.start == 0 and self.end == total
         self.skip = max(0.0, float(clip.get("skip", 0) or 0))  # seconds of the clip's source already played
+        # seconds of its file the clip's run needs: the first half of a cut keeps the whole clip's (same picture)
+        self.need = max(self.skip + (self.end - self.start) / fps, max(0.0, float(clip.get("need", 0) or 0)))
         fin = fout = 0.0
         if not self.full:
             fin = max(0.0, min(MAX_FADE, float(clip.get("fade_in", 0) or 0))) * fps
@@ -48,6 +50,10 @@ class Span:
                 k = length / (fin + fout)
                 fin, fout = fin * k, fout * k
         self.fin, self.fout = fin, fout
+        # the seam's own ramp, never shortened: a short clip at an end of the video still starts / ends near 0 there
+        edge = MIN_EDGE_FADE * fps
+        self.seam_in = edge if not self.full and self.start == 0 else 0.0
+        self.seam_out = edge if not self.full and self.end == total else 0.0
 
     @property
     def empty(self):
@@ -62,4 +68,8 @@ class Span:
             w = min(w, (t - self.start + 0.5) / self.fin)
         if self.fout > 0:
             w = min(w, (self.end - t - 0.5) / self.fout)
+        if self.seam_in:
+            w = min(w, (t + 0.5) / self.seam_in)
+        if self.seam_out:
+            w = min(w, (self.end - t - 0.5) / self.seam_out)
         return max(0.0, min(1.0, w))

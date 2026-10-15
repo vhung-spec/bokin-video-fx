@@ -50,7 +50,10 @@ def folder(iid):
 
 def load(iid):
     with LOCK, open(os.path.join(folder(iid), "item.json"), encoding="utf-8") as f:
-        return json.load(f)
+        item = json.load(f)
+    if (item.get("proxy") or "").endswith((".mp4", ".webm")) and item.get("proxy_v") != video.PROXY_V:
+        item["proxy"] = None  # made by an older version (timed or coloured unlike the renderer): made again
+    return item
 
 
 def save(item):
@@ -86,12 +89,17 @@ def public(item):
     return {k: item[k] for k in ("id", "name", "created", "info", "proxy", "size") if k in item}
 
 
-def _clean_name(name):
+def _clean_text(text, fallback="Hiệu ứng"):
+    """An item's name as typed: whole, nothing cut off at a "/" or a "."."""
     import unicodedata
-    stem = os.path.splitext(os.path.basename(str(name or "")))[0]
-    stem = unicodedata.normalize("NFC", stem)
-    stem = re.sub(r"[\x00-\x1f<>:\"/\\|?*]+", " ", stem)
-    return re.sub(r"\s+", " ", stem).strip()[:80] or "Hiệu ứng"
+    text = unicodedata.normalize("NFC", str(text or ""))
+    text = re.sub(r"[\x00-\x1f<>:\"/\\|?*]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()[:80].strip() or fallback
+
+
+def _clean_name(name):
+    """An uploaded file's name, without its folder and extension."""
+    return _clean_text(os.path.splitext(os.path.basename(str(name or "")))[0])
 
 
 def add(upload, original_name):
@@ -139,7 +147,7 @@ def _thumb(item):
     w = min(THUMB_WIDTH, info["w"])
     size = (max(2, w), max(2, round(info["h"] * w / info["w"])))
     if info.get("image"):
-        with Image.open(source_path(item)) as im:
+        with overlay.open_picture(source_path(item)) as im:
             arr = np.asarray(ImageOps.exif_transpose(im).convert("RGBA").resize(size, Image.Resampling.LANCZOS))
     else:
         with video.Frames(source_path(item), info, size, start=info["frames"] // 2, count=1, alpha=True) as frames:
@@ -153,7 +161,7 @@ def _image_proxy(item):
     """A picture the page shows as is: PNG (keeps transparency), at most PROXY_WIDTH wide."""
     info = item["info"]
     w = min(PROXY_WIDTH, info["w"])
-    with Image.open(source_path(item)) as im:
+    with overlay.open_picture(source_path(item)) as im:
         im = ImageOps.exif_transpose(im).convert("RGBA")
         if im.width != w:
             im = im.resize((w, max(1, round(im.height * w / im.width))), Image.Resampling.LANCZOS)
@@ -173,7 +181,7 @@ def make_proxy(iid):
             fresh = load(iid)
         except LibraryError:  # deleted meanwhile
             return item
-        fresh["proxy"] = name
+        fresh["proxy"], fresh["proxy_v"] = name, video.PROXY_V
         return save(fresh)
 
 
@@ -196,7 +204,7 @@ def delete(iid, users):
 def rename(iid, name):
     with LOCK:
         item = load(iid)
-        item["name"] = _clean_name(name + ".x")
+        item["name"] = _clean_text(name, item["name"])  # as typed ("/" is not a folder); nothing left: as it was
         return save(item)
 
 

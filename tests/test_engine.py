@@ -165,6 +165,22 @@ class Engine(unittest.TestCase):
             self.assertTrue((a[t] == b[t]).all(), f"frame {t} differs")
         projects.apply(projects.load(self.project["id"]), {"layers": []})
 
+    def test_cut_near_the_end_of_the_file_keeps_the_picture(self):
+        """The whole clip needs more of its file than there is, so it restarts with a dissolve; its first half alone
+        would not. The page gives the first half the whole clip's run (need), so the frames before the cut stay."""
+        clip = helpers.make_loop(os.path.join(helpers.ROOT, "cutend.mp4"), 160, 90, 60, "24")  # 2.5 s
+        item = library.add(clip, "cutend.mp4")
+        tid = self.project["tracks"][0]["id"]
+        whole = {"id": "filenn", "kind": "file", "lib": item["id"], "track": tid, "start": 10, "end": 90,
+                 "params": {"blend": "screen", "fade": 0.3}}
+        cut = [dict(whole, id="filen1", end=68, need=80 / 24), dict(whole, id="filen2", start=68, skip=58 / 24)]
+        times = list(range(60, 72))
+        a = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": [whole]}), times)
+        b = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": cut}), times)
+        for t in times:
+            self.assertTrue((a[t] == b[t]).all(), f"frame {t} differs")
+        projects.apply(projects.load(self.project["id"]), {"layers": []})
+
     def test_cut_full_clip_keeps_its_picture(self):
         """A clip over the whole video cut in two: each half starts where the whole clip was in its file
         (skip = its seam fade, as the page sets it), so the frames are the same away from the video's ends."""
@@ -220,6 +236,25 @@ class Engine(unittest.TestCase):
                        {"id": "snowh2", "kind": "snow", "track": tracks[1]["id"], "on": False}]})
         self.assertEqual(engine.Scene(self.folder, project, (W, H)).layers, [])
         projects.apply(projects.load(self.project["id"]), {"tracks": tracks, "layers": []})
+
+    def test_old_project_with_sixteen_layers_still_saves(self):
+        """An older version allowed 16 layers; each becomes a track, and the page's saves are still taken."""
+        import json
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "old16.mp4"), 160, 90, 12)
+        project = projects.create(src, "old16.mp4")
+        path = os.path.join(projects.folder(project["id"]), "project.json")
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+        for key in ("tracks", "length", "proxy"):
+            raw.pop(key)
+        raw["layers"] = [{"id": f"snow{i:02d}", "kind": "snow", "name": "Tuyết", "on": True, "behind": False,
+                          "feather": 0, "seed": 1, "params": {}} for i in range(16)]
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(raw, f)
+        old = projects.load(project["id"])
+        self.assertLessEqual(len(old["tracks"]), projects.MAX_TRACKS)
+        page = {k: old[k] for k in ("id", "name", "length", "still", "freeze", "fg", "tracks", "layers")}
+        self.assertEqual(len(projects.apply(old, page)["layers"]), 16)
 
     def test_old_project_is_upgraded(self):
         import json
@@ -362,6 +397,22 @@ class Replace(unittest.TestCase):
         self.assertEqual(project["freeze"]["feather"], 40)
         self.assertEqual(project["layers"][0]["feather"], 14)
         self.assertFalse(any("kém nét" in n for n in notes), notes)
+
+    def test_the_picture_is_fitted_again_while_a_frame_is_used(self):
+        """The still areas use a video frame now, but the original picture can be chosen again after a replace:
+        it is fitted to the new video too."""
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "pf-small.mp4"), 160, 90, 24, "24")
+        project = projects.create(src, "pf-small.mp4")
+        pic = os.path.join(helpers.ROOT, "pf-upload")
+        Image.new("RGB", (320, 180), (200, 40, 40)).save(pic, "PNG")
+        project = projects.set_still_image(project, pic, "ảnh.png")
+        project = projects.apply(project, {"still": {"source": "frame", "frame": 0}})
+        new = helpers.make_loop(os.path.join(helpers.ROOT, "pf-square.mp4"), 120, 120, 24, "24")
+        project, _ = projects.replace_video(projects.load(project["id"]), new, "pf-square.mp4")
+        project = projects.apply(project, {"still": {"source": "image"}})
+        self.assertEqual(project["still"]["source"], "image")
+        with Image.open(os.path.join(projects.folder(project["id"]), "still.png")) as im:
+            self.assertEqual(im.size, (120, 120))
 
 
 class Validation(unittest.TestCase):

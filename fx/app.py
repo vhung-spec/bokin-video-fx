@@ -112,6 +112,22 @@ def show(url):
     webbrowser.open(url)
 
 
+def sweep_leftovers():
+    """Folders of projects and library items deleted while Windows still had a file in them open (ffmpeg making
+    their light copy): their .json went first, so nothing lists them. Nothing runs yet, so they can go now."""
+    from . import library, projects
+    for base, pattern, keep in ((paths.projects_dir(), projects.PROJECT_ID, "project.json"),
+                                (library.root(), library.ITEM_ID, "item.json")):
+        try:
+            names = os.listdir(base)
+        except OSError:
+            continue
+        for name in names:
+            path = os.path.join(base, name)
+            if pattern.match(name) and os.path.isdir(path) and not os.path.exists(os.path.join(path, keep)):
+                shutil.rmtree(path, ignore_errors=True)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="BokinFX")
     ap.add_argument("--selftest", action="store_true", help="make a real video and check it, then quit")
@@ -140,6 +156,7 @@ def main(argv=None):
         show(f"http://127.0.0.1:{port}/")
         return 0
     shutil.rmtree(os.path.join(paths.data_dir(), "tmp"), ignore_errors=True)  # uploads cut off by a quit
+    sweep_leftovers()
     app = server.App(desktop=True)
     srv = None
     for port in paths.PORTS:

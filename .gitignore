@@ -10,3 +10,6 @@ notes.md
 *.mp4
 *.mov
 *.webm
+page-test/
+*.orig
+*.rej

@@ -35,6 +35,17 @@ class Spans(unittest.TestCase):
         self.assertLess(head.weight(0), 0.1)
         self.assertLess(tail.weight(N - 1), 0.1)
 
+    def test_a_short_clip_at_an_end_still_ramps_there(self):
+        """A clip of a frame or two at the start or the end: its fades shrink to fit, but the seam's own ramp does
+        not, so it never flashes at full strength where the video loops."""
+        edge = timeline.MIN_EDGE_FADE * FPS
+        last = timeline.Span({"start": N - 1, "end": N, "fade_in": 0.5, "fade_out": 0.5}, N, FPS)
+        first = timeline.Span({"start": 0, "end": 1, "fade_in": 0.5, "fade_out": 0.5}, N, FPS)
+        self.assertLessEqual(last.weight(N - 1), 0.5 / edge + 1e-9)
+        self.assertLessEqual(first.weight(0), 0.5 / edge + 1e-9)
+        tail = timeline.Span({"start": 500, "end": N}, N, FPS)  # a normal clip at the end: as before
+        self.assertEqual(tail.weight(600), 1.0)
+
     def test_fades_longer_than_the_clip(self):
         span = timeline.Span({"start": 100, "end": 112, "fade_in": 5, "fade_out": 5}, N, FPS)
         self.assertAlmostEqual(span.fin + span.fout, 12)

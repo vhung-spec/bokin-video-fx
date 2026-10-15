@@ -37,8 +37,9 @@ INPUT_NAME = re.compile(r"^input(-[0-9a-f]{6})?\.[a-z0-9]{2,4}$")
 PROXY_NAME = re.compile(r"^proxy(-[0-9a-f]{6})?\.(mp4|webm)$")
 VIDEO_TYPES = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
 MAX_LAYERS = 64  # clips
-MAX_TRACKS = 12
+MAX_TRACKS = 16  # an older version allowed 16 layers, and upgrade() makes each one a track
 MAX_FRAMES = 3600  # two and a half minutes at 24 fps: this app is for short loops
+MAX_FPS = 240  # the output is a whole number of loops: its frame count grows with the frame rate
 MASK_WIDTH = 1920  # masks are painted at most this wide; they are scaled to the video when used
 LOCK = threading.RLock()
 
@@ -60,6 +61,8 @@ def load(pid):
     with LOCK:
         with open(os.path.join(folder(pid), "project.json"), encoding="utf-8") as f:
             project = json.load(f)
+        if project.get("proxy") and project.get("proxy_v") != video.PROXY_V:
+            project["proxy"] = None  # made by an older version (timed or coloured unlike the renderer): made again
         return upgrade(project)  # (closed first: Windows cannot replace a file that is open)
 
 
@@ -133,10 +136,15 @@ def save(project, bump=True):
 
 
 def clean_name(name, fallback="video"):
-    stem = os.path.splitext(os.path.basename(str(name or "")))[0]
-    stem = unicodedata.normalize("NFC", stem)  # Mac/iPhone names and "Unicode tổ hợp" typing keep marks apart
+    """A project's name from a file's name."""
+    return clean_title(os.path.splitext(os.path.basename(str(name or "")))[0], fallback)
+
+
+def clean_title(text, fallback):
+    """A project's name as typed: whole (no file name parts cut off), safe in a file name (the exports')."""
+    stem = unicodedata.normalize("NFC", str(text or ""))  # Mac/iPhone names and "Unicode tổ hợp" typing keep marks apart
     stem = re.sub(r"[^\w\- ]+", " ", stem, flags=re.UNICODE)
-    stem = re.sub(r"\s+", " ", stem).strip()[:60]
+    stem = re.sub(r"\s+", " ", stem).strip()[:60].strip()
     return stem or fallback
 
 
@@ -168,6 +176,10 @@ def _checked_video(upload, original_name):
     if ext not in VIDEO_TYPES:
         raise UserError("Hãy chọn một file video (mp4, mov, mkv, webm, avi).")
     info = video.probe(upload)
+    fps = video.fps_value(info["fps"])
+    if fps > MAX_FPS:
+        raise UserError(f"Video có {fps:g} khung hình mỗi giây, nhiều hơn app nhận được (tối đa {MAX_FPS}). "
+                        "Hãy xuất lại video ở 24, 25, 30 hoặc 60 khung/giây.")
     if info["frames"] > MAX_FRAMES:
         raise UserError(f"Video dài {info['seconds']:.0f} giây. Bokin FX dành cho video loop ngắn "
                         f"(tối đa {MAX_FRAMES // 24} giây ở 24 khung/giây).")
@@ -227,16 +239,17 @@ def replace_video(project, upload, original_name):
                 abs(info["w"] / info["h"] - old["w"] / old["h"]) > 0.01:
             notes.append("Video mới có khung hình khác tỉ lệ: các vùng đã vẽ bị kéo giãn theo. Hãy kiểm tra lại.")
         still = os.path.join(path, "still.png")
-        if os.path.exists(still) and fresh["still"].get("source") == "image":
+        if os.path.exists(still):  # the original picture (also when a frame is used now: it may be chosen again)
+            image = fresh["still"].get("source") == "image"
             source = os.path.join(path, STILL_SOURCE)
-            if (info["w"], info["h"]) != (old["w"], old["h"]):  # the original picture, fitted to the new size
-                if not os.path.exists(source):  # kept since version 1.0.10 only: the old fitted copy instead
+            if (info["w"], info["h"]) != (old["w"], old["h"]):  # fitted to the new size
+                if not os.path.exists(source):  # kept since version 1.0.11 only: the old fitted copy instead
                     source = still
-                    if info["w"] > old["w"] or info["h"] > old["h"]:
+                    if image and (info["w"] > old["w"] or info["h"] > old["h"]):
                         notes.append("Ảnh gốc của vùng đứng yên đã được phóng to theo video mới nên kém nét hơn. "
                                      "Hãy chọn lại ảnh gốc.")
                 fresh["still"]["warning"] = _fit_still(path, source, info)
-            else:
+            elif image:
                 with Image.open(still) as im:
                     fresh["still"]["warning"] = _still_warning(path, im.convert("RGB"), info)
         fresh["source_name"] = os.path.basename(original_name)[:200]
@@ -277,7 +290,8 @@ def _layer_from_page(raw, old, project, tracks):
              "track": track, "start": start, "end": _int(raw.get("end"), start + 1, most, most),
              "fade_in": _num(raw.get("fade_in"), 0, timeline.MAX_FADE, 0),
              "fade_out": _num(raw.get("fade_out"), 0, timeline.MAX_FADE, 0),
-             "skip": _num(raw.get("skip"), 0, 36000, 0, None)}  # exact: the two halves of a cut clip must meet
+             "skip": _num(raw.get("skip"), 0, 36000, 0, None),  # exact: the two halves of a cut clip must meet
+             "need": _num(raw.get("need"), 0, 36000, 0, None)}  # the first half: as long a run as the whole clip
     if kind == "file":
         before = old.get("file") if old and old.get("kind") == "file" else None
         lib = raw.get("lib")  # the page names library items by id only, never files
@@ -287,9 +301,11 @@ def _layer_from_page(raw, old, project, tracks):
         else:
             try:
                 item = library.load(lib)
+                layer["file"] = {"lib": item["id"], "name": item["name"], "info": item["info"]}
             except library.LibraryError as e:
-                raise UserError(str(e)) from e
-            layer["file"] = {"lib": item["id"], "name": item["name"], "info": item["info"]}
+                if not (isinstance(lib, str) and library.ITEM_ID.match(lib)):
+                    raise UserError(str(e)) from e
+                layer["file"] = {"lib": lib, "name": name, "info": None}  # deleted from the library since: draws nothing
     return layer
 
 
@@ -331,7 +347,7 @@ def apply(project, data):
     with LOCK:
         project = load(project["id"])  # the newest copy: uploads and previews may have saved since it was read
         if "name" in data:
-            project["name"] = clean_name(data["name"], project["name"])
+            project["name"] = clean_title(data["name"], project["name"])
         if "length" in data:
             if data["length"] not in timeline.LENGTHS:
                 raise UserError("Độ dài video không hợp lệ.")
@@ -532,7 +548,7 @@ def _still_warning(path, fitted, info):
 def _fit_still(path, source, info):
     """still.png: the picture `source` fitted (cover, centred) to the video's size. Returns the warning, if any."""
     try:
-        with Image.open(source) as im:
+        with overlay.open_picture(source) as im:
             if im.width * im.height > overlay.MAX_IMAGE_PIXELS:
                 raise UserError("Ảnh quá lớn.")
             im = ImageOps.exif_transpose(im).convert("RGB")
@@ -541,24 +557,24 @@ def _fit_still(path, source, info):
         raise
     except Exception as e:  # noqa: BLE001
         raise UserError("Không đọc được ảnh này. Hãy chọn ảnh PNG hoặc JPG.") from e
+    warning = _still_warning(path, fitted, info)  # before anything is written: a failure leaves the old picture
     still = os.path.join(path, "still.png")
     tmp = still + ".tmp.png"
     fitted.save(tmp, compress_level=3)
     replace(tmp, still)
-    return _still_warning(path, fitted, info)
+    return warning
 
 
 def set_still_image(project, upload, original_name):
     """The original picture for the still areas: fitted (cover, centred) to the video's size, and kept as it was
     chosen (a new video of another size gets it fitted again). Warns when it does not look like the video's own
     frames."""
-    info = project["video"]
     path = os.path.join(paths.projects_dir(), project["id"])
-    warning = _fit_still(path, upload, info)
-    _remove(os.path.join(path, STILL_SOURCE))
-    shutil.move(upload, os.path.join(path, STILL_SOURCE))
-    with LOCK:
+    with LOCK:  # fitted to the project's video as it is now (it may have been replaced during the upload)
         fresh = load(project["id"])
+        warning = _fit_still(path, upload, fresh["video"])
+        _remove(os.path.join(path, STILL_SOURCE))
+        shutil.move(upload, os.path.join(path, STILL_SOURCE))
         fresh["still"].update({"source": "image", "image_name": os.path.basename(original_name)[:200],
                                "warning": warning})
         return save(fresh)
@@ -572,5 +588,5 @@ def set_proxy(pid, name, source):
         if fresh["video"]["file"] != source:
             _remove(os.path.join(paths.projects_dir(), pid, name))
             return fresh
-        fresh["proxy"] = name
+        fresh["proxy"], fresh["proxy_v"] = name, video.PROXY_V
         return save(fresh, bump=False)

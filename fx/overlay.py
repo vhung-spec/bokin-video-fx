@@ -17,6 +17,7 @@ from . import video
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 VIDEO_TYPES = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v", ".gif"}
 MAX_IMAGE_PIXELS = 40_000_000
+PICTURE_FORMATS = ("PNG", "JPEG", "WEBP", "BMP")  # IMAGE_TYPES; a phone's JPEG may open as MPO, which is fine
 
 BLENDS = [("normal", "Bình thường (Normal)"), ("screen", "Screen (hiệu ứng trên nền đen)"),
           ("add", "Add (cộng sáng)"), ("multiply", "Multiply (làm tối)")]
@@ -44,11 +45,16 @@ def is_video(name):
     return os.path.splitext(name)[1].lower() in VIDEO_TYPES
 
 
+def open_picture(path):
+    """An uploaded picture, opened only by Pillow's own decoders of these formats (never EPS/Ghostscript)."""
+    return Image.open(path, formats=PICTURE_FORMATS)
+
+
 def probe_file(path):
     """What a file to lay over the loop is: like video.probe, with image=True for a picture."""
     if is_image(path):
         try:
-            with Image.open(path) as im:
+            with open_picture(path) as im:
                 if im.width * im.height > MAX_IMAGE_PIXELS:
                     raise video.VideoError("Ảnh quá lớn.")
                 im = ImageOps.exif_transpose(im)
@@ -123,8 +129,8 @@ class Cursors:
     """Frames of a video by number, read in order by a few ffmpeg readers (no file of decoded frames):
     a loop needs a run of frames from one place, and near the end another run from the start."""
 
-    def __init__(self, path, info, size, alpha):
-        self.path, self.info, self.size, self.alpha = path, info, size, alpha
+    def __init__(self, path, info, size, alpha, src=None):
+        self.path, self.info, self.size, self.alpha, self.src = path, info, size, alpha, src
         self.open = []  # [reader, iterator, next frame number, last (number, frame)]
 
     def get(self, i):
@@ -139,7 +145,7 @@ class Cursors:
                 self.open.pop(0)[0].close()
             # by frame number, as probe() counted them: seeking by time misses when streams start at different
             # times, frames are uneven (GIFs, phone videos) or the file's clock does not start at 0
-            reader = video.Frames(self.path, self.info, self.size, alpha=self.alpha, start=i)
+            reader = video.Frames(self.path, self.info, self.size, alpha=self.alpha, start=i, src=self.src)
             c = [reader, iter(reader), i, None]
             self.open.append(c)
         while c[2] <= i:
@@ -187,12 +193,21 @@ class Overlay:
         self.still, self.cursors = None, None
         if self.empty:
             return
-        if info.get("image"):
-            with Image.open(path) as im:
-                im = ImageOps.exif_transpose(im).convert("RGBA").resize((sw, sh), Image.Resampling.LANCZOS)
-                self.still = im if self.whole else im.crop(self.crop)
-        else:
-            self.cursors = Cursors(path, info, (sw, sh), bool(info.get("alpha")))
+        kx, ky = sw / info["w"], sh / info["h"]
+        cx0, cy0, cx1, cy1 = self.crop
+        if info.get("image"):  # only the part inside the frame is made (a thin strip at "cover" is huge whole)
+            with open_picture(path) as im:
+                im = ImageOps.exif_transpose(im).convert("RGBA")
+                self.still = im.resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS,
+                                       box=(cx0 / kx, cy0 / ky, min(cx1 / kx, im.width), min(cy1 / ky, im.height)))
+        else:  # ffmpeg cuts the source pixels under that part first, then scales only them
+            sx0, sy0 = math.floor(cx0 / kx), math.floor(cy0 / ky)
+            sx1, sy1 = min(info["w"], math.ceil(cx1 / kx)), min(info["h"], math.ceil(cy1 / ky))
+            px0, py0 = round(sx0 * kx), round(sy0 * ky)
+            size = (round(sx1 * kx) - px0, round(sy1 * ky) - py0)
+            self.crop = (cx0 - px0, cy0 - py0, cx1 - px0, cy1 - py0)
+            self.whole = self.crop == (0, 0, *size)
+            self.cursors = Cursors(path, info, size, bool(info.get("alpha")), (sx0, sy0, sx1, sy1))
 
     def picture(self, t):
         """The file's picture for frame t (RGB, or RGBA with transparency), cut to the part inside the frame."""
@@ -204,7 +219,7 @@ class Overlay:
         if sp is None:
             parts = timeline(t, self.fps, self.frames, self.info["seconds"], self.p["start"], self.p["fade"])
         else:  # from the clip's own start (plus what was trimmed off its head), for as long as it shows
-            parts = playing((t - sp.start) / self.fps + sp.skip, self.fps, (sp.end - sp.start) / self.fps + sp.skip,
+            parts = playing((t - sp.start) / self.fps + sp.skip, self.fps, sp.need,
                             self.info["seconds"], self.p["start"], self.p["fade"])
         for when, weight in parts:
             frame = Image.fromarray(self.cursors.get(int(when * fps_in + 1e-6)))

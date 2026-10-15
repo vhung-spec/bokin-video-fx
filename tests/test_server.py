@@ -49,7 +49,10 @@ class Server(unittest.TestCase):
         return request(self.base + path, data, h, "POST")
 
     def test_only_its_own_page(self):
-        self.assertEqual(request(self.base + "/")[0], 200)
+        code, _, headers = request(self.base + "/")
+        self.assertEqual(code, 200)
+        self.assertEqual(headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(headers.get("Content-Security-Policy"), "frame-ancestors 'none'")
         self.assertEqual(request(self.base + "/api/state", headers={"Host": "evil.example"})[0], 403)
         self.assertEqual(request(self.base + "/api/export", b"{}", {"Content-Type": "application/json"}, "POST")[0], 403)
         self.assertEqual(self.post("/api/open", {})[0], 400)  # not on a server

@@ -191,15 +191,19 @@ class Jobs:
         return True
 
     def _fxclip(self, job):
-        pid, lid = job["project"], job["layer"]
+        pid = job["project"]
         try:
             project = projects.load(pid)
         except projects.UserError:
             return False  # deleted meanwhile
-        if not any(lay["id"] == lid for lay in project["layers"]):
+        # a clip that still wants this job's preview clip (the one it was asked for may have other settings now)
+        lay = next((lay for lay in project["layers"]
+                    if lay["kind"] != "file" and engine.fx_clip_name(project, lay) == job["name"]), None)
+        if lay is None:
             return False
         folder = projects.folder(pid)
-        name = engine.fx_clip(folder, project, lid, cancelled=lambda: job["cancel"], progress=self._progress(job))
+        name = engine.fx_clip(folder, project, lay["id"], cancelled=lambda: job["cancel"],
+                              progress=self._progress(job))
         if name is None:
             return False
         job["output"] = name

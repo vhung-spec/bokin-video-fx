@@ -4,7 +4,7 @@ import unittest
 from PIL import Image
 
 from tests import helpers
-from fx import library, projects, video
+from fx import engine, library, projects, video
 
 
 class Library(unittest.TestCase):
@@ -59,10 +59,26 @@ class Library(unittest.TestCase):
         for iid in ("../x", "", None, "0123456789/"):
             with self.assertRaises(library.LibraryError):
                 library.folder(iid)
-        with self.assertRaises(projects.UserError):  # a clip naming an item that is not there
-            src = helpers.make_loop(os.path.join(helpers.ROOT, "b2.mp4"), 160, 90, 12)
-            projects.apply(projects.create(src, "b2.mp4"),
-                           {"layers": [{"id": "filezz", "kind": "file", "lib": "0123456789"}]})
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "b2.mp4"), 160, 90, 12)
+        project = projects.create(src, "b2.mp4")
+        with self.assertRaises(projects.UserError):  # not an item's id at all
+            projects.apply(project, {"layers": [{"id": "filezz", "kind": "file", "lib": "../x"}]})
+        # an item deleted since (the clip came back with undo): the clip stays, drawing nothing, and saves go on
+        saved = projects.apply(project, {"layers": [{"id": "filezz", "kind": "file", "lib": "0123456789"}]})
+        self.assertIsNone(saved["layers"][0]["file"]["info"])
+        self.assertEqual(engine.clip_file(projects.folder(project["id"]), saved["layers"][0]), (None, None))
+
+    def test_light_copies_of_an_older_version_are_made_again(self):
+        """A light copy made before video.PROXY_V (timed or coloured unlike the renderer) counts as missing."""
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "oldcopy.mp4"), 160, 90, 12)
+        item = library.add(src, "oldcopy.mp4")
+        item.update(proxy="proxy.mp4")
+        item.pop("proxy_v", None)
+        library.save(item)
+        self.assertIsNone(library.load(item["id"])["proxy"])
+        item.update(proxy="proxy.mp4", proxy_v=video.PROXY_V)
+        library.save(item)
+        self.assertEqual(library.load(item["id"])["proxy"], "proxy.mp4")
 
 
 if __name__ == "__main__":

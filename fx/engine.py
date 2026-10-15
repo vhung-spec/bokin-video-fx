@@ -20,6 +20,7 @@ import collections
 import concurrent.futures
 import copy
 import hashlib
+import io
 import json
 import multiprocessing
 import os
@@ -40,10 +41,15 @@ def mask_path(folder, name):
     return os.path.join(folder, "masks", name + ".png")
 
 
-def mask_image(folder, name, size, feather, video_h):
-    """A mask as an "L" image at `size`, softened by `feather` px of the full video; None if none."""
-    path = mask_path(folder, name)
-    if not os.path.exists(path):
+def mask_image(folder, name, size, feather, video_h, saved=None):
+    """A mask as an "L" image at `size`, softened by `feather` px of the full video; None if none. `saved`: the
+    masks as read before a render was handed out (found_files)."""
+    if saved is not None:
+        path = saved.get(name) and io.BytesIO(saved[name])
+    else:
+        path = mask_path(folder, name)
+        path = path if os.path.exists(path) else None
+    if not path:
         return None
     with Image.open(path) as im:
         im.load()
@@ -71,7 +77,11 @@ def still_picture(folder, project, size):
     info = project["video"]
     still = project.get("still") or {}
     path = os.path.join(folder, "still.png")
-    if still.get("source") == "image" and os.path.exists(path):
+    if "_still" in project:  # read before a render was handed out (found_files)
+        path = project["_still"] and io.BytesIO(project["_still"])
+    elif not os.path.exists(path):
+        path = None
+    if still.get("source") == "image" and path:
         with Image.open(path) as im:
             im = im.convert("RGB")
             if im.size != tuple(size):
@@ -126,14 +136,14 @@ class Scene:
         self.w, self.h = size
         self.frames = period or project_frames(project)
         fps = video.fps_value(info["fps"])
-        vh = info["h"]
-        self.freeze = mask_image(folder, "freeze", size, project.get("freeze", {}).get("feather", 0), vh)
+        vh, saved = info["h"], project.get("_masks")
+        self.freeze = mask_image(folder, "freeze", size, project.get("freeze", {}).get("feather", 0), vh, saved)
         self.freeze_box = self.freeze.getbbox() if self.freeze is not None else None
         if self.freeze_box:
             box = self.freeze_box
             self.still = still_picture(folder, project, size).crop(box)
             self.freeze = self.freeze.crop(box)
-        fg = mask_image(folder, "fg", size, project.get("fg", {}).get("feather", 0), vh)
+        fg = mask_image(folder, "fg", size, project.get("fg", {}).get("feather", 0), vh, saved)
         if fg is not None and fg.getbbox() is None:
             fg = None
         self.layers = []  # (drawer, area as float or None (built-in effects), timeline.Span)
@@ -142,7 +152,7 @@ class Scene:
                 span = timeline.Span(layer, self.frames, fps)
                 if span.empty:
                     continue
-                area = mask_image(folder, layer["id"], size, layer.get("feather", 0), vh)
+                area = mask_image(folder, layer["id"], size, layer.get("feather", 0), vh, saved)
                 if layer.get("behind") and fg is not None:
                     hidden = ImageChops.invert(fg)
                     area = hidden if area is None else ImageChops.multiply(area, hidden)
@@ -340,13 +350,27 @@ def _stopped():
 
 def found_files(folder, project):
     """A copy of the project in which every outside-file clip names its file, found now: worker processes then
-    look nothing up (the library is found through the data folder, which they might see differently)."""
+    look nothing up (the library is found through the data folder, which they might see differently). It also
+    holds the masks and the still picture as they are now: an area painted or a clip deleted meanwhile changes
+    nothing in a render under way."""
     project = copy.deepcopy(project)
     for layer in project.get("layers", []):
         if layer["kind"] == "file":
             path, info = clip_file(folder, layer)
             layer["file"] = {"found": (path, info)} if path else {}
+    names = ["freeze", "fg"] + [layer["id"] for layer in project.get("layers", [])]
+    project["_masks"] = {name: _read(mask_path(folder, name)) for name in names}
+    image = (project.get("still") or {}).get("source") == "image"
+    project["_still"] = _read(os.path.join(folder, "still.png")) if image else None
     return project
+
+
+def _read(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read()
+    except OSError:
+        return None
 
 
 def render(folder, project, out_path, seconds=None, size=None, crf=16, preset="faster", progress=None,
