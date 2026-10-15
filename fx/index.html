@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bokin FX</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317202e'/%3E%3Cg stroke='%23cfe6ff' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #14161b; --panel: #1d2027; --panel2: #252932; --line: #333845; --text: #e8eaef; --dim: #9aa2b1;
+  --accent: #4c9dff; --accent2: #2f7de0; --good: #3ddc84; --warn: #ffb547; --bad: #ff6b6b;
+  --freeze: #3d8bff; --fg: #ff9a3d; --area: #3ddc84;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font: 14px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; }
+button, select, input { font: inherit; color: inherit; }
+button { background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 12px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: #4a5163; background: #2c313c; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+button.on { background: #2a3f5e; border-color: var(--accent); }
+button.danger { color: var(--bad); }
+button.small { padding: 3px 8px; font-size: 13px; }
+select, input[type=text], input[type=number] { background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=color] { width: 44px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: none; padding: 0 2px; }
+.app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
+header { display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+header .logo { font-weight: 700; font-size: 17px; letter-spacing: .3px; display: flex; align-items: center; gap: 8px; }
+header .logo svg { width: 24px; height: 24px; }
+header .grow { flex: 1; }
+header .ver { color: var(--dim); font-size: 12px; }
+.update { background: #1e3a24; border: 1px solid #2f6b3d; color: #bff0cc; border-radius: 7px; padding: 4px 10px; display: none; gap: 8px; align-items: center; }
+.main { display: grid; grid-template-columns: 1fr 360px; min-height: 0; }
+.work { display: grid; grid-template-rows: auto 1fr auto auto; min-width: 0; min-height: 0; }
+.tabs { display: flex; gap: 6px; padding: 8px 12px 0; }
+.tabs button { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.stage { position: relative; overflow: hidden; background: #0d0e11; margin: 0 12px; border: 1px solid var(--line); border-radius: 0 8px 8px 8px; min-height: 0; }
+.board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.board > * { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; }
+.board canvas { touch-action: none; }
+.cursor { position: absolute; border: 1.5px solid #fff; border-radius: 50%; pointer-events: none; mix-blend-mode: difference; display: none; }
+.empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 20px; text-align: center; color: var(--dim); }
+.empty .drop { border: 2px dashed #3a4050; border-radius: 14px; padding: 34px 50px; max-width: 560px; }
+.empty .drop b { color: var(--text); font-size: 18px; display: block; margin-bottom: 6px; }
+.recent { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 900px; }
+.recent .card { width: 190px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; text-align: left; }
+.recent .card:hover { border-color: var(--accent); }
+.recent .card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; background: #000; }
+.recent .card div { padding: 6px 9px; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent .card small { color: var(--dim); }
+.timebar { display: flex; align-items: center; gap: 10px; padding: 8px 14px 4px; }
+.timebar input { flex: 1; }
+.timebar .t { color: var(--dim); font-variant-numeric: tabular-nums; min-width: 120px; text-align: right; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 14px 10px; min-height: 46px; }
+.tools .group { display: flex; gap: 4px; align-items: center; }
+.tools label { color: var(--dim); }
+.tools input[type=range] { width: 130px; }
+.tools .hint { color: var(--dim); font-size: 12.5px; }
+.side { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; min-height: 0; }
+.side h3 { margin: 0; padding: 12px 14px 6px; font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: var(--dim); }
+.layers { padding: 0 8px; }
+.layer { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+.layer:hover { background: var(--panel2); }
+.layer.sel { background: #26324a; border-color: #3b5a8a; }
+.layer .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.layer .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layer .name small { color: var(--dim); margin-left: 6px; }
+.layer .eye { background: none; border: none; padding: 2px 4px; color: var(--dim); font-size: 15px; }
+.layer .eye.off { opacity: .35; }
+.sep { height: 1px; background: var(--line); margin: 8px 14px; }
+.adds { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 10px; }
+.props { padding: 0 14px 18px; }
+.props .row { margin: 10px 0; }
+.props .row .lab { display: flex; justify-content: space-between; color: var(--dim); font-size: 13px; margin-bottom: 2px; }
+.props .row .lab b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.props .note { color: var(--dim); font-size: 12.5px; margin: 8px 0; }
+.props .warn { color: var(--warn); font-size: 13px; margin: 8px 0; }
+.props .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.props .check { display: flex; gap: 8px; align-items: center; margin: 10px 0; cursor: pointer; }
+.props .file { background: var(--panel2); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin: 8px 0; word-break: break-all; }
+footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 14px; background: var(--panel); border-top: 1px solid var(--line); }
+footer .jobs { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 260px; }
+.job { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.job .bar { flex: 1; height: 7px; background: #2a2e38; border-radius: 4px; overflow: hidden; max-width: 340px; }
+.job .bar i { display: block; height: 100%; background: var(--accent); width: 0; }
+.job.done .bar i { background: var(--good); }
+.job.error { color: var(--bad); }
+.job .what { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
+.toast { position: fixed; left: 50%; bottom: 74px; transform: translateX(-50%); background: #2b303b; border: 1px solid var(--line); border-radius: 9px; padding: 10px 16px; display: none; max-width: 80vw; z-index: 20; box-shadow: 0 8px 30px #0008; }
+.toast.bad { border-color: #7a3434; color: #ffd2d2; }
+.offline { position: fixed; inset: 0; background: #000b; display: none; align-items: center; justify-content: center; z-index: 30; font-size: 18px; text-align: center; padding: 30px; }
+.busy { position: absolute; right: 10px; top: 10px; background: #000a; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--dim); display: none; }
+.modal { position: fixed; inset: 0; background: #000c; display: none; align-items: center; justify-content: center; z-index: 25; }
+.modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; max-width: 92vw; }
+.modal video { max-width: 88vw; max-height: 76vh; display: block; background: #000; }
+.modal .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+.menu { position: absolute; z-index: 15; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; min-width: 300px; max-height: 60vh; overflow: auto; display: none; box-shadow: 0 10px 30px #0009; }
+.menu .item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; cursor: pointer; }
+.menu .item:hover { background: var(--panel2); }
+.menu .item span { flex: 1; }
+.menu .item small { color: var(--dim); }
+kbd { background: #2a2f3a; border: 1px solid #3a4050; border-radius: 4px; padding: 0 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2a3a55"/><g stroke="#cfe6ff" stroke-width="4" stroke-linecap="round"><path d="M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20"/></g></svg>Bokin FX</div>
+    <button id="projBtn" title="Các dự án đã mở">Dự án ▾</button>
+    <span id="projName" style="color:var(--dim)"></span>
+    <button class="primary" id="openBtn">+ Mở video…</button>
+    <div class="grow"></div>
+    <div class="update" id="update"><span id="updateText"></span><button class="small primary" id="updateBtn">Cập nhật ngay</button></div>
+    <span class="ver" id="ver"></span>
+  </header>
+  <div class="main">
+    <div class="work">
+      <div class="tabs" id="tabs">
+        <button data-view="paint">Vẽ vùng</button>
+        <button data-view="look">Xem kết quả</button>
+        <button data-view="video">Video xem thử</button>
+      </div>
+      <div class="stage" id="stage">
+        <div class="board" id="board">
+          <canvas id="paint"></canvas>
+          <img id="look" alt="">
+          <video id="vid" loop muted playsinline controls></video>
+        </div>
+        <div class="cursor" id="cursor"></div>
+        <div class="busy" id="busy">Đang vẽ…</div>
+        <div class="empty" id="empty">
+          <div class="drop"><b>Kéo video loop vào đây</b>hoặc bấm <b style="display:inline;font-size:inherit">+ Mở video…</b> ở trên.<br>Thường là video loop 6 giây (1920×1080, 24 khung/giây).</div>
+          <div class="recent" id="recent"></div>
+        </div>
+      </div>
+      <div class="timebar" id="timebar">
+        <button class="small" id="prevBtn" title="Khung trước (←)">◀</button>
+        <input type="range" id="time" min="0" max="0" value="0">
+        <button class="small" id="nextBtn" title="Khung sau (→)">▶</button>
+        <span class="t" id="tlabel"></span>
+      </div>
+      <div class="tools" id="tools"></div>
+    </div>
+    <aside class="side" id="side"></aside>
+  </div>
+  <footer>
+    <button id="previewBtn" disabled>▶ Làm video xem thử</button>
+    <select id="length" disabled></select>
+    <button class="primary" id="exportBtn" disabled>Xuất video</button>
+    <button id="folderBtn">Mở thư mục video</button>
+    <div class="jobs" id="jobs"></div>
+  </footer>
+</div>
+<input type="file" id="fileVideo" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
+<input type="file" id="fileStill" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden>
+<input type="file" id="fileLayer" accept="video/*,image/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.gif,.png,.jpg,.jpeg,.webp,.bmp" hidden>
+<div class="menu" id="menu"></div>
+<div class="toast" id="toast"></div>
+<div class="offline" id="offline"><div>Mất kết nối với app Bokin FX.<br><small>Nếu đã đóng app, hãy mở lại từ menu Start.</small></div></div>
+<div class="modal" id="modal"><div class="box"><div class="bar"><b id="modalTitle"></b><button class="small" id="modalClose">Đóng</button></div><video id="modalVideo" controls loop autoplay></video></div></div>
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const COLORS = {freeze: "#3d8bff", fg: "#ff9a3d", area: "#3ddc84"};
+const KIND_ICON = {snow: "❄", leaves: "🍂", rain: "☔", glow: "✨", file: "🎞"};
+
+// --- talking to the app ----------------------------------------------------------------------------------
+async function call(method, path, body, raw) {
+  const opt = {method, headers: {}};
+  if (method === "POST") {
+    opt.headers["X-Bokin"] = "1";
+    if (raw !== undefined) opt.body = raw;
+    else { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body || {}); }
+  }
+  let r;
+  try { r = await fetch(path, opt); } catch (e) { throw new Error("Không kết nối được với app."); }
+  const ct = r.headers.get("Content-Type") || "";
+  const data = ct.includes("json") ? await r.json() : await r.blob();
+  if (!r.ok) throw new Error((data && data.error) || ("Lỗi " + r.status));
+  return data;
+}
+const get = path => call("GET", path);
+const post = (path, body) => call("POST", path, body);
+
+function upload(path, file, label) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", path);
+    x.setRequestHeader("X-Bokin", "1");
+    x.setRequestHeader("Content-Type", "application/octet-stream");
+    x.upload.onprogress = e => { if (e.lengthComputable) toast(`${label}: ${Math.round(100 * e.loaded / e.total)}%`, false, 60000); };
+    x.onload = () => {
+      let data = {};
+      try { data = JSON.parse(x.responseText); } catch (e) { /* not json */ }
+      if (x.status >= 200 && x.status < 300) resolve(data); else reject(new Error(data.error || ("Lỗi " + x.status)));
+    };
+    x.onerror = () => reject(new Error("Không gửi được file cho app."));
+    x.send(file);
+  });
+}
+
+let toastTimer = 0;
+function toast(text, bad = false, ms = 4000) {
+  const t = $("#toast");
+  t.textContent = text; t.className = "toast" + (bad ? " bad" : ""); t.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.display = "none", ms);
+}
+const fail = e => toast(e.message || String(e), true, 7000);
+
+// --- state ---------------------------------------------------------------------------------------------
+const S = {schema: null, lengths: [], state: null, project: null, sel: "freeze", view: "look", t: 0,
+  tool: "brush", mode: "add", size: 60, zoom: 1, panX: 0, panY: 0, masks: {}, lookSeq: 0, frameSeq: 0,
+  saveTimer: 0, saving: false, poly: [], drawing: false, frameImg: new Image(), jobsSeen: {}};
+
+function kindLabel(kind) { return (S.schema && S.schema.kinds[kind] || {}).label || kind; }
+function layerById(id) { return S.project && S.project.layers.find(l => l.id === id); }
+function hasMask(name) { return name === "freeze" || name === "fg" || !!layerById(name); }
+function fmtTime(s) { const m = Math.floor(s / 60); return m ? `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}` : `${(+s).toFixed(1)} giây`; }
+function lengthLabel(sec) {
+  if (!sec) return `1 vòng (${S.project ? S.project.video.seconds.toFixed(1).replace(/\.0$/, "") : 6} giây)`;
+  if (sec < 60) return `${sec} giây`;
+  if (sec < 3600) return `${sec / 60} phút`;
+  return `${sec / 3600} giờ`;
+}
+function newId() { return Math.random().toString(36).slice(2, 10).padEnd(8, "0"); }
+
+// --- projects ------------------------------------------------------------------------------------------
+async function openProject(id) {
+  try {
+    const p = await get("/api/project?id=" + id);
+    S.project = p; S.masks = {}; S.poly = [];
+    S.t = Math.min(S.t, p.video.frames - 1);
+    if (!S.sel || (S.sel !== "freeze" && S.sel !== "fg" && !layerById(S.sel))) S.sel = p.layers.length ? p.layers[p.layers.length - 1].id : "freeze";
+    localStorage.setItem("fx.last", id);
+    setupBoard();
+    await Promise.all(["freeze", "fg", ...p.layers.map(l => l.id)].map(loadMask));
+    renderAll();
+    loadFrame(); refreshLook();
+    if (S.view === "video") showPreview();
+  } catch (e) { fail(e); }
+}
+
+async function newProjectFrom(file) {
+  if (!file) return;
+  try {
+    const p = await upload(`/api/upload?kind=video&name=${encodeURIComponent(file.name)}`, file, "Đang mở video");
+    toast(`Đã mở "${p.name}": ${p.video.w}×${p.video.h}, ${p.video.seconds} giây, ${p.video.frames} khung.`);
+    S.sel = "freeze"; S.t = 0; S.view = "look";
+    await openProject(p.id);
+    pollSoon();
+  } catch (e) { fail(e); }
+}
+
+function scheduleSave() {
+  clearTimeout(S.saveTimer);
+  S.saveTimer = setTimeout(saveNow, 350);
+}
+async function saveNow() {
+  clearTimeout(S.saveTimer);
+  const p = S.project; if (!p) return;
+  S.saving = true;
+  try {
+    const fresh = await post("/api/save", {id: p.id, name: p.name, still: p.still, freeze: p.freeze, fg: p.fg, layers: p.layers});
+    if (S.project && S.project.id === fresh.id) {
+      S.project.rev = fresh.rev; S.project.still = fresh.still; S.project.masks = fresh.masks;
+      for (const l of fresh.layers) { const mine = layerById(l.id); if (mine) { mine.params = l.params; if (l.file) mine.file = l.file; } }
+    }
+    refreshLook();
+  } catch (e) { fail(e); } finally { S.saving = false; }
+}
+
+// --- masks ---------------------------------------------------------------------------------------------
+function blankMask(full) {
+  const c = document.createElement("canvas");
+  c.width = S.project.mask_w; c.height = S.project.mask_h;
+  if (full) { const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); }
+  return c;
+}
+async function loadMask(name) {
+  const p = S.project;
+  const full = name !== "freeze" && name !== "fg";
+  const m = {canvas: blankMask(full), undo: [], redo: [], timer: 0};
+  S.masks[name] = m;
+  if (!p.masks.includes(name)) return;
+  try {
+    const blob = await get(`/api/mask?id=${p.id}&name=${name}&r=${Date.now()}`);
+    const img = await createImageBitmap(blob);
+    const g = m.canvas.getContext("2d", {willReadFrequently: true});
+    g.clearRect(0, 0, m.canvas.width, m.canvas.height);
+    g.drawImage(img, 0, 0, m.canvas.width, m.canvas.height);
+    const d = g.getImageData(0, 0, m.canvas.width, m.canvas.height), a = d.data;
+    for (let i = 0; i < a.length; i += 4) { const v = a[i]; a[i] = a[i + 1] = a[i + 2] = 255; a[i + 3] = v; }
+    g.putImageData(d, 0, 0);
+  } catch (e) { /* no mask yet */ }
+}
+function maskKind(name) { return name === "freeze" ? "freeze" : name === "fg" ? "fg" : "area"; }
+function remember(m) {
+  const g = m.canvas.getContext("2d", {willReadFrequently: true});
+  m.undo.push(g.getImageData(0, 0, m.canvas.width, m.canvas.height));
+  if (m.undo.length > 15) m.undo.shift();
+  m.redo = [];
+}
+function undo(redo) {
+  const m = S.masks[S.sel]; if (!m) return;
+  const from = redo ? m.redo : m.undo, to = redo ? m.undo : m.redo;
+  if (!from.length) return;
+  const g = m.canvas.getContext("2d", {willReadFrequently: true});
+  to.push(g.getImageData(0, 0, m.canvas.width, m.canvas.height));
+  g.putImageData(from.pop(), 0, 0);
+  maskChanged(S.sel);
+}
+function maskChanged(name) {
+  drawBoard();
+  const m = S.masks[name];
+  clearTimeout(m.timer);
+  m.timer = setTimeout(() => sendMask(name), 500);
+}
+async function sendMask(name) {
+  const m = S.masks[name], p = S.project; if (!m || !p) return;
+  const g = m.canvas.getContext("2d", {willReadFrequently: true});
+  const a = g.getImageData(0, 0, m.canvas.width, m.canvas.height).data;
+  let any = false, all = true;
+  for (let i = 3; i < a.length; i += 4) { if (a[i]) any = true; if (a[i] !== 255) all = false; if (any && !all) break; }
+  const full = maskKind(name) === "area";
+  let body = new Blob([]);
+  if (!(full ? all : !any)) body = await new Promise(r => m.canvas.toBlob(r, "image/png"));
+  try {
+    const r = await call("POST", `/api/mask?id=${p.id}&name=${name}`, null, body);
+    if (S.project !== p) return;
+    p.rev = r.rev;
+    const has = body.size > 0, list = p.masks.filter(n => n !== name);
+    if (has) list.push(name);
+    p.masks = list;
+    if (!document.activeElement || !document.activeElement.closest("#side")) renderSide();  // not while typing there
+    refreshLook();
+  } catch (e) { fail(e); }
+}
+function fillMask(how) {
+  const m = S.masks[S.sel]; if (!m) return;
+  remember(m);
+  const g = m.canvas.getContext("2d");
+  g.save();
+  if (how === "all") { g.globalCompositeOperation = "source-over"; g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height); }
+  else if (how === "none") g.clearRect(0, 0, m.canvas.width, m.canvas.height);
+  else { g.globalCompositeOperation = "xor"; g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height); }
+  g.restore();
+  maskChanged(S.sel);
+}
+
+// --- the board (painting canvas, rendered frame, preview video) -----------------------------------------
+const paint = $("#paint"), look = $("#look"), vid = $("#vid"), board = $("#board"), stage = $("#stage");
+const tint = document.createElement("canvas");
+function setupBoard() {
+  const p = S.project;
+  paint.width = tint.width = p.mask_w; paint.height = tint.height = p.mask_h;
+  S.zoom = 1; S.panX = 0; S.panY = 0;
+  layoutBoard();
+}
+function layoutBoard() {
+  if (!S.project) return;
+  const r = stage.getBoundingClientRect(), ar = S.project.video.w / S.project.video.h;
+  let w = r.width - 16, h = w / ar;
+  if (h > r.height - 16) { h = r.height - 16; w = h * ar; }
+  board.style.width = w + "px"; board.style.height = h + "px";
+  const x = (r.width - w) / 2 + S.panX, y = (r.height - h) / 2 + S.panY;
+  board.style.transform = `translate(${x}px, ${y}px) scale(${S.zoom})`;
+}
+let drawQueued = false;
+function drawBoard() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => {
+    drawQueued = false;
+    if (!S.project) return;
+    const g = paint.getContext("2d");
+    g.clearRect(0, 0, paint.width, paint.height);
+    if (S.frameImg.complete && S.frameImg.naturalWidth) g.drawImage(S.frameImg, 0, 0, paint.width, paint.height);
+    const m = S.masks[S.sel];
+    if (m) {
+      const tg = tint.getContext("2d");
+      tg.globalCompositeOperation = "source-over";
+      tg.clearRect(0, 0, tint.width, tint.height);
+      tg.drawImage(m.canvas, 0, 0);
+      tg.globalCompositeOperation = "source-in";
+      tg.fillStyle = COLORS[maskKind(S.sel)];
+      tg.fillRect(0, 0, tint.width, tint.height);
+      g.globalAlpha = 0.5; g.drawImage(tint, 0, 0); g.globalAlpha = 1;
+    }
+    if (S.poly.length) {
+      const k = paint.width / paint.getBoundingClientRect().width * S.zoom;
+      g.lineWidth = 2 * k; g.strokeStyle = S.mode === "add" ? "#fff" : "#ff6b6b"; g.setLineDash([6 * k, 4 * k]);
+      g.beginPath(); S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
+      if (S.hover) g.lineTo(S.hover[0], S.hover[1]);
+      g.stroke(); g.setLineDash([]);
+      g.fillStyle = "#fff";
+      for (const pt of S.poly) { g.beginPath(); g.arc(pt[0], pt[1], 3.5 * k, 0, 7); g.fill(); }
+    }
+  });
+}
+function loadFrame() {
+  const p = S.project; if (!p) return;
+  const seq = ++S.frameSeq;
+  const img = new Image();
+  img.onload = () => { if (seq === S.frameSeq) { S.frameImg = img; drawBoard(); } };
+  img.src = `/api/frame?id=${p.id}&t=${S.t}`;
+}
+let lookTimer = 0;
+function refreshLook() {
+  clearTimeout(lookTimer);
+  lookTimer = setTimeout(() => {
+    const p = S.project; if (!p || S.view !== "look") return;
+    const seq = ++S.lookSeq;
+    const w = Math.min(1920, Math.round(board.getBoundingClientRect().width * devicePixelRatio));
+    const img = new Image();
+    $("#busy").style.display = "block";
+    img.onload = () => { if (seq === S.lookSeq) { look.src = img.src; $("#busy").style.display = "none"; } };
+    img.onerror = async () => {
+      if (seq !== S.lookSeq) return;
+      $("#busy").style.display = "none";
+      try { await get(img.src); } catch (e) { fail(e); }
+    };
+    img.src = `/api/look?id=${p.id}&t=${S.t}&w=${w}&rev=${p.rev}`;
+  }, 120);
+}
+function showPreview() {
+  const p = S.project;
+  if (p && p.preview) {
+    const src = `/media/preview?id=${p.id}&name=${p.preview}`;
+    if (!vid.src.endsWith(src)) { vid.src = src; }
+    vid.play().catch(() => {});
+  } else { vid.removeAttribute("src"); vid.load(); }
+}
+
+function setView(v) {
+  S.view = v;
+  for (const b of $("#tabs").children) b.classList.toggle("on", b.dataset.view === v);
+  paint.style.display = v === "paint" ? "block" : "none";
+  look.style.display = v === "look" ? "block" : "none";
+  vid.style.display = v === "video" ? "block" : "none";
+  if (v !== "video") vid.pause();
+  if (v === "look") refreshLook();
+  if (v === "video") showPreview();
+  if (v === "paint") drawBoard();
+  $("#timebar").style.visibility = v === "video" || !S.project ? "hidden" : "visible";
+  renderTools();
+}
+
+// pointer: painting, polygons, zoom and pan
+function toMask(e) {
+  const r = paint.getBoundingClientRect();
+  return [(e.clientX - r.left) * paint.width / r.width, (e.clientY - r.top) * paint.height / r.height];
+}
+function screenScale() { return paint.getBoundingClientRect().width / paint.width; }
+function moveCursor(e) {
+  const c = $("#cursor");
+  if (S.view !== "paint" || S.tool !== "brush" || !S.masks[S.sel]) { c.style.display = "none"; return; }
+  const sr = stage.getBoundingClientRect(), d = S.size * screenScale();
+  c.style.display = "block"; c.style.width = c.style.height = d + "px";
+  c.style.left = (e.clientX - sr.left - d / 2) + "px"; c.style.top = (e.clientY - sr.top - d / 2) + "px";
+}
+function stroke(from, to) {
+  const m = S.masks[S.sel];
+  const g = m.canvas.getContext("2d");
+  g.save();
+  g.globalCompositeOperation = S.mode === "add" ? "source-over" : "destination-out";
+  g.strokeStyle = g.fillStyle = "#fff"; g.lineWidth = S.size; g.lineCap = g.lineJoin = "round";
+  g.beginPath(); g.moveTo(from[0], from[1]); g.lineTo(to[0], to[1]); g.stroke();
+  g.beginPath(); g.arc(to[0], to[1], S.size / 2, 0, 7); g.fill();
+  g.restore();
+  drawBoard();
+}
+function closePoly() {
+  const m = S.masks[S.sel];
+  if (!m || S.poly.length < 3) { S.poly = []; drawBoard(); return; }
+  remember(m);
+  const g = m.canvas.getContext("2d");
+  g.save();
+  g.globalCompositeOperation = S.mode === "add" ? "source-over" : "destination-out";
+  g.fillStyle = "#fff"; g.beginPath();
+  S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
+  g.closePath(); g.fill(); g.restore();
+  S.poly = [];
+  maskChanged(S.sel);
+}
+let pan = null, last = null;
+stage.addEventListener("pointerdown", e => {
+  if (!S.project) return;
+  if (e.button === 1 || e.button === 2 || (e.button === 0 && S.space)) {
+    pan = {x: e.clientX, y: e.clientY, px: S.panX, py: S.panY}; stage.setPointerCapture(e.pointerId); e.preventDefault(); return;
+  }
+  if (S.view !== "paint" || e.button !== 0 || !S.masks[S.sel]) return;
+  const pt = toMask(e);
+  if (S.tool === "brush") {
+    remember(S.masks[S.sel]); S.drawing = true; last = pt; stroke(pt, pt); stage.setPointerCapture(e.pointerId);
+  } else {
+    if (S.poly.length >= 3) {
+      const f = S.poly[0], d = Math.hypot(pt[0] - f[0], pt[1] - f[1]) * screenScale();
+      if (d < 12) { closePoly(); return; }
+    }
+    S.poly.push(pt); drawBoard();
+  }
+});
+stage.addEventListener("pointermove", e => {
+  moveCursor(e);
+  if (pan) { S.panX = pan.px + e.clientX - pan.x; S.panY = pan.py + e.clientY - pan.y; layoutBoard(); return; }
+  if (S.drawing) { const pt = toMask(e); stroke(last, pt); last = pt; return; }
+  if (S.view === "paint" && S.tool === "poly" && S.poly.length) { S.hover = toMask(e); drawBoard(); }
+});
+stage.addEventListener("pointerup", () => {
+  if (pan) { pan = null; return; }
+  if (S.drawing) { S.drawing = false; maskChanged(S.sel); }
+});
+stage.addEventListener("pointerleave", () => { $("#cursor").style.display = "none"; });
+stage.addEventListener("dblclick", e => { if (S.view === "paint" && S.tool === "poly") { e.preventDefault(); closePoly(); } });
+stage.addEventListener("contextmenu", e => e.preventDefault());
+stage.addEventListener("wheel", e => {
+  if (!S.project) return;
+  e.preventDefault();
+  const r = stage.getBoundingClientRect(), br = board.getBoundingClientRect();
+  const old = S.zoom, z = Math.min(8, Math.max(1, old * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  if (z === old) return;
+  // keep the point under the mouse where it is
+  const mx = e.clientX - br.left, my = e.clientY - br.top;
+  S.zoom = z;
+  S.panX += mx - mx * z / old; S.panY += my - my * z / old;
+  if (z === 1) { S.panX = 0; S.panY = 0; }
+  layoutBoard(); moveCursor(e);
+  void r;
+}, {passive: false});
+window.addEventListener("resize", () => { layoutBoard(); refreshLook(); });
+
+// --- side panel: layers and their settings ---------------------------------------------------------------
+function renderAll() {
+  const has = !!S.project;
+  $("#empty").style.display = has ? "none" : "flex";
+  board.style.display = has ? "block" : "none";
+  $("#projName").textContent = has ? `${S.project.name} · ${S.project.video.w}×${S.project.video.h} · ${S.project.video.seconds} giây` : "";
+  for (const id of ["previewBtn", "exportBtn", "length"]) $("#" + id).disabled = !has;
+  const time = $("#time");
+  time.max = has ? S.project.video.frames - 1 : 0; time.value = S.t;
+  updateTimeLabel();
+  renderSide();
+  setView(has ? S.view : "look");
+  if (!has) renderRecent();
+}
+function updateTimeLabel() {
+  const p = S.project;
+  $("#tlabel").textContent = p ? `khung ${S.t + 1}/${p.video.frames} · ${(S.t / (p.video.frames / p.video.seconds)).toFixed(2)} s` : "";
+}
+function renderSide() {
+  const side = $("#side");
+  if (!S.project) { side.innerHTML = `<h3>Lớp</h3><div class="props"><p class="note">Mở một video để bắt đầu.</p></div>`; return; }
+  const p = S.project;
+  const rows = [];
+  rows.push(row("freeze", COLORS.freeze, "Vùng đứng yên", p.masks.includes("freeze") ? "" : "chưa vẽ"));
+  rows.push(row("fg", COLORS.fg, "Tiền cảnh", p.masks.includes("fg") ? "" : "chưa vẽ"));
+  side.innerHTML = `<h3>Ảnh nền</h3><div class="layers">${rows.join("")}</div>
+    <h3>Hiệu ứng <small style="text-transform:none;letter-spacing:0">(trên cùng = phủ lên trên)</small></h3>
+    <div class="layers">${[...p.layers].reverse().map(l => row(l.id, COLORS.area, l.name, "", l)).join("") || '<p class="note" style="padding:0 8px;color:var(--dim)">Chưa có hiệu ứng. Thêm ở dưới.</p>'}</div>
+    <div class="adds">${["snow", "leaves", "rain", "glow", "file"].map(k => `<button class="small" data-add="${k}">+ ${KIND_ICON[k]} ${esc(kindLabel(k))}</button>`).join("")}</div>
+    <div class="sep"></div><div class="props" id="props"></div>`;
+  renderProps();
+}
+function row(id, colour, name, note, layer) {
+  const eye = layer ? `<button class="eye${layer.on ? "" : " off"}" data-eye="${id}" title="${layer.on ? "Tắt" : "Bật"} lớp">${layer.on ? "👁" : "🚫"}</button>` : "";
+  const icon = layer ? KIND_ICON[layer.kind] + " " : "";
+  return `<div class="layer${S.sel === id ? " sel" : ""}" data-sel="${id}"><span class="sw" style="background:${colour}"></span>
+    <span class="name">${icon}${esc(name)}${note ? `<small>${esc(note)}</small>` : ""}</span>${eye}</div>`;
+}
+function slider(key, label, value, min, max, step, extra = "") {
+  return `<div class="row"><div class="lab"><span>${esc(label)}</span><b id="v-${key}">${value}</b></div>
+    <input type="range" data-param="${key}" min="${min}" max="${max}" step="${step || 1}" value="${value}" ${extra}></div>`;
+}
+function renderProps() {
+  const el = $("#props"); if (!el || !S.project) return;
+  const p = S.project, sel = S.sel;
+  if (sel === "freeze") {
+    const st = p.still || {source: "frame", frame: 0};
+    el.innerHTML = `<h3 style="padding:4px 0">Vùng đứng yên</h3>
+      <p class="note">Tô những chỗ phải đứng yên tuyệt đối (ví dụ: tường, đồ vật bị rung). Ở đó hình được lấy y nguyên từ ảnh gốc, hoặc từ một khung của video.</p>
+      <div class="row"><div class="lab"><span>Lấy hình đứng yên từ</span></div>
+        <select id="stillSource"><option value="frame">Một khung của video</option><option value="image" ${p.has_still_image ? "" : "disabled"}>Ảnh gốc${st.image_name ? ": " + esc(st.image_name) : " (chưa có)"}</option></select></div>
+      ${st.source === "image" ? "" : `<div class="row"><div class="lab"><span>Khung số</span><b>${st.frame + 1}</b></div><button class="small" id="useFrame">Dùng khung đang xem (${S.t + 1})</button></div>`}
+      <div class="btns"><button class="small" id="pickStill">Chọn ảnh gốc…</button></div>
+      ${st.warning && st.source === "image" ? `<p class="warn">⚠ ${esc(st.warning)}</p>` : ""}
+      ${slider("feather", "Độ mềm mép (điểm ảnh)", p.freeze.feather, 0, 200, 1, 'data-target="freeze"')}
+      ${paintHint()}`;
+  } else if (sel === "fg") {
+    el.innerHTML = `<h3 style="padding:4px 0">Tiền cảnh</h3>
+      <p class="note">Tô những vật ở gần (khung cửa sổ, cây, mái nhà…). Lớp hiệu ứng nào bật "Bay ra sau tiền cảnh" sẽ bị chúng che, như bay ở phía sau.</p>
+      ${slider("feather", "Độ mềm mép (điểm ảnh)", p.fg.feather, 0, 200, 1, 'data-target="fg"')}
+      ${paintHint()}`;
+  } else {
+    const l = layerById(sel); if (!l) { el.innerHTML = ""; return; }
+    const sch = S.schema.kinds[l.kind];
+    const params = sch.params.map(d => {
+      const v = l.params[d.key];
+      if (d.type === "range") return slider(d.key, d.label, v, d.min, d.max, d.step);
+      if (d.type === "color") return `<div class="row"><div class="lab"><span>${esc(d.label)}</span></div><input type="color" data-param="${d.key}" value="${v}"></div>`;
+      return `<div class="row"><div class="lab"><span>${esc(d.label)}</span></div><select data-param="${d.key}">${d.options.map(o => `<option value="${o.value}" ${o.value === v ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></div>`;
+    }).join("");
+    const f = l.file;
+    const fileBox = l.kind !== "file" ? "" : `<div class="file">${f ? `<b>${esc(f.name)}</b><br>${f.info.image ? "Ảnh" : "Video"} ${f.info.w}×${f.info.h}${f.info.image ? "" : `, ${f.info.seconds} giây, ${f.info.fps} khung/giây`}${f.info.alpha ? ", có nền trong suốt" : ""}` : "Chưa có file."}</div>
+      <div class="btns"><button class="small primary" id="pickLayerFile">${f ? "Đổi file…" : "Chọn file…"}</button></div>
+      <p class="note">Video hiệu ứng trên nền đen: dùng Screen. Video/PNG nền trong suốt: dùng Bình thường. Video dài hay ngắn hơn loop đều được: app tự hoà mượt chỗ nối. Chỉ dùng file công ty sở hữu hoặc có giấy phép.</p>`;
+    const area = p.masks.includes(l.id) ? "Vùng đã vẽ" : "Cả khung hình";
+    el.innerHTML = `<h3 style="padding:4px 0">${KIND_ICON[l.kind]} ${esc(sch.label)}</h3>
+      <div class="row"><div class="lab"><span>Tên lớp</span></div><input type="text" id="layerName" value="${esc(l.name)}" maxlength="40" style="width:100%"></div>
+      ${fileBox}${params}
+      <div class="row"><div class="lab"><span>Vùng hiệu ứng</span><b>${area}</b></div></div>
+      <p class="note">Muốn hiệu ứng chỉ ở một chỗ: vào "Vẽ vùng", bấm "Xoá hết" rồi tô chỗ đó (hoặc chọn "Bớt" để xoá chỗ không cần).</p>
+      ${slider("feather", "Độ mềm mép vùng (điểm ảnh)", l.feather, 0, 200, 1, 'data-target="layer"')}
+      <label class="check"><input type="checkbox" id="behind" ${l.behind ? "checked" : ""}> Bay ra sau tiền cảnh (bị tiền cảnh che)</label>
+      <div class="btns">
+        ${l.kind === "file" ? "" : '<button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">🎲 Đổi kiểu ngẫu nhiên</button>'}
+        <button class="small" id="up" title="Đưa lên trên">▲</button><button class="small" id="down" title="Đưa xuống dưới">▼</button>
+        <button class="small danger" id="delLayer">Xoá lớp</button>
+      </div>`;
+  }
+}
+function paintHint() { return `<p class="note">Vào thẻ <b>Vẽ vùng</b> để tô. Cọ: kéo chuột; Khoanh vùng: bấm từng điểm rồi bấm lại điểm đầu (hoặc bấm đúp).</p>`; }
+
+$("#side").addEventListener("click", async e => {
+  const t = e.target.closest("[data-add],[data-eye],[data-sel],button,select,input");
+  if (!t || !S.project) return;
+  const p = S.project;
+  if (t.dataset.add) return addLayer(t.dataset.add);
+  if (t.dataset.eye) { const l = layerById(t.dataset.eye); l.on = !l.on; renderSide(); scheduleSave(); return; }
+  if (t.dataset.sel) { S.sel = t.dataset.sel; S.poly = []; renderSide(); renderTools(); drawBoard(); return; }
+  const l = layerById(S.sel);
+  if (t.id === "pickStill") return $("#fileStill").click();
+  if (t.id === "pickLayerFile") return $("#fileLayer").click();
+  if (t.id === "useFrame") { p.still.frame = S.t; p.still.source = "frame"; renderProps(); scheduleSave(); return; }
+  if (t.id === "reseed" && l) { l.seed = Math.floor(Math.random() * 2147483647); scheduleSave(); return; }
+  if ((t.id === "up" || t.id === "down") && l) {
+    const i = p.layers.indexOf(l), j = t.id === "up" ? i + 1 : i - 1;
+    if (j < 0 || j >= p.layers.length) return;
+    [p.layers[i], p.layers[j]] = [p.layers[j], p.layers[i]];
+    renderSide(); scheduleSave(); return;
+  }
+  if (t.id === "delLayer" && l) {
+    if (!confirm(`Xoá lớp "${l.name}"?`)) return;
+    p.layers = p.layers.filter(x => x !== l);
+    delete S.masks[l.id];
+    S.sel = p.layers.length ? p.layers[p.layers.length - 1].id : "freeze";
+    renderSide(); renderTools(); drawBoard(); saveNow();
+  }
+});
+$("#side").addEventListener("input", e => {
+  const t = e.target, p = S.project; if (!p) return;
+  if (t.dataset.param) {
+    const key = t.dataset.param;
+    let v = t.type === "range" ? +t.value : t.value;
+    const lab = $("#v-" + key); if (lab) lab.textContent = v;
+    if (t.dataset.target === "freeze") p.freeze.feather = v;
+    else if (t.dataset.target === "fg") p.fg.feather = v;
+    else if (t.dataset.target === "layer") layerById(S.sel).feather = v;
+    else {
+      const l = layerById(S.sel);
+      l.params[key] = v;
+      const def = S.schema.kinds[l.kind].params.find(d => d.key === key);
+      if (def && def.presets && def.presets[v]) { Object.assign(l.params, def.presets[v]); renderProps(); }
+    }
+    scheduleSave();
+  } else if (t.id === "layerName") {
+    const l = layerById(S.sel); l.name = t.value; scheduleSave();
+    const n = $(`.layer[data-sel="${S.sel}"] .name`); if (n) n.textContent = KIND_ICON[l.kind] + " " + t.value;
+  }
+});
+$("#side").addEventListener("change", e => {
+  const t = e.target, p = S.project; if (!p) return;
+  if (t.id === "stillSource") { p.still.source = t.value; renderProps(); scheduleSave(); }
+  if (t.id === "behind") { layerById(S.sel).behind = t.checked; scheduleSave(); }
+  if (t.dataset.param && t.tagName === "SELECT") renderProps();
+});
+function addLayer(kind) {
+  const p = S.project;
+  if (p.layers.length >= 16) return toast("Tối đa 16 lớp.", true);
+  const params = {};
+  for (const d of S.schema.kinds[kind].params) params[d.key] = d.value;
+  const n = p.layers.filter(l => l.kind === kind).length + 1;
+  const l = {id: newId(), kind, name: kindLabel(kind) + (n > 1 ? " " + n : ""), on: true, behind: false, feather: 20,
+    seed: Math.floor(Math.random() * 2147483647), params};
+  p.layers.push(l);
+  S.sel = l.id;
+  S.masks[l.id] = {canvas: blankMask(true), undo: [], redo: [], timer: 0};
+  renderSide(); renderTools(); drawBoard();
+  saveNow().then(() => { if (kind === "file") $("#fileLayer").click(); });
+  if (S.view === "video") setView("look");
+}
+
+// --- tools under the picture ----------------------------------------------------------------------------
+function renderTools() {
+  const el = $("#tools");
+  if (!S.project) { el.innerHTML = ""; return; }
+  if (S.view === "video") {
+    const p = S.project;
+    const old = p.preview && !p.preview.startsWith(`preview-${p.rev}-`);
+    el.innerHTML = p.preview ? `<span class="hint">Video xem thử (nhỏ, nhanh) của cả vòng loop, phát lặp lại để xem chỗ nối.${old ? " <b style='color:var(--warn)'>Đã đổi thiết lập sau bản này: bấm “Làm video xem thử” để làm lại.</b>" : ""}</span>`
+      : `<span class="hint">Chưa có video xem thử. Bấm “▶ Làm video xem thử” ở dưới.</span>`;
+    return;
+  }
+  if (S.view === "look") {
+    el.innerHTML = `<span class="hint">Một khung với mọi hiệu ứng, như video sẽ ra. Kéo thanh thời gian để xem khung khác. Lăn chuột để phóng to, giữ chuột phải để kéo.</span>`;
+    return;
+  }
+  const name = S.sel === "freeze" ? "vùng đứng yên" : S.sel === "fg" ? "tiền cảnh" : `vùng của "${(layerById(S.sel) || {}).name}"`;
+  el.innerHTML = `<span class="hint" style="color:var(--text)">Đang vẽ: <b>${esc(name)}</b></span>
+    <div class="group"><button class="small ${S.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X)">＋ Thêm</button><button class="small ${S.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X)">－ Bớt</button></div>
+    <div class="group"><button class="small ${S.tool === "brush" ? "on" : ""}" data-tool="brush" title="Cọ (B)">🖌 Cọ</button><button class="small ${S.tool === "poly" ? "on" : ""}" data-tool="poly" title="Khoanh vùng (L)">⬠ Khoanh vùng</button></div>
+    <div class="group"><label>Cỡ cọ</label><input type="range" id="brush" min="2" max="400" value="${S.size}"></div>
+    <div class="group"><button class="small" data-fill="all">Tô hết</button><button class="small" data-fill="none">Xoá hết</button><button class="small" data-fill="invert">Đảo</button></div>
+    <div class="group"><button class="small" data-undo="1" title="Hoàn tác (Ctrl+Z)">↶</button><button class="small" data-redo="1" title="Làm lại (Ctrl+Y)">↷</button><button class="small" data-fit="1" title="Vừa khung (0)">⤢</button></div>`;
+}
+$("#tools").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.mode) { S.mode = b.dataset.mode; renderTools(); drawBoard(); }
+  if (b.dataset.tool) { S.tool = b.dataset.tool; S.poly = []; renderTools(); drawBoard(); }
+  if (b.dataset.fill) fillMask(b.dataset.fill);
+  if (b.dataset.undo) undo(false);
+  if (b.dataset.redo) undo(true);
+  if (b.dataset.fit) { S.zoom = 1; S.panX = S.panY = 0; layoutBoard(); }
+});
+$("#tools").addEventListener("input", e => { if (e.target.id === "brush") S.size = +e.target.value; });
+
+// --- time -----------------------------------------------------------------------------------------------
+function setTime(t) {
+  const p = S.project; if (!p) return;
+  S.t = Math.max(0, Math.min(p.video.frames - 1, t));
+  $("#time").value = S.t; updateTimeLabel();
+  loadFrame(); refreshLook();
+  if (S.sel === "freeze") renderProps();
+}
+$("#time").addEventListener("input", e => setTime(+e.target.value));
+$("#prevBtn").onclick = () => setTime(S.t - 1);
+$("#nextBtn").onclick = () => setTime(S.t + 1);
+
+// --- keyboard -------------------------------------------------------------------------------------------
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input[type=text], input[type=number], select, textarea")) return;
+  if (e.code === "Space") { S.space = true; if (e.target === document.body) e.preventDefault(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(e.shiftKey); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); undo(true); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === "ArrowLeft") setTime(S.t - 1);
+  else if (e.key === "ArrowRight") setTime(S.t + 1);
+  else if (S.view !== "paint") return;
+  if (e.key === "Enter") closePoly();
+  else if (e.key === "Escape") { S.poly = []; drawBoard(); }
+  else if (e.key === "Backspace" && S.poly.length) { S.poly.pop(); drawBoard(); }
+  else if (e.key === "x" || e.key === "X") { S.mode = S.mode === "add" ? "sub" : "add"; renderTools(); }
+  else if (e.key === "b" || e.key === "B") { S.tool = "brush"; S.poly = []; renderTools(); }
+  else if (e.key === "l" || e.key === "L") { S.tool = "poly"; renderTools(); }
+  else if (e.key === "[" || e.key === "]") { S.size = Math.max(2, Math.min(400, Math.round(S.size * (e.key === "]" ? 1.2 : 1 / 1.2)))); renderTools(); }
+  else if (e.key === "0") { S.zoom = 1; S.panX = S.panY = 0; layoutBoard(); }
+});
+document.addEventListener("keyup", e => { if (e.code === "Space") S.space = false; });
+
+// --- files ----------------------------------------------------------------------------------------------
+$("#openBtn").onclick = () => $("#fileVideo").click();
+$("#fileVideo").onchange = e => { newProjectFrom(e.target.files[0]); e.target.value = ""; };
+$("#fileStill").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f || !S.project) return;
+  try {
+    const p = await upload(`/api/upload?kind=still&id=${S.project.id}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi ảnh gốc");
+    S.project.still = p.still; S.project.has_still_image = p.has_still_image; S.project.rev = p.rev;
+    toast(p.still.warning ? "⚠ " + p.still.warning : "Đã dùng ảnh gốc cho vùng đứng yên.", !!p.still.warning, 8000);
+    renderProps(); refreshLook();
+  } catch (err) { fail(err); }
+};
+$("#fileLayer").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f || !S.project) return;
+  const l = layerById(S.sel); if (!l || l.kind !== "file") return;
+  try {
+    const p = await upload(`/api/upload?kind=layer&id=${S.project.id}&layer=${l.id}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi file hiệu ứng");
+    const fresh = p.layers.find(x => x.id === l.id);
+    if (fresh) { l.file = fresh.file; l.params = fresh.params; }
+    S.project.rev = p.rev;
+    toast(`Đã thêm "${f.name}".`);
+    renderProps(); refreshLook();
+  } catch (err) { fail(err); }
+};
+document.addEventListener("dragover", e => { e.preventDefault(); });
+document.addEventListener("drop", e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  if (/\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(f.name)) newProjectFrom(f);
+  else toast("Kéo vào đây một file video (mp4, mov…). Ảnh gốc và file hiệu ứng: chọn ở bảng bên phải.", true);
+});
+
+// --- project menu ---------------------------------------------------------------------------------------
+$("#projBtn").onclick = e => {
+  const m = $("#menu");
+  if (m.style.display === "block") { m.style.display = "none"; return; }
+  const list = (S.state && S.state.projects) || [];
+  m.innerHTML = list.length ? list.map(p => `<div class="item" data-open="${p.id}"><span>${esc(p.name)}<br><small>${p.w}×${p.h} · ${p.seconds} giây · ${new Date(p.updated * 1000).toLocaleString("vi-VN")}</small></span><button class="small danger" data-del="${p.id}" title="Xoá dự án">Xoá</button></div>`).join("")
+    : `<div class="item"><span>Chưa có dự án nào.</span></div>`;
+  const r = e.target.getBoundingClientRect();
+  m.style.left = r.left + "px"; m.style.top = (r.bottom + 6) + "px"; m.style.display = "block";
+};
+$("#menu").addEventListener("click", async e => {
+  const del = e.target.closest("[data-del]"), open = e.target.closest("[data-open]");
+  if (del) {
+    e.stopPropagation();
+    const p = (S.state.projects || []).find(x => x.id === del.dataset.del);
+    if (!confirm(`Xoá dự án "${p ? p.name : ""}"? (Video đã xuất vẫn giữ nguyên.)`)) return;
+    try {
+      await post("/api/delete", {id: del.dataset.del});
+      if (S.project && S.project.id === del.dataset.del) { S.project = null; renderAll(); }
+      $("#menu").style.display = "none"; poll();
+    } catch (err) { fail(err); }
+  } else if (open) { $("#menu").style.display = "none"; openProject(open.dataset.open); }
+});
+document.addEventListener("click", e => { if (!e.target.closest("#menu, #projBtn")) $("#menu").style.display = "none"; });
+function renderRecent() {
+  const list = ((S.state && S.state.projects) || []).slice(0, 8);
+  $("#recent").innerHTML = list.map(p => `<div class="card" data-open="${p.id}"><img src="/api/thumb?id=${p.id}" alt=""><div>${esc(p.name)}<br><small>${p.seconds} giây</small></div></div>`).join("");
+}
+$("#recent").addEventListener("click", e => { const c = e.target.closest("[data-open]"); if (c) openProject(c.dataset.open); });
+
+// --- preview, export, jobs ------------------------------------------------------------------------------
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b && S.project) setView(b.dataset.view); });
+$("#previewBtn").onclick = async () => {
+  try { await saveNow(); await post("/api/preview", {id: S.project.id}); toast("Đang làm video xem thử…"); pollSoon(); } catch (e) { fail(e); }
+};
+$("#exportBtn").onclick = async () => {
+  try {
+    await saveNow();
+    await post("/api/export", {id: S.project.id, seconds: +$("#length").value});
+    toast("Đã bắt đầu xuất video. Có thể tiếp tục làm việc khác."); pollSoon();
+  } catch (e) { fail(e); }
+};
+$("#folderBtn").onclick = () => post("/api/open", {}).catch(fail);
+$("#updateBtn").onclick = async () => {
+  try { await post("/api/update", {}); $("#updateText").textContent = "Đang cập nhật… app sẽ tự mở lại."; $("#updateBtn").style.display = "none"; S.updating = true; }
+  catch (e) { fail(e); }
+};
+$("#modalClose").onclick = () => { $("#modal").style.display = "none"; $("#modalVideo").pause(); };
+function renderJobs(list) {
+  const el = $("#jobs");
+  const names = Object.fromEntries(((S.state && S.state.projects) || []).map(p => [p.id, p.name]));
+  const now = Date.now() / 1000;
+  const shown = list.filter(j => j.state === "running" || j.state === "queued" || (now - (j.finished || 0) < 600 && j.kind === "export") || (j.state === "error" && now - j.finished < 120));
+  el.innerHTML = shown.slice(0, 4).map(j => {
+    const what = (j.kind === "preview" ? "Xem thử" : `Xuất ${lengthLabel(j.seconds)}`) + ` · ${esc(names[j.project] || "")}`;
+    let status = "";
+    if (j.state === "queued") status = "đang chờ";
+    else if (j.state === "running") {
+      const pct = Math.round(j.progress * 100), took = now - j.started;
+      const left = j.progress > 0.03 ? Math.max(0, took / j.progress - took) : null;
+      status = `${pct}%` + (left !== null ? ` · còn khoảng ${left > 90 ? Math.round(left / 60) + " phút" : Math.round(left) + " giây"}` : "");
+    } else if (j.state === "done") status = j.kind === "export" ? "xong" : "xong";
+    else if (j.state === "cancelled") status = "đã huỷ";
+    else status = "lỗi: " + esc(j.message);
+    const btn = j.state === "running" || j.state === "queued" ? `<button class="small" data-cancel="${j.id}">Huỷ</button>`
+      : j.state === "done" && j.kind === "export" ? `<button class="small" data-play="${esc(j.output)}">Xem</button><button class="small" data-reveal="${esc(j.output)}">Mở thư mục</button>` : "";
+    return `<div class="job ${j.state}"><span class="what" title="${esc(j.output || "")}">${what}</span><span class="bar"><i style="width:${Math.round((j.state === "done" ? 1 : j.progress) * 100)}%"></i></span><span>${status}</span>${btn}</div>`;
+  }).join("");
+}
+$("#jobs").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.cancel) post("/api/cancel", {job: b.dataset.cancel}).then(pollSoon).catch(fail);
+  if (b.dataset.reveal) post("/api/open", {name: b.dataset.reveal}).catch(fail);
+  if (b.dataset.play) {
+    $("#modalTitle").textContent = b.dataset.play;
+    $("#modalVideo").src = "/media/out?name=" + encodeURIComponent(b.dataset.play);
+    $("#modal").style.display = "flex";
+  }
+});
+
+// --- polling the app ------------------------------------------------------------------------------------
+let pollTimer = 0, failures = 0, version = null;
+function pollSoon() { clearTimeout(pollTimer); pollTimer = setTimeout(poll, 300); }
+async function poll() {
+  clearTimeout(pollTimer);
+  try {
+    const st = await get("/api/state");
+    failures = 0; $("#offline").style.display = "none";
+    if (version && st.version !== version) { location.reload(); return; }  // updated: the new page
+    version = st.version;
+    S.state = st;
+    $("#ver").textContent = st.version === "dev" ? "bản chạy từ mã nguồn" : "phiên bản " + st.version;
+    const up = st.update || {};
+    $("#update").style.display = up.ready || S.updating ? "flex" : "none";
+    if (up.ready && !S.updating) $("#updateText").textContent = `Có bản mới ${up.available}`;
+    for (const j of st.jobs) {
+      const before = S.jobsSeen[j.id];
+      if (before && before !== "done" && j.state === "done" && S.project && j.project === S.project.id && j.kind === "preview") {
+        S.project.preview = j.output; renderTools();
+        if (S.view !== "video") setView("video"); else showPreview();
+      }
+      if (before && before !== "done" && j.state === "done" && j.kind === "export") toast(`Đã xuất xong: ${j.output}`, false, 8000);
+      if (before && before !== "error" && j.state === "error") toast(j.message, true, 9000);
+      S.jobsSeen[j.id] = j.state;
+    }
+    renderJobs(st.jobs);
+    if (!S.project) renderRecent();
+  } catch (e) {
+    if (++failures >= 3) $("#offline").style.display = "flex";
+  }
+  pollTimer = setTimeout(poll, document.hidden ? 5000 : 1500);
+}
+
+// --- start ----------------------------------------------------------------------------------------------
+(async function start() {
+  try {
+    const sch = await get("/api/schema");
+    S.schema = sch; S.lengths = sch.lengths;
+  } catch (e) { $("#offline").style.display = "flex"; return; }
+  await poll();
+  $("#length").innerHTML = S.lengths.map(s => `<option value="${s}">${lengthLabel(s)}</option>`).join("");
+  const last = localStorage.getItem("fx.last");
+  if (last && (S.state.projects || []).some(p => p.id === last)) await openProject(last);
+  else renderAll();
+  $("#length").innerHTML = S.lengths.map(s => `<option value="${s}">${lengthLabel(s)}</option>`).join("");
+})();
+</script>
+</body>
+</html>

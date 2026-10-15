@@ -1,0 +1,412 @@
+"""The app's local web server: the page (index.html) and its JSON API under /api/.
+
+Only this computer's own page may use it: a request must name 127.0.0.1 or localhost as its host (so a web site
+cannot reach it through DNS rebinding) and every POST must carry the header X-Bokin: 1, which another web site
+cannot add without asking first (a CORS preflight, never allowed here). Nothing from the page is used as a path:
+projects, masks and files are found by ids checked against fixed patterns, and uploads are written by this code
+into the data folder.
+"""
+import io
+import json
+import os
+import re
+import secrets
+import subprocess
+import sys
+import threading
+import time
+import traceback
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import numpy as np
+from PIL import Image
+
+from . import effects, engine, jobs, paths, projects, video
+
+UPLOAD_LIMITS = {"video": 4 << 30, "layer": 4 << 30, "still": 200 << 20}
+MASK_LIMIT = 50 << 20
+JSON_LIMIT = 1 << 20
+OUT_NAME = re.compile(r"^[^\\/:*?\"<>|\x00-\x1f]{1,180}\.mp4$")
+PREVIEW_NAME = re.compile(r"^preview-[0-9]+-[0-9a-f]{4}\.mp4$")
+
+
+class App:
+    """What the request handlers share."""
+
+    def __init__(self, desktop=True):
+        self.desktop = desktop
+        self.jobs = jobs.Jobs()
+        self.looks = engine.Looks()
+        self.updater = None
+        self.seen = time.time()
+        self.quit = threading.Event()
+        self.relaunch = False
+
+    def state(self):
+        up = self.updater.state if self.updater else {"current": paths.version(), "available": None,
+                                                       "ready": False, "error": None, "checked": None}
+        return {"app": paths.APP_ID, "version": paths.version(), "update": up, "jobs": self.jobs.public(),
+                "projects": projects.list_all(), "out_dir": paths.out_dir(), "desktop": self.desktop}
+
+
+def _jpeg(arr, quality=88):
+    buf = io.BytesIO()
+    Image.fromarray(arr).save(buf, "JPEG", quality=quality)
+    return buf.getvalue()
+
+
+def open_in_explorer(path, select=False):
+    if os.name == "nt":
+        if select:
+            subprocess.Popen(["explorer", "/select,", path])
+        else:
+            os.startfile(path)  # noqa: S606 - our own output folder
+    else:
+        subprocess.Popen(["xdg-open", os.path.dirname(path) if select else path])
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "BokinFX"
+    sys_version = ""
+    protocol_version = "HTTP/1.1"
+
+    @property
+    def app(self):
+        return self.server.app
+
+    def log_message(self, fmt, *args):  # quiet: errors are printed where they happen
+        pass
+
+    # --- answers -------------------------------------------------------------------------------------------
+
+    def send(self, code, body, kind="application/json; charset=utf-8", headers=()):
+        if isinstance(body, (dict, list)):
+            body = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        elif isinstance(body, str):
+            body = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        for k, v in headers:
+            self.send_header(k, v)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def fail(self, code, message):
+        self.send(code, {"error": message})
+
+    def send_file(self, path, kind):
+        """A file, with byte ranges (the video player asks for parts)."""
+        try:
+            size = os.path.getsize(path)
+            f = open(path, "rb")
+        except OSError:
+            return self.fail(404, "Không tìm thấy file.")
+        with f:
+            start, end = 0, size - 1
+            m = re.match(r"bytes=(\d*)-(\d*)$", self.headers.get("Range") or "")
+            if m and (m.group(1) or m.group(2)):
+                if m.group(1):
+                    start = int(m.group(1))
+                    end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+                else:
+                    start = max(0, size - int(m.group(2)))
+                if start > end or start >= size:
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                self.send_response(206)
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+            else:
+                self.send_response(200)
+            self.send_header("Content-Type", kind)
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(end - start + 1))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            if self.command == "HEAD":
+                return
+            f.seek(start)
+            left = end - start + 1
+            try:
+                while left > 0:
+                    chunk = f.read(min(1 << 20, left))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    left -= len(chunk)
+            except (ConnectionError, OSError):
+                pass  # the player stopped reading
+
+    # --- who may ask -----------------------------------------------------------------------------------------
+
+    def allowed(self, post):
+        host = (self.headers.get("Host") or "").strip().lower()
+        name = host.rsplit(":", 1)[0] if not host.startswith("[") else host.split("]")[0] + "]"
+        if name not in ("127.0.0.1", "localhost"):
+            return False
+        return not post or self.headers.get("X-Bokin") == "1"
+
+    # --- requests --------------------------------------------------------------------------------------------
+
+    def do_HEAD(self):
+        self.do_GET()
+
+    def do_GET(self):
+        if not self.allowed(False):
+            return self.fail(403, "forbidden")
+        url = urllib.parse.urlsplit(self.path)
+        q = {k: v[-1] for k, v in urllib.parse.parse_qs(url.query).items()}
+        try:
+            self.route_get(url.path, q)
+        except (projects.UserError, video.VideoError) as e:
+            self.fail(400, str(e))
+        except (ConnectionError, BrokenPipeError):
+            pass
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+            self.fail(500, "Có lỗi trong app. Xem nhật ký (app.log).")
+
+    def route_get(self, path, q):
+        if path in ("/", "/index.html"):
+            with open(os.path.join(paths.resource_dir(), "index.html"), "rb") as f:
+                return self.send(200, f.read(), "text/html; charset=utf-8")
+        if path == "/api/ping":
+            return self.send(200, {"app": paths.APP_ID, "version": paths.version()})
+        if path.startswith("/api/"):
+            self.app.seen = time.time()
+        if path == "/api/state":
+            return self.send(200, self.app.state())
+        if path == "/api/schema":
+            return self.send(200, {"kinds": effects.SCHEMA, "lengths": jobs.LENGTHS})
+        if path == "/api/project":
+            return self.send(200, self.project_view(projects.load(q.get("id"))))
+        if path == "/api/frame":  # a frame of the video at the masks' size, to paint on
+            project = projects.load(q.get("id"))
+            info = project["video"]
+            arr = video.read_frame(engine.input_path(projects.folder(project["id"]), project), info,
+                                   _int(q.get("t")), projects.mask_size(info))
+            return self.send(200, _jpeg(arr, 90), "image/jpeg")
+        if path == "/api/still":
+            project = projects.load(q.get("id"))
+            p = os.path.join(projects.folder(project["id"]), "still.png")
+            with Image.open(p) as im:
+                arr = np.asarray(im.convert("RGB").resize(projects.mask_size(project["video"])))
+            return self.send(200, _jpeg(arr, 90), "image/jpeg")
+        if path == "/api/thumb":
+            project = projects.load(q.get("id"))
+            folder = projects.folder(project["id"])
+            thumb = os.path.join(folder, "thumb.jpg")
+            if not os.path.exists(thumb):
+                info = project["video"]
+                arr = video.read_frame(engine.input_path(folder, project), info, 0,
+                                       (320, max(2, round(320 * info["h"] / info["w"] / 2) * 2)))
+                with open(thumb, "wb") as f:
+                    f.write(_jpeg(arr, 80))
+            return self.send_file(thumb, "image/jpeg")
+        if path == "/api/mask":
+            project = projects.load(q.get("id"))
+            name = q.get("name") or ""
+            if not projects.MASK_NAME.match(name):
+                return self.fail(404, "no mask")
+            p = engine.mask_path(projects.folder(project["id"]), name)
+            if not os.path.exists(p):
+                return self.fail(404, "no mask")
+            return self.send_file(p, "image/png")
+        if path == "/api/look":  # one frame with every layer, as the video will be
+            project = projects.load(q.get("id"))
+            arr = self.app.looks.frame(projects.folder(project["id"]), project, _int(q.get("t")),
+                                       max(160, min(1920, _int(q.get("w"), engine.LOOK_WIDTH))))
+            return self.send(200, _jpeg(arr, 88), "image/jpeg")
+        if path == "/media/preview":
+            project = projects.load(q.get("id"))
+            name = q.get("name") or ""
+            if not PREVIEW_NAME.match(name) or name != project.get("preview"):
+                return self.fail(404, "no preview")
+            return self.send_file(os.path.join(projects.folder(project["id"]), name), "video/mp4")
+        if path == "/media/out":
+            name = q.get("name") or ""
+            if not OUT_NAME.match(name) or name.startswith("."):
+                return self.fail(404, "no such video")
+            return self.send_file(os.path.join(paths.out_dir(), name), "video/mp4")
+        return self.fail(404, "not found")
+
+    def project_view(self, project):
+        folder = projects.folder(project["id"])
+        masks = sorted(n[:-4] for n in os.listdir(os.path.join(folder, "masks")) if n.endswith(".png"))
+        w, h = projects.mask_size(project["video"])
+        return {**project, "masks": masks, "mask_w": w, "mask_h": h,
+                "has_still_image": os.path.exists(os.path.join(folder, "still.png"))}
+
+    def do_POST(self):
+        if not self.allowed(True):
+            return self.fail(403, "forbidden")
+        url = urllib.parse.urlsplit(self.path)
+        q = {k: v[-1] for k, v in urllib.parse.parse_qs(url.query).items()}
+        self.app.seen = time.time()
+        try:
+            self.route_post(url.path, q)
+        except (projects.UserError, video.VideoError) as e:
+            self.close_connection = True  # the body may not have been read
+            self.fail(400, str(e))
+        except (ConnectionError, BrokenPipeError):
+            pass
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+            self.close_connection = True
+            self.fail(500, "Có lỗi trong app. Xem nhật ký (app.log).")
+
+    def length(self, limit):
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if n < 0 or n > limit:
+            self.close_connection = True
+            raise projects.UserError("File quá lớn." if n > limit else "Yêu cầu không hợp lệ.")
+        return n
+
+    def body_json(self):
+        n = self.length(JSON_LIMIT)
+        try:
+            data = json.loads(self.rfile.read(n) or b"{}")
+        except ValueError as e:
+            raise projects.UserError("Dữ liệu không hợp lệ.") from e
+        if not isinstance(data, dict):
+            raise projects.UserError("Dữ liệu không hợp lệ.")
+        return data
+
+    def receive(self, limit):
+        """The request body, written to a new file in the data folder; returns its path."""
+        n = self.length(limit)
+        if n == 0:
+            raise projects.UserError("File rỗng.")
+        folder = os.path.join(paths.data_dir(), "tmp")
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, secrets.token_hex(8) + ".part")
+        try:
+            with open(path, "wb") as f:
+                left = n
+                while left > 0:
+                    chunk = self.rfile.read(min(1 << 20, left))
+                    if not chunk:
+                        raise ConnectionError("upload cut short")
+                    f.write(chunk)
+                    left -= len(chunk)
+        except BaseException:
+            _remove(path)
+            raise
+        return path
+
+    def route_post(self, path, q):
+        app = self.app
+        if path == "/api/upload":
+            kind = q.get("kind")
+            if kind not in UPLOAD_LIMITS:
+                return self.fail(400, "Yêu cầu không hợp lệ.")
+            name = os.path.basename(q.get("name") or "")[:200]
+            project = projects.load(q.get("id")) if kind != "video" else None  # checked before reading the file
+            upload = self.receive(UPLOAD_LIMITS[kind])
+            try:
+                if kind == "video":
+                    project = projects.create(upload, name)
+                elif kind == "still":
+                    project = projects.set_still_image(project, upload, name)
+                    app.looks.forget(projects.folder(project["id"]))
+                else:
+                    project = projects.set_layer_file(project, q.get("layer"), upload, name)
+            finally:
+                _remove(upload)
+            return self.send(200, self.project_view(project))
+        if path == "/api/mask":
+            project = projects.load(q.get("id"))
+            data = self.rfile.read(self.length(MASK_LIMIT))
+            project = projects.save_mask(project, q.get("name"), data)
+            return self.send(200, {"rev": project["rev"]})
+        data = self.body_json()
+        if path == "/api/save":
+            project = projects.apply(projects.load(data.get("id")), data)
+            return self.send(200, self.project_view(project))
+        if path == "/api/preview":
+            return self.send(200, app.jobs.preview(data.get("id")))
+        if path == "/api/export":
+            return self.send(200, app.jobs.export(data.get("id"), data.get("seconds", 0)))
+        if path == "/api/cancel":
+            return self.send(200, {"ok": app.jobs.cancel(str(data.get("job")))})
+        if path == "/api/delete":
+            pid = data.get("id")
+            if any(j["project"] == pid and j["state"] in ("queued", "running") for j in app.jobs.public()):
+                raise projects.UserError("Dự án đang được làm video. Chờ xong hoặc huỷ trước khi xoá.")
+            app.looks.forget(projects.folder(pid))
+            projects.delete(pid)
+            return self.send(200, {"ok": True})
+        if path == "/api/open":
+            if not app.desktop:
+                return self.fail(400, "Không mở được thư mục trên máy chủ.")
+            name = data.get("name")
+            if name:
+                if not isinstance(name, str) or not OUT_NAME.match(name):
+                    return self.fail(400, "Yêu cầu không hợp lệ.")
+                open_in_explorer(os.path.join(paths.out_dir(), name), select=True)
+            else:
+                open_in_explorer(paths.out_dir())
+            return self.send(200, {"ok": True})
+        if path == "/api/update":
+            if not app.updater or not app.updater.state.get("ready"):
+                return self.fail(400, "Chưa có bản cập nhật sẵn sàng.")
+            if app.jobs.busy():
+                return self.fail(400, "App đang làm video. Cập nhật sau khi xong.")
+            app.relaunch = True
+            app.quit.set()
+            return self.send(200, {"ok": True})
+        if path == "/api/quit":  # the installer asks before replacing the files
+            if app.jobs.busy():
+                return self.send(200, {"busy": True})
+            app.relaunch = None  # quit without installing anything ourselves
+            app.quit.set()
+            return self.send(200, {"ok": True})
+        return self.fail(404, "not found")
+
+
+def _int(value, default=0):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _remove(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = False  # Windows would let a second app take the same port
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            return  # the page went away mid-answer: nothing to report
+        super().handle_error(request, client_address)
+
+
+def start(app, port):
+    """Serve on 127.0.0.1:port in a background thread; OSError if the port is taken."""
+    server = Server(("127.0.0.1", port), Handler)
+    server.app = app
+    threading.Thread(target=server.serve_forever, daemon=True, name="fx-http").start()
+    return server
+
+
+if __name__ == "__main__":  # pragma: no cover - for trying the server alone
+    srv = start(App(desktop=True), int(sys.argv[1]) if len(sys.argv) > 1 else 7890)
+    print("http://127.0.0.1:%d" % srv.server_address[1])
+    threading.Event().wait()

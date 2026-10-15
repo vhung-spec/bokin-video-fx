@@ -1,0 +1,94 @@
+# Builds the Bokin FX installer on Windows, tests it, and publishes it as a GitHub Release
+# (repo page -> Releases -> BokinFX-Setup-<version>.exe, tag fx-v<version>). The installed apps update from there.
+name: Bokin FX
+
+on:
+  push:
+    branches: [claude/relaxed-ptolemy-v732bs]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bokin-fx-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: python -m pip install numpy==2.1.3 Pillow==11.0.0 imageio-ffmpeg==0.6.0 pyinstaller==6.11.1
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Version
+        shell: pwsh
+        run: |
+          $v = "1.0.${{ github.run_number }}"
+          Set-Content -Path fx/version.txt -Value $v -NoNewline
+          "APP_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build the app folder
+        run: |
+          python packaging/make_icon.py
+          pyinstaller packaging/BokinFX.spec --noconfirm
+
+      - name: Self-test of the built app (a real 1080p loop with every layer, seam, still areas, clean file)
+        shell: pwsh
+        run: |
+          $p = Start-Process dist/BokinFX/BokinFX.exe -ArgumentList "--selftest" -Wait -PassThru
+          Get-Content "$env:APPDATA/Bokin/FX/app.log"
+          if ($p.ExitCode -ne 0) { throw "selftest failed ($($p.ExitCode))" }
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DAppVersion=$env:APP_VERSION" packaging/BokinFX.iss
+          if ($LASTEXITCODE -ne 0) { throw "iscc failed" }
+          Get-ChildItem dist/*.exe | Format-Table Name, Length
+
+      - name: Install test (fresh install, the app answers, then setup again while it runs)
+        run: python packaging/ci_install_test.py install dist/BokinFX-Setup-${{ env.APP_VERSION }}.exe
+
+      - name: Build a next version (only for the update test, never published)
+        shell: pwsh
+        run: |
+          $next = "$env:APP_VERSION.1"
+          Set-Content -Path fx/version.txt -Value $next -NoNewline
+          pyinstaller packaging/BokinFX.spec --noconfirm --distpath dist-next --workpath build-next
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$next" "/DDistDir=$PWD\dist-next" packaging/BokinFX.iss
+          if ($LASTEXITCODE -ne 0) { throw "iscc failed" }
+          Set-Content -Path fx/version.txt -Value $env:APP_VERSION -NoNewline
+          "NEXT_VERSION=$next" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Get-ChildItem dist-next/BokinFX-Setup-*.exe | Format-Table Name, Length
+
+      - name: Update test (finds, downloads and checks the next version; "Cập nhật ngay" installs it and restarts)
+        run: python packaging/ci_install_test.py update dist-next/BokinFX-Setup-${{ env.NEXT_VERSION }}.exe ${{ env.NEXT_VERSION }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BokinFX-Setup-${{ env.APP_VERSION }}
+          path: dist/BokinFX-Setup-*.exe
+
+      - name: Publish a release
+        if: github.ref == 'refs/heads/claude/relaxed-ptolemy-v732bs'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $file = (Get-ChildItem dist/BokinFX-Setup-*.exe).FullName
+          $sha = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+          python packaging/release_notes.py $env:APP_VERSION $sha notes.md
+          gh release create "fx-v$env:APP_VERSION" $file --target "${{ github.sha }}" --title "Bokin FX $env:APP_VERSION" --notes-file notes.md

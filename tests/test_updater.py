@@ -1,0 +1,92 @@
+import hashlib
+import json
+import os
+import threading
+import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from tests import helpers
+from fx import updater
+
+INSTALLER = b"MZ fake installer " * 1000
+
+
+class FakeGitHub(BaseHTTPRequestHandler):
+    releases = []
+
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        if self.path.startswith("/releases"):
+            body = json.dumps(self.releases).encode()
+        elif self.path.startswith("/download/"):
+            body = INSTALLER
+        else:
+            self.send_response(404)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+class Updates(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeGitHub)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.base = f"http://127.0.0.1:{cls.srv.server_address[1]}"
+        os.environ["BOKIN_UPDATE_API"] = cls.base + "/releases"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        os.environ.pop("BOKIN_UPDATE_API", None)
+
+    def release(self, tag, digest=True, body="", draft=False, name=None):
+        name = name or f"BokinFX-Setup-{tag[4:]}.exe"
+        sha = hashlib.sha256(INSTALLER).hexdigest()
+        asset = {"name": name, "size": len(INSTALLER), "browser_download_url": f"{self.base}/download/{name}"}
+        if digest:
+            asset["digest"] = "sha256:" + sha
+        return {"tag_name": tag, "draft": draft, "prerelease": False, "assets": [asset],
+                "body": body.replace("<sha>", sha)}
+
+    def test_versions(self):
+        self.assertEqual(updater.parse_version("1.0.12"), (1, 0, 12))
+        self.assertIsNone(updater.parse_version("dev"))
+        self.assertIsNone(updater.parse_version("1.0.x"))
+        self.assertGreater(updater.parse_version("1.0.10"), updater.parse_version("1.0.9"))
+
+    def test_latest_and_fetch(self):
+        FakeGitHub.releases = [self.release("fx-v1.0.9"), self.release("fx-v1.0.12", digest=False, body="SHA-256: <sha>"),
+                               self.release("fx-v1.0.30", draft=True), self.release("loop-v9.0.0"),
+                               self.release("fx-v1.0.20", digest=False),  # nothing to check it with: skipped
+                               self.release("fx-v1.0.25", name="evil.exe")]
+        rel = updater.latest()
+        self.assertEqual(rel.version, "1.0.12")
+        folder = os.path.join(helpers.ROOT, "updates")
+        path = updater.fetch(rel, folder)
+        self.assertEqual(open(path, "rb").read(), INSTALLER)
+        bad = rel._replace(sha256="0" * 64, name="BokinFX-Setup-1.0.13.exe")
+        with self.assertRaises(ValueError):
+            updater.fetch(bad, folder)
+        self.assertEqual(os.listdir(folder), [])  # the bad one is gone, and the older one too
+
+    def test_auto_update_state(self):
+        FakeGitHub.releases = [self.release("fx-v1.0.5")]
+        u = updater.AutoUpdate("1.0.4", os.path.join(helpers.ROOT, "updates2"))
+        u.check()
+        self.assertTrue(u.state["ready"])
+        self.assertEqual(u.state["available"], "1.0.5")
+        same = updater.AutoUpdate("1.0.5", os.path.join(helpers.ROOT, "updates3"))
+        same.check()
+        self.assertFalse(same.state["ready"])
+        self.assertIsNone(same.state["error"])
+        self.assertFalse(same.run_installer(restart=True))
+
+
+if __name__ == "__main__":
+    unittest.main()

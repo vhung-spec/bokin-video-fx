@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+build/
+build-next/
+dist/
+dist-next/
+fx/version.txt
+packaging/icon.ico
+notes.md
+*.mp4
+*.mov
+*.webm
