@@ -2147,7 +2147,7 @@ function renderControls() {
   let source = "";
   if (c.kind === "file") {
     const fi = c.file && c.file.info, it = libItem(c.file ? c.file.lib : c.lib);
-    source = `<div class="file">${fi ? `<b>${esc(c.file.name)}</b><br>${fi.image ? "Ảnh" : "Video"} ${fi.w}×${fi.h}${fi.image ? "" : `, ${fi.seconds} giây, ${fi.fps} khung/giây`}${fi.alpha ? ", nền trong suốt" : ""}${it && !it.proxy ? (S.failed && S.failed[it.id] ? "<br>⚠ Không làm được bản xem nhanh. Dừng hình để xem khung chính xác." : "<br>⏳ Đang chuẩn bị xem nhanh…") : ""}${!it && c.file && c.file.lib ? "<br>⚠ File đã bị xoá khỏi thư viện." : ""}` : c.file && c.file.lib && !it ? `<b>${esc(c.file.name)}</b><br>⚠ File đã bị xoá khỏi thư viện: clip này không hiện gì. Hãy xoá clip.` : "Chưa có file."}</div>`;
+    source = `<div class="file">${fi ? `<b>${esc(c.file.name)}</b><br>${fi.image ? "Ảnh" : "Video"} ${fi.w}×${fi.h}${fi.image ? "" : `, ${fi.seconds} giây, ${fi.fps} khung/giây, ${esc(codecName(fi))}`}${fi.alpha ? ", nền trong suốt" : ""}${alphaNote(c, fi)}${it && !it.proxy ? (S.failed && S.failed[it.id] ? "<br>⚠ Không làm được bản xem nhanh. Dừng hình để xem khung chính xác." : "<br>⏳ Đang chuẩn bị xem nhanh…") : ""}${!it && c.file && c.file.lib ? "<br>⚠ File đã bị xoá khỏi thư viện." : ""}` : c.file && c.file.lib && !it ? `<b>${esc(c.file.name)}</b><br>⚠ File đã bị xoá khỏi thư viện: clip này không hiện gì. Hãy xoá clip.` : "Chưa có file."}</div>`;
   } else {
     const fx = S.fx[c.id];
     source = `<div class="file"><b>${KIND_ICON[c.kind]} ${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? "<br>⏳ Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác." : ""}</div>
@@ -2180,6 +2180,18 @@ function renderControls() {
       <button class="small" id="onBtn">${c.on === false ? "Bật clip" : "Tắt clip"}</button>
       <button class="small danger" id="delBtn">Xoá clip</button>
     </div></div>`;
+}
+const CODECS = {h264: "H.264", hevc: "HEVC (H.265)", prores: "ProRes", qtrle: "Animation", png: "PNG", vp9: "VP9", vp8: "VP8",
+  av1: "AV1", gif: "GIF", mpeg4: "MPEG-4", mjpeg: "Motion JPEG", dnxhd: "DNxHD"};
+function codecName(fi) { return CODECS[fi.codec] || String(fi.codec || "").toUpperCase(); }
+function alphaNote(c, fi) {  // a file meant to be see-through whose transparency the app does not get
+  if (fi.image || fi.alpha) return "";
+  const redo = "Muốn hiệu ứng hiện rõ trên nền sáng, hãy xuất lại file thành MOV ProRes 4444 có kênh alpha (hoặc WebM VP9 có alpha) rồi nhập lại.";
+  if (fi.codec === "hevc" && /alpha|trong.?su[ốo]t|transparen/i.test(c.file.name))
+    return `<br>⚠ File HEVC có nền trong suốt: app chưa đọc được phần trong suốt của loại này, nên đang coi là nền đen (Screen). ${redo}`;
+  if (/alpha|trong.?su[ốo]t|transparen/i.test(c.file.name))
+    return `<br>⚠ Tên file nói có nền trong suốt, nhưng app không thấy lớp trong suốt trong file, nên đang coi là nền đen (Screen). ${redo}`;
+  return "";
 }
 function startSlider(c) {  // where the file starts playing: within the file (half a second before its end at most)
   const d = S.schema.kinds.file.params.find(x => x.key === "start");

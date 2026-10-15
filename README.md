@@ -45,7 +45,10 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 5. **Chỉnh clip**: bấm vào clip trên timeline, rồi chỉnh ở **Bảng chỉnh hiệu ứng**:
    - **Thời gian**: bắt đầu, kết thúc, mờ dần vào/ra. Gõ số giây (`2.5` hay `2,5` đều được), rồi bấm Enter.
    - **Hoà trộn**: video hiệu ứng trên nền đen dùng **Screen**. File nền trong suốt dùng **Bình thường**. App tự chọn
-     khi bạn thêm file.
+     khi bạn thêm file. Ô của file trong Thư viện ghi "trong suốt" hoặc "nền đen".
+   - File nền trong suốt app đọc được: MOV ProRes 4444 có kênh alpha, MOV PNG hoặc Animation, WebM VP9 có alpha, ảnh
+     PNG. MOV **HEVC** có nền trong suốt thì app chưa đọc được phần trong suốt (coi là nền đen): hãy xuất lại thành
+     ProRes 4444 có kênh alpha.
    - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài, chọn clip là trên màn hình hiện một khung trắng: kéo bên trong
      khung để di chuyển, kéo một góc để phóng to/thu nhỏ, bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. Bấm vào
      hình của một clip trên màn hình để chọn clip đó; bấm rồi kéo luôn để di chuyển nó. Phóng to màn hình để đặt

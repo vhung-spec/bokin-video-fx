@@ -113,3 +113,21 @@ class Files(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SeeThroughMov(unittest.TestCase):
+    def test_prores_4444_with_alpha(self):
+        """A MOV in ProRes 4444 with an alpha channel (the usual way effects with a transparent background come) is
+        read as see-through, and only its shape covers the picture."""
+        path = os.path.join(helpers.ROOT, "leaves-alpha.mov")
+        graph = ("color=c=black@0.0:s=160x90:r=25:d=0.4,format=rgba[bg];color=c=orange:s=40x20:r=25:d=0.4,"
+                 "format=rgba[fg];[bg][fg]overlay=60:30:format=auto,format=rgba")
+        subprocess.run([video.ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i", graph, "-c:v", "prores_ks",
+                        "-profile:v", "4444", "-pix_fmt", "yuva444p10le", path], check=True)
+        info = overlay.probe_file(path)
+        self.assertTrue(info["alpha"])
+        p = {"fit": "contain", "scale": 100, "x": 0, "y": 0, "blend": "normal", "opacity": 100, "start": 0, "fade": 0}
+        pic = np.asarray(overlay.Overlay(path, info, p, 10, 25, 160, 90).picture(2))
+        self.assertEqual(pic.shape[2], 4)
+        self.assertEqual(pic[5, 5, 3], 0)  # see-through around the shape
+        self.assertEqual(pic[40, 80, 3], 255)  # the shape itself
