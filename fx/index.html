@@ -809,10 +809,11 @@ function applyTime() {
   if (!S.project) return;
   const t = S.time * fps(), playing = S.playing, f = fps();
   const loopSec = loopFrames() / f;
-  // the project's video; while painting, or when its light copy cannot play, its frame as a picture
-  if (baseVid.src) {
-    const want = (S.time % loopSec);
-    syncMedia(baseVid, want + 0.25 / f, loopSec, playing);
+  // the project's video (while playing it is the clock itself); while painting, or when its light copy cannot
+  // play, its frame as a picture
+  if (baseVid.getAttribute("src")) {
+    if (playing && S.baseClock) { if (baseVid.paused) baseVid.play().catch(() => {}); }
+    else syncMedia(baseVid, (S.time % loopSec) + 0.25 / f, loopSec, playing);
   }
   const still = !!S.paint || S.baseBroken || !baseVid.getAttribute("src") || baseVid.readyState < 2;
   if (still && !playing) {
@@ -837,29 +838,52 @@ function applyTime() {
 }
 function syncMedia(v, want, len, playing) {
   if (v.readyState < 1) return;
-  if (playing) {
+  if (playing) {  // a small lag is caught up by playing a little faster or slower, a large one by a jump
     let drift = v.currentTime - want;
     if (len > 0) { if (drift > len / 2) drift -= len; if (drift < -len / 2) drift += len; }
-    if (Math.abs(drift) > 0.15) v.currentTime = want;
+    const frame = 1 / fps();
+    if (Math.abs(drift) > 0.3 || (v.paused && Math.abs(drift) > frame)) { if (!v.seeking) v.currentTime = want; v.playbackRate = 1; }
+    else v.playbackRate = Math.abs(drift) > frame / 2 ? clamp(1 - drift * 3, 0.7, 1.4) : 1;
     if (v.paused) v.play().catch(() => {});
   } else {
     if (!v.paused) v.pause();
+    v.playbackRate = 1;
     if (Math.abs(v.currentTime - want) > 0.004) v.currentTime = want;
   }
 }
-let rafId = 0, playFrom = 0, playAt = 0;
+function baseUsable() { return !!baseVid.getAttribute("src") && !S.baseBroken && baseVid.readyState >= 2 && !S.paint; }
+// the frame of the project's video on screen right now (what a pause must keep)
+let baseShown = null;
+function watchBase() {
+  if (!baseVid.requestVideoFrameCallback) return;
+  baseVid.requestVideoFrameCallback((now, meta) => { baseShown = meta.mediaTime; if (S.playing) watchBase(); });
+}
+let rafId = 0, playFrom = 0, playAt = 0, laps = 0, lastBase = 0;
+function loopSec() { return loopFrames() / fps(); }
+function lapsAt(t) { laps = Math.floor(t / loopSec() + 1e-9); lastBase = t - laps * loopSec(); }
 function play() {
   if (!S.project || S.playing) return;
   if (S.paint) exitPaint();
+  if (S.time >= duration() - 1 / fps()) S.time = 0;
   S.playing = true; playFrom = S.time; playAt = performance.now();
-  if (S.time >= duration() - 1 / fps()) { playFrom = 0; }
+  lapsAt(S.time);
+  // the project's video is the clock: the other videos follow it, so what is on screen is the time shown
+  S.baseClock = baseUsable();
+  if (S.baseClock) { baseVid.playbackRate = 1; baseVid.currentTime = lastBase + 0.25 / fps(); baseShown = null; watchBase(); }
   $("#tPlay").textContent = "⏸";
   invalidateExact();
   const step = now => {
     if (!S.playing) return;
-    let t = playFrom + (now - playAt) / 1000;
+    let t;
+    if (S.baseClock && baseUsable() && !baseVid.paused && !baseVid.seeking) {
+      const b = baseVid.currentTime, L = loopSec();
+      if (b < lastBase - L / 2) laps++;  // it went round
+      lastBase = b;
+      t = laps * L + b;
+      playFrom = t; playAt = now;
+    } else t = playFrom + (now - playAt) / 1000;
     if (t >= duration()) {
-      if (S.loop) { t %= duration(); playFrom = t; playAt = now; }
+      if (S.loop) { t %= duration(); lapsAt(t); playFrom = t; playAt = now; }
       else { S.time = duration() - 1 / fps(); pause(); return; }
     }
     S.time = t;
@@ -871,6 +895,17 @@ function play() {
 function pause() {
   if (!S.playing) return;
   S.playing = false; cancelAnimationFrame(rafId);
+  if (S.baseClock && baseUsable()) {  // stop on the frame that is on screen, not where the clock had got to
+    const shown = baseShown !== null ? baseShown : baseVid.currentTime;
+    baseVid.pause();
+    let t = laps * loopSec() + shown;
+    if (shown > lastBase + loopSec() / 2) t -= loopSec();  // shown just before the video went round
+    else if (shown < lastBase - loopSec() / 2) t += loopSec();  // it went round since the clock last looked
+    if (t >= duration()) t -= duration();
+    if (t < 0) t += duration();
+    S.time = t;
+  }
+  S.baseClock = false;
   S.time = curFrame() / fps();  // on a frame
   $("#tPlay").textContent = "▶";
   applyTime(); refreshExact();
@@ -878,7 +913,10 @@ function pause() {
 function seek(sec) {
   if (!S.project) return;
   S.time = clamp(Math.floor(sec * fps() + 1e-6), 0, total() - 1) / fps();
-  if (S.playing) { playFrom = S.time; playAt = performance.now(); }
+  if (S.playing) {
+    playFrom = S.time; playAt = performance.now(); lapsAt(S.time);
+    if (S.baseClock) baseVid.currentTime = lastBase + 0.25 / fps();
+  }
   applyTime(); invalidateExact(); refreshExact();
   followPlayhead();
 }

@@ -323,13 +323,18 @@ def make_proxy(src, info, dst, width=1280, alpha=None, keyint=12):
     out = os.path.splitext(dst)[0] + (".webm" if alpha else ".mp4")
     tmp = os.path.splitext(dst)[0] + ".part" + (".webm" if alpha else ".mp4")
     args = ["-y"] + (["-c:v", info["decoder"]] if alpha and info.get("decoder") else []) + ["-i", src, "-map", "0:v:0"]
+    # frame n of the copy is shown at exactly n / fps, whatever the timing of the file: the page and the renderer
+    # then mean the same frame by the same time (no frame doubled or dropped, uneven phone videos included)
+    even = f"setpts=N/(({info['fps']})*TB)"
+    timing = ["-fps_mode", "cfr", "-r", str(info["fps"])]  # every frame already sits on its slot: none doubled
     if alpha:
-        args += ["-vf", f"scale={w}:{h}:flags=area,format=yuva420p", "-c:v", "libvpx-vp9", "-auto-alt-ref", "0",
-                 "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "34", "-row-mt", "1",
-                 "-g", str(keyint)]
+        args += ["-vf", f"scale={w}:{h}:flags=area,format=yuva420p,{even}", *timing, "-c:v", "libvpx-vp9",
+                 "-auto-alt-ref", "0", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "34",
+                 "-row-mt", "1", "-g", str(keyint)]
     else:
-        args += ["-vf", _from_yuv(info, (w, h)) + ",format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
-                 "-crf", "24", "-pix_fmt", "yuv420p", "-g", str(keyint), *BT709, "-movflags", "+faststart"]
+        args += ["-vf", _from_yuv(info, (w, h)) + f",format=yuv420p,{even}", *timing, "-c:v", "libx264",
+                 "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p", "-g", str(keyint), *BT709,
+                 "-movflags", "+faststart"]
     try:
         run(args + ["-an", *CLEAN, tmp], timeout=1800)
         os.replace(tmp, out)

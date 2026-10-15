@@ -82,6 +82,15 @@ def media():
     return folder
 
 
+def disc(png):
+    """Where the loop's yellow disc is in a screenshot (x, y), or None."""
+    import io
+    a = np.asarray(Image.open(io.BytesIO(png)).convert("RGB")).astype(int)
+    m = (a[..., 0] > 200) & (a[..., 1] > 170) & (a[..., 2] < 170) & (a[..., 2] > 90)
+    ys, xs = np.nonzero(m)
+    return (float(xs.mean()), float(ys.mean())) if len(xs) > 50 else None
+
+
 def upload(folder, name, as_name, kind):
     with open(os.path.join(folder, name), "rb") as f:
         return {"name": as_name, "mimeType": kind, "buffer": f.read()}
@@ -172,7 +181,17 @@ def run(page, folder, edge):
                 layers: live.map(e => [e.media.readyState, e.media.currentTime, e.media.paused])};
     })()""")
     shot("03-playing")
-    page.keyboard.press("Space")
+    shown = page.evaluate("(() => { const s = baseShown, l = laps; pause(); "
+                          "return {shown: s, frame: curFrame() % loopFrames(), base: baseVid.currentTime}; })()")
+    if edge:  # the pause keeps the frame that was on screen
+        check("pause keeps the frame on screen", shown["shown"] is not None and
+              int(shown["shown"] * 24 + 1e-6) == shown["frame"], str(shown))
+    live = disc(page.locator("#screen").screenshot())
+    page.wait_for_function("document.querySelector('#exact').style.display === 'block'", timeout=60000)
+    page.wait_for_timeout(300)
+    ready = disc(page.locator("#screen").screenshot())
+    check("paused: the live preview shows the same frame as the renderer", live is not None and ready is not None and
+          abs(live[0] - ready[0]) < 3 and abs(live[1] - ready[1]) < 3, f"disc at {live} live, {ready} rendered")
     check("plays", playing["time"] > 1.5, str(playing))
     if edge:  # Edge plays H.264: the light copy of the loop and the effect video
         check("live preview: the loop plays", playing["base"] >= 2 and not playing["broken"] and playing["baseTime"] > 0,
