@@ -46,8 +46,10 @@ def is_video(name):
 
 
 def open_picture(path):
-    """An uploaded picture, opened only by Pillow's own decoders of these formats (never EPS/Ghostscript)."""
-    return Image.open(path, formats=PICTURE_FORMATS)
+    """An uploaded picture, opened only by Pillow's own decoders of picture formats (never EPS/Ghostscript). GIF,
+    TIFF and AVIF too: older versions kept such files under a .png/.jpg name, and they must still open."""
+    Image.init()
+    return Image.open(path, formats=[f for f in PICTURE_FORMATS + ("GIF", "TIFF", "AVIF") if f in Image.OPEN])
 
 
 def probe_file(path):
@@ -201,8 +203,10 @@ class Overlay:
                 self.still = im.resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS,
                                        box=(cx0 / kx, cy0 / ky, min(cx1 / kx, im.width), min(cy1 / ky, im.height)))
         else:  # ffmpeg cuts the source pixels under that part first, then scales only them
-            sx0, sy0 = math.floor(cx0 / kx), math.floor(cy0 / ky)
-            sx1, sy1 = min(info["w"], math.ceil(cx1 / kx)), min(info["h"], math.ceil(cy1 / ky))
+            # on even pixels: 4:2:0 colour (half size) stays in line with the picture
+            sx0, sy0 = math.floor(cx0 / kx) // 2 * 2, math.floor(cy0 / ky) // 2 * 2
+            sx1 = min(info["w"], -(-math.ceil(cx1 / kx) // 2) * 2)
+            sy1 = min(info["h"], -(-math.ceil(cy1 / ky) // 2) * 2)
             px0, py0 = round(sx0 * kx), round(sy0 * ky)
             size = (round(sx1 * kx) - px0, round(sy1 * ky) - py0)
             self.crop = (cx0 - px0, cy0 - py0, cx1 - px0, cy1 - py0)

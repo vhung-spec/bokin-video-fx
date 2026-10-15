@@ -248,7 +248,12 @@ def replace_video(project, upload, original_name):
                     if image and (info["w"] > old["w"] or info["h"] > old["h"]):
                         notes.append("Ảnh gốc của vùng đứng yên đã được phóng to theo video mới nên kém nét hơn. "
                                      "Hãy chọn lại ảnh gốc.")
-                fresh["still"]["warning"] = _fit_still(path, source, info)
+                try:
+                    fresh["still"]["warning"] = _fit_still(path, source, info)
+                except UserError:
+                    if image:
+                        raise
+                    _remove(still)  # a picture not in use that cannot be read: it does not stop the new video
             elif image:
                 with Image.open(still) as im:
                     fresh["still"]["warning"] = _still_warning(path, im.convert("RGB"), info)

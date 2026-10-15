@@ -122,9 +122,10 @@ def probe(path, overlay=False):
             "decoder": ("libvpx-vp9" if codec == "vp9" else "libvpx") if vpx_alpha else None}
 
 
-def _from_yuv(info, size):
+def _from_yuv(info, size, src=None):
     w, h = size
-    flags = "accurate_rnd+full_chroma_int" + ("" if (w, h) == (info["w"], info["h"]) else "+area")
+    sw, sh = (src[2] - src[0], src[3] - src[1]) if src else (info["w"], info["h"])  # the part read (a crop)
+    flags = "accurate_rnd+full_chroma_int" + ("" if (w, h) == (sw, sh) else "+area")
     return f"scale={w}:{h}:flags={flags}:in_color_matrix={info['matrix']}:in_range={info['range']}"
 
 
@@ -139,7 +140,7 @@ class Frames:
         vf = ([f"select=gte(n\\,{int(start)})"] if start else [])
         if src and tuple(src) != (0, 0, info["w"], info["h"]):  # only this part of the source (x0, y0, x1, y1)
             vf.append(f"crop={src[2] - src[0]}:{src[3] - src[1]}:{src[0]}:{src[1]}:exact=1")
-        vf.append(_from_yuv(info, (self.w, self.h)))
+        vf.append(_from_yuv(info, (self.w, self.h), src))
         args = [ffmpeg_exe(), "-v", "error", "-nostdin"]
         if alpha and info.get("decoder"):
             args += ["-c:v", info["decoder"]]

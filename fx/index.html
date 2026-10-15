@@ -489,8 +489,11 @@ function clipOrder() {  // bottom first, as the renderer draws them
 
 // --- projects ------------------------------------------------------------------------------------------
 async function openProject(id) {
-  if (S.project && S.project.id === id) return;  // already open: its edits not saved yet and its undo stay
-  const ticket = S.opening = (S.opening || 0) + 1;  // a quicker second click wins
+  if (S.project && S.project.id === id) {  // already open: its edits not saved yet and its undo stay
+    if (S.openingId !== id) S.opening = (S.opening || 0) + 1;  // a click back on it stops another one on its way
+    return;
+  }
+  const ticket = S.opening = (S.opening || 0) + 1; S.openingId = id;  // a quicker second click wins
   try {
     if (S.project) { pause(); exitPaint(); await readyToRender(); }  // the open project's last changes go to it first
     const p = await get("/api/project?id=" + id);  // then read: the same project opened again has them
@@ -555,7 +558,10 @@ async function sendSave(p) {  // the project as it is now, not as it was when th
       if (JSON.stringify(mine.params) === sent[l.id]) mine.params = l.params;  // unchanged since: the app's tidy copy
     }
     if (S.project === p) {
-      for (const [name, m] of Object.entries(S.masks)) if (m.afterSave && p.saved.has(name)) { m.afterSave = false; queueMask(name, m); }
+      for (const [name, m] of Object.entries(S.masks)) if (m.afterSave && p.saved.has(name)) {
+        m.afterSave = false; m.posted = Math.min(m.posted, m.ver - 1);  // unsent until the app has it
+        queueMask(name, m);
+      }
       requestAllFx();
       refreshExact();
     }
@@ -1502,8 +1508,15 @@ function stroke(from, to) {  // one piece of a brush stroke: on the mask, and in
 }
 function startArea(m) {  // a clip's area is still the whole frame: the first thing painted in is the area
   if (maskKind(S.paint) !== "area" || !m.full || S.brush.mode !== "add") return;
-  mctx(m).clearRect(0, 0, m.canvas.width, m.canvas.height); m.full = false; m.empty = true;
+  mctx(m).clearRect(0, 0, m.canvas.width, m.canvas.height); m.full = false; m.empty = true; m.started = true;
   retint();
+}
+function keepWhole(m) {  // a first stroke that missed the picture: the area stays the whole frame
+  if (!m || !m.started) return;
+  m.started = false; measure(m);
+  if (!m.empty) return;
+  const g = mctx(m); g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height);
+  m.full = true; m.empty = false; m.undo.pop(); retint();
 }
 function warnTakingAway() {  // "－ Bớt" on an area with nothing in it yet does nothing: say so
   const m = S.masks[S.paint];
@@ -1528,6 +1541,7 @@ function closePoly() {
     g.globalCompositeOperation = "source-over";
   }
   S.poly = []; S.hover = null;
+  keepWhole(m);
   drawPoly(); renderTools();
   maskChanged(S.paint, add ? "add" : "sub");
 }
@@ -1576,6 +1590,7 @@ stage.addEventListener("pointermove", e => {
 function endStroke() {  // the brush lifted, or the painting stopped while the button was still down
   if (!painting) return;
   painting = false; S.paintRect = S.stageRect = null;
+  keepWhole(S.masks[S.paint]);
   maskChanged(S.paint, S.brush.mode === "add" ? "add" : "sub");
 }
 stage.addEventListener("pointerup", () => {
@@ -1881,7 +1896,7 @@ function splitClip(c, fr, many) {  // many: one of several cut at once (the call
   if (fr <= c.start || fr >= c.end) return toast("Đặt dao cắt vào giữa clip.", true);
   if (!many && !roomFor(1)) return;
   const sp = span(c);
-  if (fr - sp.start < sp.fin || sp.end - fr < sp.fout)  // a half's fade would start over or get shorter: a jump
+  if (fr - sp.start < Math.max(sp.fin, sp.seamIn) || sp.end - fr < Math.max(sp.fout, sp.seamOut))  // a half's fade would start over or get shorter: a jump
     return toast("Chỗ này clip đang mờ dần, cắt ở đây hình sẽ bị giật. Hãy cắt ở chỗ clip đã hiện rõ.", true);
   detach(c);
   c.need = span(c).need;  // the first half plays its file as the whole clip did
@@ -1901,10 +1916,10 @@ function splitAtPlayhead() {  // the selected clip only; with none selected, eve
   const targets = p.layers.filter(c => c.start < fr && fr < c.end);
   if (!targets.length) return toast("Không có clip nào ở đầu phát để cắt.", true);
   if (!roomFor(targets.length)) return;  // all or none
-  const n = targets.filter(c => splitClip(c, fr, true)).length;  // (one in a fade is left, with its message)
+  const n = targets.filter(c => splitClip(c, fr, true)).length, left = targets.length - n;  // one in a fade is left
   if (!n) return;
   edited();
-  toast(`Đã cắt ${n} clip.`, false, 1500);
+  toast(`Đã cắt ${n} clip.` + (left ? ` ${left} clip đang mờ dần ở đầu phát nên chưa cắt.` : ""), !!left, left ? 5000 : 1500);
 }
 function deleteClip(c) {
   const p = S.project;
@@ -2169,7 +2184,8 @@ function renderControls() {
 function startSlider(c) {  // where the file starts playing: within the file (half a second before its end at most)
   const d = S.schema.kinds.file.params.find(x => x.key === "start");
   const most = Math.max(0, Math.floor((c.file.info.seconds - 0.5) * 10) / 10);
-  return slider("start", `${d.label} (file dài ${num(c.file.info.seconds)} giây)`, Math.min(+c.params.start || 0, most), 0, most, 0.1);
+  const v = +c.params.start || 0;  // (one saved by an older version may be past that: shown as it plays)
+  return slider("start", `${d.label} (file dài ${num(c.file.info.seconds)} giây)`, v, 0, Math.max(most, v), 0.1);
 }
 function typingInControls() {  // a field, list, colour or slider of the panel in use: not drawn again under it
   const a = document.activeElement;
