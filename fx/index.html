@@ -88,6 +88,7 @@ header .prep { color: var(--dim); font-size: 12px; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 #paintCanvas { z-index: 60; display: none; touch-action: none; opacity: .45; }
 #polyCanvas { z-index: 61; display: none; pointer-events: none; }
+#areaCanvas { z-index: 55; display: none; pointer-events: none; }
 .badge { position: absolute; right: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--dim); z-index: 70; pointer-events: none; display: none; }
 .waiting { position: absolute; left: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--warn); z-index: 70; pointer-events: none; display: none; max-width: 70%; }
 .cursor { position: absolute; border: 1.5px solid #fff; border-radius: 50%; pointer-events: none; mix-blend-mode: difference; display: none; z-index: 80; }
@@ -99,11 +100,26 @@ header .prep { color: var(--dim); font-size: 12px; }
 .xform i[data-h=sw] { left: -6px; bottom: -6px; cursor: nesw-resize; }
 .xform i[data-h=se] { right: -6px; bottom: -6px; cursor: nwse-resize; }
 .xform .lab { position: absolute; left: -1px; top: -21px; font-size: 11px; background: #000c; color: #fff; padding: 1px 6px; white-space: nowrap; pointer-events: none; border-radius: 3px; }
-.paintbar { flex: none; background: #1d2a38; border-bottom: 1px solid #000; padding: 5px 8px; display: none; flex-wrap: wrap; gap: 5px 8px; align-items: center; }
-.paintbar .grp { display: flex; gap: 3px; align-items: center; }
-.paintbar .who { font-weight: 600; }
-.paintbar input[type=range] { width: 90px; }
-.paintbar label { color: var(--dim); display: flex; gap: 4px; align-items: center; }
+.mon-body { flex: 1; min-height: 0; display: flex; }
+.mon-body .stage { flex: 1; min-width: 0; }
+.tools { width: 214px; flex: none; background: var(--panel); border-left: 1px solid #000; overflow-y: auto; padding: 4px 10px 14px; }
+.tools h5 { margin: 12px 0 5px; font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+.tools .who { display: flex; gap: 7px; align-items: flex-start; font-weight: 600; line-height: 1.35; margin-top: 8px; }
+.tools .who i { width: 12px; height: 12px; border-radius: 50%; flex: none; margin-top: 3px; }
+.tools .two { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.tools .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+.tools .big { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 4px; font-size: 12px; }
+.tools .big b { font-size: 18px; font-weight: 400; line-height: 1; }
+.tools .wide { width: 100%; margin-top: 5px; text-align: left; }
+.tools .size { display: flex; align-items: center; gap: 8px; }
+.tools .size span { width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; background: #151515; border: 1px solid var(--line); border-radius: 6px; }
+.tools .size span i { display: block; border-radius: 50%; border: 1.5px solid #fff; }
+.tools .size input { flex: 1; min-width: 0; }
+.tools .lab { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; }
+.tools .lab b { color: #7fb8f5; font-weight: 500; }
+.tools label.check { display: flex; gap: 7px; align-items: center; margin-top: 10px; cursor: pointer; color: var(--text); }
+.tools .tip { color: var(--dim); font-size: 11.5px; line-height: 1.5; margin-top: 12px; }
+.tools .done { width: 100%; margin-top: 14px; padding: 8px; font-size: 14px; }
 .transport { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: var(--panel); border-top: 1px solid #000; flex: none; }
 .transport .tc { font-variant-numeric: tabular-nums; font-size: 15px; color: #4aa3ff; min-width: 92px; }
 .transport .tc.dur { color: var(--dim); font-size: 13px; text-align: right; }
@@ -238,7 +254,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
     <div class="split-v" id="splitV"></div>
     <section class="panel" id="monitor">
       <div class="panel-head"><span class="tab on">Chương trình</span><span class="note" id="monName"></span><div class="grow"></div><span class="note" id="monInfo"></span></div>
-      <div class="paintbar" id="paintbar"></div>
+      <div class="mon-body">
       <div class="stage" id="stage">
         <div class="screen" id="screen">
           <video id="baseVid" muted playsinline preload="auto" loop></video>
@@ -246,6 +262,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
           <img id="stillImg" alt="" style="display:none">
           <div id="layers" style="width:100%;height:100%"></div>
           <img id="exact" alt="">
+          <canvas id="areaCanvas"></canvas>
           <canvas id="paintCanvas"></canvas>
           <canvas id="polyCanvas"></canvas>
         </div>
@@ -257,6 +274,8 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
           <div class="box"><b>Kéo video loop vào đây</b>hoặc bấm <b style="display:inline;font-size:inherit">+ Video mới…</b> ở trên.<br>Thường là video loop 6 giây (1920×1080, 24 khung/giây).<br>App làm ra video 30 giây hoặc 1 phút, vẫn loop liền mạch.</div>
           <div class="recent" id="recent"></div>
         </div>
+      </div>
+      <aside class="tools" id="tools"></aside>
       </div>
       <div class="transport" id="transport">
         <span class="tc" id="tcNow">00:00:00</span>
@@ -559,8 +578,8 @@ function history(step) {
 }
 function edited(opts = {}) {  // after a change of the timeline or of a clip
   renderTimeline();
-  if (opts.controls !== false) renderControls();
-  syncLayers(); applyTime(); showXform();
+  if (opts.controls !== false) { renderControls(); if (!S.paint) renderTools(); }
+  syncLayers(); applyTime(); showXform(); drawArea();
   invalidateExact();
   scheduleSave(opts.wait);
   if (opts.remember !== false) remember();
@@ -646,6 +665,7 @@ function maskUsed(name) {  // what shows a mask is styled again with it
   else { const c = clipById(name); if (c && S.els[c.id]) styleLayer(c, S.els[c.id]); }
   const area = maskKind(name) === "area" ? !m.full : !m.empty;
   if (m.shownArea !== area) { m.shownArea = area; renderControls(); renderTimeline(); }
+  if (name === S.sel) drawArea();
 }
 function queueMask(name, m) {  // sends of one mask go one after another, to the project the mask belongs to
   clearTimeout(m.timer); m.timer = 0;
@@ -745,10 +765,11 @@ const stage = $("#stage"), screenEl = $("#screen"), baseVid = $("#baseVid"), sti
 const baseFrame = $("#baseFrame");
 baseVid.addEventListener("error", () => { S.baseBroken = !!baseVid.getAttribute("src"); applyTime(); });
 baseVid.addEventListener("loadeddata", () => { S.baseBroken = false; applyTime(); });
-const paintCanvas = $("#paintCanvas"), polyCanvas = $("#polyCanvas"), layersEl = $("#layers");
+const paintCanvas = $("#paintCanvas"), polyCanvas = $("#polyCanvas"), areaCanvas = $("#areaCanvas"), layersEl = $("#layers");
 function setupScreen() {
   const p = S.project;
-  paintCanvas.width = polyCanvas.width = p.mask_w; paintCanvas.height = polyCanvas.height = p.mask_h;
+  paintCanvas.width = polyCanvas.width = areaCanvas.width = p.mask_w; paintCanvas.height = polyCanvas.height = areaCanvas.height = p.mask_h;
+  areaCanvas.dataset.key = "";
   const src = p.proxy ? `/media/base?id=${p.id}&v=${encodeURIComponent(p.proxy)}` : "";
   S.baseBroken = false;
   if (src) { if (!baseVid.src.endsWith(src)) baseVid.src = src; } else { baseVid.removeAttribute("src"); baseVid.load(); }
@@ -772,7 +793,7 @@ function layoutScreen() {
   screenEl.style.width = f.w + "px"; screenEl.style.height = f.h + "px";
   const x = (f.sw - f.w * S.scale) / 2 + S.panX, y = (f.sh - f.h * S.scale) / 2 + S.panY;
   screenEl.style.transform = `translate(${x}px, ${y}px) scale(${S.scale})`;
-  drawPoly(); showXform();
+  drawPoly(); showXform(); drawArea();
 }
 function clearLayers() {
   for (const el of Object.values(S.els)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); }
@@ -909,7 +930,7 @@ xform.addEventListener("pointermove", e => {
 xform.addEventListener("pointerup", () => {
   const d = S.xdrag; if (!d) return;
   S.xdrag = null;
-  if (["x", "y", "scale"].some(k => d.c.params[k] !== d.p0[k])) { scheduleSave(); remember(); renderControls(); }
+  if (["x", "y", "scale"].some(k => d.c.params[k] !== d.p0[k])) { scheduleSave(); remember(); renderControls(); renderTools(); }
   refreshExact();
 });
 xform.addEventListener("dblclick", e => {  // back to the middle, at its size
@@ -1128,43 +1149,133 @@ function enterPaint(name) {
   S.onlyBase = name === "freeze" || name === "fg";
   paintCanvas.style.display = polyCanvas.style.display = "block";
   invalidateExact(); showXform();
-  renderPaintbar(); styleAll(); applyTime(); drawPaint();
+  renderTools(); styleAll(); applyTime(); drawPaint(); drawArea();
   snapshotSoon(S.masks[name]);
 }
 function exitPaint() {
   if (!S.paint) return;
+  const name = S.paint, m = S.masks[name];
   S.paint = null; S.poly = [];
-  paintCanvas.style.display = polyCanvas.style.display = "none"; renderPaintbar(); $("#cursor").style.display = "none";
-  styleAll(); applyTime(); renderControls(); refreshExact(); showXform();
+  if (m) { clearTimeout(m.useTimer); maskUsed(name); }  // the live preview follows at once
+  paintCanvas.style.display = polyCanvas.style.display = "none"; renderTools(); $("#cursor").style.display = "none";
+  styleAll(); applyTime(); renderControls(); showXform(); drawArea();
+  // the area goes to the app now; the exact frame is made once it is there (sendMask asks for it), never before
+  if (m && m.timer) queueMask(name, m); else refreshExact();
 }
-function renderPaintbar() {
-  const b = $("#paintbar"), br = S.brush;
-  const was = b.style.display;
-  if (!S.paint) { b.style.display = "none"; if (was === "flex") layoutScreen(); return; }
-  b.style.display = "flex";
-  if (was !== "flex") requestAnimationFrame(layoutScreen);
-  b.innerHTML = `<span class="who">✎ Đang vẽ: ${esc(paintName(S.paint))}</span>
-    <div class="grp"><button class="small ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X)">＋ Thêm</button><button class="small ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X)">－ Bớt</button></div>
-    <div class="grp"><button class="small ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ (B)">🖌 Cọ</button><button class="small ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh vùng: bấm từng điểm (L)">⬠ Khoanh</button></div>
-    <label>Cỡ <input type="range" id="brushSize" min="2" max="400" value="${br.size}"></label>
-    <div class="grp"><button class="small" data-fill="all">Tô hết</button><button class="small" data-fill="none">Xoá hết</button><button class="small" data-fill="invert">Đảo</button></div>
-    <div class="grp"><button class="small" data-pundo="1" title="Hoàn tác (Ctrl+Z)">↶</button><button class="small" data-predo="1" title="Làm lại (Ctrl+Y)">↷</button></div>
-    <label><input type="checkbox" id="onlyBase" ${S.onlyBase ? "checked" : ""}> Chỉ xem video gốc</label>
-    <button class="small primary" data-done="1" title="Xong (Esc)">Xong</button>`;
+// the area of the selected clip, outlined over the picture after painting: to move and size the clip into it
+try { S.showArea = localStorage.getItem("fx.area") !== "0"; } catch (e) { S.showArea = true; }
+function drawArea() {
+  const c = S.project && !S.paint ? clipById(S.sel) : null, m = c && S.masks[c.id];
+  if (!S.showArea || !m || m.full || m.empty) { areaCanvas.style.display = "none"; return; }
+  const k = Math.max(1, Math.round(1.5 * areaCanvas.width / Math.max(1, screenEl.getBoundingClientRect().width)));
+  const key = `${c.id}|${m.ver}|${k}`;
+  areaCanvas.style.display = "block";
+  if (areaCanvas.dataset.key === key) return;
+  areaCanvas.dataset.key = key;
+  const w = areaCanvas.width, h = areaCanvas.height, colour = COLORS.area;
+  const shrunk = document.createElement("canvas"); shrunk.width = w; shrunk.height = h;  // the area a little smaller
+  const s = shrunk.getContext("2d");
+  s.drawImage(m.canvas, 0, 0);
+  s.globalCompositeOperation = "destination-in";
+  for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k]]) s.drawImage(m.canvas, dx, dy);
+  const g = areaCanvas.getContext("2d");
+  g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+  g.clearRect(0, 0, w, h);
+  g.drawImage(m.canvas, 0, 0);  // its edge: the area minus the smaller one
+  g.globalCompositeOperation = "destination-out"; g.drawImage(shrunk, 0, 0);
+  g.globalCompositeOperation = "source-in"; g.fillStyle = colour; g.fillRect(0, 0, w, h);
+  s.globalCompositeOperation = "source-in"; s.fillStyle = colour; s.fillRect(0, 0, w, h);  // and a light tint inside
+  g.globalCompositeOperation = "destination-over"; g.globalAlpha = 0.16; g.drawImage(shrunk, 0, 0);
+  g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
 }
-$("#paintbar").addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b || !S.paint) return;
-  if (b.dataset.mode) { S.brush.mode = b.dataset.mode; renderPaintbar(); drawPoly(); }
-  if (b.dataset.ptool) { S.brush.tool = b.dataset.ptool; S.poly = []; renderPaintbar(); drawPoly(); }
+function featherOf(name) {  // the softness of a mask's edge, in pixels of the video
+  const p = S.project;
+  if (name === "freeze" || name === "fg") return p[name].feather;
+  const c = clipById(name); return c ? c.feather || 0 : 0;
+}
+function renderTools() {  // the tool column at the right of the monitor: painting tools, or ways to start painting
+  const el = $("#tools"), p = S.project, br = S.brush;
+  if (!p) { el.innerHTML = `<p class="tip">Mở một video để bắt đầu.</p>`; return; }
+  if (S.paint) {
+    const d = Math.max(3, Math.min(40, br.size / 6));
+    el.innerHTML = `<div class="who"><i style="background:${COLORS[maskKind(S.paint)]}"></i><span>Đang vẽ ${esc(paintName(S.paint))}</span></div>
+      <h5>Công cụ</h5>
+      <div class="two"><button class="big ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ: kéo chuột để tô (B)"><b>🖌</b>Cọ</button>
+        <button class="big ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh: bấm từng điểm, bấm lại điểm đầu để khép (L)"><b>⬠</b>Khoanh</button></div>
+      <h5>Chế độ</h5>
+      <div class="two"><button class="big ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X để đổi)"><b>＋</b>Thêm</button>
+        <button class="big ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X để đổi)"><b>－</b>Bớt</button></div>
+      <h5>Cỡ cọ</h5>
+      <div class="size"><span><i id="sizeDot" style="width:${d}px;height:${d}px"></i></span><input type="range" id="brushSize" min="2" max="400" value="${br.size}" title="Phím [ và ] để đổi nhanh"></div>
+      <div class="lab" style="margin-top:3px"><span>điểm ảnh</span><b id="brushSizeVal">${br.size}</b></div>
+      <h5>Cả vùng</h5>
+      <div class="three"><button class="small" data-fill="all" title="Tô kín cả khung hình">Tô hết</button><button class="small" data-fill="none" title="Xoá cả vùng">Xoá hết</button><button class="small" data-fill="invert" title="Đổi chỗ tô và chỗ trống">Đảo</button></div>
+      <h5>Mép mềm</h5>
+      <div class="lab"><span>độ mềm (điểm ảnh)</span><b id="paintFeatherVal">${featherOf(S.paint)}</b></div>
+      <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}">
+      <div class="two" style="margin-top:12px"><button class="small" data-pundo="1" title="Hoàn tác (Ctrl+Z)">↶ Hoàn tác</button><button class="small" data-predo="1" title="Làm lại (Ctrl+Y)">↷ Làm lại</button></div>
+      <label class="check"><input type="checkbox" id="onlyBase" ${S.onlyBase ? "checked" : ""}> Chỉ xem video gốc</label>
+      <button class="primary done" data-done="1" title="Xong (Esc)">Xong</button>
+      <p class="tip">Lăn chuột trên hình: phóng to. Giữ chuột phải: kéo hình. Esc: xong.</p>`;
+    return;
+  }
+  const c = clipById(S.sel);
+  const pos = c && c.kind === "file" ? `<h5>Vị trí và cỡ</h5>
+      <div class="lab"><span>Cỡ</span><b>${c.params.scale}%</b></div><div class="lab"><span>Ngang, dọc</span><b>${c.params.x}, ${c.params.y}</b></div>
+      <div class="two" style="margin-top:6px"><button class="small" data-center="1" title="Đưa clip về giữa khung">Về giữa</button><button class="small" data-scale100="1" title="Cỡ 100%">Cỡ 100%</button></div>
+      <p class="tip">Kéo khung trắng trên hình để di chuyển, kéo góc để đổi cỡ.</p>` : "";
+  el.innerHTML = `<h5>Vẽ vùng</h5>
+    <button class="wide" data-paint="freeze" title="Chỗ phải đứng yên tuyệt đối"><span style="color:${COLORS.freeze}">●</span> Vùng đứng yên</button>
+    <button class="wide" data-paint="fg" title="Vật ở gần: che các clip bay ra sau tiền cảnh"><span style="color:${COLORS.fg}">●</span> Tiền cảnh</button>
+    <button class="wide" data-paint="clip" ${c ? "" : "disabled"} title="Chỗ clip đang chọn được hiện"><span style="color:${COLORS.area}">●</span> Vùng của clip đang chọn</button>
+    ${c ? `<label class="check"><input type="checkbox" id="showArea" ${S.showArea ? "checked" : ""}> Hiện vùng của clip</label>` : '<p class="tip">Chọn một clip trên timeline để vẽ vùng của nó.</p>'}
+    ${pos}`;
+}
+$("#tools").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || !S.project) return;
+  if (b.dataset.paint) {
+    const name = b.dataset.paint === "clip" ? S.sel : b.dataset.paint;
+    if (!name || !S.masks[name]) return;
+    if (name === "freeze" || name === "fg") S.sel = "base";
+    enterPaint(name); renderTimeline(); renderControls(); return;
+  }
+  if (b.dataset.center || b.dataset.scale100) {
+    const c = clipById(S.sel); if (!c) return;
+    if (b.dataset.center) { c.params.x = 0; c.params.y = 0; } else c.params.scale = 100;
+    edited(); renderTools(); return;
+  }
+  if (!S.paint) return;
+  if (b.dataset.mode) { S.brush.mode = b.dataset.mode; renderTools(); drawPoly(); }
+  if (b.dataset.ptool) { S.brush.tool = b.dataset.ptool; S.poly = []; renderTools(); drawPoly(); }
   if (b.dataset.fill) fillMask(S.paint, b.dataset.fill);
   if (b.dataset.pundo) undoPaint(false);
   if (b.dataset.predo) undoPaint(true);
   if (b.dataset.done) exitPaint();
 });
-$("#paintbar").addEventListener("input", e => {
-  if (e.target.id === "brushSize") S.brush.size = +e.target.value;
-  if (e.target.id === "onlyBase") { S.onlyBase = e.target.checked; styleAll(); applyTime(); }
+$("#tools").addEventListener("input", e => {
+  const t = e.target, p = S.project; if (!p) return;
+  if (t.id === "showArea") {
+    S.showArea = t.checked; drawArea();
+    try { localStorage.setItem("fx.area", t.checked ? "1" : "0"); } catch (err) { /* storage blocked */ }
+    return;
+  }
+  if (!S.paint) return;
+  if (t.id === "brushSize") {
+    S.brush.size = +t.value; $("#brushSizeVal").textContent = t.value;
+    const d = Math.max(3, Math.min(40, S.brush.size / 6)), dot = $("#sizeDot");
+    dot.style.width = dot.style.height = d + "px";
+  }
+  if (t.id === "onlyBase") { S.onlyBase = t.checked; styleAll(); applyTime(); }
+  if (t.id === "paintFeather") {  // the same softness as in the Effect Controls
+    const v = +t.value; $("#paintFeatherVal").textContent = v;
+    if (S.paint === "freeze" || S.paint === "fg") p[S.paint].feather = v;
+    else { const c = clipById(S.paint); if (c) c.feather = v; }
+    styleAll(); invalidateExact(); scheduleSave();
+    const mirror = $(`#ec [data-base="${S.paint}"], #ec [data-for="${S.paint}"] [data-clipnum="feather"]`);
+    if (mirror) mirror.value = v;
+  }
 });
+$("#tools").addEventListener("change", e => { if (e.target.id === "paintFeather") remember(); });
 function retint() {  // the colour over the area being painted, made again from the mask (after an undo, a fill)
   const g = paintCanvas.getContext("2d");
   g.globalCompositeOperation = "source-over";
@@ -1588,7 +1699,7 @@ function deleteClip(c) {
 }
 function select(id) {
   if (S.paint && S.paint !== id && !(id === "base" && (S.paint === "freeze" || S.paint === "fg"))) exitPaint();
-  S.sel = id; renderTimeline(); renderControls(); showXform();
+  S.sel = id; renderTimeline(); renderControls(); showXform(); renderTools(); drawArea();
 }
 
 // the track heads
@@ -2055,7 +2166,7 @@ function renderAll() {
   $("#monInfo").textContent = has ? `${p.video.w}×${p.video.h} · ${p.video.fps} khung/giây` : "";
   $("#tcDur").textContent = has ? tc(duration()) : "";
   if (has) { layoutScreen(); syncLayers(); styleAll(); }
-  renderTimeline(); renderControls(); renderBin(); renderPaintbar();
+  renderTimeline(); renderControls(); renderBin(); renderTools();
   if (!has) renderRecent();
   updateWaiting();
 }
@@ -2256,10 +2367,10 @@ document.addEventListener("keydown", e => {
     if (k === "Enter") closePoly();
     else if (k === "Escape") { if (S.poly.length) { S.poly = []; drawPoly(); } else exitPaint(); }
     else if (k === "Backspace" && S.poly.length) { S.poly.pop(); drawPoly(); }
-    else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderPaintbar(); }
-    else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; renderPaintbar(); }
-    else if (k === "l" || k === "L") { S.brush.tool = "poly"; renderPaintbar(); }
-    else if (k === "[" || k === "]") { S.brush.size = clamp(Math.round(S.brush.size * (k === "]" ? 1.2 : 1 / 1.2)), 2, 400); renderPaintbar(); }
+    else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderTools(); }
+    else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; renderTools(); }
+    else if (k === "l" || k === "L") { S.brush.tool = "poly"; renderTools(); }
+    else if (k === "[" || k === "]") { S.brush.size = clamp(Math.round(S.brush.size * (k === "]" ? 1.2 : 1 / 1.2)), 2, 400); renderTools(); }
     return;
   }
   if (k === "v" || k === "V") { S.tool = "select"; renderTimeline(); }

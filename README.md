@@ -29,7 +29,7 @@ bản mới sẽ được cài lúc app tự đóng.
 | Vùng | Dùng để |
 |---|---|
 | Trên bên trái: **Bảng chỉnh hiệu ứng** | Chỉnh clip đang chọn: thời gian, mờ dần, hoà trộn, vị trí, cỡ, vùng |
-| Trên bên phải: **Chương trình** | Xem video. Nút phát, khung trước/sau, phóng to hình |
+| Trên bên phải: **Chương trình** | Xem video. Nút phát, khung trước/sau, phóng to hình. Cột **Công cụ** bên phải: vẽ vùng, vị trí và cỡ |
 | Dưới bên trái: **Thư viện / Tạo sẵn / Dự án** | Các hiệu ứng để kéo xuống timeline. Các dự án đã mở |
 | Dưới bên phải: **Timeline** | V1 là video gốc (lặp lại thành 30 giây hoặc 1 phút). V2, V3… là các track hiệu ứng |
 
@@ -77,6 +77,9 @@ nối không bị giật.
 
 ### Vẽ vùng
 
+Bấm một nút trong cột **Công cụ** bên phải màn hình (Vùng đứng yên, Tiền cảnh, Vùng của clip đang chọn). Các công cụ vẽ
+hiện trong cột đó, hình không bị thu nhỏ.
+
 | Thao tác | Cách làm |
 |---|---|
 | Tô | Chọn **🖌 Cọ** rồi kéo chuột. Chỉnh **Cỡ**, hoặc bấm phím `[` `]` |
@@ -84,7 +87,7 @@ nối không bị giật.
 | Thêm / bớt | **＋ Thêm**, **－ Bớt** (phím `X` để đổi) |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` |
 | Phóng to, kéo hình | Lăn chuột trên hình để phóng to. Giữ chuột phải (hoặc phím cách) rồi kéo |
-| Xong | Bấm **Xong** hoặc `Esc` |
+| Xong | Bấm **Xong** hoặc `Esc`. Vùng của clip vẫn hiện bằng viền xanh để bạn kéo clip vào đúng chỗ (tắt bằng ô **Hiện vùng của clip**) |
 
 ### Phím tắt khác
 
