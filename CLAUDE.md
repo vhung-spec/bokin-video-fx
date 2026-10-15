@@ -1,53 +1,84 @@
 # Bokin FX: ghi chú cho mỗi phiên làm việc
 
-App Windows (máy cá nhân, cho nhân viên) thêm hiệu ứng vào video loop: tuyết, lá, mưa, hạt sáng, video/ảnh ngoài;
-vùng đứng yên; vùng riêng cho từng hiệu ứng; tiền cảnh che hiệu ứng. Cách dùng: `README.md`.
+App Windows cho chủ dự án tự dùng trên máy của mình. Thêm hiệu ứng vào video loop rồi xuất video 30 giây hoặc 1 phút,
+vẫn loop liền mạch. Giao diện giống Premiere: thư viện hiệu ứng (file ngoài là chính, hiệu ứng tạo sẵn là phụ),
+timeline có track và clip, xem nhanh ngay trong trình duyệt, vùng đứng yên, vùng riêng cho từng clip, tiền cảnh che
+hiệu ứng. Cách dùng: `README.md`.
 
 ## Repo này công khai
 
 - Không đưa vào đây bất cứ gì từ các repo riêng tư của công ty: mã, tài liệu, thông tin nội bộ, tên miền, email, IP,
   token. Đọc chúng chỉ để hiểu cách làm, rồi tự viết. Cũng không nêu tên hay chi tiết của chúng ở đây.
 - Không commit khoá, mật khẩu, token. App tự cập nhật từ Releases công khai, không cần khoá.
-- Bản cài trên Releases ai cũng tải được. Muốn giới hạn người dùng thì phải làm bản web có đăng nhập (chưa làm).
+- Bản cài trên Releases ai cũng tải được.
 - Hình hạt (lá, tuyết…) đều vẽ bằng mã. Chỉ thêm hình/video mà công ty sở hữu hoặc có giấy phép.
+- Học ý tưởng từ dự án mở thì được. Mã GPL (Shotcut, Kdenlive, OpenShot…) không chép vào đây. Mã MIT/Apache chỉ dùng
+  khi ghi kèm giấy phép.
 
 ## Cấu trúc
 
 - `bokin_fx.py`: điểm vào (`--selftest`, `--close`, `--updated`).
 - `fx/app.py`: vỏ app trên máy. Cổng 7890–7899, chỉ chạy một bản. Cửa sổ Edge/Chrome `--app`. Tự thoát 5 phút sau khi
   đóng cửa sổ (nếu không có việc), cài bản cập nhật lúc thoát.
-- `fx/server.py`: máy chủ `ThreadingHTTPServer`, API JSON `/api/...`. Chỉ nhận Host 127.0.0.1/localhost. Mọi POST cần
-  header `X-Bokin: 1`. Trang không bao giờ đưa đường dẫn: chỉ có mã dự án/lớp, kiểm theo mẫu.
-- `fx/index.html`: toàn bộ giao diện (JavaScript thuần, không framework, không bước build), tiếng Việt.
-- `fx/projects.py`: dự án trong `%APPDATA%\Bokin\FX\projects\<id>` (project.json, input.*, still.png, masks/, files/).
-- `fx/engine.py`: ghép một khung (video → vùng đứng yên → các lớp theo thứ tự), kết xuất, xem một khung.
+- `fx/server.py`: máy chủ `ThreadingHTTPServer`, API JSON `/api/...`, file cho xem nhanh `/media/...`. Chỉ nhận Host
+  127.0.0.1/localhost. Mọi POST cần header `X-Bokin: 1`. Trang không bao giờ đưa đường dẫn: chỉ có mã dự án, clip,
+  mục thư viện, kiểm theo mẫu.
+- `fx/index.html`: toàn bộ giao diện (JavaScript thuần, không framework, không bước build), tiếng Việt. Bốn vùng như
+  Premiere: Bảng chỉnh hiệu ứng, Chương trình (xem nhanh), Thư viện/Tạo sẵn/Dự án, Timeline.
+- `fx/timeline.py`: luật thời gian của clip (độ dài 30/60 giây, `Span`: bắt đầu, kết thúc, mờ dần). `index.html` có
+  bản sao bằng JavaScript (`span`, `weight`, `plan`, `fileTime`): sửa một bên thì sửa cả bên kia.
+- `fx/projects.py`: dự án trong `%APPDATA%\Bokin\FX\projects\<id>` (project.json, input.*, proxy.mp4, still.png,
+  masks/, clips/). `layers` là các clip; `tracks` từ dưới lên; `upgrade()` chuyển dự án của bản cũ (một lần).
+- `fx/library.py`: thư viện hiệu ứng dùng chung trong `%APPDATA%\Bokin\FX\library\<id>` (file gốc, ảnh nhỏ, bản nhẹ).
+- `fx/engine.py`: ghép một khung (video → vùng đứng yên → các clip theo track, mờ dần), kết xuất song song nhiều đoạn,
+  khung chính xác cho trang (`Looks`), clip xem nhanh của hiệu ứng tạo sẵn (`fx_clip`), bản nhẹ của video gốc.
 - `fx/effects.py`: tuyết, lá, mưa, hạt sáng; `SCHEMA` là nguồn duy nhất của các thông số (trang đọc từ `/api/schema`).
-- `fx/sprites.py`: hình hạt vẽ bằng mã. `fx/overlay.py`: lớp từ video/ảnh ngoài, nối loop bằng hoà mượt.
-- `fx/video.py`: ffmpeg (bản đi kèm imageio-ffmpeg): đọc khung, ghi H.264, nối dài bằng stream copy.
-- `fx/jobs.py`: hàng đợi xem thử và xuất video. `fx/updater.py`: tự cập nhật. `fx/selftest.py`: tự kiểm tra.
-- `packaging/`: PyInstaller (`BokinFX.spec`), Inno Setup (`BokinFX.iss`), icon, bài thử cài đặt và cập nhật trong CI.
+- `fx/sprites.py`: hình hạt vẽ bằng mã. `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()` cho clip suốt video,
+  `playing()` cho clip ngắn hơn).
+- `fx/video.py`: ffmpeg (bản đi kèm imageio-ffmpeg): đọc khung, ghi H.264, nối các đoạn bằng stream copy, bản nhẹ cho
+  trình duyệt (H.264, hoặc VP9 WebM khi có nền trong suốt).
+- `fx/jobs.py`: hai hàng đợi: xuất video, và chuẩn bị xem nhanh (bản nhẹ, clip hiệu ứng tạo sẵn).
+- `fx/updater.py`: tự cập nhật. `fx/selftest.py`: tự kiểm tra.
+- `packaging/`: PyInstaller (`BokinFX.spec`), Inno Setup (`BokinFX.iss`), icon, bài thử cài đặt, cập nhật, và giao
+  diện trên Edge (`ci_page_test.py`, dùng Playwright) trong CI.
 - Thư viện: numpy, Pillow, imageio-ffmpeg. **Không dùng OpenCV**: OpenCV cần Media Foundation, mà Windows bản N và
   Windows Server không có sẵn.
 
+## Xem nhanh trên trang
+
+- Trình duyệt tự ghép: `<video>` bản nhẹ của video gốc, ảnh vùng đứng yên, rồi từng clip với CSS `mix-blend-mode`
+  (screen, multiply, plus-lighter cho add), `opacity` (mờ dần) và `mask-image` (vùng đã làm mềm; clip "sau tiền cảnh"
+  thêm tiền cảnh đảo ngược, `mask-composite: intersect`). Một đồng hồ chung giữ mọi video khớp nhau.
+- Hiệu ứng tạo sẵn: app kết xuất cả độ dài video thành clip nhỏ (WebM trong suốt, hoặc H.264 cho hạt sáng dùng
+  Screen). Tên file theo nội dung (`fx-<khoá>.webm`), hai nửa của clip bị cắt dùng chung.
+- Dừng hình thì trang lấy khung chính xác từ `engine.Looks` (`/api/look`): đó là thứ video xuất ra.
+- Trình duyệt Chromium của Playwright không phát H.264. Edge và Chrome thì phát được (CI thử trên Edge).
+
 ## Quy tắc phải giữ
 
-- **Loop liền mạch**: mọi chuyển động là hàm của `t / P` (P = số khung của loop), mọi tần số là số nguyên lần mỗi vòng.
-  Vì vậy khung P trùng khung 0. Hạt rơi đi hết khung đúng k lần mỗi vòng; tốc độ vẫn tự do vì đường đi có thể dài hơn
-  khung. Video ngoài thì hoà mượt đoạn cuối vào đoạn đầu. Thêm hiệu ứng mới thì thêm vào bài kiểm thử
-  `tests/test_effects.py` (khung P == khung 0).
+- **Loop liền mạch**: mọi chuyển động là hàm của `t / P`, mọi tần số là số nguyên lần mỗi vòng, nên khung P trùng
+  khung 0. Với video xuất ra, P là cả độ dài (30 giây hoặc 1 phút = số nguyên vòng loop của video gốc). Hạt rơi đi hết
+  khung đúng k lần mỗi vòng; tốc độ vẫn tự do vì đường đi có thể dài hơn khung. Thêm hiệu ứng mới thì thêm vào bài
+  kiểm thử `tests/test_effects.py` (khung P == khung 0).
+- **Clip trên timeline**: clip suốt video thì lặp liền mạch (video ngoài hoà mượt đoạn cuối vào đoạn đầu). Clip ngắn
+  hơn luôn mờ dần ít nhất `MIN_EDGE_FADE` ở đầu và cuối video. Cắt đôi clip không đổi hình: nửa sau có
+  `skip` = chỗ đã phát (kiểm trong `tests/test_engine.py`).
 - **Vùng đứng yên giống hệt từng điểm ảnh** của ảnh gốc / khung đã chọn (kiểm trong selftest và tests).
 - **Video ra**: H.264 4:2:0, BT.709, đúng kích thước và số khung/giây của video vào, không âm thanh, **không còn gì
-  nêu tên công cụ** (mã hoá vào file tạm rồi remux sạch thẻ, bỏ SEI của x264). Video dài: nối bằng stream copy.
+  nêu tên công cụ** (mã hoá vào file tạm rồi remux sạch thẻ, bỏ SEI của x264). Kết xuất nhiều đoạn song song rồi nối
+  bằng stream copy. Tiến trình con không tự tìm file trong thư viện: `found_files()` tìm trước.
 - Hiệu ứng nhẹ, tự nhiên. Không bẻ cong cả bức ảnh.
 - File tải lên là không tin cậy: chỉ đọc bằng mã của mình, chỉ ghi vào thư mục dữ liệu, giới hạn kích thước.
 - Mã và chú thích trong mã bằng tiếng Anh; chữ trên trang bằng tiếng Việt, câu dễ hiểu cho người không rành kỹ thuật.
 
 ## Kiểm tra và phát hành
 
-- Nhanh: `python -m unittest discover -s tests -t .`. Trọn vẹn: `python bokin_fx.py --selftest`.
+- Nhanh: `python -m unittest discover -s tests -t .`. Trọn vẹn: `python bokin_fx.py --selftest`. Giao diện:
+  `python packaging/ci_page_test.py` (cần `pip install playwright`; trên Linux đặt `BOKIN_BROWSER` hoặc dùng Chromium
+  của Playwright).
 - Nhánh mặc định và nhánh phát hành: `claude/relaxed-ptolemy-v732bs`. Push lên đó thì workflow
   `.github/workflows/bokin-fx.yml` chạy trên Windows:
-  1. Kiểm thử, rồi build PyInstaller.
+  1. Kiểm thử, thử giao diện trên Edge (ảnh chụp từng bước lưu thành artifact `page-test`), rồi build PyInstaller.
   2. Bản đã build chạy `--selftest`, rồi build bộ cài Inno Setup.
   3. Cài thật, cài đè lúc app đang chạy, rồi thử tự cập nhật lên bản `N.1` với một GitHub giả.
   4. Phát hành Release `fx-v1.0.<số lần chạy>` (ghi SHA-256 vào ghi chú).
@@ -61,7 +92,6 @@ vùng đứng yên; vùng riêng cho từng hiệu ứng; tiền cảnh che hi�
 
 ## Việc có thể làm sau
 
-- Bản web trên máy chủ của công ty. `server.App(desktop=False)` đã tắt các việc chỉ hợp với máy cá nhân. Còn thiếu:
-  biết ai đang dùng (đăng nhập), thư mục riêng cho từng người, giới hạn.
-- Tự nhận diện vùng (bấm vào vật để khoanh). Phải dùng mô hình có giấy phép thương mại.
-- Kết xuất nhanh hơn: chia khung cho nhiều tiến trình.
+- Tự nhận diện vùng: bấm vào vật để khoanh (SAM 2 hoặc MobileSAM, giấy phép Apache-2.0, chạy trên CPU vài giây).
+- Kết xuất nhanh hơn nữa (hiện khoảng 5 khung/giây cho 1080p có 7 clip trên máy 4 nhân).
+- Keyframe cho thông số clip (độ đậm, vị trí thay đổi theo thời gian).

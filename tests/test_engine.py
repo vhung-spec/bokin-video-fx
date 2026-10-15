@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from tests import helpers
-from fx import engine, projects, video
+from fx import engine, library, projects, timeline, video
 
 W, H, P = 320, 180, 24
 
@@ -64,26 +64,24 @@ class Engine(unittest.TestCase):
         projects.apply(projects.load(self.project["id"]), {"layers": []})
         self.assertFalse(os.path.exists(engine.mask_path(self.folder, "snowaa")))  # removed with its layer
 
-    def test_render_and_repeat(self):
+    def test_render(self):
         project = projects.apply(projects.load(self.project["id"]), {"layers": [
             {"id": "rainaa", "kind": "rain", "params": {}, "seed": 1},
             {"id": "glowaa", "kind": "glow", "params": {}, "seed": 1}]})
         out = os.path.join(helpers.ROOT, "render.mp4")
-        self.assertTrue(engine.render(self.folder, project, out, preset="veryfast"))
+        self.assertTrue(engine.render(self.folder, project, out, seconds=1, preset="veryfast"))
         info = video.probe(out)
         self.assertEqual((info["frames"], info["matrix"]), (P, "bt709"))
         data = open(out, "rb").read()
         for trace in (b"x264", b"Lavf", b"Lavc"):
             self.assertNotIn(trace, data)
-        longer = os.path.join(helpers.ROOT, "render-x4.mp4")
-        self.assertTrue(video.repeat(out, longer, 4, seconds=4))
-        self.assertEqual(video.probe(longer)["frames"], 4 * P)
         stop = {"n": 0}
 
         def cancelled():
             stop["n"] += 1
             return stop["n"] > 3
-        self.assertFalse(engine.render(self.folder, project, os.path.join(helpers.ROOT, "x.mp4"), cancelled=cancelled))
+        self.assertFalse(engine.render(self.folder, project, os.path.join(helpers.ROOT, "x.mp4"), seconds=2,
+                                       cancelled=cancelled, processes=1))
         self.assertFalse(os.path.exists(os.path.join(helpers.ROOT, "x.mp4")))
         projects.apply(projects.load(self.project["id"]), {"layers": []})
 
@@ -108,23 +106,109 @@ class Engine(unittest.TestCase):
             self.assertLess(steps[at], usual * 1.6 + 0.5, f"jump at frame {at}: {steps[at]:.2f}, usual {usual:.2f}")
         projects.apply(projects.load(self.project["id"]), {"layers": []})
 
-    def test_outside_file_layer(self):
+    def test_outside_file_clip(self):
         clip = helpers.make_loop(os.path.join(helpers.ROOT, "clip.mp4"), 160, 90, 40, "30")
-        project = projects.apply(projects.load(self.project["id"]), {"layers": [{"id": "fileaa", "kind": "file"}]})
-        project = projects.set_layer_file(project, "fileaa", clip, "effect on black.mp4")
+        item = library.add(clip, "effect on black.mp4")
+        project = projects.apply(projects.load(self.project["id"]), {"layers": [
+            {"id": "fileaa", "kind": "file", "lib": item["id"], "params": {"blend": "screen"}}]})
         layer = project["layers"][0]
-        self.assertEqual(layer["params"]["blend"], "screen")
-        self.assertTrue(os.path.exists(os.path.join(self.folder, "files", layer["file"]["stored"])))
+        self.assertEqual(layer["file"]["lib"], item["id"])
         scene = engine.Scene(self.folder, project, (W, H))
         try:
             frames = [scene.frame(t, self.base(t)) for t in range(P)]
         finally:
             scene.close()
         self.assertFalse(np.array_equal(frames[0], self.base(0)))
-        with self.assertRaises(projects.UserError):
-            projects.set_layer_file(project, "fileaa", clip, "virus.exe")
         projects.apply(projects.load(self.project["id"]), {"layers": []})
-        self.assertEqual(os.listdir(os.path.join(self.folder, "files")), [])
+
+    def frames(self, project, times):
+        scene = engine.Scene(self.folder, project, (W, H))
+        try:
+            return {t: scene.frame(t, self.base(t % P)).astype(np.int16) for t in times}
+        finally:
+            scene.close()
+
+    def test_clips_show_in_their_time(self):
+        """A clip changes nothing outside its time, fades in and out, and a clip touching the end of the video
+        fades out there, so its last frame runs smoothly into its first."""
+        total = timeline.project_frames(self.project)
+        tracks = [t["id"] for t in self.project["tracks"]]
+        project = projects.apply(projects.load(self.project["id"]), {"layers": [
+            {"id": "glowtt", "kind": "glow", "track": tracks[0], "start": 48, "end": 120, "fade_in": 1,
+             "fade_out": 1, "params": {"amount": 100, "brightness": 100}, "seed": 4},
+            {"id": "snowtt", "kind": "snow", "track": tracks[1], "start": total - 48, "end": total,
+             "params": {"amount": 100, "size": 100}, "seed": 5}]})
+        got = self.frames(project, [0, 47, 48, 60, 84, 119, 120, total - 49, total - 1])
+        for t in (0, 47, 120, total - 49):
+            self.assertTrue((got[t] == self.base(t % P)).all(), f"frame {t} changed")
+        change = {t: float(np.abs(got[t] - self.base(t % P)).mean()) for t in got}
+        self.assertLess(change[48], change[60])  # fading in
+        self.assertLess(change[60], change[84] + 1e-6)
+        self.assertLess(change[119], change[84])  # fading out
+        self.assertLess(change[total - 1], 0.2 * max(change[84], 1e-3) + 0.05)  # nearly gone at the very end
+        projects.apply(projects.load(self.project["id"]), {"layers": []})
+
+    def test_cut_clip_is_the_same_picture(self):
+        """A clip cut in two (the second half starting where the first stopped) gives the same frames."""
+        clip = helpers.make_loop(os.path.join(helpers.ROOT, "cut.mp4"), 160, 90, 20, "24")  # shorter than the clip
+        item = library.add(clip, "cut.mp4")
+        tid = self.project["tracks"][0]["id"]
+        whole = [{"id": "fileww", "kind": "file", "lib": item["id"], "track": tid, "start": 10, "end": 90,
+                  "params": {"blend": "screen", "fade": 0.3}},
+                 {"id": "snowww", "kind": "snow", "track": tid, "start": 90, "end": 150, "seed": 2}]
+        cut = [dict(whole[0], id="filew1", end=50), dict(whole[0], id="filew2", start=50, skip=40 / 24),
+               dict(whole[1], id="snoww1", end=120), dict(whole[1], id="snoww2", start=120)]
+        times = [10, 30, 49, 50, 51, 70, 89, 100, 119, 120, 121, 149]
+        a = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": whole}), times)
+        b = self.frames(projects.apply(projects.load(self.project["id"]), {"layers": cut}), times)
+        for t in times:
+            self.assertTrue((a[t] == b[t]).all(), f"frame {t} differs")
+        projects.apply(projects.load(self.project["id"]), {"layers": []})
+
+    def test_hidden_track_and_switched_off_clip(self):
+        tracks = self.project["tracks"]
+        project = projects.apply(projects.load(self.project["id"]), {
+            "tracks": [dict(tracks[0], on=False)] + tracks[1:],
+            "layers": [{"id": "snowh1", "kind": "snow", "track": tracks[0]["id"], "params": {"amount": 100}},
+                       {"id": "snowh2", "kind": "snow", "track": tracks[1]["id"], "on": False}]})
+        self.assertEqual(engine.Scene(self.folder, project, (W, H)).layers, [])
+        projects.apply(projects.load(self.project["id"]), {"tracks": tracks, "layers": []})
+
+    def test_old_project_is_upgraded(self):
+        import json
+        src = helpers.make_loop(os.path.join(helpers.ROOT, "old.mp4"), 160, 90, 12)
+        project = projects.create(src, "old.mp4")
+        path = os.path.join(projects.folder(project["id"]), "project.json")
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+        for key in ("tracks", "length", "proxy"):
+            raw.pop(key)
+        files = os.path.join(projects.folder(project["id"]), "files")
+        os.makedirs(files)
+        helpers.make_loop(os.path.join(files, "fileo1-abc123.mp4"), 160, 90, 12)
+        raw["layers"] = [{"id": "snowo1", "kind": "snow", "name": "Tuyết", "on": True, "behind": False,
+                          "feather": 0, "seed": 1, "params": {}},
+                         {"id": "glowo1", "kind": "glow", "name": "Sáng", "on": True, "behind": False,
+                          "feather": 0, "seed": 1, "params": {}},
+                         {"id": "fileo1", "kind": "file", "name": "Bụi", "on": True, "behind": False, "feather": 0,
+                          "seed": 1, "params": {"blend": "screen"},
+                          "file": {"stored": "fileo1-abc123.mp4", "name": "Bụi sáng.mp4",
+                                   "info": video.probe(os.path.join(files, "fileo1-abc123.mp4"), overlay=True)}}]
+        raw["preview"] = "preview-1-abcd.mp4"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(raw, f)
+        old = projects.load(project["id"])
+        self.assertEqual(old["length"], 30)
+        self.assertEqual(len(old["tracks"]), 3)
+        self.assertEqual([lay["track"] for lay in old["layers"]], [t["id"] for t in old["tracks"]])
+        self.assertTrue(all(timeline.Span(lay, timeline.project_frames(old), 24).full for lay in old["layers"]))
+        self.assertNotIn("preview", old)
+        item = library.load(old["layers"][2]["file"]["lib"])  # the outside file went into the library
+        self.assertEqual(item["name"], "Bụi sáng")
+        self.assertEqual(projects.load(project["id"])["layers"][2]["file"]["lib"], item["id"])  # once only
+        saved = projects.apply(old, {"name": "Cũ"})
+        self.assertEqual(len(saved["tracks"]), 3)
+        self.assertEqual(os.listdir(files), [])  # the project's own copy is no longer needed
 
 
 class Concurrency(unittest.TestCase):

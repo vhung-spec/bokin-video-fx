@@ -1,6 +1,9 @@
-"""Work that takes a while, done in the background: previews (small, quick) and exports (the full video, then
-copied end to end to the length asked for). Previews and exports have a worker each, so a preview never waits
-behind a long export."""
+"""Work that takes a while, done in the background, in two queues so the page never waits behind an export:
+
+- export: the project's video, its whole length (30 s or 1 min), into the output folder;
+- prep:   what the page's live preview plays: light copies of project videos and library videos, and preview
+          clips of built-in effects.
+"""
 import os
 import queue
 import secrets
@@ -9,10 +12,7 @@ import threading
 import time
 import traceback
 
-from . import engine, paths, projects, video
-
-LENGTHS = [0, 30, 60, 300, 600, 1800, 3600, 7200, 10800, 21600, 36000, 43200]  # seconds; 0 = one loop
-MAX_SECONDS = 12 * 3600
+from . import engine, library, paths, projects, timeline, video
 
 
 def length_tag(seconds):
@@ -37,45 +37,60 @@ class Jobs:
         self.items = {}
         self.order = []
         self.lock = threading.Lock()
-        self.queues = {"preview": queue.Queue(), "export": queue.Queue()}
+        self.queues = {"export": queue.Queue(), "prep": queue.Queue()}
         for kind, q in self.queues.items():
             threading.Thread(target=self._work, args=(q,), daemon=True, name=f"fx-{kind}").start()
 
-    def _new(self, kind, pid, **extra):
+    def _new(self, kind, pid, queue_name, **extra):
         job = {"id": secrets.token_hex(4), "kind": kind, "project": pid, "state": "queued", "progress": 0.0,
                "message": "", "created": time.time(), "started": None, "finished": None, "output": None,
                "cancel": False, **extra}
         with self.lock:
             self.items[job["id"]] = job
             self.order.append(job["id"])
-            while len(self.order) > 40:
+            while len(self.order) > 60:
                 old = self.order.pop(0)
                 if self.items[old]["state"] in ("queued", "running"):
                     self.order.insert(0, old)
                     break
                 self.items.pop(old, None)
+        self.queues[queue_name].put(job)
         return job
 
-    def preview(self, pid):
-        """A new preview of the project; an older one still queued or running for it is dropped."""
-        projects.folder(pid)
+    def _pending(self, test):
         with self.lock:
-            for job in self.items.values():
-                if job["kind"] == "preview" and job["project"] == pid and job["state"] in ("queued", "running"):
-                    job["cancel"] = True
-        job = self._new("preview", pid)
-        self.queues["preview"].put(job)
-        return job
+            return next((j for j in self.items.values() if j["state"] in ("queued", "running") and test(j)), None)
 
-    def export(self, pid, seconds):
-        projects.folder(pid)
-        try:
-            seconds = max(0, min(MAX_SECONDS, int(seconds)))
-        except (TypeError, ValueError):
-            seconds = 0
-        job = self._new("export", pid, seconds=seconds)
-        self.queues["export"].put(job)
-        return job
+    def export(self, pid):
+        project = projects.load(pid)
+        return self._new("export", pid, "export", seconds=project.get("length") or timeline.DEFAULT_LENGTH)
+
+    def project_proxy(self, pid):
+        """The light copy of a project's video, unless it is there or being made."""
+        project = projects.load(pid)
+        if project.get("proxy") and os.path.exists(os.path.join(projects.folder(pid), project["proxy"])):
+            return None
+        return self._pending(lambda j: j["kind"] == "proxy" and j["project"] == pid) or \
+            self._new("proxy", pid, "prep")
+
+    def library_proxy(self, iid):
+        item = library.load(iid)
+        if item.get("proxy"):
+            return None
+        return self._pending(lambda j: j["kind"] == "libproxy" and j["item"] == iid) or \
+            self._new("libproxy", None, "prep", item=iid)
+
+    def fx_clip(self, pid, lid, name):
+        """The preview clip `name` of built-in effect clip `lid`; ones still waiting for it with older settings
+        are dropped."""
+        same = self._pending(lambda j: j["kind"] == "fxclip" and j["project"] == pid and j["name"] == name)
+        if same:
+            return same
+        with self.lock:
+            for j in self.items.values():
+                if j["kind"] == "fxclip" and j["project"] == pid and j["layer"] == lid and j["state"] == "queued":
+                    j["cancel"] = True
+        return self._new("fxclip", pid, "prep", layer=lid, name=name)
 
     def cancel(self, jid):
         with self.lock:
@@ -86,8 +101,9 @@ class Jobs:
         return False
 
     def busy(self):
+        """An export is waiting or running (quitting now would lose it)."""
         with self.lock:
-            return any(j["state"] in ("queued", "running") for j in self.items.values())
+            return any(j["state"] in ("queued", "running") and j["kind"] == "export" for j in self.items.values())
 
     def public(self):
         with self.lock:
@@ -101,10 +117,10 @@ class Jobs:
                 continue
             job["state"], job["started"] = "running", time.time()
             try:
-                done = (self._preview if job["kind"] == "preview" else self._export)(job)
+                done = getattr(self, "_" + job["kind"])(job)
                 job["state"] = "done" if done else "cancelled"
                 job["progress"] = 1.0 if done else job["progress"]
-            except (projects.UserError, video.VideoError) as e:
+            except (projects.UserError, video.VideoError, library.LibraryError) as e:
                 job["state"], job["message"] = "error", str(e)
             except Exception as e:  # noqa: BLE001 - shown on the page, written to the log
                 traceback.print_exc()
@@ -112,57 +128,72 @@ class Jobs:
                 job["message"] = "Có lỗi khi làm video. Xem nhật ký (app.log) để biết thêm." if not isinstance(
                     e, OSError) else f"Lỗi đọc/ghi file: {e.strerror or e}"
             job["finished"] = time.time()
-            print(f"job {job['kind']} {job['id']} {job['state']} {job['message']}".rstrip(), flush=True)
+            if job["kind"] == "export" or job["state"] == "error":
+                print(f"job {job['kind']} {job['id']} {job['state']} {job['message']}".rstrip(), flush=True)
 
-    def _progress(self, job, lo, hi):
+    def _progress(self, job):
         def report(fraction):
-            job["progress"] = lo + (hi - lo) * fraction
+            job["progress"] = max(0.0, min(1.0, fraction))
         return report
-
-    def _preview(self, job):
-        project = projects.load(job["project"])
-        folder = projects.folder(job["project"])
-        name = f"preview-{project.get('rev', 0)}-{secrets.token_hex(2)}.mp4"
-        out = os.path.join(folder, name)
-        ok = engine.render(folder, project, out, size=engine.preview_size(project["video"]), crf=24,
-                           preset="veryfast", progress=self._progress(job, 0, 1), cancelled=lambda: job["cancel"])
-        if ok:
-            projects.set_preview(project, name)
-            job["output"] = name
-        return ok
 
     def _export(self, job):
         project = projects.load(job["project"])
         folder = projects.folder(job["project"])
         info = project["video"]
-        loop_s = info["seconds"]
-        times = max(1, round(job["seconds"] / loop_s)) if job["seconds"] else 1
+        total = timeline.project_frames(project)
         out_dir = paths.out_dir()
-        stem = f"{project['name']}-fx" + (f"-{length_tag(times * loop_s)}" if times > 1 else "")
-        final = free_name(out_dir, stem)
-        loop = os.path.join(folder, f"export-{job['id']}.mp4")
+        need = total * info["w"] * info["h"] * 0.2 + 200e6  # the pieces, then the joined video
+        free = shutil.disk_usage(out_dir).free
+        if free < need:
+            raise projects.UserError(f"Ổ đĩa không đủ chỗ: cần khoảng {need / 1e9:.1f} GB, còn {free / 1e9:.1f} GB. "
+                                     "Hãy dọn bớt ổ đĩa.")
+        seconds = total / video.fps_value(info["fps"])
+        final = free_name(out_dir, f"{project['name']}-fx-{length_tag(round(seconds))}")
+        made = os.path.join(folder, f"export-{job['id']}.mp4")
         try:
-            render_share = 1.0 if times == 1 else 0.6
-            ok = engine.render(folder, project, loop, progress=self._progress(job, 0, render_share),
-                               cancelled=lambda: job["cancel"])
-            if not ok:
+            if not engine.render(folder, project, made, progress=self._progress(job), cancelled=lambda: job["cancel"]):
                 return False
-            if times == 1:
-                shutil.move(loop, final)
-            else:
-                need = os.path.getsize(loop) * times * 1.02 + 200e6
-                free = shutil.disk_usage(out_dir).free
-                if free < need:
-                    raise projects.UserError(f"Ổ đĩa không đủ chỗ: cần khoảng {need / 1e9:.1f} GB, "
-                                             f"còn {free / 1e9:.1f} GB. Chọn độ dài ngắn hơn hoặc dọn bớt ổ đĩa.")
-                ok = video.repeat(loop, final, times, seconds=times * loop_s,
-                                  progress=self._progress(job, render_share, 1.0), cancelled=lambda: job["cancel"])
-                if not ok:
-                    return False
+            shutil.move(made, final)
             job["output"] = os.path.basename(final)
             return True
         finally:
             try:
-                os.remove(loop)
+                os.remove(made)
             except OSError:
                 pass
+
+    def _proxy(self, job):
+        pid = job["project"]
+        project = projects.load(pid)
+        try:
+            name = engine.make_base_proxy(projects.folder(pid), project)
+            projects.set_proxy(pid, name)
+        except Exception:
+            if job["cancel"]:  # the project was deleted meanwhile
+                return False
+            raise
+        job["output"] = name
+        return True
+
+    def _libproxy(self, job):
+        job["output"] = library.make_proxy(job["item"]).get("proxy")
+        return True
+
+    def _fxclip(self, job):
+        pid, lid = job["project"], job["layer"]
+        try:
+            project = projects.load(pid)
+        except projects.UserError:
+            return False  # deleted meanwhile
+        if not any(lay["id"] == lid for lay in project["layers"]):
+            return False
+        folder = projects.folder(pid)
+        name = engine.fx_clip(folder, project, lid, cancelled=lambda: job["cancel"], progress=self._progress(job))
+        if name is None:
+            return False
+        job["output"] = name
+        try:
+            projects.sweep_files(projects.load(pid))  # clips made for older settings
+        except projects.UserError:
+            pass
+        return True

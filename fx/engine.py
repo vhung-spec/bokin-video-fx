@@ -1,9 +1,10 @@
-"""Puts the frames together and renders: the project's video, then its still areas, then its layers in order.
+"""Puts the frames together and renders: the project's video, then its still areas, then its clips.
 
-A video is made for a length (30 s or 1 min): a whole number of loops of the project's video, so its end joins
-its start. Every layer repeats over that whole length (its period), not over the short loop: an outside effect
-plays through instead of restarting every few seconds. The frames are rendered in pieces by several worker
-processes at once, each piece encoded on its own, then joined by copying.
+A project makes one video of its length (30 s or 1 min, timeline.py): a whole number of loops of its video, so
+its end joins its start. The clips sit on tracks (drawn bottom track first) and show between their start and end,
+fading in and out; a clip over the whole video repeats over that whole length, not over the short loop, so an
+outside effect plays through instead of restarting every few seconds. The frames are rendered in pieces by
+several worker processes at once, each piece encoded on its own, then joined by copying.
 
 A project folder holds the video (input.*), optionally the original picture (still.png, at the video's size),
 and the masks painted on the page (masks/<name>.png: white = selected). A mask is softened at render time by its
@@ -11,11 +12,15 @@ and the masks painted on the page (masks/<name>.png: white = selected). A mask i
 
 - Still areas ("freeze"): there the frame is replaced by the original picture, or by one chosen frame of the
   video, so nothing moves. Where the mask is fully white the pixels are exactly the picture's.
-- Layers: effects (effects.py) and files (overlay.py). A layer's area mask limits where it shows (no mask: the
-  whole frame); a layer set "behind" is hidden by the foreground mask ("fg"), as if it passed behind those things.
+- Clips: built-in effects (effects.py) and outside files (overlay.py, kept in the library). A clip's area mask
+  limits where it shows (no mask: the whole frame); a clip set "behind" is hidden by the foreground mask ("fg"),
+  as if it passed behind those things.
 """
 import collections
 import concurrent.futures
+import copy
+import hashlib
+import json
 import multiprocessing
 import os
 import secrets
@@ -25,10 +30,10 @@ import threading
 import numpy as np
 from PIL import Image, ImageChops, ImageFilter
 
-from . import effects, overlay, video
+from . import effects, library, overlay, timeline, video
 
-PREVIEW_HEIGHT = 480
 LOOK_WIDTH = 1280
+FX_CLIP_WIDTH = 640
 
 
 def mask_path(folder, name):
@@ -77,21 +82,50 @@ def still_picture(folder, project, size):
     return Image.fromarray(arr)
 
 
-def output_frames(info, seconds):
-    """Frames of a video of about `seconds`: a whole number of the source loop, so the end joins the start."""
-    return max(1, round(seconds / info["seconds"])) * info["frames"]
+output_frames = timeline.output_frames
+project_frames = timeline.project_frames
+
+
+def clip_order(project):
+    """The clips to draw, bottom first: by track (lowest first), then by start. Switched-off clips and clips on
+    hidden tracks are left out."""
+    tracks = project.get("tracks") or []
+    rank = {t["id"]: i for i, t in enumerate(tracks)}
+    hidden = {t["id"] for t in tracks if not t.get("on", True)}
+    clips = [c for c in project.get("layers", []) if c.get("on", True) and c.get("track") not in hidden]
+    return sorted(clips, key=lambda c: (rank.get(c.get("track"), len(rank)), c.get("start", 0)))
+
+
+def clip_file(folder, clip):
+    """(path, info) of an outside-file clip's file, or (None, None) when it is missing."""
+    source = clip.get("file") or {}
+    if source.get("found"):  # looked up before the work was handed to worker processes
+        path, info = source["found"]
+    elif source.get("lib"):
+        try:
+            item = library.load(source["lib"])
+        except library.LibraryError:
+            return None, None
+        path, info = library.source_path(item), item["info"]
+    elif source.get("stored"):  # made by an older version, kept in the project
+        path, info = os.path.join(folder, "files", source["stored"]), source.get("info")
+    else:
+        return None, None
+    return (path, info) if info and os.path.exists(path) else (None, None)
 
 
 class Scene:
-    """A project's settings made ready to draw frames at `size` (w, h); layers repeat every `period` frames.
+    """A project's settings made ready to draw frames at `size` (w, h) of a video `period` frames long (the
+    project's length if None).
 
     The picture is an 8-bit RGB image; still areas and outside files are laid with Pillow's C routines, built-in
-    effects on a float copy of the picture (only while such layers are drawn)."""
+    effects on a float copy of the picture (only while such clips show)."""
 
     def __init__(self, folder, project, size, period=None):
         info = project["video"]
         self.w, self.h = size
-        self.frames, fps = period or info["frames"], video.fps_value(info["fps"])
+        self.frames = period or project_frames(project)
+        fps = video.fps_value(info["fps"])
         vh = info["h"]
         self.freeze = mask_image(folder, "freeze", size, project.get("freeze", {}).get("feather", 0), vh)
         self.freeze_box = self.freeze.getbbox() if self.freeze is not None else None
@@ -102,10 +136,11 @@ class Scene:
         fg = mask_image(folder, "fg", size, project.get("fg", {}).get("feather", 0), vh)
         if fg is not None and fg.getbbox() is None:
             fg = None
-        self.layers = []
+        self.layers = []  # (drawer, area as float or None (built-in effects), timeline.Span)
         try:
-            for layer in project.get("layers", []):
-                if not layer.get("on", True):
+            for layer in clip_order(project):
+                span = timeline.Span(layer, self.frames, fps)
+                if span.empty:
                     continue
                 area = mask_image(folder, layer["id"], size, layer.get("feather", 0), vh)
                 if layer.get("behind") and fg is not None:
@@ -116,51 +151,63 @@ class Scene:
                 if area is not None and area.getextrema() == (255, 255):
                     area = None
                 if layer["kind"] == "file":
-                    source = layer.get("file") or {}
-                    path = os.path.join(folder, "files", source.get("stored", ""))
-                    if not source.get("stored") or not os.path.exists(path):
+                    path, source = clip_file(folder, layer)
+                    if path is None:
                         continue
                     params = effects.clean_params("file", layer.get("params"))
                     opacity = params["opacity"] / 100
                     if opacity < 1:
                         area = (Image.new("L", size, round(255 * opacity)) if area is None
                                 else area.point(lambda v: round(v * opacity)))
-                    drawer = overlay.Overlay(path, source["info"], params, self.frames, fps, self.w, self.h, area)
-                    self.layers.append((drawer, None))
+                    drawer = overlay.Overlay(path, source, params, self.frames, fps, self.w, self.h, area, span)
+                    self.layers.append((drawer, None, span))
                 else:
                     drawer = effects.make(layer["kind"], layer.get("params"), layer.get("seed", 1), self.frames, fps,
                                           self.w, self.h)
-                    self.layers.append((drawer, None if area is None else np.asarray(area, np.float32) * (1 / 255.0)))
+                    self.layers.append((drawer, None if area is None else np.asarray(area, np.float32) * (1 / 255.0),
+                                        span))
         except Exception:
             self.close()
             raise
         self.canvas = effects.Canvas(self.w, self.h) if any(
-            not isinstance(d, overlay.Overlay) for d, _ in self.layers) else None
+            not isinstance(d, overlay.Overlay) for d, _, _ in self.layers) else None
 
     def image(self, t, base):
         """Frame t as an RGB image: `base` (uint8 RGB array, the video's frame at this size) with the still areas
-        and the layers."""
+        and the clips showing at t."""
         img = Image.fromarray(base)
         if self.freeze_box:
             box = self.freeze_box
             img.paste(Image.composite(self.still, img.crop(box), self.freeze), box[:2])
-        i = 0
-        while i < len(self.layers):
-            drawer, _ = self.layers[i]
-            if isinstance(drawer, overlay.Overlay):
-                img = drawer.draw(t, img)
+        layers, i = self.layers, 0
+        while i < len(layers):
+            if isinstance(layers[i][0], overlay.Overlay):
+                drawer, _, span = layers[i]
+                img = drawer.draw(t, img, span.weight(t))
                 i += 1
                 continue
-            picture = np.asarray(img, np.float32) * (1 / 255.0)  # a run of built-in effects
+            j = i  # a run of built-in effects, drawn on a float copy of the picture
+            while j < len(layers) and not isinstance(layers[j][0], overlay.Overlay):
+                j += 1
+            run = [(d, area, span.weight(t)) for d, area, span in layers[i:j]]
+            i = j
+            if not any(gain > 0 for _, _, gain in run):
+                continue
+            picture = np.asarray(img, np.float32) * (1 / 255.0)
             mode = None
-            while i < len(self.layers) and not isinstance(self.layers[i][0], overlay.Overlay):
-                drawer, area = self.layers[i]
-                if mode and drawer.blend != mode:
+            for drawer, area, gain in run:
+                if gain <= 0:
+                    continue
+                if mode and (drawer.blend != mode or gain < 1):
                     self.canvas.flush(picture, mode)
                 mode = drawer.blend
                 drawer.draw(t, self.canvas, area)
-                i += 1
-            self.canvas.flush(picture, mode)
+                if gain < 1:  # fading: this clip alone, weaker
+                    self.canvas.scale(gain)
+                    self.canvas.flush(picture, mode)
+                    mode = None
+            if mode:
+                self.canvas.flush(picture, mode)
             np.clip(picture, 0.0, 1.0, out=picture)
             img = Image.fromarray((picture * 255.0 + 0.5).astype(np.uint8))
         return img
@@ -170,15 +217,9 @@ class Scene:
         return np.asarray(self.image(t, base))
 
     def close(self):
-        for drawer, _ in self.layers:
+        for drawer, _, _ in self.layers:
             if isinstance(drawer, overlay.Overlay):
                 drawer.close()
-
-
-def preview_size(info, height=PREVIEW_HEIGHT):
-    h = min(height, info["h"])
-    h -= h % 2
-    return max(2, round(info["w"] * h / info["h"] / 2) * 2), h
 
 
 def base_frames(folder, project, size, start, end):
@@ -206,19 +247,17 @@ def _worker_init(done, stop):
     _done, _stop = done, stop
 
 
-def render_part(folder, project, size, period, start, end, path, crf, preset, threads):
+def render_part(folder, project, size, period, crf, preset, threads, start, end, path):
     """One piece (frames start..end-1) of a video `period` frames long, encoded to `path`. False if stopped."""
     scene = Scene(folder, project, size, period)
     enc = video.Encoder(path, size[0], size[1], project["video"]["fps"], crf, preset, threads, part=True)
     try:
         for t, base in zip(range(start, end), base_frames(folder, project, size, start, end)):
-            if _stop is not None and _stop.is_set():
+            if _stopped():
                 enc.abort()
                 return False
             enc.write(scene.image(t, base))
-            if _done is not None:
-                with _done.get_lock():
-                    _done.value += 1
+            _count_frame()
         enc.close()
         return True
     except BaseException:
@@ -228,71 +267,101 @@ def render_part(folder, project, size, period, start, end, path, crf, preset, th
         scene.close()
 
 
-def workers():
-    """Worker processes for a render: half the logical CPUs (the encoders use the rest), 1 to 8."""
-    return max(1, min(8, (os.cpu_count() or 2) // 2))
+def workers(encoder_threads=True):
+    """Worker processes for a render: half the logical CPUs when the encoders need the rest, else all but one;
+    1 to 8."""
+    cpus = os.cpu_count() or 2
+    return max(1, min(8, cpus // 2 if encoder_threads else cpus - 1))
+
+
+def _in_pieces(work, args, total, parts, progress=None, cancelled=None):
+    """Runs work(*args, start, end, path) for len(parts) pieces of frames 0..total-1 (in worker processes when
+    more than one); True if every piece was finished, False if cancelled."""
+    count = len(parts)
+    bounds = [round(total * i / count) for i in range(count + 1)]
+    if count == 1:
+        done = [0]
+
+        class Counter:  # the same interface as the shared multiprocessing counter
+            def get_lock(self):
+                return threading.Lock()
+
+            @property
+            def value(self):
+                return done[0]
+
+            @value.setter
+            def value(self, v):
+                done[0] = v
+                if progress:
+                    progress(v / total)
+
+        class Stop:
+            def is_set(self):
+                return bool(cancelled and cancelled())
+
+        _worker_init(Counter(), Stop())
+        try:
+            return work(*args, 0, total, parts[0])
+        finally:
+            _worker_init(None, None)
+    ctx = multiprocessing.get_context("spawn")
+    shared, stop = ctx.Value("i", 0), ctx.Event()
+    with concurrent.futures.ProcessPoolExecutor(count, mp_context=ctx, initializer=_worker_init,
+                                                initargs=(shared, stop)) as pool:
+        futures = [pool.submit(work, *args, bounds[i], bounds[i + 1], parts[i]) for i in range(count)]
+        while True:
+            finished, pending = concurrent.futures.wait(futures, timeout=0.4)
+            if progress:
+                progress(min(1.0, shared.value / total))
+            if cancelled and cancelled():
+                stop.set()
+            failed = next((f for f in finished if f.exception() is not None), None)
+            if failed is not None:
+                stop.set()
+                raise failed.exception()
+            if not pending:
+                break
+        return all(f.result() for f in futures)
+
+
+def _count_frame():
+    if _done is not None:
+        with _done.get_lock():
+            _done.value += 1
+
+
+def _stopped():
+    return _stop is not None and _stop.is_set()
+
+
+def found_files(folder, project):
+    """A copy of the project in which every outside-file clip names its file, found now: worker processes then
+    look nothing up (the library is found through the data folder, which they might see differently)."""
+    project = copy.deepcopy(project)
+    for layer in project.get("layers", []):
+        if layer["kind"] == "file":
+            path, info = clip_file(folder, layer)
+            layer["file"] = {"found": (path, info)} if path else {}
+    return project
 
 
 def render(folder, project, out_path, seconds=None, size=None, crf=16, preset="faster", progress=None,
            cancelled=None, processes=None):
-    """Writes the project to `out_path`: about `seconds` long (one loop if None), full size unless `size`.
-    Returns False if cancelled."""
+    """Writes the project to `out_path`: about `seconds` long (the project's length if None), full size unless
+    `size`. Returns False if cancelled."""
+    project = found_files(folder, project)
     info = project["video"]
     size = tuple(size or (info["w"], info["h"]))
-    period = output_frames(info, seconds) if seconds else info["frames"]
+    period = output_frames(info, seconds) if seconds else project_frames(project)
     count = max(1, min(processes or workers(), period // 24))  # pieces of at least a second
-    bounds = [round(period * i / count) for i in range(count + 1)]
     work = os.path.join(folder, "render-" + secrets.token_hex(3))
     os.makedirs(work)
     parts = [os.path.join(work, f"part-{i:02d}.mp4") for i in range(count)]
     threads = 2 if count > 1 else 0
     try:
-        if count == 1:
-            done = [0]
-
-            class Counter:  # the same interface as the shared multiprocessing counter
-                def get_lock(self):
-                    return threading.Lock()
-
-                @property
-                def value(self):
-                    return done[0]
-
-                @value.setter
-                def value(self, v):
-                    done[0] = v
-                    if progress:
-                        progress(v / period)
-
-            class Stop:
-                def is_set(self):
-                    return bool(cancelled and cancelled())
-
-            _worker_init(Counter(), Stop())
-            try:
-                ok = render_part(folder, project, size, period, 0, period, parts[0], crf, preset, threads)
-            finally:
-                _worker_init(None, None)
-        else:
-            ctx = multiprocessing.get_context("spawn")
-            shared, stop = ctx.Value("i", 0), ctx.Event()
-            with concurrent.futures.ProcessPoolExecutor(count, mp_context=ctx, initializer=_worker_init,
-                                                        initargs=(shared, stop)) as pool:
-                futures = [pool.submit(render_part, folder, project, size, period, bounds[i], bounds[i + 1],
-                                       parts[i], crf, preset, threads) for i in range(count)]
-                while True:
-                    finished, pending = concurrent.futures.wait(futures, timeout=0.4)
-                    if progress:
-                        progress(min(1.0, shared.value / period))
-                    if cancelled and cancelled():
-                        stop.set()
-                    failed = next((f for f in finished if f.exception() is not None), None)
-                    if failed is not None:
-                        stop.set()
-                        raise failed.exception()
-                    if not pending:
-                        break
-                ok = all(f.result() for f in futures)
+        ok = _in_pieces(render_part, (folder, project, size, period, crf, preset, threads), period, parts,
+                        progress, cancelled)
         if not ok or (cancelled and cancelled()):
             return False
         video.join(parts, out_path)
@@ -301,38 +370,100 @@ def render(folder, project, out_path, seconds=None, size=None, crf=16, preset="f
         shutil.rmtree(work, ignore_errors=True)
 
 
-def layer_clip(folder, project, layer_id, out_base, size, cancelled=None):
-    """A short clip of one built-in effect alone, for the page's live preview: one loop of the project video,
-    transparent WebM for effects laid over the picture, H.264 on black for light (laid with Screen).
-    Returns the file written."""
+def fx_clip_size(info):
+    w = min(FX_CLIP_WIDTH, info["w"])
+    w -= w % 2
+    return w, max(2, round(info["h"] * w / info["w"] / 2) * 2)
+
+
+def fx_clip_name(project, layer):
+    """The file name of a built-in effect's preview clip: a key of everything that changes its picture (not its
+    place on the timeline: the effect is drawn over the whole length), so the two halves of a cut clip share it."""
     info = project["video"]
+    key = json.dumps([layer["kind"], layer.get("params"), layer.get("seed", 1), project_frames(project), info["fps"],
+                      fx_clip_size(info)], sort_keys=True)
+    alpha = effects.KINDS[layer["kind"]].blend != "screen"
+    return f"fx-{hashlib.sha1(key.encode()).hexdigest()[:12]}" + (".webm" if alpha else ".mp4")
+
+
+def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=None):
+    """The preview clip of one built-in effect alone, for the page's live preview: the whole length of the video
+    made, small, transparent WebM for effects laid over the picture, H.264 on black for light (laid with Screen).
+    Rendered in pieces like a video. Returns the file name (in folder/clips), or None if cancelled."""
     layer = next(lay for lay in project["layers"] if lay["id"] == layer_id)
-    fx = effects.make(layer["kind"], layer.get("params"), layer.get("seed", 1), info["frames"],
-                      video.fps_value(info["fps"]), size[0], size[1])
-    alpha = fx.blend != "screen"
-    path = out_base + (".webm" if alpha else ".mp4")
-    writer = video.ClipWriter(path, size[0], size[1], info["fps"], alpha)
-    canvas = effects.Canvas(size[0], size[1])
+    name = fx_clip_name(project, layer)
+    clips = os.path.join(folder, "clips")
+    os.makedirs(clips, exist_ok=True)
+    path = os.path.join(clips, name)
+    if os.path.exists(path):
+        return name
+    total = project_frames(project)
+    count = max(1, min(processes or workers(False), total // 48))
+    work = os.path.join(folder, "render-" + secrets.token_hex(3))
+    os.makedirs(work)
+    ext = os.path.splitext(name)[1]
+    parts = [os.path.join(work, f"part-{i:02d}{ext}") for i in range(count)]
     try:
-        for t in range(info["frames"]):
-            if cancelled and cancelled():
-                writer.close()
-                video._remove(path)
-                return None
+        if not _in_pieces(fx_part, (project, layer, total), total, parts, progress, cancelled):
+            return None
+        if cancelled and cancelled():
+            return None
+        tmp = os.path.join(work, "joined" + ext)
+        video.join(parts, tmp, fast_start=ext == ".mp4", alpha=ext == ".webm")
+        os.replace(tmp, path)
+        return name
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def fx_part(project, layer, total, start, end, path):
+    """Frames start..end-1 of a built-in effect's preview clip, written to `path`. False if stopped."""
+    info = project["video"]
+    w, h = fx_clip_size(info)
+    fx = effects.make(layer["kind"], layer.get("params"), layer.get("seed", 1), total, video.fps_value(info["fps"]),
+                      w, h)
+    alpha = fx.blend != "screen"
+    writer = video.ClipWriter(path, w, h, info["fps"], alpha)
+    canvas = effects.Canvas(w, h)
+    out = np.zeros((h, w, 4 if alpha else 3), np.uint8)
+    tmp = np.zeros((h, w), np.float32)
+    try:
+        for t in range(start, end):
+            if _stopped():
+                writer.abort()
+                return False
             fx.draw(t, canvas, None)
-            if alpha:
-                a = canvas.a.copy()
-                rgb = np.where(a[..., None] > 1e-6, canvas.rgb / np.maximum(a[..., None], 1e-6), 0.0)
-                frame = np.dstack([np.clip(rgb, 0, 1), np.clip(a, 0, 1)])
+            if alpha:  # straight (not premultiplied) colour and coverage
+                np.maximum(canvas.a, 1 / 255, out=tmp)
+                np.reciprocal(tmp, out=tmp)
+                rgb = canvas.rgb * tmp[..., None]
+                np.minimum(rgb, 1.0, out=rgb)
+                rgb *= 255.0
+                rgb += 0.5
+                out[..., :3] = rgb
+                np.multiply(canvas.a, 255.0, out=tmp)
+                tmp += 0.5
+                out[..., 3] = tmp
             else:
-                frame = np.clip(canvas.rgb, 0, 1)
-            writer.write((frame * 255 + 0.5).astype(np.uint8))
+                rgb = np.minimum(canvas.rgb, 1.0)
+                rgb *= 255.0
+                rgb += 0.5
+                out[:] = rgb
+            writer.write(out)
             canvas.reset()
+            _count_frame()
         writer.close()
-        return path
+        return True
     except BaseException:
-        writer.close()
+        writer.abort()
         raise
+
+
+def make_base_proxy(folder, project):
+    """The light copy of the project's video the page plays; returns its file name."""
+    info = project["video"]
+    return os.path.basename(video.make_proxy(input_path(folder, project), info, os.path.join(folder, "proxy"),
+                                             alpha=False, keyint=6))
 
 
 class Looks:
@@ -344,12 +475,12 @@ class Looks:
         self.scenes = collections.OrderedDict()
         self.bases = collections.OrderedDict()
 
-    def frame(self, folder, project, t, width=LOOK_WIDTH, seconds=None):
+    def frame(self, folder, project, t, width=LOOK_WIDTH):
         info = project["video"]
         w = min(width, info["w"])
         w -= w % 2
         size = (w, max(2, round(info["h"] * w / info["w"] / 2) * 2))
-        period = output_frames(info, seconds) if seconds else info["frames"]
+        period = project_frames(project)
         t = max(0, min(int(t), period - 1))
         with self.lock:
             key = (folder, project.get("rev", 0), size, period)
@@ -372,6 +503,12 @@ class Looks:
         with self.lock:
             for key in [k for k in self.scenes if k[0] == folder]:
                 self.scenes.pop(key).close()
+
+    def release_all(self):
+        """Closes every cached scene (before a library file is deleted: a scene may still be reading it)."""
+        with self.lock:
+            while self.scenes:
+                self.scenes.popitem()[1].close()
 
     def forget(self, folder):
         with self.lock:

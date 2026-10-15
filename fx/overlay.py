@@ -1,10 +1,11 @@
-"""Layers made from outside files, as in After Effects: a video (an effect on black, or one with transparency)
-or a picture (PNG, JPG), laid over the loop with a blend mode, opacity, size and position.
+"""Clips made from outside files, as in After Effects: a video (an effect on black, or one with transparency)
+or a picture (PNG, JPG), laid over the video with a blend mode, opacity, size and position.
 
-A video of any length is made to loop with the project. Frame t of the loop shows the file at
-start + fade + t/fps; over the last `fade` seconds of the loop it dissolves into the file at start .. start + fade,
-which is exactly what frame 0 shows next, so the seam is a soft dissolve instead of a jump. A file shorter than
-the loop plus the fade is first played over and over, each repeat dissolving into the next.
+A clip over the whole video loops with it (timeline()): frame t shows the file at start + fade + t/fps; over the
+last `fade` seconds it dissolves into the file at start .. start + fade, which is exactly what frame 0 shows next,
+so the seam is a soft dissolve instead of a jump. A shorter clip plays the file from `start` (plus what was trimmed
+off its head) for as long as it shows (playing()); it fades in and out, so its ends need not join. A file shorter
+than it needs is played over and over, each repeat dissolving into the next.
 """
 import math
 import os
@@ -28,8 +29,9 @@ SCHEMA = {"label": "Video / ảnh ngoài", "params": [
     {"key": "scale", "label": "Cỡ (%)", "type": "range", "min": 10, "max": 300, "value": 100},
     {"key": "x", "label": "Dịch ngang (%)", "type": "range", "min": -100, "max": 100, "value": 0},
     {"key": "y", "label": "Dịch dọc (%)", "type": "range", "min": -100, "max": 100, "value": 0},
-    {"key": "start", "label": "Bắt đầu từ giây", "type": "range", "min": 0, "max": 600, "step": 0.1, "value": 0},
-    {"key": "fade", "label": "Hoà mượt chỗ nối loop (giây)", "type": "range", "min": 0, "max": 3, "step": 0.1,
+    {"key": "start", "label": "Bắt đầu từ giây thứ (của file)", "type": "range", "min": 0, "max": 600, "step": 0.1,
+     "value": 0},
+    {"key": "fade", "label": "Hoà mượt khi file lặp lại (giây)", "type": "range", "min": 0, "max": 3, "step": 0.1,
      "value": 1.0},
 ]}
 
@@ -64,41 +66,57 @@ def probe_file(path):
     return info
 
 
+def _plan(seconds, start, fade, need, fps):
+    """How the file from `start` on fills `need` seconds: (start, step, join). Played once if it is long enough
+    (step None); else over and over, each repeat `step` seconds after the last and dissolving into it over
+    `join` seconds. step 0: a file of a single frame there, shown still."""
+    start = min(max(0.0, start), max(0.0, seconds - 1.0 / fps))
+    avail = seconds - start
+    if avail >= need:
+        return start, None, 0.0
+    join = min(max(0.0, fade), avail / 3)
+    return start, max(0.0, avail - join), join
+
+
+def _played(e, start, step, join):
+    """[(time in the file, weight)] at `e` seconds into the file played from `start` as _plan said."""
+    if step is None:
+        return [(start + e, 1.0)]
+    if step <= 0:
+        return [(start, 1.0)]
+    j = math.floor(e / step + 1e-9)
+    local = max(0.0, e - j * step)  # the 1e-9 above can leave -1e-16 here
+    if j > 0 and join > 0 and local < join:
+        w = local / join
+        return [(start + local, w), (start + local + step, 1.0 - w)]
+    return [(start + local, 1.0)]
+
+
 def timeline(t, fps, frames, seconds, start, fade):
     """[(time in the file, weight), ...] that make frame t of a loop of `frames` frames at `fps`, from a file of
     `seconds` seconds. Weights add up to 1."""
     loop = frames / fps
-    start = min(max(0.0, start), max(0.0, seconds - 1.0 / fps))
-    avail = seconds - start
     fade = max(0.0, min(fade, loop / 2))
-    if avail >= loop + fade:
-        step, join = None, 0.0
-    else:
-        join = min(fade, avail / 3)
-        step = avail - join
-        if step <= 0:
-            return [(start, 1.0)]
-
-    def played(e):  # the file from `start` on, played over and over
-        if step is None:
-            return [(start + e, 1.0)]
-        j = math.floor(e / step + 1e-9)
-        local = max(0.0, e - j * step)  # the 1e-9 above can leave -1e-16 here
-        if j > 0 and join > 0 and local < join:
-            w = local / join
-            return [(start + local, w), (start + local + step, 1.0 - w)]
-        return [(start + local, 1.0)]
-
+    start, step, join = _plan(seconds, start, fade, loop + fade, fps)
+    if step is not None and step <= 0:
+        return [(start, 1.0)]
     s = t / fps
     if fade <= 0:
-        parts = played(s)
+        parts = _played(s, start, step, join)
     elif s < loop - fade:
-        parts = played(fade + s)
+        parts = _played(fade + s, start, step, join)
     else:
         w = (s - (loop - fade)) / fade
-        parts = [(ft, pw * (1 - w)) for ft, pw in played(fade + s)] + \
-                [(ft, pw * w) for ft, pw in played(s - (loop - fade))]
+        parts = [(ft, pw * (1 - w)) for ft, pw in _played(fade + s, start, step, join)] + \
+                [(ft, pw * w) for ft, pw in _played(s - (loop - fade), start, step, join)]
     return [(ft, w) for ft, w in parts if w > 1e-4]
+
+
+def playing(e, fps, need, seconds, start, fade):
+    """[(time in the file, weight), ...] `e` seconds into a clip that plays the file from `start` for `need`
+    seconds (a clip shorter than the whole video: it fades in and out, so its ends need not join)."""
+    start, step, join = _plan(seconds, start, fade, need, fps)
+    return [(ft, w) for ft, w in _played(max(0.0, e), start, step, join) if w > 1e-4]
 
 
 class Cursors:
@@ -145,15 +163,17 @@ class Cursors:
 
 
 class Overlay:
-    """One layer from a file, laid over w x h frames of a video `frames` long at `fps` (its period).
+    """One clip from a file, laid over w x h frames of a video `frames` long at `fps`.
 
     Works on 8-bit Pillow images (the blend modes and masks are Pillow's C routines: fast, and exact where a mask
     is fully on or off). `weight` (an "L" image of the whole frame, or None for "everywhere, fully") already
-    includes the layer's area, its foreground and its opacity."""
+    includes the clip's area, its foreground and its opacity. `span` (a timeline.Span) is when the clip shows;
+    None or a full span: the whole video, the file looping with it."""
 
-    def __init__(self, path, info, params, frames, fps, w, h, weight=None):
+    def __init__(self, path, info, params, frames, fps, w, h, weight=None, span=None):
         self.info, self.p = info, params
         self.frames, self.fps = int(frames), float(fps)
+        self.span = None if span is None or span.full else span
         k = (max if params["fit"] == "cover" else min)(w / info["w"], h / info["h"]) * params["scale"] / 100
         sw, sh = max(2, round(info["w"] * k)), max(2, round(info["h"] * k))
         ox = round((w - sw) / 2 + params["x"] / 100 * w)
@@ -180,21 +200,31 @@ class Overlay:
             return self.still
         fps_in = video.fps_value(self.info["fps"])
         out, total = None, 0.0
-        for when, weight in timeline(t, self.fps, self.frames, self.info["seconds"], self.p["start"], self.p["fade"]):
+        sp = self.span
+        if sp is None:
+            parts = timeline(t, self.fps, self.frames, self.info["seconds"], self.p["start"], self.p["fade"])
+        else:  # from the clip's own start (plus what was trimmed off its head), for as long as it shows
+            parts = playing((t - sp.start) / self.fps + sp.skip, self.fps, (sp.end - sp.start) / self.fps + sp.skip,
+                            self.info["seconds"], self.p["start"], self.p["fade"])
+        for when, weight in parts:
             frame = Image.fromarray(self.cursors.get(int(when * fps_in + 1e-6)))
             total += weight
             out = frame if out is None else Image.blend(out, frame, weight / total)
         return out if self.whole else out.crop(self.crop)
 
-    def draw(self, t, img):
-        """Lay frame t of the file over `img` (an RGB image of the whole frame, changed in place); returns it."""
-        if self.empty or self.p["opacity"] <= 0:
+    def draw(self, t, img, gain=1.0):
+        """Lay frame t of the file over `img` (an RGB image of the whole frame, changed in place), `gain` (0..1,
+        a fade) times as strongly; returns it."""
+        if self.empty or self.p["opacity"] <= 0 or gain <= 0:
             return img
         top = self.picture(t)
         alpha = top.getchannel("A") if top.mode == "RGBA" else None
         rgb = top.convert("RGB") if alpha is not None else top
         region = img if self.full else img.crop(self.box)
         weight, blend = self.weight, self.p["blend"]
+        if gain < 1:
+            weight = (Image.new("L", region.size, round(255 * gain)) if weight is None
+                      else weight.point(lambda v: round(v * gain)))
         if blend == "normal":
             mask = alpha if weight is None else (weight if alpha is None else ImageChops.multiply(alpha, weight))
             out = rgb if mask is None else Image.composite(rgb, region, mask)

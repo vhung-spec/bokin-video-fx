@@ -1,11 +1,16 @@
-"""Projects: one video with its still areas, masks and layers, kept in a folder of the data folder.
+"""Projects: one video with its still areas, masks and timeline, kept in a folder of the data folder.
 
 projects/<id>/project.json   the settings (written whole, atomically)
 projects/<id>/input.<ext>    the video, as uploaded
+projects/<id>/proxy.mp4      a light copy of it for the page's live preview (made in the background)
 projects/<id>/still.png      the original picture, fitted to the video's size (optional)
-projects/<id>/masks/*.png    masks painted on the page: freeze, fg, and one per layer
-projects/<id>/files/*        files of "file" layers (outside videos and pictures)
-projects/<id>/preview-N.mp4  the latest small preview
+projects/<id>/masks/*.png    masks painted on the page: freeze, fg, and one per clip
+projects/<id>/clips/*        preview clips of built-in effects, for the page's live preview
+projects/<id>/files/*        files of clips made by older versions (new clips use the library)
+
+The timeline: `length` (30 or 60 seconds), `tracks` (bottom first) and `layers`, the clips: each on a track,
+from frame `start` to `end` of the video made, with fades (timeline.py). A clip from an outside file names its
+library item ("file": {"lib": id}).
 
 Everything that comes from the page is checked here: ids by pattern, numbers clamped, files read by our code
 only (never a path from the page).
@@ -22,13 +27,15 @@ import unicodedata
 import numpy as np
 from PIL import Image, ImageOps
 
-from . import effects, overlay, paths, video
+from . import effects, library, overlay, paths, timeline, video
 
 PROJECT_ID = re.compile(r"^[0-9a-f]{12}$")
 LAYER_ID = re.compile(r"^[a-z0-9]{4,16}$")
+TRACK_ID = LAYER_ID
 MASK_NAME = re.compile(r"^(freeze|fg|[a-z0-9]{4,16})$")
 VIDEO_TYPES = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
-MAX_LAYERS = 16
+MAX_LAYERS = 64  # clips
+MAX_TRACKS = 12
 MAX_FRAMES = 3600  # two and a half minutes at 24 fps: this app is for short loops
 MASK_WIDTH = 1920  # masks are painted at most this wide; they are scaled to the video when used
 LOCK = threading.RLock()
@@ -48,8 +55,48 @@ def folder(pid):
 
 
 def load(pid):
-    with LOCK, open(os.path.join(folder(pid), "project.json"), encoding="utf-8") as f:
-        return json.load(f)
+    with LOCK:
+        with open(os.path.join(folder(pid), "project.json"), encoding="utf-8") as f:
+            project = json.load(f)
+        return upgrade(project)  # (closed first: Windows cannot replace a file that is open)
+
+
+def upgrade(project):
+    """A project saved by an older version: one track per layer, each layer a clip over the whole video, and its
+    outside files moved into the library. Saved at once, so this happens only once."""
+    if "tracks" in project:
+        return project
+    project["length"] = project.get("length") or timeline.DEFAULT_LENGTH
+    total = timeline.project_frames(project)
+    project["tracks"] = []
+    for layer in project.get("layers", []):
+        tid = "t" + layer["id"][:15]
+        project["tracks"].append({"id": tid, "on": True})
+        layer.update(track=tid, start=0, end=total, fade_in=0.0, fade_out=0.0, skip=0.0)
+        stored = (layer.get("file") or {}).get("stored")
+        if stored:
+            layer["file"] = _to_library(project["id"], layer["file"])
+    if not project["tracks"]:
+        project["tracks"] = [{"id": secrets.token_hex(3), "on": True} for _ in range(2)]
+    project.pop("preview", None)
+    project.setdefault("proxy", None)
+    if os.path.isdir(os.path.join(paths.projects_dir(), project.get("id", ""))):
+        save(project, bump=False)
+    return project
+
+
+def _to_library(pid, source):
+    """An outside file kept in a project by an older version, copied into the library; the clip's new "file"."""
+    src = os.path.join(paths.projects_dir(), pid, "files", source["stored"])
+    name = source.get("name") or source["stored"]
+    try:
+        copy = os.path.join(paths.data_dir(), "tmp", secrets.token_hex(8) + os.path.splitext(src)[1])
+        os.makedirs(os.path.dirname(copy), exist_ok=True)
+        shutil.copyfile(src, copy)
+        item = library.add(copy, os.path.splitext(name)[0] + os.path.splitext(src)[1])
+        return {"lib": item["id"], "name": item["name"], "info": item["info"]}
+    except (OSError, library.LibraryError, video.VideoError):
+        return source  # it stays where it was: still rendered, but not in the live preview
 
 
 def replace(src, dst):
@@ -98,7 +145,8 @@ def mask_size(info):
 
 def summary(project):
     return {"id": project["id"], "name": project["name"], "updated": project.get("updated", 0),
-            "seconds": project["video"]["seconds"], "w": project["video"]["w"], "h": project["video"]["h"]}
+            "seconds": project["video"]["seconds"], "w": project["video"]["w"], "h": project["video"]["h"],
+            "length": project.get("length") or timeline.DEFAULT_LENGTH}
 
 
 def list_all():
@@ -125,13 +173,13 @@ def create(upload, original_name):
     pid = secrets.token_hex(6)
     path = os.path.join(paths.projects_dir(), pid)
     os.makedirs(os.path.join(path, "masks"))
-    os.makedirs(os.path.join(path, "files"))
     shutil.move(upload, os.path.join(path, "input" + ext))
     info["file"] = "input" + ext
     now = time.time()
     project = {"id": pid, "name": clean_name(original_name), "source_name": os.path.basename(original_name)[:200],
                "created": now, "rev": 0, "video": info, "still": {"source": "frame", "frame": 0},
-               "freeze": {"feather": 4}, "fg": {"feather": 2}, "layers": [], "preview": None}
+               "freeze": {"feather": 4}, "fg": {"feather": 2}, "length": timeline.DEFAULT_LENGTH,
+               "tracks": [{"id": secrets.token_hex(3), "on": True} for _ in range(3)], "layers": [], "proxy": None}
     return save(project)
 
 
@@ -147,20 +195,37 @@ def delete(pid):
         shutil.rmtree(path, ignore_errors=True)
 
 
-def _layer_from_page(raw, old):
+def _layer_from_page(raw, old, project, tracks):
     if not isinstance(raw, dict):
-        raise UserError("Dữ liệu lớp không hợp lệ.")
+        raise UserError("Dữ liệu clip không hợp lệ.")
     lid, kind = raw.get("id"), raw.get("kind")
     if not isinstance(lid, str) or not LAYER_ID.match(lid) or lid in ("freeze", "fg"):
-        raise UserError("Mã lớp không hợp lệ.")
+        raise UserError("Mã clip không hợp lệ.")
     if kind not in effects.SCHEMA:
-        raise UserError("Loại lớp không hợp lệ.")
-    name = re.sub(r"[\x00-\x1f]", "", str(raw.get("name") or effects.SCHEMA[kind]["label"]))[:40]
+        raise UserError("Loại clip không hợp lệ.")
+    most = timeline.output_frames(project["video"], max(timeline.LENGTHS))
+    start = _int(raw.get("start"), 0, most - 1, 0)
+    track = raw.get("track") if raw.get("track") in tracks else tracks[0]
+    name = re.sub(r"[\x00-\x1f]", "", str(raw.get("name") or effects.SCHEMA[kind]["label"]))[:60]
     layer = {"id": lid, "kind": kind, "name": name, "on": bool(raw.get("on", True)),
              "behind": bool(raw.get("behind", False)), "feather": _int(raw.get("feather"), 0, 200, 0),
-             "seed": _int(raw.get("seed"), 0, 2 ** 31 - 1, 1), "params": effects.clean_params(kind, raw.get("params"))}
-    if kind == "file" and old and old.get("kind") == "file" and old.get("file"):
-        layer["file"] = old["file"]  # the page never names files: the stored one stays
+             "seed": _int(raw.get("seed"), 0, 2 ** 31 - 1, 1), "params": effects.clean_params(kind, raw.get("params")),
+             "track": track, "start": start, "end": _int(raw.get("end"), start + 1, most, most),
+             "fade_in": _num(raw.get("fade_in"), 0, timeline.MAX_FADE, 0),
+             "fade_out": _num(raw.get("fade_out"), 0, timeline.MAX_FADE, 0),
+             "skip": _num(raw.get("skip"), 0, 36000, 0, None)}  # exact: the two halves of a cut clip must meet
+    if kind == "file":
+        before = old.get("file") if old and old.get("kind") == "file" else None
+        lib = raw.get("lib")  # the page names library items by id only, never files
+        if lib is None or (before and before.get("lib") == lib):
+            if before:
+                layer["file"] = before
+        else:
+            try:
+                item = library.load(lib)
+            except library.LibraryError as e:
+                raise UserError(str(e)) from e
+            layer["file"] = {"lib": item["id"], "name": item["name"], "info": item["info"]}
     return layer
 
 
@@ -171,14 +236,42 @@ def _int(value, lo, hi, default):
         return default
 
 
+def _num(value, lo, hi, default, digits=3):
+    try:
+        v = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if v != v:  # NaN
+        return default
+    v = max(lo, min(hi, v))
+    return v if digits is None else round(v, digits)
+
+
+def _tracks_from_page(raw):
+    if not isinstance(raw, list) or len(raw) > MAX_TRACKS:
+        raise UserError(f"Tối đa {MAX_TRACKS} track.")
+    tracks = []
+    for r in raw:
+        if not isinstance(r, dict) or not isinstance(r.get("id"), str) or not TRACK_ID.match(r["id"]):
+            raise UserError("Mã track không hợp lệ.")
+        tracks.append({"id": r["id"], "on": bool(r.get("on", True))})
+    if len({t["id"] for t in tracks}) != len(tracks):
+        raise UserError("Hai track trùng mã.")
+    return tracks or [{"id": secrets.token_hex(3), "on": True}]
+
+
 def apply(project, data):
-    """Takes the settings the page sent (layers, still, softness, name) and returns the saved project."""
+    """Takes the settings the page sent (timeline, still, softness, name) and returns the saved project."""
     if not isinstance(data, dict):
         raise UserError("Dữ liệu không hợp lệ.")
     with LOCK:
         project = load(project["id"])  # the newest copy: uploads and previews may have saved since it was read
         if "name" in data:
             project["name"] = clean_name(data["name"], project["name"])
+        if "length" in data:
+            if data["length"] not in timeline.LENGTHS:
+                raise UserError("Độ dài video không hợp lệ.")
+            project["length"] = data["length"]
         still = data.get("still")
         if isinstance(still, dict):
             source = "image" if still.get("source") == "image" and project.get("still", {}).get("image_name") else "frame"
@@ -187,34 +280,86 @@ def apply(project, data):
         for name in ("freeze", "fg"):
             if isinstance(data.get(name), dict):
                 project[name] = {"feather": _int(data[name].get("feather"), 0, 200, 0)}
+        if "tracks" in data:
+            project["tracks"] = _tracks_from_page(data["tracks"])
+        tracks = [t["id"] for t in project["tracks"]]
         if "layers" in data:
             raw = data["layers"]
             if not isinstance(raw, list) or len(raw) > MAX_LAYERS:
-                raise UserError(f"Tối đa {MAX_LAYERS} lớp.")
+                raise UserError(f"Tối đa {MAX_LAYERS} clip.")
             old = {lay["id"]: lay for lay in project["layers"]}
-            layers = [_layer_from_page(r, old.get(r.get("id")) if isinstance(r, dict) else None) for r in raw]
+            layers = [_layer_from_page(r, old.get(r.get("id")) if isinstance(r, dict) else None, project, tracks)
+                      for r in raw]
             if len({lay["id"] for lay in layers}) != len(layers):
-                raise UserError("Hai lớp trùng mã.")
+                raise UserError("Hai clip trùng mã.")
             project["layers"] = layers
             for lid in set(old) - {lay["id"] for lay in layers}:
                 _remove(os.path.join(paths.projects_dir(), project["id"], "masks", lid + ".png"))
+        for layer in project["layers"]:  # clips of a removed track go to the first one
+            if layer.get("track") not in tracks:
+                layer["track"] = tracks[0]
         saved = save(project)
         sweep_files(saved)
         return saved
 
 
-def sweep_files(project):
-    """Removes layer files no layer uses any more. A file Windows still holds open (a render using it) stays
-    until a later sweep."""
-    path = os.path.join(paths.projects_dir(), project["id"], "files")
+def copy_mask(project, src, dst):
+    """A clip cut in two: the new half gets the same area as the first one."""
+    if not (MASK_NAME.match(src or "") and LAYER_ID.match(dst or "")) or dst in ("freeze", "fg"):
+        raise UserError("Không tìm thấy clip.")
+    with LOCK:
+        project = load(project["id"])
+        if dst not in {lay["id"] for lay in project["layers"]}:
+            raise UserError("Không tìm thấy clip.")
+        masks = os.path.join(paths.projects_dir(), project["id"], "masks")
+        if os.path.exists(os.path.join(masks, src + ".png")):
+            shutil.copyfile(os.path.join(masks, src + ".png"), os.path.join(masks, dst + ".png"))
+        return save(project)
+
+
+def using_library(iid):
+    """Names of the projects whose clips use library item `iid`."""
+    names = []
+    for summary_ in list_all():
+        try:
+            project = load(summary_["id"])
+        except (OSError, ValueError, UserError):
+            continue
+        if any((lay.get("file") or {}).get("lib") == iid for lay in project["layers"]):
+            names.append(project["name"])
+    return names
+
+
+def sweep_files(project, keep_recent=4):
+    """Removes files no clip uses any more: files of older versions' clips, and preview clips of built-in
+    effects made for other settings (the `keep_recent` newest stay: the page may still be playing one while the
+    next is made, and a change is often undone). A file Windows still holds open stays until a later sweep."""
+    from .engine import fx_clip_name
+    base = os.path.join(paths.projects_dir(), project["id"])
     keep = {(lay.get("file") or {}).get("stored") for lay in project["layers"]}
-    try:
-        names = os.listdir(path)
-    except OSError:
-        return
-    for name in names:
+    for name in _names(os.path.join(base, "files")):
         if name not in keep:
-            _remove(os.path.join(path, name))
+            _remove(os.path.join(base, "files", name))
+    used = {fx_clip_name(project, lay) for lay in project["layers"] if lay["kind"] != "file"}
+    clips = os.path.join(base, "clips")
+    spare = sorted((n for n in _names(clips) if n not in used and ".part" not in n),
+                   key=lambda n: _mtime(os.path.join(clips, n)), reverse=True)
+    for name in spare[keep_recent:]:
+        _remove(os.path.join(clips, name))
+
+
+def _names(folder):
+    try:
+        return os.listdir(folder)
+    except OSError:
+        return []
+
+
+def _mtime(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0
 
 
 def _remove(path):
@@ -287,50 +432,9 @@ def set_still_image(project, upload, original_name):
         return save(fresh)
 
 
-def set_layer_file(project, lid, upload, original_name):
-    """The outside file of a "file" layer: checked, kept in the project, its blend set to suit it."""
-    if not any(lay["id"] == lid and lay["kind"] == "file" for lay in project["layers"]):
-        raise UserError("Không tìm thấy lớp để gắn file.")
-    ext = os.path.splitext(original_name or "")[1].lower()
-    if ext not in overlay.IMAGE_TYPES | overlay.VIDEO_TYPES:
-        raise UserError("Hãy chọn video (mp4, mov, webm…) hoặc ảnh (png, jpg).")
-    src = _with_ext(upload, ext)
-    try:
-        info = overlay.probe_file(src)
-        with LOCK:  # the newest copy, and the project still there (it may have been deleted meanwhile)
-            fresh = load(project["id"])
-            layer = next((lay for lay in fresh["layers"] if lay["id"] == lid and lay["kind"] == "file"), None)
-            if layer is None:
-                raise UserError("Không tìm thấy lớp để gắn file.")
-            path = os.path.join(paths.projects_dir(), fresh["id"], "files")
-            os.makedirs(path, exist_ok=True)
-            stored = f"{lid}-{secrets.token_hex(3)}{ext}"
-            shutil.move(src, os.path.join(path, stored))
-            layer["file"] = {"stored": stored, "name": os.path.basename(original_name)[:200], "info": info}
-            layer["params"]["blend"] = "normal" if info.get("alpha") else "screen"
-            if not info.get("image"):
-                layer["params"]["start"] = 0
-            saved = save(fresh)
-            sweep_files(saved)
-            return saved
-    finally:
-        _remove(src)
-
-
-def _with_ext(upload, ext):
-    """The upload renamed to end in its type's extension (what tells pictures from videos here)."""
-    if upload.lower().endswith(ext):
-        return upload
-    os.replace(upload, upload + ext)
-    return upload + ext
-
-
-def set_preview(project, name):
+def set_proxy(pid, name):
+    """The light copy of the project's video is ready (made in the background)."""
     with LOCK:
-        fresh = load(project["id"])
-        old = fresh.get("preview")
-        fresh["preview"] = name
-        save(fresh, bump=False)
-    if old and old != name:
-        _remove(os.path.join(paths.projects_dir(), project["id"], old))
-    return fresh
+        fresh = load(pid)
+        fresh["proxy"] = name
+        return save(fresh, bump=False)

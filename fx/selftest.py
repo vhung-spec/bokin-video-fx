@@ -1,10 +1,12 @@
 """--selftest: the installed app makes a real video and checks it (CI runs it on Windows after every build).
 
 It checks the bundled page and ffmpeg, then in a temporary data folder makes a 2-second 1080p loop, paints the
-masks, adds every kind of layer (with an outside video that has transparency and a PNG) and checks:
-every effect returns exactly to its first frame after one loop; the still areas are the picture pixel for pixel;
-the exported loop and a 3x longer copy decode with the right number of frames, BT.709 tags, nothing that names
-the tools, and a seam no bigger than any other frame change; the local server only answers its own page.
+masks, puts every kind of clip on the timeline (built-in effects, an outside video with transparency and a PNG from
+the library, clips that fade in and out, a clip cut in two) and checks: every effect returns exactly to its first
+frame after one loop; the still areas are the picture pixel for pixel; the exported video, rendered in pieces by
+worker processes, decodes with the right number of frames, BT.709 tags, nothing that names the tools, and a seam no
+bigger than any other frame change; the live preview's light copies keep their transparency; the local server
+only answers its own page.
 """
 import io
 import json
@@ -22,7 +24,7 @@ import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw
 
-from . import effects, engine, paths, projects, video
+from . import effects, engine, library, paths, projects, timeline, video
 
 W, H, FPS, P = 1920, 1080, 24, 48
 RESULTS = []
@@ -110,7 +112,7 @@ def server_checks():
             except urllib.error.HTTPError as e:
                 return e.code
         check("server: POST without X-Bokin refused",
-              status(urllib.request.Request(base + "/api/preview", data=b"{}", method="POST")) == 403)
+              status(urllib.request.Request(base + "/api/export", data=b"{}", method="POST")) == 403)
         check("server: other host names refused",
               status(urllib.request.Request(base + "/api/state", headers={"Host": "example.com"})) == 403)
         check("server: no path tricks", status(base + "/media/out?name=..%2F..%2Fx.mp4") == 404)
@@ -144,27 +146,40 @@ def run():
         mw, mh = projects.mask_size(info)
         projects.save_mask(project, "freeze", png_bytes(lambda d: d.rectangle([0, 0, mw // 4, mh], fill=255), (mw, mh)))
         projects.save_mask(project, "fg", png_bytes(lambda d: d.rectangle([0, int(mh * .85), mw, mh], fill=255), (mw, mh)))
-        layers = [{"id": "snow01", "kind": "snow", "params": {"amount": 60}, "seed": 1},
-                  {"id": "leaf01", "kind": "leaves", "behind": True, "params": {}, "seed": 2},
-                  {"id": "rain01", "kind": "rain", "behind": True, "params": {"amount": 25}, "seed": 3},
-                  {"id": "glow01", "kind": "glow", "params": {}, "seed": 4},
-                  {"id": "dust01", "kind": "glow", "params": {"style": "dust"}, "seed": 5},
-                  {"id": "file01", "kind": "file", "params": {}, "seed": 6},
-                  {"id": "file02", "kind": "file", "params": {"scale": 30}, "seed": 7}]
-        project = projects.apply(project, {"layers": layers})
-        project = projects.save_mask(project, "snow01",
-                                     png_bytes(lambda d: d.rectangle([mw // 3, 0, mw, mh // 2], fill=255), (mw, mh)))
         mov = os.path.join(work, "overlay.mov")
         make_alpha_mov(mov)
-        project = projects.set_layer_file(project, "file01", mov, "overlay.mov")
+        effect = library.add(mov, "overlay.mov")
         logo = os.path.join(work, "logo.png")
         im = Image.new("RGBA", (200, 200), (0, 0, 0, 0))
         ImageDraw.Draw(im).ellipse([20, 20, 180, 180], fill=(255, 200, 120, 200))
         im.save(logo)
-        project = projects.set_layer_file(project, "file02", logo, "logo.png")
-        file01 = next(lay for lay in project["layers"] if lay["id"] == "file01")
-        check("outside video with transparency read", file01["file"]["info"]["alpha"] and
-              file01["params"]["blend"] == "normal", str(file01["file"]["info"]))
+        picture = library.add(logo, "logo.png")
+        check("library: outside video with transparency read", effect["info"]["alpha"], str(effect["info"]))
+        effect = library.make_proxy(effect["id"])
+        proxy = video.probe(library.proxy_path(effect), overlay=True)
+        check("library: light copy keeps the transparency", proxy["alpha"] and proxy["codec"] == "vp9", str(proxy))
+
+        seconds = 4  # two loops: the clips run over both, in pieces made by two worker processes
+        total = timeline.output_frames(info, seconds)
+        tracks = [t["id"] for t in project["tracks"]]
+        layers = [{"id": "snow01", "kind": "snow", "params": {"amount": 60}, "seed": 1, "track": tracks[0]},
+                  {"id": "leaf01", "kind": "leaves", "behind": True, "params": {}, "seed": 2, "track": tracks[1],
+                   "start": 10, "end": 60, "fade_in": 0.3, "fade_out": 0.3},
+                  {"id": "leaf02", "kind": "leaves", "behind": True, "params": {}, "seed": 2, "track": tracks[1],
+                   "start": 60, "end": total},  # the second half of a cut clip, ending with the video
+                  {"id": "rain01", "kind": "rain", "behind": True, "params": {"amount": 25}, "seed": 3,
+                   "track": tracks[2], "start": 0, "end": 30},
+                  {"id": "glow01", "kind": "glow", "params": {}, "seed": 4, "track": tracks[2], "start": 30},
+                  {"id": "file01", "kind": "file", "lib": effect["id"], "params": {"blend": "normal"}, "seed": 6,
+                   "track": tracks[0] + "x"},
+                  {"id": "file02", "kind": "file", "lib": picture["id"], "params": {"scale": 30, "blend": "normal"},
+                   "seed": 7, "track": tracks[1] + "x", "start": 20, "end": 70, "fade_in": 0.5, "fade_out": 0.5}]
+        project = projects.apply(project, {"tracks": project["tracks"] + [{"id": tracks[0] + "x"},
+                                                                          {"id": tracks[1] + "x"}],
+                                           "layers": layers})
+        project = projects.save_mask(project, "snow01",
+                                     png_bytes(lambda d: d.rectangle([mw // 3, 0, mw, mh // 2], fill=255), (mw, mh)))
+        check("timeline saved", [lay["track"] for lay in project["layers"]][-2:] == [tracks[0] + "x", tracks[1] + "x"])
 
         # still areas are the picture, pixel for pixel, where nothing is drawn over them
         bare = engine.Scene(folder, dict(project, layers=[]), (W, H))
@@ -175,33 +190,35 @@ def run():
         check("still area exact", bool((out[:, :inner] == still[:, :inner]).all()))
         check("outside the still area untouched", bool((out[:, W // 4 + 8:] == base[:, W // 4 + 8:]).all()))
 
-        loop = os.path.join(work, "export.mp4")
+        made = os.path.join(work, "export.mp4")
         t0 = time.time()
-        ok = engine.render(folder, project, loop)
+        ok = engine.render(folder, project, made, seconds=seconds, processes=2)
         took = time.time() - t0
-        check("export rendered", ok, f"{took:.1f} s for {P} frames at {W}x{H} with {len(layers)} layers")
-        got = video.probe(loop)
-        check("export: size, frames, BT.709", (got["w"], got["h"], got["frames"], got["matrix"]) == (W, H, P, "bt709"),
+        check("export rendered", ok, f"{took:.1f} s for {total} frames at {W}x{H} with {len(layers)} clips")
+        got = video.probe(made)
+        check("export: size, frames, BT.709", (got["w"], got["h"], got["frames"], got["matrix"]) == (W, H, total, "bt709"),
               str(got))
-        tags = video.run(["-i", loop, "-f", "null", "-", "-frames:v", "1"])
+        tags = video.run(["-i", made, "-f", "null", "-", "-frames:v", "1"])
         check("export: colour tags", "bt709" in tags)
-        data = open(loop, "rb").read()
+        data = open(made, "rb").read()
         traces = [s for s in ("x264", "Lavf", "Lavc", "FFmpeg", "ffmpeg") if s.encode() in data]
         check("export: nothing names the tools", not traces, ", ".join(traces))
         small = (480, 270)
-        with video.Frames(loop, got, small) as frames:
+        with video.Frames(made, got, small) as frames:
             seq = [f.astype(np.int16) for f in frames]
-        steps = [float(np.abs(seq[(i + 1) % P] - seq[i]).mean()) for i in range(P)]
-        seam, others = steps[-1], steps[:-1]
+        steps = [float(np.abs(seq[(i + 1) % total] - seq[i]).mean()) for i in range(total)]
+        seam, middle, others = steps[-1], steps[total // 2 - 1], steps[:-1]
         check("export: seamless loop", seam <= max(others) * 1.25 + 0.5,
               f"seam {seam:.2f}, other frames {min(others):.2f}..{max(others):.2f}")
+        check("export: pieces joined without a jump", middle <= sorted(others)[len(others) * 9 // 10] * 1.5 + 0.5,
+              f"{middle:.2f}")
 
-        longer = os.path.join(work, "longer.mp4")
-        video.repeat(loop, longer, 3, seconds=3 * P / FPS)
-        got3 = video.probe(longer)
-        data3 = open(longer, "rb").read()
-        check("3x longer copy", got3["frames"] == 3 * P and not any(s.encode() in data3 for s in ("Lavf", "x264")),
-              str(got3["frames"]))
+        name = engine.fx_clip(folder, dict(project, length=30), "snow01", processes=2)
+        clip = video.probe(os.path.join(folder, "clips", name), overlay=True)
+        check("live preview: effect clip with transparency", clip["alpha"] and clip["frames"] ==
+              timeline.output_frames(info, 30), str(clip))
+        proxy_name = engine.make_base_proxy(folder, project)
+        check("live preview: light copy of the video", video.probe(os.path.join(folder, proxy_name))["frames"] == P)
 
         look = engine.Looks().frame(folder, project, 10, 640)
         check("single-frame look", look.shape == (360, 640, 3))

@@ -117,6 +117,13 @@ class Canvas:
             self.a[y0:y1, x0:x1] = 0
         self.box = None
 
+    def scale(self, gain):
+        """What was drawn, `gain` (0..1) times as strong: a clip fading in or out."""
+        if self.box:
+            x0, y0, x1, y1 = self.box
+            self.rgb[y0:y1, x0:x1] *= gain
+            self.a[y0:y1, x0:x1] *= gain
+
     def _place(self, x0, y0, h, w):
         cx0, cy0, cx1, cy1 = max(x0, 0), max(y0, 0), min(x0 + w, self.w), min(y0 + h, self.h)
         if cx0 >= cx1 or cy0 >= cy1:

@@ -43,6 +43,20 @@ class Timeline(unittest.TestCase):
                 self.assertAlmostEqual(sum(w for _, w in parts), 1.0, places=6)
                 self.assertTrue(all(when >= 0 for when, _ in parts))
 
+    def test_clip_plays_the_file_through(self):
+        """A clip shorter than the video plays the file from its start, frame after frame, and repeats it with
+        a dissolve when the clip is longer than the file."""
+        for seconds, need in ((10, 4), (2.5, 8), (1.0, 3)):
+            prev = None
+            for i in range(int(need * 24)):
+                parts = overlay.playing(i / 24, 24, need, seconds, 0, 0.5)
+                self.assertAlmostEqual(sum(w for _, w in parts), 1.0, places=6)
+                main = dominant(parts)
+                if prev is not None and len(parts) == 1:
+                    self.assertTrue(abs(main - prev - 1 / 24) < 1e-6 or main < prev, (seconds, i, main, prev))
+                prev = main
+        self.assertEqual(overlay.playing(3.0, 24, 4, 10, 2, 1), [(5.0, 1.0)])  # from "start" on
+
     def test_kinds_of_files(self):
         self.assertTrue(overlay.is_image("a.PNG") and not overlay.is_image("a.mov"))
         self.assertTrue(overlay.is_video("a.webm") and not overlay.is_video("a.exe"))

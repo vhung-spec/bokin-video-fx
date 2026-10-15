@@ -1,7 +1,8 @@
 """Video in and out, through the ffmpeg bundled with imageio-ffmpeg.
 
-probe() says what a video is; Frames reads its frames as RGB arrays; Encoder writes the delivery file; repeat()
-makes a long video from a loop by copying it end to end, without encoding it again.
+probe() says what a video is; Frames reads its frames as RGB arrays; Encoder writes the delivery file (or one
+piece of it, rendered in parallel) and join() puts the pieces together without encoding them again; make_proxy()
+and ClipWriter make the light videos the page plays in its live preview.
 
 Delivery format (the house standard): H.264 4:2:0, BT.709 limited range, the input's size and frame rate, no
 audio, and nothing in the file that names the tools. The stream is encoded into a temporary file, then copied
@@ -28,7 +29,6 @@ NTSC = {"23.98": "24000/1001", "23.976": "24000/1001", "29.97": "30000/1001", "4
         "59.94": "60000/1001", "119.88": "120000/1001"}
 HDR = {"smpte2084", "arib-std-b67", "bt2020", "bt2020-10", "bt2020-12"}  # PQ, HLG and BT.2020 primaries
 MAX_SIDE = 4096
-FAST_START_LIMIT = 600  # seconds: longer files skip +faststart (it rewrites the whole file once more)
 
 
 class VideoError(Exception):
@@ -115,7 +115,7 @@ def probe(path, overlay=False):
     fps = parse_fps(rate.group(1))
     codec = re.match(r"(\w+)", desc).group(1)
     # VP8/VP9 keep transparency in a side stream that only libvpx decodes
-    vpx_alpha = codec in ("vp8", "vp9") and re.search(r"alpha_mode\s*:\s*1", err) is not None
+    vpx_alpha = codec in ("vp8", "vp9") and re.search(r"alpha_mode\s*:\s*1", err, re.I) is not None
     return {"w": w, "h": h, "fps": fps, "frames": frames, "seconds": round(frames / fps_value(fps), 3),
             "matrix": matrix, "range": colour_range, "codec": codec, "pix": pix,
             "alpha": bool(ALPHA_FORMATS.match(pix)) or vpx_alpha,
@@ -244,15 +244,17 @@ def _remove(path):
         pass
 
 
-def join(parts, dst):
-    """`dst` = the pieces played one after another, copied (no encoding) into a clean delivery file."""
+def join(parts, dst, fast_start=True, alpha=False):
+    """`dst` = the pieces played one after another, copied (no encoding) into a clean delivery file. `alpha`:
+    WebM pieces with transparency (the joined file must say so again, or players show it opaque)."""
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
         for part in parts:
             f.write("file '" + os.path.abspath(part).replace("\\", "/").replace("'", "'\\''") + "'\n")
         listing = f.name
     try:
-        run(["-y", "-f", "concat", "-safe", "0", "-i", listing, "-map", "0:v:0", "-c", "copy", *CLEAN,
-             "-movflags", "+faststart", dst])
+        run(["-y", "-f", "concat", "-safe", "0", "-i", listing, "-map", "0:v:0", "-c", "copy", *CLEAN]
+            + (["-movflags", "+faststart"] if fast_start else [])
+            + (["-metadata:s:v:0", "alpha_mode=1"] if alpha else []) + [dst])
     finally:
         _remove(listing)
 
@@ -266,6 +268,7 @@ class ClipWriter:
         codec = (["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-deadline", "realtime",
                   "-cpu-used", "8", "-b:v", "0", "-crf", "34", "-row-mt", "1"] if alpha else
                  ["-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p", "-vf", TO_BT709])
+        codec += ["-g", "24"]  # the page jumps anywhere in it
         args = [ffmpeg_exe(), "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgba" if alpha else "rgb24",
                 "-s", f"{w}x{h}", "-framerate", str(fps), "-i", "-", *codec, "-an", *CLEAN, path]
         self.path = path
@@ -292,62 +295,44 @@ class ClipWriter:
             _remove(self.path)
             raise RuntimeError(f"ffmpeg failed ({code}): {message}")
 
+    def abort(self):
+        if self.proc.poll() is None:
+            self.proc.kill()
+        self.proc.wait()
+        try:
+            self.proc.stdin.close()
+        except OSError:
+            pass
+        self.err.close()
+        _remove(self.path)
+
 
 def plays_in_browser(info):
     """Whether Edge/Chrome can play the file as it is (H.264 8-bit 4:2:0, or VP8/VP9 WebM)."""
     return (info["codec"] == "h264" and info.get("pix") in ("yuv420p", "yuvj420p")) or info["codec"] in ("vp8", "vp9")
 
 
-def make_proxy(src, info, dst, width=1280):
-    """A light copy of a video for the page's live preview: VP9 WebM when it has transparency, else H.264.
-    Returns the file name written (dst with the right extension)."""
+def make_proxy(src, info, dst, width=1280, alpha=None, keyint=12):
+    """A light copy of a video for the page's live preview: VP9 WebM when it has transparency, else H.264, with a
+    key frame every `keyint` frames so the page can jump anywhere quickly. Returns the file written (dst with the
+    right extension); it is written under another name first, so a half-made copy is never served."""
     w = min(width, info["w"])
     h = max(2, round(info["h"] * w / info["w"] / 2) * 2)
     w -= w % 2
-    alpha = bool(info.get("alpha"))
+    alpha = bool(info.get("alpha")) if alpha is None else alpha
     out = os.path.splitext(dst)[0] + (".webm" if alpha else ".mp4")
+    tmp = os.path.splitext(dst)[0] + ".part" + (".webm" if alpha else ".mp4")
     args = ["-y"] + (["-c:v", info["decoder"]] if alpha and info.get("decoder") else []) + ["-i", src, "-map", "0:v:0"]
     if alpha:
         args += ["-vf", f"scale={w}:{h}:flags=area,format=yuva420p", "-c:v", "libvpx-vp9", "-auto-alt-ref", "0",
-                 "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "34", "-row-mt", "1"]
+                 "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "34", "-row-mt", "1",
+                 "-g", str(keyint)]
     else:
         args += ["-vf", _from_yuv(info, (w, h)) + ",format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
-                 "-crf", "24", "-pix_fmt", "yuv420p", *BT709, "-movflags", "+faststart"]
-    run(args + ["-an", *CLEAN, out], timeout=1800)
-    return out
-
-
-def repeat(src, dst, times, seconds=None, progress=None, cancelled=None):
-    """`dst` = the loop `src` played `times` times, by copying (no encoding, so no loss and no new seam).
-    progress(fraction) is called while it runs; cancelled() -> True stops it and removes `dst`."""
-    entry = "file '" + os.path.abspath(src).replace("\\", "/").replace("'", "'\\''") + "'\n"
-    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
-        f.write(entry * int(times))
-        listing = f.name
-    total = seconds or 0
-    args = [ffmpeg_exe(), "-v", "error", "-nostdin", "-y", "-f", "concat", "-safe", "0", "-i", listing,
-            "-map", "0:v:0", "-c", "copy", *CLEAN] + (["-movflags", "+faststart"] if total <= FAST_START_LIMIT else []) \
-        + ["-progress", "pipe:1", "-nostats", dst]
-    err = tempfile.TemporaryFile()
-    proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=err, **NO_WINDOW)
+                 "-crf", "24", "-pix_fmt", "yuv420p", "-g", str(keyint), *BT709, "-movflags", "+faststart"]
     try:
-        for line in proc.stdout:
-            if cancelled and cancelled():
-                proc.kill()
-                break
-            key, _, value = line.decode("ascii", "replace").strip().partition("=")
-            if key == "out_time_us" and total and progress and value.isdigit():
-                progress(min(1.0, int(value) / 1e6 / total))
-        code = proc.wait()
-        if cancelled and cancelled():
-            _remove(dst)
-            return False
-        if code != 0:
-            err.seek(0)
-            _remove(dst)
-            raise RuntimeError(f"ffmpeg failed ({code}): {_tail(err.read().decode('utf-8', 'replace'))}")
-        return True
+        run(args + ["-an", *CLEAN, tmp], timeout=1800)
+        os.replace(tmp, out)
     finally:
-        proc.stdout.close()
-        err.close()
-        _remove(listing)
+        _remove(tmp)
+    return out

@@ -7,166 +7,315 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317202e'/%3E%3Cg stroke='%23cfe6ff' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20'/%3E%3C/g%3E%3C/svg%3E">
 <style>
 :root {
-  --bg: #14161b; --panel: #1d2027; --panel2: #252932; --line: #333845; --text: #e8eaef; --dim: #9aa2b1;
-  --accent: #4c9dff; --accent2: #2f7de0; --good: #3ddc84; --warn: #ffb547; --bad: #ff6b6b;
-  --freeze: #3d8bff; --fg: #ff9a3d; --area: #3ddc84;
+  --bg: #141414; --panel: #1e1e1e; --panel2: #262626; --head: #232323; --line: #333; --line2: #3d3d3d;
+  --text: #d8d8d8; --dim: #8e8e8e; --accent: #2d8ceb; --accent2: #1f6fc0; --good: #3ddc84; --warn: #ffb547;
+  --bad: #ff6b6b; --c-base: #3b6fa8; --c-file: #8a6fd1; --c-fx: #1f9e8f; --playhead: #2d8ceb;
+  --left: 360px; --top: 58%;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-  font: 14px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+  font: 13px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; }
 button, select, input { font: inherit; color: inherit; }
-button { background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 12px; cursor: pointer; }
-button:hover:not(:disabled) { border-color: #4a5163; background: #2c313c; }
-button:disabled { opacity: .45; cursor: default; }
+button { background: var(--panel2); border: 1px solid var(--line2); border-radius: 5px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { border-color: #555; background: #2e2e2e; }
+button:disabled { opacity: .4; cursor: default; }
 button.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; font-weight: 600; }
 button.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
-button.on { background: #2a3f5e; border-color: var(--accent); }
+button.on { background: #1d3a5c; border-color: var(--accent); color: #fff; }
 button.danger { color: var(--bad); }
-button.small { padding: 3px 8px; font-size: 13px; }
-select, input[type=text], input[type=number] { background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; }
+button.icon { padding: 3px 7px; min-width: 28px; }
+button.small { padding: 2px 8px; font-size: 12px; }
+select, input[type=text], input[type=number] { background: #151515; border: 1px solid var(--line2); border-radius: 4px; padding: 3px 6px; }
+input[type=number] { width: 74px; }
 input[type=range] { width: 100%; accent-color: var(--accent); }
-input[type=color] { width: 44px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: none; padding: 0 2px; }
-.app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
-header { display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
-header .logo { font-weight: 700; font-size: 17px; letter-spacing: .3px; display: flex; align-items: center; gap: 8px; }
-header .logo svg { width: 24px; height: 24px; }
+input[type=color] { width: 42px; height: 24px; border: 1px solid var(--line2); border-radius: 4px; background: none; padding: 0 2px; }
+kbd { background: #2a2a2a; border: 1px solid #444; border-radius: 3px; padding: 0 4px; font-size: 11px; }
+
+.app { display: grid; grid-template-rows: 38px 1fr 26px; height: 100vh; }
+header { display: flex; align-items: center; gap: 10px; padding: 0 10px; background: #1b1b1b; border-bottom: 1px solid #000; }
+header .logo { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 7px; letter-spacing: .2px; }
+header .logo svg { width: 22px; height: 22px; }
+header .proj { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+header .proj b { color: var(--text); font-weight: 600; cursor: text; }
 header .grow { flex: 1; }
-header .ver { color: var(--dim); font-size: 12px; }
-.update { background: #1e3a24; border: 1px solid #2f6b3d; color: #bff0cc; border-radius: 7px; padding: 4px 10px; display: none; gap: 8px; align-items: center; }
-.main { display: grid; grid-template-columns: 1fr 360px; min-height: 0; }
-.work { display: grid; grid-template-rows: auto 1fr auto auto; min-width: 0; min-height: 0; }
-.tabs { display: flex; gap: 6px; padding: 8px 12px 0; }
-.tabs button { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-.stage { position: relative; overflow: hidden; background: #0d0e11; margin: 0 12px; border: 1px solid var(--line); border-radius: 0 8px 8px 8px; min-height: 0; }
-.board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.board > * { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; }
-.board canvas { touch-action: none; }
-.cursor { position: absolute; border: 1.5px solid #fff; border-radius: 50%; pointer-events: none; mix-blend-mode: difference; display: none; }
-.empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 20px; text-align: center; color: var(--dim); }
-.empty .drop { border: 2px dashed #3a4050; border-radius: 14px; padding: 34px 50px; max-width: 560px; }
-.empty .drop b { color: var(--text); font-size: 18px; display: block; margin-bottom: 6px; }
-.recent { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 900px; }
-.recent .card { width: 190px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; text-align: left; }
+header .prep { color: var(--dim); font-size: 12px; }
+.update { background: #1e3a24; border: 1px solid #2f6b3d; color: #bff0cc; border-radius: 5px; padding: 2px 8px; display: none; gap: 8px; align-items: center; }
+
+.work { display: grid; min-height: 0; grid-template-columns: var(--left) 5px 1fr; grid-template-rows: var(--top) 5px 1fr; }
+.split-v { grid-row: 1 / 4; grid-column: 2; cursor: col-resize; background: #0e0e0e; }
+.split-h { grid-row: 2; grid-column: 1 / 4; cursor: row-resize; background: #0e0e0e; z-index: 2; }
+.split-v:hover, .split-h:hover { background: #2a4a6e; }
+.panel { background: var(--panel); display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid #000; }
+.panel-head { display: flex; align-items: center; gap: 2px; background: var(--head); border-bottom: 1px solid #000; height: 30px; padding: 0 6px; flex: none; }
+.panel-head .tab { padding: 5px 10px; color: var(--dim); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+.panel-head .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.panel-head .grow { flex: 1; }
+.panel-head .note { color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel-body { flex: 1; min-height: 0; overflow: auto; }
+#controls { grid-row: 1; grid-column: 1; }
+#monitor { grid-row: 1; grid-column: 3; }
+#bin { grid-row: 3; grid-column: 1; }
+#tl { grid-row: 3; grid-column: 3; }
+
+/* effect controls */
+.ec { padding: 6px 10px 20px; }
+.ec h4 { margin: 12px 0 4px; font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: var(--dim); display: flex; align-items: center; gap: 6px; }
+.ec h4::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.ec .title { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; }
+.ec .title input { flex: 1; font-weight: 600; }
+.ec .row { margin: 7px 0; }
+.ec .lab { display: flex; justify-content: space-between; align-items: center; color: var(--dim); font-size: 12px; margin-bottom: 1px; gap: 8px; }
+.ec .lab b { color: #7fb8f5; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ec .pair { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.ec .pair label { display: flex; flex-direction: column; color: var(--dim); font-size: 11.5px; gap: 1px; }
+.ec .pair input { width: 100%; }
+.ec .note { color: var(--dim); font-size: 12px; margin: 6px 0; }
+.ec .warn { color: var(--warn); font-size: 12px; margin: 6px 0; }
+.ec .btns { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }
+.ec .check { display: flex; gap: 7px; align-items: center; margin: 8px 0; cursor: pointer; }
+.ec .file { background: #171717; border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font-size: 12px; margin: 6px 0; word-break: break-word; }
+.ec .empty { color: var(--dim); padding: 18px 6px; line-height: 1.6; }
+.ec select { width: 100%; }
+
+/* monitor */
+.stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #0b0b0b; }
+.screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: #000; overflow: hidden; isolation: isolate; }
+.screen > * { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.screen video, .screen img { display: block; object-fit: fill; }
+.screen .layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; mask-size: 100% 100%; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; }
+.screen .layer > * { position: absolute; }
+#exact { display: none; z-index: 50; }
+#paintCanvas { z-index: 60; display: none; touch-action: none; }
+.badge { position: absolute; right: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--dim); z-index: 70; pointer-events: none; display: none; }
+.waiting { position: absolute; left: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--warn); z-index: 70; pointer-events: none; display: none; max-width: 70%; }
+.cursor { position: absolute; border: 1.5px solid #fff; border-radius: 50%; pointer-events: none; mix-blend-mode: difference; display: none; z-index: 80; }
+.paintbar { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 75; background: #1d1d1dee; border: 1px solid #444; border-radius: 7px; padding: 5px 8px; display: none; flex-wrap: wrap; gap: 5px 8px; align-items: center; max-width: calc(100% - 16px); box-shadow: 0 6px 20px #0009; }
+.paintbar .grp { display: flex; gap: 3px; align-items: center; }
+.paintbar .who { font-weight: 600; }
+.paintbar input[type=range] { width: 90px; }
+.paintbar label { color: var(--dim); display: flex; gap: 4px; align-items: center; }
+.transport { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: var(--panel); border-top: 1px solid #000; flex: none; }
+.transport .tc { font-variant-numeric: tabular-nums; font-size: 15px; color: #4aa3ff; min-width: 92px; }
+.transport .tc.dur { color: var(--dim); font-size: 13px; text-align: right; }
+.transport .mid { flex: 1; display: flex; justify-content: center; gap: 4px; }
+.transport .mid button { min-width: 34px; }
+.transport select { width: 112px; }
+.drop { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px; text-align: center; color: var(--dim); }
+.drop .box { border: 2px dashed #3a3a3a; border-radius: 12px; padding: 26px 40px; max-width: 560px; line-height: 1.6; }
+.drop .box b { color: var(--text); font-size: 17px; display: block; margin-bottom: 4px; }
+.recent { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 900px; }
+.recent .card { width: 170px; background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; cursor: pointer; text-align: left; }
 .recent .card:hover { border-color: var(--accent); }
 .recent .card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; background: #000; }
-.recent .card div { padding: 6px 9px; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.recent .card small { color: var(--dim); }
-.timebar { display: flex; align-items: center; gap: 10px; padding: 8px 14px 4px; }
-.timebar input { flex: 1; }
-.timebar .t { color: var(--dim); font-variant-numeric: tabular-nums; min-width: 120px; text-align: right; }
-.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 14px 10px; min-height: 46px; }
-.tools .group { display: flex; gap: 4px; align-items: center; }
-.tools label { color: var(--dim); }
-.tools input[type=range] { width: 130px; }
-.tools .hint { color: var(--dim); font-size: 12.5px; }
-.side { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; min-height: 0; }
-.side h3 { margin: 0; padding: 12px 14px 6px; font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: var(--dim); }
-.layers { padding: 0 8px; }
-.layer { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
-.layer:hover { background: var(--panel2); }
-.layer.sel { background: #26324a; border-color: #3b5a8a; }
-.layer .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; }
-.layer .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.layer .name small { color: var(--dim); margin-left: 6px; }
-.layer .eye { background: none; border: none; padding: 2px 4px; color: var(--dim); font-size: 15px; }
-.layer .eye.off { opacity: .35; }
-.sep { height: 1px; background: var(--line); margin: 8px 14px; }
-.adds { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 10px; }
-.props { padding: 0 14px 18px; }
-.props .row { margin: 10px 0; }
-.props .row .lab { display: flex; justify-content: space-between; color: var(--dim); font-size: 13px; margin-bottom: 2px; }
-.props .row .lab b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
-.props .note { color: var(--dim); font-size: 12.5px; margin: 8px 0; }
-.props .warn { color: var(--warn); font-size: 13px; margin: 8px 0; }
-.props .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
-.props .check { display: flex; gap: 8px; align-items: center; margin: 10px 0; cursor: pointer; }
-.props .file { background: var(--panel2); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin: 8px 0; word-break: break-all; }
-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 14px; background: var(--panel); border-top: 1px solid var(--line); }
-footer .jobs { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 260px; }
-.job { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.job .bar { flex: 1; height: 7px; background: #2a2e38; border-radius: 4px; overflow: hidden; max-width: 340px; }
+.recent .card div { padding: 5px 8px; font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* bin */
+.bin-tools { display: flex; gap: 6px; padding: 6px 8px; align-items: center; border-bottom: 1px solid var(--line); flex: none; }
+.bin-tools input { flex: 1; min-width: 60px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; padding: 8px; }
+.tile { background: #171717; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; cursor: grab; position: relative; user-select: none; }
+.tile:hover { border-color: #5a5a5a; }
+.tile.sel { border-color: var(--accent); }
+.tile .pic { aspect-ratio: 16/9; background: #000 center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+.tile .nm { padding: 4px 6px 1px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .meta { padding: 0 6px 5px; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .more { position: absolute; right: 3px; top: 3px; background: #000a; border: none; padding: 0 6px; border-radius: 4px; display: none; }
+.tile:hover .more { display: block; }
+.tile .tag { position: absolute; left: 4px; top: 4px; background: #000b; font-size: 10.5px; padding: 0 5px; border-radius: 3px; color: #bbb; }
+.bin-empty { color: var(--dim); padding: 16px; line-height: 1.6; }
+.plist .item { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-bottom: 1px solid #262626; cursor: pointer; }
+.plist .item:hover { background: #252525; }
+.plist .item.cur { background: #1d2c3d; }
+.plist img { width: 72px; aspect-ratio: 16/9; object-fit: cover; background: #000; border-radius: 3px; }
+.plist .txt { flex: 1; min-width: 0; }
+.plist .txt div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plist small { color: var(--dim); }
+
+/* timeline */
+.tl-tools { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; }
+.tl-tools .sep { width: 1px; height: 18px; background: var(--line2); margin: 0 4px; }
+.tl-tools .seg { display: flex; }
+.tl-tools .seg button { border-radius: 0; }
+.tl-tools .seg button:first-child { border-radius: 5px 0 0 5px; }
+.tl-tools .seg button:last-child { border-radius: 0 5px 5px 0; border-left: none; }
+.tl-tools input[type=range] { width: 110px; }
+.tl-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 132px 1fr; grid-template-rows: 26px 1fr; position: relative; }
+.tl-corner { background: var(--head); border-right: 1px solid #000; border-bottom: 1px solid #000; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; color: #4aa3ff; font-size: 13px; }
+.tl-ruler { position: relative; background: #1a1a1a; border-bottom: 1px solid #000; cursor: ew-resize; overflow: hidden; }
+.tl-ruler canvas { position: absolute; left: 0; top: 0; }
+.tl-heads { overflow: hidden; background: #1c1c1c; border-right: 1px solid #000; }
+.tl-scroll { overflow: auto; position: relative; background: #191919; }
+.tl-lanes { position: relative; }
+.lane { position: absolute; left: 0; right: 0; border-bottom: 1px solid #262626; }
+.lane.new { background: repeating-linear-gradient(135deg, #1b1b1b 0 8px, #1d1d1d 8px 16px); }
+.head { display: flex; align-items: center; gap: 4px; padding: 0 6px; border-bottom: 1px solid #262626; height: 44px; position: relative; }
+.head.new { height: 24px; color: #666; font-size: 11.5px; justify-content: center; }
+.head .tn { font-weight: 600; width: 28px; text-align: center; background: #2a2a2a; border-radius: 3px; }
+.head.base .tn { background: #24364a; color: #cfe3fa; }
+.head .grow { flex: 1; color: var(--dim); font-size: 11.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.head button { padding: 0 5px; background: none; border: 1px solid transparent; color: var(--dim); }
+.head button:hover { border-color: #555; color: var(--text); }
+.head button.off { color: #555; }
+.beyond { position: absolute; top: 0; bottom: 0; background: #0009; pointer-events: none; border-left: 1px solid #555; }
+.seam { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #ffffff18; pointer-events: none; }
+.clip { position: absolute; height: 36px; border-radius: 4px; overflow: hidden; cursor: grab; border: 1px solid #0006; color: #fff; font-size: 12px; user-select: none; }
+.clip.file { background: var(--c-file); }
+.clip.fx { background: var(--c-fx); }
+.clip.base { background: var(--c-base) center/auto 100% repeat-x; cursor: pointer; }
+.clip.base .nm { background: #0008; }
+.clip.sel { outline: 2px solid #fff; outline-offset: -1px; z-index: 2; }
+.clip.off { filter: grayscale(.8) brightness(.6); }
+.clip.bad { outline: 2px solid var(--bad); }
+.clip .nm { position: absolute; left: 6px; top: 2px; right: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; text-shadow: 0 1px 2px #0008; }
+.clip .sub { position: absolute; left: 6px; bottom: 2px; right: 6px; font-size: 10.5px; opacity: .8; white-space: nowrap; overflow: hidden; pointer-events: none; }
+.clip .fade { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+.clip .fade.in { left: 0; background: linear-gradient(to top left, transparent calc(50% - 1px), #fffc 50%, transparent calc(50% + 1px)), linear-gradient(to top left, transparent 50%, #0005 50%); }
+.clip .fade.out { right: 0; background: linear-gradient(to top right, transparent calc(50% - 1px), #fffc 50%, transparent calc(50% + 1px)), linear-gradient(to top right, transparent 50%, #0005 50%); }
+.clip .h { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.clip .h.l { left: 0; }
+.clip .h.r { right: 0; }
+.clip.sel .h { background: #ffffff30; }
+.ghost { position: absolute; height: 36px; border-radius: 4px; border: 2px dashed #fff; background: #ffffff22; pointer-events: none; display: none; }
+.ghost.bad { border-color: var(--bad); background: #ff6b6b22; }
+.playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--playhead); pointer-events: none; z-index: 5; }
+.razorline { position: absolute; top: 0; bottom: 0; width: 1px; background: #ff5050; pointer-events: none; z-index: 6; display: none; }
+.tl-scroll.razor .clip { cursor: crosshair; }
+.tl-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim); pointer-events: none; }
+
+footer { display: flex; align-items: center; gap: 10px; padding: 0 10px; background: #1b1b1b; border-top: 1px solid #000; font-size: 12px; color: var(--dim); }
+footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden; }
+.job { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.job .bar { width: 140px; height: 6px; background: #2a2a2a; border-radius: 3px; overflow: hidden; }
 .job .bar i { display: block; height: 100%; background: var(--accent); width: 0; }
 .job.done .bar i { background: var(--good); }
 .job.error { color: var(--bad); }
-.job .what { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
-.toast { position: fixed; left: 50%; bottom: 74px; transform: translateX(-50%); background: #2b303b; border: 1px solid var(--line); border-radius: 9px; padding: 10px 16px; display: none; max-width: 80vw; z-index: 20; box-shadow: 0 8px 30px #0008; }
+.job button { padding: 0 6px; font-size: 11.5px; }
+
+.toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: #2b2b2b; border: 1px solid #444; border-radius: 7px; padding: 9px 14px; display: none; max-width: 80vw; z-index: 90; box-shadow: 0 8px 30px #0008; }
 .toast.bad { border-color: #7a3434; color: #ffd2d2; }
-.offline { position: fixed; inset: 0; background: #000b; display: none; align-items: center; justify-content: center; z-index: 30; font-size: 18px; text-align: center; padding: 30px; }
-.busy { position: absolute; right: 10px; top: 10px; background: #000a; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--dim); display: none; }
-.modal { position: fixed; inset: 0; background: #000c; display: none; align-items: center; justify-content: center; z-index: 25; }
-.modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; max-width: 92vw; }
-.modal video { max-width: 88vw; max-height: 76vh; display: block; background: #000; }
-.modal .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
-.menu { position: absolute; z-index: 15; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; min-width: 300px; max-height: 60vh; overflow: auto; display: none; box-shadow: 0 10px 30px #0009; }
-.menu .item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; cursor: pointer; }
-.menu .item:hover { background: var(--panel2); }
-.menu .item span { flex: 1; }
-.menu .item small { color: var(--dim); }
-kbd { background: #2a2f3a; border: 1px solid #3a4050; border-radius: 4px; padding: 0 4px; font-size: 11px; }
+.offline { position: fixed; inset: 0; background: #000c; display: none; align-items: center; justify-content: center; z-index: 95; font-size: 17px; text-align: center; padding: 30px; }
+.modal { position: fixed; inset: 0; background: #000b; display: none; align-items: center; justify-content: center; z-index: 85; }
+.modal .box { background: var(--panel); border: 1px solid #444; border-radius: 9px; padding: 14px 16px; max-width: 92vw; min-width: 340px; box-shadow: 0 10px 40px #000; }
+.modal h3 { margin: 0 0 10px; font-size: 15px; }
+.modal table { border-collapse: collapse; margin: 6px 0 12px; }
+.modal td { padding: 3px 12px 3px 0; }
+.modal td:first-child { color: var(--dim); }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; }
+.modal video { max-width: 86vw; max-height: 74vh; display: block; background: #000; }
+.menu { position: fixed; z-index: 88; background: #252525; border: 1px solid #444; border-radius: 6px; padding: 4px; min-width: 190px; display: none; box-shadow: 0 8px 26px #000a; }
+.menu div { padding: 5px 10px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; gap: 16px; }
+.menu div:hover { background: #1d3a5c; }
+.menu div small { color: var(--dim); }
+.menu hr { border: none; border-top: 1px solid #3a3a3a; margin: 3px 0; }
 </style>
 </head>
 <body>
 <div class="app">
   <header>
     <div class="logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2a3a55"/><g stroke="#cfe6ff" stroke-width="4" stroke-linecap="round"><path d="M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20"/></g></svg>Bokin FX</div>
-    <button id="projBtn" title="Các dự án đã mở">Dự án ▾</button>
-    <span id="projName" style="color:var(--dim)"></span>
-    <button class="primary" id="openBtn">+ Mở video…</button>
+    <button id="newBtn" title="Mở một video loop thành dự án mới">+ Video mới…</button>
+    <span class="proj" id="projName"></span>
     <div class="grow"></div>
+    <span class="prep" id="prep"></span>
     <div class="update" id="update"><span id="updateText"></span><button class="small primary" id="updateBtn">Cập nhật ngay</button></div>
-    <span class="ver" id="ver"></span>
+    <button class="primary" id="exportBtn" disabled title="Xuất video (Ctrl+M)">Xuất video</button>
   </header>
-  <div class="main">
-    <div class="work">
-      <div class="tabs" id="tabs">
-        <button data-view="paint">Vẽ vùng</button>
-        <button data-view="look">Xem kết quả</button>
-        <button data-view="video">Video xem thử</button>
-      </div>
+  <div class="work" id="work">
+    <section class="panel" id="controls">
+      <div class="panel-head"><span class="tab on">Bảng chỉnh hiệu ứng</span><div class="grow"></div><span class="note" id="ecNote"></span></div>
+      <div class="panel-body"><div class="ec" id="ec"></div></div>
+    </section>
+    <div class="split-v" id="splitV"></div>
+    <section class="panel" id="monitor">
+      <div class="panel-head"><span class="tab on">Chương trình</span><span class="note" id="monName"></span><div class="grow"></div><span class="note" id="monInfo"></span></div>
       <div class="stage" id="stage">
-        <div class="board" id="board">
-          <canvas id="paint"></canvas>
-          <img id="look" alt="">
-          <video id="vid" loop muted playsinline controls></video>
+        <div class="screen" id="screen">
+          <video id="baseVid" muted playsinline preload="auto" loop></video>
+          <img id="baseFrame" alt="" style="display:none">
+          <img id="stillImg" alt="" style="display:none">
+          <div id="layers" style="width:100%;height:100%"></div>
+          <img id="exact" alt="">
+          <canvas id="paintCanvas"></canvas>
         </div>
+        <div class="paintbar" id="paintbar"></div>
         <div class="cursor" id="cursor"></div>
-        <div class="busy" id="busy">Đang vẽ…</div>
-        <div class="empty" id="empty">
-          <div class="drop"><b>Kéo video loop vào đây</b>hoặc bấm <b style="display:inline;font-size:inherit">+ Mở video…</b> ở trên.<br>Thường là video loop 6 giây (1920×1080, 24 khung/giây).</div>
+        <div class="badge" id="badge"></div>
+        <div class="waiting" id="waiting"></div>
+        <div class="drop" id="drop">
+          <div class="box"><b>Kéo video loop vào đây</b>hoặc bấm <b style="display:inline;font-size:inherit">+ Video mới…</b> ở trên.<br>Thường là video loop 6 giây (1920×1080, 24 khung/giây).<br>App làm ra video 30 giây hoặc 1 phút, vẫn loop liền mạch.</div>
           <div class="recent" id="recent"></div>
         </div>
       </div>
-      <div class="timebar" id="timebar">
-        <button class="small" id="prevBtn" title="Khung trước (←)">◀</button>
-        <input type="range" id="time" min="0" max="0" value="0">
-        <button class="small" id="nextBtn" title="Khung sau (→)">▶</button>
-        <span class="t" id="tlabel"></span>
+      <div class="transport" id="transport">
+        <span class="tc" id="tcNow">00:00:00</span>
+        <select id="zoomSel" title="Phóng to hình (lăn chuột trên hình)">
+          <option value="" hidden>Tuỳ chỉnh</option><option value="fit">Vừa khung</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option>
+        </select>
+        <div class="mid">
+          <button class="icon" id="tStart" title="Về đầu (Home)">⏮</button>
+          <button class="icon" id="tPrev" title="Khung trước (←)">◀|</button>
+          <button class="icon primary" id="tPlay" title="Phát / dừng (Space)">▶</button>
+          <button class="icon" id="tNext" title="Khung sau (→)">|▶</button>
+          <button class="icon" id="tEnd" title="Về cuối (End)">⏭</button>
+          <button class="icon on" id="tLoop" title="Phát lặp lại để xem chỗ nối loop">🔁</button>
+        </div>
+        <span class="tc dur" id="tcDur"></span>
       </div>
-      <div class="tools" id="tools"></div>
-    </div>
-    <aside class="side" id="side"></aside>
+    </section>
+    <div class="split-h" id="splitH"></div>
+    <section class="panel" id="bin">
+      <div class="panel-head">
+        <span class="tab on" data-bin="lib">Thư viện</span><span class="tab" data-bin="fx">Tạo sẵn</span><span class="tab" data-bin="proj">Dự án</span>
+      </div>
+      <div class="bin-tools" id="binTools"></div>
+      <div class="panel-body" id="binBody"></div>
+    </section>
+    <section class="panel" id="tl">
+      <div class="panel-head">
+        <span class="tab on">Timeline</span>
+        <div class="tl-tools" id="tlTools">
+          <span class="sep"></span>
+          <button class="icon on" data-tool="select" title="Chọn, kéo, kéo mép để cắt bớt (V)">➤</button>
+          <button class="icon" data-tool="razor" title="Dao cắt: bấm vào clip để cắt đôi (C)">✂</button>
+          <button class="icon on" id="snapBtn" title="Bám dính vào đầu phát, mép clip, chỗ nối loop (S)">🧲</button>
+          <span class="sep"></span>
+          <span style="color:var(--dim)">Độ dài video:</span>
+          <div class="seg" id="lenSeg"><button data-len="30">30 giây</button><button data-len="60">1 phút</button></div>
+          <div class="grow" style="flex:1"></div>
+          <button class="small" id="addTrack" title="Thêm một track ở trên cùng">+ Track</button>
+          <button class="icon" id="tlFit" title="Xem cả timeline (\)">⤢</button>
+          <input type="range" id="tlZoom" min="0" max="1000" value="0" title="Phóng to timeline (+ / -)">
+        </div>
+      </div>
+      <div class="tl-body" id="tlBody">
+        <div class="tl-corner" id="tlTime">00:00:00</div>
+        <div class="tl-ruler" id="tlRuler"><canvas id="rulerCanvas"></canvas></div>
+        <div class="tl-heads" id="tlHeads"></div>
+        <div class="tl-scroll" id="tlScroll">
+          <div class="tl-lanes" id="tlLanes"></div>
+        </div>
+      </div>
+    </section>
   </div>
-  <footer>
-    <button id="previewBtn" disabled>▶ Làm video xem thử</button>
-    <select id="length" disabled></select>
-    <button class="primary" id="exportBtn" disabled>Xuất video</button>
-    <button id="folderBtn">Mở thư mục video</button>
-    <div class="jobs" id="jobs"></div>
-  </footer>
+  <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn">Mở thư mục video</button><span id="ver"></span></footer>
 </div>
 <input type="file" id="fileVideo" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
 <input type="file" id="fileStill" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden>
-<input type="file" id="fileLayer" accept="video/*,image/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.gif,.png,.jpg,.jpeg,.webp,.bmp" hidden>
+<input type="file" id="fileLib" multiple accept="video/*,image/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.gif,.png,.jpg,.jpeg,.webp,.bmp" hidden>
 <div class="menu" id="menu"></div>
 <div class="toast" id="toast"></div>
 <div class="offline" id="offline"><div>Mất kết nối với app Bokin FX.<br><small>Nếu đã đóng app, hãy mở lại từ menu Start.</small></div></div>
-<div class="modal" id="modal"><div class="box"><div class="bar"><b id="modalTitle"></b><button class="small" id="modalClose">Đóng</button></div><video id="modalVideo" controls loop autoplay></video></div></div>
+<div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const COLORS = {freeze: "#3d8bff", fg: "#ff9a3d", area: "#3ddc84"};
 const KIND_ICON = {snow: "❄", leaves: "🍂", rain: "☔", glow: "✨", file: "🎞"};
+const BLEND_CSS = {normal: "normal", screen: "screen", add: "plus-lighter", multiply: "multiply"};
+const ROW_H = 44, NEW_H = 24, CLIP_H = 36, MASK_CSS_W = 960;
 
 // --- talking to the app ----------------------------------------------------------------------------------
 async function call(method, path, body, raw) {
@@ -212,38 +361,105 @@ function toast(text, bad = false, ms = 4000) {
 const fail = e => toast(e.message || String(e), true, 7000);
 
 // --- state ---------------------------------------------------------------------------------------------
-const S = {schema: null, lengths: [], state: null, project: null, sel: "freeze", view: "look", t: 0,
-  tool: "brush", mode: "add", size: 60, zoom: 1, panX: 0, panY: 0, masks: {}, lookSeq: 0, frameSeq: 0,
-  saveTimer: 0, saving: false, poly: [], drawing: false, frameImg: new Image(), jobsSeen: {}};
+const S = {schema: null, state: null, project: null, lib: [], time: 0, playing: false, loop: true, sel: null,
+  tool: "select", snap: true, pps: 40, fitTl: true, paint: null, brush: {tool: "brush", mode: "add", size: 60},
+  zoom: "fit", scale: 1, panX: 0, panY: 0, masks: {}, fx: {}, hist: [], histAt: -1, edits: 0, saveTimer: 0,
+  jobsSeen: {}, bin: "lib", binSel: null, filter: "", els: {}, drag: null, dragItem: null, onlyBase: false};
 
+function fpsValue(fps) { const [a, b] = String(fps).split("/"); return (+a) / (+b || 1); }
+function info() { return S.project.video; }
+function fps() { return fpsValue(info().fps); }
+function loopFrames() { return info().frames; }
+function outFrames(len) { const v = info(); return Math.max(1, Math.round((len || S.project.length) / v.seconds)) * v.frames; }
+function total() { return outFrames(); }
+function duration() { return total() / fps(); }
+function frameAt(sec) { return clamp(Math.floor(sec * fps() + 1e-6), 0, total() - 1); }
+function curFrame() { return frameAt(S.time); }
 function kindLabel(kind) { return (S.schema && S.schema.kinds[kind] || {}).label || kind; }
-function layerById(id) { return S.project && S.project.layers.find(l => l.id === id); }
-function hasMask(name) { return name === "freeze" || name === "fg" || !!layerById(name); }
-function fmtTime(s) { const m = Math.floor(s / 60); return m ? `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}` : `${(+s).toFixed(1)} giây`; }
-function lengthLabel(sec) {
-  if (!sec) return `1 vòng (${S.project ? S.project.video.seconds.toFixed(1).replace(/\.0$/, "") : 6} giây)`;
-  if (sec < 60) return `${sec} giây`;
-  if (sec < 3600) return `${sec / 60} phút`;
-  return `${sec / 3600} giờ`;
+function clipById(id) { return S.project && S.project.layers.find(l => l.id === id); }
+function libItem(id) { return S.lib.find(i => i.id === id); }
+function newId(prefix) { return (prefix || "") + Math.random().toString(36).slice(2, 10).padEnd(8, "0"); }
+function trackName(i) { return "V" + (i + 2); }
+function tc(sec, withFrames = true) {
+  const f = Math.round(fps());
+  const whole = Math.floor(sec + 1e-6), fr = Math.floor((sec - whole) * fps() + 1e-6);
+  const m = Math.floor(whole / 60), s = whole % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` + (withFrames ? `:${String(Math.min(fr, f - 1)).padStart(2, "0")}` : "");
 }
-function newId() { return Math.random().toString(36).slice(2, 10).padEnd(8, "0"); }
+function secLabel(sec) { return (Math.round(sec * 100) / 100).toLocaleString("vi-VN") + " giây"; }
+
+// the timeline's timing rules: the same as fx/timeline.py and fx/overlay.py
+function span(c) {
+  const N = total(), f = fps(), MAXF = S.schema.max_fade, EDGE = S.schema.min_edge_fade;
+  const start = clamp(c.start | 0, 0, N), end = clamp(c.end | 0, start, N);
+  const full = start === 0 && end === N;
+  let fin = 0, fout = 0;
+  if (!full) {
+    fin = clamp(+c.fade_in || 0, 0, MAXF) * f; fout = clamp(+c.fade_out || 0, 0, MAXF) * f;
+    if (start === 0) fin = Math.max(fin, EDGE * f);
+    if (end === N) fout = Math.max(fout, EDGE * f);
+    const len = end - start;
+    if (fin + fout > len && len > 0) { const k = len / (fin + fout); fin *= k; fout *= k; }
+  }
+  return {start, end, full, fin, fout, skip: Math.max(0, +c.skip || 0)};
+}
+function weight(sp, t) {
+  if (t < sp.start || t >= sp.end) return 0;
+  let w = 1;
+  if (sp.fin > 0) w = Math.min(w, (t - sp.start + 0.5) / sp.fin);
+  if (sp.fout > 0) w = Math.min(w, (sp.end - t - 0.5) / sp.fout);
+  return clamp(w, 0, 1);
+}
+function plan(seconds, start, fade, need, f) {
+  start = Math.min(Math.max(0, start), Math.max(0, seconds - 1 / f));
+  const avail = seconds - start;
+  if (avail >= need) return {start, step: null, join: 0};
+  const join = Math.min(Math.max(0, fade), avail / 3);
+  return {start, step: Math.max(0, avail - join), join};
+}
+function played(e, pl) {  // the file time that shows most at e seconds into the played file
+  if (pl.step === null) return pl.start + e;
+  if (pl.step <= 0) return pl.start;
+  const j = Math.floor(e / pl.step + 1e-9), local = Math.max(0, e - j * pl.step);
+  if (j > 0 && pl.join > 0 && local < pl.join) return local / pl.join >= 0.5 ? pl.start + local : pl.start + local + pl.step;
+  return pl.start + local;
+}
+function fileTime(c, sp, t, inf) {  // seconds into the clip's file at frame t (a float frame)
+  const f = fps(), p = c.params;
+  if (sp.full) {
+    const loop = total() / f, fade = clamp(p.fade, 0, loop / 2);
+    const pl = plan(inf.seconds, p.start, fade, loop + fade, f);
+    if (pl.step !== null && pl.step <= 0) return pl.start;
+    const s = t / f;
+    if (fade <= 0 || s < loop - fade) return played(fade > 0 ? fade + s : s, pl);
+    return (s - (loop - fade)) / fade < 0.5 ? played(fade + s, pl) : played(s - (loop - fade), pl);
+  }
+  const need = (sp.end - sp.start) / f + sp.skip;
+  return played((t - sp.start) / f + sp.skip, plan(inf.seconds, p.start, p.fade, need, f));
+}
+function clipOrder() {  // bottom first, as the renderer draws them
+  const p = S.project, rank = Object.fromEntries(p.tracks.map((t, i) => [t.id, i]));
+  const hidden = new Set(p.tracks.filter(t => !t.on).map(t => t.id));
+  return p.layers.filter(c => c.on !== false && !hidden.has(c.track))
+    .map((c, i) => [c, i]).sort((a, b) => (rank[a[0].track] - rank[b[0].track]) || (a[0].start - b[0].start) || (a[1] - b[1])).map(x => x[0]);
+}
 
 // --- projects ------------------------------------------------------------------------------------------
 async function openProject(id) {
   try {
     const p = await get("/api/project?id=" + id);
-    S.drawing = false;
-    if (S.saveTimer) await saveNow();  // the open project's last changes go to it, not to the next one
-    await flushMasks();
-    S.project = p; S.masks = {}; S.poly = [];
-    S.t = Math.min(S.t, p.video.frames - 1);
-    if (!S.sel || (S.sel !== "freeze" && S.sel !== "fg" && !layerById(S.sel))) S.sel = p.layers.length ? p.layers[p.layers.length - 1].id : "freeze";
+    if (S.project) { pause(); if (S.saveTimer) await saveNow(); await flushMasks(); }
+    S.project = p; S.masks = {}; S.fx = {}; S.sel = null; S.paint = null; S.time = 0; S.hist = []; S.histAt = -1;
+    S.fitTl = true; S.zoom = "fit"; S.panX = S.panY = 0;
     try { localStorage.setItem("fx.last", id); } catch (e) { /* storage blocked */ }
-    setupBoard();
+    clearLayers();
     await Promise.all(["freeze", "fg", ...p.layers.map(l => l.id)].map(loadMask));
+    if (!p.proxy) post("/api/proxy", {id}).catch(() => {});
+    remember();
+    setupScreen();
     renderAll();
-    loadFrame(); refreshLook();
-    if (S.view === "video") showPreview();
+    requestAllFx();
+    seek(0);
   } catch (e) { fail(e); }
 }
 
@@ -252,32 +468,76 @@ async function newProjectFrom(file) {
   try {
     const p = await upload(`/api/upload?kind=video&name=${encodeURIComponent(file.name)}`, file, "Đang mở video");
     toast(`Đã mở "${p.name}": ${p.video.w}×${p.video.h}, ${p.video.seconds} giây, ${p.video.frames} khung.`);
-    S.sel = "freeze"; S.t = 0; S.view = "look";
     await openProject(p.id);
     pollSoon();
   } catch (e) { fail(e); }
 }
 
-function scheduleSave() {
-  S.edits = (S.edits || 0) + 1;
+function pageProject() {
+  const p = S.project;
+  return {id: p.id, name: p.name, length: p.length, still: p.still, freeze: p.freeze, fg: p.fg, tracks: p.tracks,
+    layers: p.layers.map(l => Object.assign({}, l, {lib: l.lib || (l.file && l.file.lib) || undefined}))};
+}
+function scheduleSave(ms = 350) {
+  S.edits++;
   clearTimeout(S.saveTimer);
-  S.saveTimer = setTimeout(saveNow, 350);
+  S.saveTimer = setTimeout(saveNow, ms);
 }
 async function saveNow() {  // true once the settings are saved
   clearTimeout(S.saveTimer); S.saveTimer = 0;
   const p = S.project; if (!p) return true;
-  const mark = S.edits = (S.edits || 0) + 1;
+  const mark = ++S.edits;
   try {
-    const fresh = await post("/api/save", {id: p.id, name: p.name, still: p.still, freeze: p.freeze, fg: p.fg, layers: p.layers});
+    const fresh = await post("/api/save", pageProject());
     if (S.project && S.project.id === fresh.id) {
-      S.project.rev = fresh.rev; S.project.masks = fresh.masks;
+      p.rev = fresh.rev; p.masks = fresh.masks;
       const quiet = S.edits === mark;  // nothing changed on the page while this was being saved
-      if (quiet) S.project.still = fresh.still;
-      for (const l of fresh.layers) { const mine = layerById(l.id); if (mine) { if (quiet) mine.params = l.params; if (l.file) mine.file = l.file; } }
+      if (quiet) p.still = fresh.still;
+      for (const l of fresh.layers) {
+        const mine = clipById(l.id);
+        if (!mine) continue;
+        if (l.file) { mine.file = l.file; delete mine.lib; }
+        if (quiet) mine.params = l.params;
+      }
+      for (const [name, m] of Object.entries(S.masks)) if (m.afterSave && clipById(name)) { m.afterSave = false; queueMask(name, m); }
+      requestAllFx();
+      refreshExact();
     }
-    refreshLook();
     return true;
   } catch (e) { fail(e); return false; }
+}
+
+// undo / redo of timeline edits (painting has its own)
+function snapshot() { const p = S.project; return JSON.stringify({length: p.length, tracks: p.tracks, layers: p.layers}); }
+function remember() {
+  if (!S.project) return;
+  const snap = snapshot();
+  if (S.hist[S.histAt] === snap) return;
+  S.hist = S.hist.slice(0, S.histAt + 1);
+  S.hist.push(snap);
+  if (S.hist.length > 80) S.hist.shift();
+  S.histAt = S.hist.length - 1;
+}
+function history(step) {
+  const at = S.histAt + step;
+  if (!S.project || at < 0 || at >= S.hist.length) return;
+  S.histAt = at;
+  const snap = JSON.parse(S.hist[at]), p = S.project;
+  p.length = snap.length; p.tracks = snap.tracks; p.layers = snap.layers;
+  for (const c of p.layers) {
+    if (!S.masks[c.id]) loadMask(c.id);
+    else if (!p.masks.includes(c.id) && !S.masks[c.id].full) queueMask(c.id, S.masks[c.id]);  // its area came back
+  }
+  renderAll(); scheduleSave(0); seek(S.time);  // the selection stays: a clip that comes back is selected again
+  toast(step < 0 ? "Đã hoàn tác." : "Đã làm lại.", false, 1200);
+}
+function edited(opts = {}) {  // after a change of the timeline or of a clip
+  renderTimeline();
+  if (opts.controls !== false) renderControls();
+  syncLayers(); applyTime();
+  invalidateExact();
+  scheduleSave(opts.wait);
+  if (opts.remember !== false) remember();
 }
 
 // --- masks ---------------------------------------------------------------------------------------------
@@ -287,11 +547,16 @@ function blankMask(full) {
   if (full) { const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); }
   return c;
 }
+function maskKind(name) { return name === "freeze" ? "freeze" : name === "fg" ? "fg" : "area"; }
+function newMask(name, p) {
+  const full = maskKind(name) === "area";
+  const m = {canvas: blankMask(full), undo: [], redo: [], timer: 0, project: p, ver: 0, full, empty: !full, css: {}};
+  S.masks[name] = m;
+  return m;
+}
 async function loadMask(name) {
   const p = S.project;
-  const full = name !== "freeze" && name !== "fg";
-  const m = {canvas: blankMask(full), undo: [], redo: [], timer: 0, project: p};
-  S.masks[name] = m;
+  const m = newMask(name, p);
   if (!p.masks.includes(name)) return;
   try {
     const blob = await get(`/api/mask?id=${p.id}&name=${name}&r=${Date.now()}`);
@@ -302,29 +567,42 @@ async function loadMask(name) {
     const d = g.getImageData(0, 0, m.canvas.width, m.canvas.height), a = d.data;
     for (let i = 0; i < a.length; i += 4) { const v = a[i]; a[i] = a[i + 1] = a[i + 2] = 255; a[i + 3] = v; }
     g.putImageData(d, 0, 0);
+    measure(m); m.ver++;
+    if (S.project === p) { styleAll(); renderControls(); }
   } catch (e) { /* no mask yet */ }
 }
-function maskKind(name) { return name === "freeze" ? "freeze" : name === "fg" ? "fg" : "area"; }
-function remember(m) {
+function measure(m) {  // is the mask empty, or full?
+  const g = m.canvas.getContext("2d", {willReadFrequently: true});
+  const a = g.getImageData(0, 0, m.canvas.width, m.canvas.height).data;
+  let any = false, all = true;
+  for (let i = 3; i < a.length; i += 4) { if (a[i]) any = true; if (a[i] !== 255) all = false; if (any && !all) break; }
+  m.empty = !any; m.full = all;
+}
+function rememberPaint(m) {
   const g = m.canvas.getContext("2d", {willReadFrequently: true});
   m.undo.push(g.getImageData(0, 0, m.canvas.width, m.canvas.height));
-  if (m.undo.length > 15) m.undo.shift();
+  if (m.undo.length > 20) m.undo.shift();
   m.redo = [];
 }
-function undo(redo) {
-  const m = S.masks[S.sel]; if (!m) return;
+function undoPaint(redo) {
+  const m = S.masks[S.paint]; if (!m) return;
   const from = redo ? m.redo : m.undo, to = redo ? m.undo : m.redo;
   if (!from.length) return;
   const g = m.canvas.getContext("2d", {willReadFrequently: true});
   to.push(g.getImageData(0, 0, m.canvas.width, m.canvas.height));
   g.putImageData(from.pop(), 0, 0);
-  maskChanged(S.sel);
+  maskChanged(S.paint);
 }
-function maskChanged(name) {
-  drawBoard();
-  const m = S.masks[name];
-  clearTimeout(m.timer);
-  m.timer = setTimeout(() => queueMask(name, m), 500);
+let cssTimer = 0;
+function maskChanged(name, send = true) {
+  const m = S.masks[name]; if (!m) return;
+  m.ver++;
+  drawPaint();
+  clearTimeout(cssTimer);
+  cssTimer = setTimeout(() => { for (const mm of Object.values(S.masks)) if (mm.measureDue) { measure(mm); mm.measureDue = false; } styleAll(); renderControls(); }, 160);
+  m.measureDue = true;
+  invalidateExact();
+  if (send) { clearTimeout(m.timer); m.timer = setTimeout(() => queueMask(name, m), 500); }
 }
 function queueMask(name, m) {  // sends of one mask go one after another, to the project the mask belongs to
   clearTimeout(m.timer); m.timer = 0;
@@ -338,23 +616,19 @@ async function flushMasks() {  // true once every painted change is on the app's
 async function sendMask(name, m) {
   const p = m.project; if (!p) return true;
   const gone = () => name !== "freeze" && name !== "fg" && !p.layers.some(l => l.id === name);
-  if (gone()) return true;  // its layer was deleted
-  const g = m.canvas.getContext("2d", {willReadFrequently: true});
-  const a = g.getImageData(0, 0, m.canvas.width, m.canvas.height).data;
-  let any = false, all = true;
-  for (let i = 3; i < a.length; i += 4) { if (a[i]) any = true; if (a[i] !== 255) all = false; if (any && !all) break; }
-  const full = maskKind(name) === "area";
-  let body = new Blob([]);
-  if (!(full ? all : !any)) body = await new Promise(r => m.canvas.toBlob(r, "image/png"));
+  if (gone()) return true;  // its clip was deleted
+  measure(m);
+  const keep = maskKind(name) === "area" ? !m.full : !m.empty;
+  const body = keep ? await new Promise(r => m.canvas.toBlob(r, "image/png")) : new Blob([]);
   try {
     const r = await call("POST", `/api/mask?id=${p.id}&name=${name}`, null, body);
     p.rev = Math.max(p.rev, r.rev);
-    const has = body.size > 0, list = p.masks.filter(n => n !== name);
-    if (has) list.push(name);
+    const list = p.masks.filter(n => n !== name);
+    if (keep) list.push(name);
     p.masks = list;
     if (S.project !== p) return true;
-    if (!document.activeElement || !document.activeElement.closest("#side")) renderSide();  // not while typing there
-    refreshLook();
+    if (!document.activeElement || !document.activeElement.closest("#ec")) renderControls();
+    refreshExact();
     return true;
   } catch (e) {
     if (gone()) return true;
@@ -362,60 +636,370 @@ async function sendMask(name, m) {
     return false;
   }
 }
-function fillMask(how) {
-  const m = S.masks[S.sel]; if (!m) return;
-  remember(m);
+function fillMask(name, how) {
+  const m = S.masks[name]; if (!m) return;
+  rememberPaint(m);
   const g = m.canvas.getContext("2d");
   g.save();
-  if (how === "all") { g.globalCompositeOperation = "source-over"; g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height); }
+  if (how === "all") { g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height); }
   else if (how === "none") g.clearRect(0, 0, m.canvas.width, m.canvas.height);
   else { g.globalCompositeOperation = "xor"; g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height); }
   g.restore();
-  maskChanged(S.sel);
+  maskChanged(name);
+}
+// a softened copy of a mask for the live preview (CSS mask-image), cached per mask version and softness
+function maskURL(name, feather, invert) {
+  const m = S.masks[name]; if (!m) return null;
+  const key = `${m.ver}|${feather}|${invert ? 1 : 0}`;
+  if (m.css[key]) return m.css[key].url;
+  const w = Math.min(MASK_CSS_W, m.canvas.width), h = Math.max(2, Math.round(m.canvas.height * w / m.canvas.width));
+  const r = feather * h / info().h, pad = Math.ceil(r * 3) + 1;
+  const c = document.createElement("canvas"); c.width = w + 2 * pad; c.height = h + 2 * pad;
+  const g = c.getContext("2d");
+  // the edges carried outwards, as the renderer softens them
+  const src = m.canvas, sw = src.width, sh = src.height;
+  g.drawImage(src, 0, 0, sw, sh, pad, pad, w, h);
+  g.drawImage(src, 0, 0, 1, sh, 0, pad, pad, h); g.drawImage(src, sw - 1, 0, 1, sh, pad + w, pad, pad, h);
+  g.drawImage(c, pad, pad, w, 1, pad, 0, w, pad); g.drawImage(c, pad, pad + h - 1, w, 1, pad, pad + h, w, pad);
+  g.drawImage(c, pad, pad, 1, 1, 0, 0, pad, pad); g.drawImage(c, pad + w - 1, pad, 1, 1, pad + w, 0, pad, pad);
+  g.drawImage(c, pad, pad + h - 1, 1, 1, 0, pad + h, pad, pad); g.drawImage(c, pad + w - 1, pad + h - 1, 1, 1, pad + w, pad + h, pad, pad);
+  const out = document.createElement("canvas"); out.width = w; out.height = h;
+  const o = out.getContext("2d");
+  if (r >= 0.3) o.filter = `blur(${r}px)`;
+  o.drawImage(c, pad, pad, w, h, 0, 0, w, h);
+  if (invert) {
+    o.filter = "none";
+    o.globalCompositeOperation = "xor"; o.fillStyle = "#fff"; o.fillRect(0, 0, w, h);
+  }
+  m.css = {[key]: {url: out.toDataURL("image/png")}};
+  return m.css[key].url;
 }
 
-// --- the board (painting canvas, rendered frame, preview video) -----------------------------------------
-const paint = $("#paint"), look = $("#look"), vid = $("#vid"), board = $("#board"), stage = $("#stage");
+// --- the monitor: a live preview made of the light videos, laid like the renderer lays them ------------
+const stage = $("#stage"), screenEl = $("#screen"), baseVid = $("#baseVid"), stillImg = $("#stillImg"), exact = $("#exact");
+const baseFrame = $("#baseFrame");
+baseVid.addEventListener("error", () => { S.baseBroken = !!baseVid.getAttribute("src"); applyTime(); });
+baseVid.addEventListener("loadeddata", () => { S.baseBroken = false; applyTime(); });
+const paintCanvas = $("#paintCanvas"), layersEl = $("#layers");
 const tint = document.createElement("canvas");
-function setupBoard() {
+function setupScreen() {
   const p = S.project;
-  paint.width = tint.width = p.mask_w; paint.height = tint.height = p.mask_h;
-  S.zoom = 1; S.panX = 0; S.panY = 0;
-  layoutBoard();
+  paintCanvas.width = tint.width = p.mask_w; paintCanvas.height = tint.height = p.mask_h;
+  const src = p.proxy ? `/media/base?id=${p.id}&v=${encodeURIComponent(p.proxy)}` : "";
+  S.baseBroken = false;
+  if (src) { if (!baseVid.src.endsWith(src)) baseVid.src = src; } else { baseVid.removeAttribute("src"); baseVid.load(); }
+  baseFrame.dataset.src = "";
+  layoutScreen();
 }
-function layoutBoard() {
+function fitSize() {
+  const r = stage.getBoundingClientRect(), ar = info().w / info().h;
+  let w = r.width - 12, h = w / ar;
+  if (h > r.height - 12) { h = r.height - 12; w = h * ar; }
+  return {w: Math.max(10, w), h: Math.max(10, h), sw: r.width, sh: r.height};
+}
+function layoutScreen() {
   if (!S.project) return;
-  const r = stage.getBoundingClientRect(), ar = S.project.video.w / S.project.video.h;
-  let w = r.width - 16, h = w / ar;
-  if (h > r.height - 16) { h = r.height - 16; w = h * ar; }
-  board.style.width = w + "px"; board.style.height = h + "px";
-  const x = (r.width - w) / 2 + S.panX, y = (r.height - h) / 2 + S.panY;
-  board.style.transform = `translate(${x}px, ${y}px) scale(${S.zoom})`;
+  const f = fitSize();
+  const z = S.zoom === "fit" ? 1 : +S.zoom * info().w / devicePixelRatio / f.w;  // 100%: a video pixel per screen pixel
+  S.scale = Math.max(0.05, z);
+  const zs = $("#zoomSel");
+  zs.value = S.zoom === "fit" ? "fit" : ([...zs.options].find(o => o.value === S.zoom) ? S.zoom : "");
+  if (S.zoom === "fit") { S.panX = 0; S.panY = 0; }
+  screenEl.style.width = f.w + "px"; screenEl.style.height = f.h + "px";
+  const x = (f.sw - f.w * S.scale) / 2 + S.panX, y = (f.sh - f.h * S.scale) / 2 + S.panY;
+  screenEl.style.transform = `translate(${x}px, ${y}px) scale(${S.scale})`;
+  drawPaint();
 }
+function clearLayers() {
+  for (const el of Object.values(S.els)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); }
+  S.els = {};
+}
+function mediaFor(c) {  // what the live preview plays for a clip: {kind: "video"|"img", src, info} or null
+  const p = S.project;
+  if (c.kind === "file") {
+    const lib = c.file && c.file.lib ? libItem(c.file.lib) : (c.lib ? libItem(c.lib) : null);
+    if (!lib || !lib.proxy) return null;
+    return {kind: lib.info.image ? "img" : "video", src: `/media/lib?id=${lib.id}&what=proxy&v=${encodeURIComponent(lib.proxy)}`, info: lib.info};
+  }
+  const fx = S.fx[c.id];
+  if (!fx || !fx.shown) return null;
+  return {kind: "video", src: `/media/fx?id=${p.id}&name=${encodeURIComponent(fx.shown)}`, fx: true};
+}
+function syncLayers() {  // one element per clip, in drawing order
+  if (!S.project) return;
+  const order = clipOrder(), want = new Set(order.map(c => c.id));
+  for (const [id, el] of Object.entries(S.els)) {
+    if (!want.has(id)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); delete S.els[id]; }
+  }
+  for (const c of order) {
+    const m = mediaFor(c);
+    let el = S.els[c.id];
+    if (el && (!m || el.src !== m.src)) {
+      if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); }
+      el.wrap.remove(); delete S.els[c.id]; el = null;
+    }
+    if (!m) continue;
+    if (!el) {
+      const wrap = document.createElement("div"); wrap.className = "layer";
+      const media = document.createElement(m.kind === "img" ? "img" : "video");
+      if (m.kind === "video") { media.muted = true; media.playsInline = true; media.preload = "auto"; }
+      media.src = m.src;
+      wrap.appendChild(media);
+      el = S.els[c.id] = {wrap, media, src: m.src, m};
+      media.addEventListener("loadeddata", () => applyTime());
+    }
+    layersEl.appendChild(el.wrap);  // in order
+    styleLayer(c, el);
+  }
+  updateWaiting();
+}
+function styleAll() { if (!S.project) return; styleBase(); for (const c of S.project.layers) if (S.els[c.id]) styleLayer(c, S.els[c.id]); }
+function styleBase() {
+  const p = S.project;
+  const fm = S.masks.freeze;
+  if (fm && !fm.empty) {
+    const st = p.still || {};
+    const src = st.source === "image" && p.has_still_image ? `/api/still?id=${p.id}&r=${p.rev}` : `/api/frame?id=${p.id}&t=${st.frame || 0}`;
+    if (stillImg.dataset.src !== src) { stillImg.src = src; stillImg.dataset.src = src; }
+    const url = maskURL("freeze", p.freeze.feather, false);
+    stillImg.style.maskImage = stillImg.style.webkitMaskImage = `url(${url})`;
+    stillImg.style.maskSize = stillImg.style.webkitMaskSize = "100% 100%";
+    stillImg.style.display = onlyBase() ? "none" : "block";
+  } else stillImg.style.display = "none";
+}
+function styleLayer(c, el) {
+  const p = S.project, w = el.wrap, media = el.media;
+  const blend = c.kind === "file" ? c.params.blend : (S.schema.blend[c.kind] === "screen" ? "screen" : "normal");
+  w.style.mixBlendMode = BLEND_CSS[blend] || "normal";
+  const masks = [];
+  const am = S.masks[c.id];
+  if (am && !am.full) masks.push(`url(${maskURL(c.id, c.feather || 0, false)})`);
+  const fg = S.masks.fg;
+  if (c.behind && fg && !fg.empty) masks.push(`url(${maskURL("fg", p.fg.feather, true)})`);
+  const mi = masks.length ? masks.join(", ") : "none";
+  w.style.maskImage = w.style.webkitMaskImage = mi;
+  w.style.maskComposite = "intersect"; w.style.webkitMaskComposite = "source-in";
+  if (c.kind === "file") {
+    const inf = el.m.info, pr = c.params, W = info().w, H = info().h;
+    const k = (pr.fit === "cover" ? Math.max : Math.min)(W / inf.w, H / inf.h) * pr.scale / 100;
+    const sw = inf.w * k, sh = inf.h * k, ox = (W - sw) / 2 + pr.x / 100 * W, oy = (H - sh) / 2 + pr.y / 100 * H;
+    Object.assign(media.style, {left: (100 * ox / W) + "%", top: (100 * oy / H) + "%", width: (100 * sw / W) + "%", height: (100 * sh / H) + "%"});
+  } else Object.assign(media.style, {left: 0, top: 0, width: "100%", height: "100%"});
+  el.opacity = c.kind === "file" ? c.params.opacity / 100 : 1;
+}
+function onlyBase() { return !!S.paint && S.onlyBase; }  // painting the still area or foreground on the bare video
+
+// the clock: one time for every element
+function applyTime() {
+  if (!S.project) return;
+  const t = S.time * fps(), playing = S.playing, f = fps();
+  const loopSec = loopFrames() / f;
+  // the project's video; while painting, or when its light copy cannot play, its frame as a picture
+  if (baseVid.src) {
+    const want = (S.time % loopSec);
+    syncMedia(baseVid, want + 0.25 / f, loopSec, playing);
+  }
+  const still = !!S.paint || S.baseBroken || !baseVid.getAttribute("src") || baseVid.readyState < 2;
+  if (still && !playing) {
+    const src = `/api/frame?id=${S.project.id}&t=${curFrame() % loopFrames()}`;
+    if (baseFrame.dataset.src !== src) { baseFrame.src = src; baseFrame.dataset.src = src; }
+  }
+  baseFrame.style.display = still ? "block" : "none";
+  const only = onlyBase();
+  for (const c of S.project.layers) {
+    const el = S.els[c.id]; if (!el) continue;
+    const sp = span(c), w = only ? 0 : weight(sp, t);
+    const show = w > 0.001;
+    el.wrap.style.display = show ? "" : "none";
+    el.wrap.style.opacity = (w * el.opacity).toFixed(3);
+    if (el.media.tagName !== "VIDEO") continue;
+    if (!show) { if (!el.media.paused) el.media.pause(); continue; }
+    const want = el.m.fx ? S.time : fileTime(c, sp, t, el.m.info);
+    const len = el.m.fx ? duration() : el.m.info.seconds;
+    syncMedia(el.media, Math.min(want + 0.25 / f, len - 0.01), len, playing);
+  }
+  updateClock();
+}
+function syncMedia(v, want, len, playing) {
+  if (v.readyState < 1) return;
+  if (playing) {
+    let drift = v.currentTime - want;
+    if (len > 0) { if (drift > len / 2) drift -= len; if (drift < -len / 2) drift += len; }
+    if (Math.abs(drift) > 0.15) v.currentTime = want;
+    if (v.paused) v.play().catch(() => {});
+  } else {
+    if (!v.paused) v.pause();
+    if (Math.abs(v.currentTime - want) > 0.004) v.currentTime = want;
+  }
+}
+let rafId = 0, playFrom = 0, playAt = 0;
+function play() {
+  if (!S.project || S.playing) return;
+  if (S.paint) exitPaint();
+  S.playing = true; playFrom = S.time; playAt = performance.now();
+  if (S.time >= duration() - 1 / fps()) { playFrom = 0; }
+  $("#tPlay").textContent = "⏸";
+  invalidateExact();
+  const step = now => {
+    if (!S.playing) return;
+    let t = playFrom + (now - playAt) / 1000;
+    if (t >= duration()) {
+      if (S.loop) { t %= duration(); playFrom = t; playAt = now; }
+      else { S.time = duration() - 1 / fps(); pause(); return; }
+    }
+    S.time = t;
+    applyTime(); followPlayhead();
+    rafId = requestAnimationFrame(step);
+  };
+  rafId = requestAnimationFrame(step);
+}
+function pause() {
+  if (!S.playing) return;
+  S.playing = false; cancelAnimationFrame(rafId);
+  S.time = curFrame() / fps();  // on a frame
+  $("#tPlay").textContent = "▶";
+  applyTime(); refreshExact();
+}
+function seek(sec) {
+  if (!S.project) return;
+  S.time = clamp(Math.floor(sec * fps() + 1e-6), 0, total() - 1) / fps();
+  if (S.playing) { playFrom = S.time; playAt = performance.now(); }
+  applyTime(); invalidateExact(); refreshExact();
+  followPlayhead();
+}
+function step(frames) { pause(); seek((curFrame() + frames) / fps()); }
+let lastClockFrame = -1;
+function updateClock() {
+  const fr = curFrame();
+  const x = S.time * S.pps;
+  $("#tlPlayheadEl") && ($("#tlPlayheadEl").style.left = x + "px");
+  drawRuler();
+  if (fr === lastClockFrame) return;
+  lastClockFrame = fr;
+  const label = tc(fr / fps());
+  $("#tcNow").textContent = label; $("#tlTime").textContent = label;
+}
+
+// the exact frame from the renderer, shown when the picture stands still
+let exactTimer = 0, exactSeq = 0;
+function invalidateExact() { exactSeq++; exact.style.display = "none"; clearTimeout(exactTimer); setBadge(""); }
+function refreshExact() {
+  clearTimeout(exactTimer);
+  if (!S.project || S.playing || S.drag || S.paint) return;
+  exactTimer = setTimeout(() => {
+    const p = S.project; if (!p || S.playing || S.paint) return;
+    const seq = ++exactSeq;
+    const w = Math.min(1920, Math.round(screenEl.getBoundingClientRect().width * devicePixelRatio));
+    const img = new Image();
+    setBadge("Đang dựng khung chính xác…");
+    img.onload = () => { if (seq === exactSeq && !S.playing && !S.paint) { exact.src = img.src; exact.style.display = "block"; setBadge("Khung chính xác (như video xuất ra)"); } };
+    img.onerror = () => { if (seq === exactSeq) setBadge(""); };
+    img.src = `/api/look?id=${p.id}&t=${curFrame()}&w=${w}&rev=${p.rev}`;
+  }, 380);
+}
+function setBadge(text) { const b = $("#badge"); b.textContent = text; b.style.display = text ? "block" : "none"; }
+function updateWaiting() {
+  const p = S.project, el = $("#waiting");
+  if (!p) { el.style.display = "none"; return; }
+  const wait = [];
+  if (!p.proxy) wait.push("video gốc");
+  for (const c of p.layers) {
+    if (c.kind === "file") { const it = libItem(c.file ? c.file.lib : c.lib); if (it && !it.proxy) wait.push(c.name); }
+    else { const fx = S.fx[c.id]; if (!fx || !fx.ready) wait.push(c.name); }
+  }
+  el.textContent = wait.length ? `Đang chuẩn bị xem nhanh: ${[...new Set(wait)].slice(0, 3).join(", ")}${wait.length > 3 ? "…" : ""}. Dừng hình để xem khung chính xác.` : "";
+  el.style.display = wait.length ? "block" : "none";
+  $("#prep").textContent = wait.length ? "⏳ Đang chuẩn bị xem nhanh…" : "";
+}
+
+// built-in effects: their preview clips, made by the app when their settings change
+async function requestFx(c) {
+  const p = S.project; if (!p || c.kind === "file") return;
+  try {
+    const r = await post("/api/fxclip", {id: p.id, layer: c.id});
+    if (S.project !== p) return;
+    const fx = S.fx[c.id] = S.fx[c.id] || {};
+    fx.want = r.name; fx.ready = r.ready;
+    if (r.ready) fx.shown = r.name;
+    syncLayers(); applyTime();
+  } catch (e) { /* the clip may be gone */ }
+}
+function requestAllFx() {
+  if (!S.project) return;
+  for (const c of S.project.layers) if (c.kind !== "file") requestFx(c);
+  updateWaiting();
+}
+
+// --- painting areas on the monitor ----------------------------------------------------------------------
+function paintName(name) {
+  if (name === "freeze") return "vùng đứng yên";
+  if (name === "fg") return "tiền cảnh";
+  const c = clipById(name); return `vùng của "${c ? c.name : ""}"`;
+}
+function enterPaint(name) {
+  if (!S.masks[name]) return;
+  pause();
+  S.paint = name; S.poly = [];
+  S.onlyBase = name === "freeze" || name === "fg";
+  paintCanvas.style.display = "block";
+  invalidateExact();
+  renderPaintbar(); styleAll(); applyTime(); drawPaint();
+}
+function exitPaint() {
+  if (!S.paint) return;
+  S.paint = null; S.poly = [];
+  paintCanvas.style.display = "none"; $("#paintbar").style.display = "none"; $("#cursor").style.display = "none";
+  styleAll(); applyTime(); renderControls(); refreshExact();
+}
+function renderPaintbar() {
+  const b = $("#paintbar"), br = S.brush;
+  if (!S.paint) { b.style.display = "none"; return; }
+  b.style.display = "flex";
+  b.innerHTML = `<span class="who">✎ Đang vẽ: ${esc(paintName(S.paint))}</span>
+    <div class="grp"><button class="small ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X)">＋ Thêm</button><button class="small ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X)">－ Bớt</button></div>
+    <div class="grp"><button class="small ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ (B)">🖌 Cọ</button><button class="small ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh vùng: bấm từng điểm (L)">⬠ Khoanh</button></div>
+    <label>Cỡ <input type="range" id="brushSize" min="2" max="400" value="${br.size}"></label>
+    <div class="grp"><button class="small" data-fill="all">Tô hết</button><button class="small" data-fill="none">Xoá hết</button><button class="small" data-fill="invert">Đảo</button></div>
+    <div class="grp"><button class="small" data-pundo="1" title="Hoàn tác (Ctrl+Z)">↶</button><button class="small" data-predo="1" title="Làm lại (Ctrl+Y)">↷</button></div>
+    <label><input type="checkbox" id="onlyBase" ${S.onlyBase ? "checked" : ""}> Chỉ xem video gốc</label>
+    <button class="small primary" data-done="1" title="Xong (Esc)">Xong</button>`;
+}
+$("#paintbar").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || !S.paint) return;
+  if (b.dataset.mode) { S.brush.mode = b.dataset.mode; renderPaintbar(); drawPaint(); }
+  if (b.dataset.ptool) { S.brush.tool = b.dataset.ptool; S.poly = []; renderPaintbar(); drawPaint(); }
+  if (b.dataset.fill) fillMask(S.paint, b.dataset.fill);
+  if (b.dataset.pundo) undoPaint(false);
+  if (b.dataset.predo) undoPaint(true);
+  if (b.dataset.done) exitPaint();
+});
+$("#paintbar").addEventListener("input", e => {
+  if (e.target.id === "brushSize") S.brush.size = +e.target.value;
+  if (e.target.id === "onlyBase") { S.onlyBase = e.target.checked; styleAll(); applyTime(); }
+});
 let drawQueued = false;
-function drawBoard() {
-  if (drawQueued) return;
+function drawPaint() {
+  if (drawQueued || !S.paint) return;
   drawQueued = true;
   requestAnimationFrame(() => {
     drawQueued = false;
-    if (!S.project) return;
-    const g = paint.getContext("2d");
-    g.clearRect(0, 0, paint.width, paint.height);
-    if (S.frameImg.complete && S.frameImg.naturalWidth) g.drawImage(S.frameImg, 0, 0, paint.width, paint.height);
-    const m = S.masks[S.sel];
+    if (!S.project || !S.paint) return;
+    const g = paintCanvas.getContext("2d");
+    g.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+    const m = S.masks[S.paint];
     if (m) {
       const tg = tint.getContext("2d");
       tg.globalCompositeOperation = "source-over";
       tg.clearRect(0, 0, tint.width, tint.height);
       tg.drawImage(m.canvas, 0, 0);
       tg.globalCompositeOperation = "source-in";
-      tg.fillStyle = COLORS[maskKind(S.sel)];
+      tg.fillStyle = COLORS[maskKind(S.paint)];
       tg.fillRect(0, 0, tint.width, tint.height);
-      g.globalAlpha = 0.5; g.drawImage(tint, 0, 0); g.globalAlpha = 1;
+      g.globalAlpha = 0.45; g.drawImage(tint, 0, 0); g.globalAlpha = 1;
     }
     if (S.poly.length) {
-      const k = paint.width / paint.getBoundingClientRect().width * S.zoom;
-      g.lineWidth = 2 * k; g.strokeStyle = S.mode === "add" ? "#fff" : "#ff6b6b"; g.setLineDash([6 * k, 4 * k]);
+      const k = 1 / screenScale();
+      g.lineWidth = 2 * k; g.strokeStyle = S.brush.mode === "add" ? "#fff" : "#ff6b6b"; g.setLineDash([6 * k, 4 * k]);
       g.beginPath(); S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
       if (S.hover) g.lineTo(S.hover[0], S.hover[1]);
       g.stroke(); g.setLineDash([]);
@@ -424,490 +1008,900 @@ function drawBoard() {
     }
   });
 }
-function loadFrame() {
-  const p = S.project; if (!p) return;
-  const seq = ++S.frameSeq;
-  const img = new Image();
-  img.onload = () => { if (seq === S.frameSeq) { S.frameImg = img; drawBoard(); } };
-  img.src = `/api/frame?id=${p.id}&t=${S.t}`;
-}
-let lookTimer = 0;
-function refreshLook() {
-  clearTimeout(lookTimer);
-  lookTimer = setTimeout(() => {
-    const p = S.project; if (!p || S.view !== "look") return;
-    const seq = ++S.lookSeq;
-    const w = Math.min(1920, Math.round(board.getBoundingClientRect().width * devicePixelRatio));
-    const img = new Image();
-    $("#busy").style.display = "block";
-    img.onload = () => { if (seq === S.lookSeq) { look.src = img.src; $("#busy").style.display = "none"; } };
-    img.onerror = async () => {
-      if (seq !== S.lookSeq) return;
-      $("#busy").style.display = "none";
-      try { await get(img.src); } catch (e) { fail(e); }
-    };
-    img.src = `/api/look?id=${p.id}&t=${S.t}&w=${w}&rev=${p.rev}`;
-  }, 120);
-}
-function showPreview() {
-  const p = S.project;
-  if (p && p.preview) {
-    const src = `/media/preview?id=${p.id}&name=${p.preview}`;
-    if (!vid.src.endsWith(src)) { vid.src = src; }
-    vid.play().catch(() => {});
-  } else { vid.removeAttribute("src"); vid.load(); }
-}
-
-function setView(v) {
-  S.view = v;
-  for (const b of $("#tabs").children) b.classList.toggle("on", b.dataset.view === v);
-  paint.style.display = v === "paint" ? "block" : "none";
-  look.style.display = v === "look" ? "block" : "none";
-  vid.style.display = v === "video" ? "block" : "none";
-  if (v !== "video") vid.pause();
-  if (v === "look") refreshLook();
-  if (v === "video") showPreview();
-  if (v === "paint") drawBoard();
-  $("#timebar").style.visibility = v === "video" || !S.project ? "hidden" : "visible";
-  renderTools();
-}
-
-// pointer: painting, polygons, zoom and pan
 function toMask(e) {
-  const r = paint.getBoundingClientRect();
-  return [(e.clientX - r.left) * paint.width / r.width, (e.clientY - r.top) * paint.height / r.height];
+  const r = paintCanvas.getBoundingClientRect();
+  return [(e.clientX - r.left) * paintCanvas.width / r.width, (e.clientY - r.top) * paintCanvas.height / r.height];
 }
-function screenScale() { return paint.getBoundingClientRect().width / paint.width; }
+function screenScale() { return paintCanvas.getBoundingClientRect().width / paintCanvas.width; }
 function moveCursor(e) {
   const c = $("#cursor");
-  if (S.view !== "paint" || S.tool !== "brush" || !S.masks[S.sel]) { c.style.display = "none"; return; }
-  const sr = stage.getBoundingClientRect(), d = S.size * screenScale();
+  if (!S.paint || S.brush.tool !== "brush") { c.style.display = "none"; return; }
+  const sr = stage.getBoundingClientRect(), d = S.brush.size * screenScale();
   c.style.display = "block"; c.style.width = c.style.height = d + "px";
   c.style.left = (e.clientX - sr.left - d / 2) + "px"; c.style.top = (e.clientY - sr.top - d / 2) + "px";
 }
 function stroke(from, to) {
-  const m = S.masks[S.sel];
+  const m = S.masks[S.paint];
   const g = m.canvas.getContext("2d");
   g.save();
-  g.globalCompositeOperation = S.mode === "add" ? "source-over" : "destination-out";
-  g.strokeStyle = g.fillStyle = "#fff"; g.lineWidth = S.size; g.lineCap = g.lineJoin = "round";
+  g.globalCompositeOperation = S.brush.mode === "add" ? "source-over" : "destination-out";
+  g.strokeStyle = g.fillStyle = "#fff"; g.lineWidth = S.brush.size; g.lineCap = g.lineJoin = "round";
   g.beginPath(); g.moveTo(from[0], from[1]); g.lineTo(to[0], to[1]); g.stroke();
-  g.beginPath(); g.arc(to[0], to[1], S.size / 2, 0, 7); g.fill();
+  g.beginPath(); g.arc(to[0], to[1], S.brush.size / 2, 0, 7); g.fill();
   g.restore();
-  drawBoard();
+  drawPaint();
 }
 function closePoly() {
-  const m = S.masks[S.sel];
-  if (!m || S.poly.length < 3) { S.poly = []; drawBoard(); return; }
-  remember(m);
+  const m = S.masks[S.paint];
+  if (!m || S.poly.length < 3) { S.poly = []; drawPaint(); return; }
+  rememberPaint(m);
   const g = m.canvas.getContext("2d");
   g.save();
-  g.globalCompositeOperation = S.mode === "add" ? "source-over" : "destination-out";
+  g.globalCompositeOperation = S.brush.mode === "add" ? "source-over" : "destination-out";
   g.fillStyle = "#fff"; g.beginPath();
   S.poly.forEach((pt, i) => i ? g.lineTo(pt[0], pt[1]) : g.moveTo(pt[0], pt[1]));
   g.closePath(); g.fill(); g.restore();
   S.poly = [];
-  maskChanged(S.sel);
+  maskChanged(S.paint);
 }
-let pan = null, last = null;
+let panning = null, lastPt = null, painting = false;
 stage.addEventListener("pointerdown", e => {
   if (!S.project) return;
   if (e.button === 1 || e.button === 2 || (e.button === 0 && S.space)) {
-    pan = {x: e.clientX, y: e.clientY, px: S.panX, py: S.panY}; stage.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    if (S.zoom === "fit") { S.zoom = String(S.scale * fitSize().w * devicePixelRatio / info().w); $("#zoomSel").value = ""; }
+    panning = {x: e.clientX, y: e.clientY, px: S.panX, py: S.panY}; stage.setPointerCapture(e.pointerId); e.preventDefault(); return;
   }
-  if (S.view !== "paint" || e.button !== 0 || !S.masks[S.sel]) return;
+  if (!S.paint || e.button !== 0 || !S.masks[S.paint]) return;
   const pt = toMask(e);
-  if (S.tool === "brush") {
-    remember(S.masks[S.sel]); S.drawing = true; last = pt; stroke(pt, pt); stage.setPointerCapture(e.pointerId);
+  if (S.brush.tool === "brush") {
+    rememberPaint(S.masks[S.paint]); painting = true; lastPt = pt; stroke(pt, pt); stage.setPointerCapture(e.pointerId);
   } else {
     if (S.poly.length >= 3) {
       const f = S.poly[0], d = Math.hypot(pt[0] - f[0], pt[1] - f[1]) * screenScale();
       if (d < 12) { closePoly(); return; }
     }
-    S.poly.push(pt); drawBoard();
+    S.poly.push(pt); drawPaint();
   }
 });
 stage.addEventListener("pointermove", e => {
   moveCursor(e);
-  if (pan) { S.panX = pan.px + e.clientX - pan.x; S.panY = pan.py + e.clientY - pan.y; layoutBoard(); return; }
-  if (S.drawing) { const pt = toMask(e); stroke(last, pt); last = pt; return; }
-  if (S.view === "paint" && S.tool === "poly" && S.poly.length) { S.hover = toMask(e); drawBoard(); }
+  if (panning) { S.panX = panning.px + e.clientX - panning.x; S.panY = panning.py + e.clientY - panning.y; layoutScreen(); return; }
+  if (painting) { const pt = toMask(e); stroke(lastPt, pt); lastPt = pt; return; }
+  if (S.paint && S.brush.tool === "poly" && S.poly.length) { S.hover = toMask(e); drawPaint(); }
 });
 stage.addEventListener("pointerup", () => {
-  if (pan) { pan = null; return; }
-  if (S.drawing) { S.drawing = false; maskChanged(S.sel); }
+  if (panning) { panning = null; refreshExact(); return; }
+  if (painting) { painting = false; maskChanged(S.paint); }
 });
 stage.addEventListener("pointerleave", () => { $("#cursor").style.display = "none"; });
-stage.addEventListener("dblclick", e => { if (S.view === "paint" && S.tool === "poly") { e.preventDefault(); closePoly(); } });
+stage.addEventListener("dblclick", e => { if (S.paint && S.brush.tool === "poly") { e.preventDefault(); closePoly(); } });
 stage.addEventListener("contextmenu", e => e.preventDefault());
 stage.addEventListener("wheel", e => {
   if (!S.project) return;
   e.preventDefault();
-  const r = stage.getBoundingClientRect(), br = board.getBoundingClientRect();
-  const old = S.zoom, z = Math.min(8, Math.max(1, old * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  const f = fitSize(), sr = stage.getBoundingClientRect();
+  const old = S.scale, z = clamp(old * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 1, 12);
   if (z === old) return;
-  // keep the point under the mouse where it is
-  const mx = e.clientX - br.left, my = e.clientY - br.top;
-  S.zoom = z;
-  S.panX += mx - mx * z / old; S.panY += my - my * z / old;
-  if (z === 1) { S.panX = 0; S.panY = 0; }
-  layoutBoard(); moveCursor(e);
-  void r;
+  const left = (f.sw - f.w * old) / 2 + S.panX, top = (f.sh - f.h * old) / 2 + S.panY;
+  const mx = e.clientX - sr.left - left, my = e.clientY - sr.top - top;  // the point under the mouse stays put
+  const nl = e.clientX - sr.left - mx * z / old, nt = e.clientY - sr.top - my * z / old;
+  S.panX = nl - (f.sw - f.w * z) / 2; S.panY = nt - (f.sh - f.h * z) / 2;
+  if (z <= 1.0001) { S.zoom = "fit"; $("#zoomSel").value = "fit"; } else { S.zoom = String(z * f.w * devicePixelRatio / info().w); $("#zoomSel").value = ""; }
+  layoutScreen(); moveCursor(e); invalidateExact(); refreshExact();
 }, {passive: false});
-window.addEventListener("resize", () => { layoutBoard(); refreshLook(); });
+$("#zoomSel").addEventListener("change", e => { S.zoom = e.target.value || "fit"; S.panX = S.panY = 0; layoutScreen(); invalidateExact(); refreshExact(); });
 
-// --- side panel: layers and their settings ---------------------------------------------------------------
-function renderAll() {
-  const has = !!S.project;
-  $("#empty").style.display = has ? "none" : "flex";
-  board.style.display = has ? "block" : "none";
-  $("#projName").textContent = has ? `${S.project.name} · ${S.project.video.w}×${S.project.video.h} · ${S.project.video.seconds} giây` : "";
-  for (const id of ["previewBtn", "exportBtn", "length"]) $("#" + id).disabled = !has;
-  const len = $("#length"), chosen = len.value;
-  len.innerHTML = S.lengths.map(s => `<option value="${s}">${lengthLabel(s)}</option>`).join("");
-  if (chosen) len.value = chosen;
-  const time = $("#time");
-  time.max = has ? S.project.video.frames - 1 : 0; time.value = S.t;
-  updateTimeLabel();
-  renderSide();
-  setView(has ? S.view : "look");
-  if (!has) renderRecent();
+// --- timeline ------------------------------------------------------------------------------------------
+const tlScroll = $("#tlScroll"), tlLanes = $("#tlLanes"), tlHeads = $("#tlHeads"), ruler = $("#tlRuler"), rulerCanvas = $("#rulerCanvas");
+function rows() {  // top to bottom: a row to make a new track, the tracks (highest first), the project's video
+  const p = S.project, out = [{type: "new", h: NEW_H}];
+  for (let i = p.tracks.length - 1; i >= 0; i--) out.push({type: "track", track: p.tracks[i], index: i, h: ROW_H});
+  out.push({type: "base", h: ROW_H});
+  let y = 0;
+  for (const r of out) { r.y = y; y += r.h; }
+  return out;
 }
-function updateTimeLabel() {
+function fitPps() { return Math.max(2, (tlScroll.clientWidth - 30) / Math.max(1, duration())); }
+function setPps(pps, anchorSec) {
+  const min = fitPps(), max = 600;
+  const old = S.pps;
+  S.pps = clamp(pps, min, max);
+  S.fitTl = S.pps <= min + 1e-6;
+  const z = $("#tlZoom");
+  z.value = Math.round(1000 * Math.log(S.pps / min) / Math.log(max / min));
+  if (anchorSec !== undefined) {
+    const x = anchorSec * old - tlScroll.scrollLeft;
+    renderTimeline();
+    tlScroll.scrollLeft = anchorSec * S.pps - x;
+  } else renderTimeline();
+}
+function lanesWidth() { return Math.max(tlScroll.clientWidth, (Math.max(duration(), maxClipEnd() / fps()) + 4) * S.pps); }
+function maxClipEnd() { return S.project.layers.reduce((m, c) => Math.max(m, c.end), 0); }
+function renderTimeline() {
   const p = S.project;
-  $("#tlabel").textContent = p ? `khung ${S.t + 1}/${p.video.frames} · ${(S.t / (p.video.frames / p.video.seconds)).toFixed(2)} s` : "";
+  const has = !!p;
+  if (!has) { tlLanes.innerHTML = `<div class="tl-empty">Mở một video để bắt đầu.</div>`; tlHeads.innerHTML = ""; drawRuler(); return; }
+  if (S.fitTl) S.pps = fitPps();
+  const rs = rows(), W = lanesWidth(), H = rs[rs.length - 1].y + ROW_H, N = total(), f = fps(), pps = S.pps;
+  tlLanes.style.width = W + "px"; tlLanes.style.height = H + "px";
+  const head = [], lane = [];
+  for (const r of rs) {
+    if (r.type === "new") {
+      head.push(`<div class="head new" style="height:${r.h}px" title="Kéo clip hoặc hiệu ứng vào hàng này để tạo track mới">+ track mới</div>`);
+      lane.push(`<div class="lane new" data-row="new" style="top:${r.y}px;height:${r.h}px"></div>`);
+    } else if (r.type === "track") {
+      const t = r.track, n = p.layers.filter(c => c.track === t.id).length;
+      head.push(`<div class="head" style="height:${r.h}px"><span class="tn">${trackName(r.index)}</span><span class="grow">${n ? n + " clip" : "trống"}</span>
+        <button class="${t.on ? "" : "off"}" data-eye="${t.id}" title="${t.on ? "Ẩn" : "Hiện"} track này">${t.on ? "👁" : "◌"}</button>
+        <button data-deltrack="${t.id}" title="Xoá track (khi trống)" ${n ? "disabled" : ""}>✕</button></div>`);
+      lane.push(`<div class="lane" data-row="${t.id}" style="top:${r.y}px;height:${r.h}px"></div>`);
+    } else {
+      head.push(`<div class="head base" style="height:${r.h}px"><span class="tn">V1</span><span class="grow">Video gốc</span></div>`);
+      lane.push(`<div class="lane" data-row="base" style="top:${r.y}px;height:${r.h}px"></div>`);
+    }
+  }
+  // the project's video: one clip per loop
+  const baseRow = rs[rs.length - 1], P = loopFrames(), loops = N / P;
+  for (let k = 0; k < loops; k++) {
+    const x = k * P / f * pps, w = P / f * pps;
+    lane.push(`<div class="clip base${S.sel === "base" ? " sel" : ""}" data-base="1" style="left:${x}px;width:${Math.max(1, w - 1)}px;top:${baseRow.y + 4}px;background-image:url(/api/thumb?id=${p.id})"><span class="nm">${k === 0 ? esc(p.name) : ""} ↻${k + 1}</span></div>`);
+  }
+  for (let k = 1; k < loops; k++) lane.push(`<div class="seam" style="left:${k * P / f * pps}px"></div>`);
+  for (const c of p.layers) {
+    const r = rs.find(x => x.type === "track" && x.track.id === c.track); if (!r) continue;
+    lane.push(clipHTML(c, r));
+  }
+  lane.push(`<div class="beyond" style="left:${N / f * pps}px;width:${Math.max(0, W - N / f * pps)}px"></div>`);
+  lane.push(`<div class="ghost" id="ghost"></div><div class="razorline" id="razorLine"></div><div class="playhead" id="tlPlayheadEl" style="left:${S.time * pps}px"></div>`);
+  tlHeads.innerHTML = `<div style="height:${H}px">${head.join("")}</div>`;
+  tlLanes.innerHTML = lane.join("");
+  tlHeads.scrollTop = tlScroll.scrollTop;
+  tlScroll.classList.toggle("razor", S.tool === "razor");
+  for (const b of $$("#tlTools [data-tool]")) b.classList.toggle("on", b.dataset.tool === S.tool);
+  $("#snapBtn").classList.toggle("on", S.snap);
+  for (const b of $$("#lenSeg button")) b.classList.toggle("on", +b.dataset.len === p.length);
+  drawRuler();
 }
-function renderSide() {
-  const side = $("#side");
-  if (!S.project) { side.innerHTML = `<h3>Lớp</h3><div class="props"><p class="note">Mở một video để bắt đầu.</p></div>`; return; }
+function clipHTML(c, r) {
+  const f = fps(), pps = S.pps, sp = span(c);
+  const x = c.start / f * pps, w = Math.max(3, (c.end - c.start) / f * pps);
+  const cls = ["clip", c.kind === "file" ? "file" : "fx", S.sel === c.id ? "sel" : "", c.on === false ? "off" : ""].join(" ");
+  const fin = Math.min(w, sp.fin / f * pps), fout = Math.min(w, sp.fout / f * pps);
+  const mask = S.project.masks.includes(c.id) ? " · có vùng" : "";
+  const sub = (sp.full ? "suốt video" : secLabel((c.end - c.start) / f)) + mask + (c.behind ? " · sau tiền cảnh" : "");
+  return `<div class="${cls}" data-clip="${c.id}" style="left:${x}px;width:${w}px;top:${r.y + 4}px">
+    ${fin > 0 ? `<div class="fade in" style="width:${fin}px"></div>` : ""}${fout > 0 ? `<div class="fade out" style="width:${fout}px"></div>` : ""}
+    <span class="nm">${KIND_ICON[c.kind]} ${esc(c.name)}</span><span class="sub">${esc(sub)}</span>
+    <i class="h l"></i><i class="h r"></i></div>`;
+}
+function drawRuler() {
+  const w = ruler.clientWidth, h = ruler.clientHeight, dpr = devicePixelRatio;
+  if (rulerCanvas.width !== Math.round(w * dpr) || rulerCanvas.height !== Math.round(h * dpr)) {
+    rulerCanvas.width = Math.round(w * dpr); rulerCanvas.height = Math.round(h * dpr);
+    rulerCanvas.style.width = w + "px"; rulerCanvas.style.height = h + "px";
+  }
+  const g = rulerCanvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (!S.project) return;
+  const pps = S.pps, sl = tlScroll.scrollLeft, f = fps(), dur = duration();
+  // a step between labels that leaves room for them
+  const steps = [1 / f, 2 / f, 5 / f, 10 / f, 0.5, 1, 2, 5, 10, 15, 30, 60];
+  let major = steps.find(s => s * pps >= 70) || 60;
+  if (major < 1 && Math.round(major * f) !== major * f) major = 1;
+  const minor = major / 5;
+  g.fillStyle = "#0006"; g.fillRect(Math.max(0, dur * pps - sl), 0, w, h);
+  g.strokeStyle = "#555"; g.fillStyle = "#9a9a9a"; g.font = "11px Segoe UI, system-ui, sans-serif"; g.lineWidth = 1;
+  const first = Math.floor(sl / pps / minor) * minor;
+  g.beginPath();
+  for (let s = first; s * pps - sl < w; s += minor) {
+    const x = Math.round(s * pps - sl) + 0.5;
+    const isMajor = Math.abs(s / major - Math.round(s / major)) < 1e-6;
+    g.moveTo(x, h); g.lineTo(x, isMajor ? h - 11 : h - 5);
+    if (isMajor) g.fillText(major < 1 ? tc(s) : tc(s, false), x + 3, 12);
+  }
+  g.stroke();
+  // the loop seams
+  const P = loopFrames() / f;
+  g.fillStyle = "#3b6fa8";
+  for (let s = P; s < dur - 1e-6; s += P) { const x = s * pps - sl; if (x > -4 && x < w + 4) { g.beginPath(); g.moveTo(x - 4, h); g.lineTo(x + 4, h); g.lineTo(x, h - 6); g.fill(); } }
+  // the playhead
+  const x = S.time * pps - sl;
+  g.fillStyle = "#2d8ceb";
+  g.beginPath(); g.moveTo(x - 6, 0); g.lineTo(x + 6, 0); g.lineTo(x + 6, 10); g.lineTo(x, 16); g.lineTo(x - 6, 10); g.closePath(); g.fill();
+  g.fillRect(Math.round(x), 16, 1, h - 16);
+}
+function followPlayhead() {
+  if (!S.project) return;
+  const x = S.time * S.pps, w = tlScroll.clientWidth, sl = tlScroll.scrollLeft;
+  if (x < sl || x > sl + w - 20) tlScroll.scrollLeft = Math.max(0, x - (S.playing ? 20 : w / 3));
+}
+tlScroll.addEventListener("scroll", () => { tlHeads.scrollTop = tlScroll.scrollTop; drawRuler(); });
+
+// ruler: move the playhead
+ruler.addEventListener("pointerdown", e => {
+  if (!S.project) return;
+  ruler.setPointerCapture(e.pointerId);
+  const to = ev => { const r = ruler.getBoundingClientRect(); seek(snapSec((ev.clientX - r.left + tlScroll.scrollLeft) / S.pps, true)); };
+  const wasPlaying = S.playing; pause();
+  S.scrubbing = true; to(e);
+  const move = ev => to(ev);
+  const up = () => { S.scrubbing = false; ruler.removeEventListener("pointermove", move); ruler.removeEventListener("pointerup", up); if (wasPlaying) play(); };
+  ruler.addEventListener("pointermove", move); ruler.addEventListener("pointerup", up);
+});
+function snapPoints(exceptId) {
+  const p = S.project, f = fps(), pts = [0, total(), curFrame()];
+  for (let k = loopFrames(); k < total(); k += loopFrames()) pts.push(k);
+  for (const c of p.layers) if (c.id !== exceptId) pts.push(c.start, c.end);
+  return pts;
+}
+function snapFrame(fr, exceptId, edges) {  // the nearest snap point within 8 px, else fr
+  if (!S.snap) return fr;
+  const lim = 8 / S.pps * fps();
+  let best = fr, bd = lim;
+  for (const pt of snapPoints(exceptId)) for (const off of edges || [0]) { const d = Math.abs(fr + off - pt); if (d < bd) { bd = d; best = pt - off; } }
+  return best;
+}
+function snapSec(sec) {
+  if (!S.snap || !S.project) return sec;
+  const fr = sec * fps(), lim = 8 / S.pps * fps();
+  let best = fr, bd = lim;
+  for (const c of S.project.layers) for (const pt of [c.start, c.end]) { const d = Math.abs(fr - pt); if (d < bd) { bd = d; best = pt; } }
+  return best / fps();
+}
+function overlaps(trackId, s, e, exceptId) {
+  return S.project.layers.some(c => c.track === trackId && c.id !== exceptId && c.start < e && s < c.end);
+}
+function rowAt(clientY) {
+  const r = tlLanes.getBoundingClientRect(), y = clientY - r.top;
+  return rows().find(x => y >= x.y && y < x.y + x.h) || (y < 0 ? rows()[0] : null);
+}
+function frameAtX(clientX) { const r = tlLanes.getBoundingClientRect(); return Math.round((clientX - r.left) / S.pps * fps()); }
+
+tlLanes.addEventListener("pointerdown", e => {
+  if (!S.project || e.button !== 0) return;
+  const el = e.target.closest(".clip");
+  if (!el) {  // empty space: no selection, the playhead goes there
+    if (S.sel) { S.sel = null; renderTimeline(); renderControls(); }
+    pause(); seek(snapSec((e.clientX - tlLanes.getBoundingClientRect().left) / S.pps));
+    return;
+  }
+  if (el.dataset.base) { select("base"); return; }
+  const c = clipById(el.dataset.clip); if (!c) return;
+  if (S.tool === "razor") { splitClip(c, snapFrame(frameAtX(e.clientX), c.id)); return; }
+  select(c.id);
+  const hit = e.target.classList.contains("h") ? (e.target.classList.contains("l") ? "left" : "right") : "move";
+  const copy = e.altKey && hit === "move";
+  S.drag = {c, hit, x0: e.clientX, y0: e.clientY, orig: {start: c.start, end: c.end, track: c.track, skip: c.skip || 0}, moved: false, copy, el: tlLanes.querySelector(`[data-clip="${c.id}"]`)};
+  tlLanes.setPointerCapture(e.pointerId);
+  invalidateExact();
+});
+tlLanes.addEventListener("pointermove", e => {
+  const d = S.drag;
+  if (!d) {
+    if (S.tool === "razor" && S.project) {
+      const el = e.target.closest(".clip[data-clip]"), line = $("#razorLine");
+      if (el && line) { const c = clipById(el.dataset.clip); line.style.display = "block"; line.style.left = snapFrame(frameAtX(e.clientX), c.id) / fps() * S.pps + "px"; }
+      else if (line) line.style.display = "none";
+    }
+    return;
+  }
+  const dx = e.clientX - d.x0, df = Math.round(dx / S.pps * fps()), c = d.c, o = d.orig, N = total();
+  if (!d.moved && Math.abs(dx) < 3 && Math.abs(e.clientY - d.y0) < 3) return;
+  d.moved = true;
+  const most = Math.max(N, o.end);  // clips stay inside the video (one already past its end may stay there)
+  if (d.hit === "move") {
+    const len = o.end - o.start;
+    let s = clamp(o.start + df, 0, Math.max(0, most - len));
+    s = clamp(snapFrame(s, c.id, [0, len]), 0, Math.max(0, most - len));
+    const row = rowAt(e.clientY);
+    d.newTrack = row && row.type === "new";
+    const track = row && row.type === "track" ? row.track.id : o.track;
+    c.start = s; c.end = s + len; c.track = d.newTrack ? o.track : track;
+    d.bad = !d.newTrack && (overlaps(c.track, c.start, c.end, c.id) ||
+      (d.copy && c.track === o.track && c.start < o.end && o.start < c.end));  // a copy must not cover its original
+  } else if (d.hit === "left") {
+    const minStart = c.kind === "file" ? Math.ceil(o.start - o.skip * fps() - 1e-6) : 0;
+    let s = clamp(snapFrame(o.start + df, c.id), Math.max(0, minStart), o.end - 1);
+    const prev = S.project.layers.filter(x => x.track === c.track && x.id !== c.id && x.end <= o.start).reduce((m, x) => Math.max(m, x.end), 0);
+    s = Math.max(s, prev);
+    c.start = s;
+    if (c.kind === "file") c.skip = Math.max(0, o.skip + (s - o.start) / fps());  // the picture stays where it was
+  } else {
+    let en = clamp(snapFrame(o.end + df, c.id), o.start + 1, most);
+    const next = S.project.layers.filter(x => x.track === c.track && x.id !== c.id && x.start >= o.end).reduce((m, x) => Math.min(m, x.start), most);
+    en = Math.min(en, next);
+    c.end = en;
+  }
+  // only the dragged clip moves on screen until the drop
+  const rs = rows(), r = d.newTrack ? rs[0] : rs.find(x => x.type === "track" && x.track.id === c.track);
+  d.el.outerHTML = clipHTML(c, r);
+  d.el = tlLanes.querySelector(`[data-clip="${c.id}"]`);
+  d.el.classList.toggle("bad", !!d.bad);
+  if (d.newTrack) d.el.style.top = (r.y + (NEW_H - CLIP_H) / 2) + "px";
+  S.time = (d.hit === "right" ? c.end - 1 : c.start) / fps();
+  applyTime();
+});
+tlLanes.addEventListener("pointerup", () => {
+  const d = S.drag; if (!d) return;
+  S.drag = null;
+  const c = d.c, o = d.orig;
+  if (!d.moved) { renderTimeline(); refreshExact(); return; }
+  if (d.bad) {
+    Object.assign(c, o);
+    toast("Chỗ đó đã có clip khác. Hãy thả vào chỗ trống, track khác, hoặc hàng trên cùng để tạo track mới.", true);
+    edited({remember: false}); return;
+  }
+  if (d.newTrack) {
+    if (S.project.tracks.length >= S.schema.max_tracks) { Object.assign(c, o); toast(`Tối đa ${S.schema.max_tracks} track.`, true); edited({remember: false}); return; }
+    const t = {id: newId("t"), on: true}; S.project.tracks.push(t); c.track = t.id;
+  }
+  if (d.copy) {  // Alt + drag: a copy goes there, the clip stays
+    const copy = cloneClip(c);
+    Object.assign(c, o);
+    S.project.layers.push(copy); S.sel = copy.id;
+  }
+  edited();
+});
+function cloneClip(c) {
+  const copy = JSON.parse(JSON.stringify(c));
+  copy.id = newId(c.kind.slice(0, 2));
+  if (S.masks[c.id]) {
+    const m = newMask(copy.id, S.project);
+    m.canvas.getContext("2d").clearRect(0, 0, m.canvas.width, m.canvas.height);
+    m.canvas.getContext("2d").drawImage(S.masks[c.id].canvas, 0, 0);
+    measure(m); m.ver++;
+    m.afterSave = !m.full;  // sent once the new clip is saved
+  }
+  return copy;
+}
+function splitClip(c, fr) {
+  if (fr <= c.start || fr >= c.end) return toast("Đặt dao cắt vào giữa clip.", true);
+  const b = cloneClip(c);
+  b.start = fr; b.skip = (c.skip || 0) + (fr - c.start) / fps(); b.fade_in = 0;
+  c.end = fr; c.fade_out = 0;
+  S.project.layers.push(b);
+  S.sel = b.id;
+  edited();
+  toast("Đã cắt clip làm hai.", false, 1500);
+}
+function splitAtPlayhead() {
+  const p = S.project; if (!p) return;
+  const fr = curFrame();
+  const sel = clipById(S.sel);
+  const targets = sel && sel.start < fr && fr < sel.end ? [sel] : p.layers.filter(c => c.start < fr && fr < c.end);
+  if (!targets.length) return toast("Không có clip nào ở đầu phát để cắt.", true);
+  for (const c of targets) splitClip(c, fr);
+}
+function deleteClip(c) {
   const p = S.project;
-  const rows = [];
-  rows.push(row("freeze", COLORS.freeze, "Vùng đứng yên", p.masks.includes("freeze") ? "" : "chưa vẽ"));
-  rows.push(row("fg", COLORS.fg, "Tiền cảnh", p.masks.includes("fg") ? "" : "chưa vẽ"));
-  side.innerHTML = `<h3>Ảnh nền</h3><div class="layers">${rows.join("")}</div>
-    <h3>Hiệu ứng <small style="text-transform:none;letter-spacing:0">(trên cùng = phủ lên trên)</small></h3>
-    <div class="layers">${[...p.layers].reverse().map(l => row(l.id, COLORS.area, l.name, "", l)).join("") || '<p class="note" style="padding:0 8px;color:var(--dim)">Chưa có hiệu ứng. Thêm ở dưới.</p>'}</div>
-    <div class="adds">${["snow", "leaves", "rain", "glow", "file"].map(k => `<button class="small" data-add="${k}">+ ${KIND_ICON[k]} ${esc(kindLabel(k))}</button>`).join("")}</div>
-    <div class="sep"></div><div class="props" id="props"></div>`;
-  renderProps();
+  p.layers = p.layers.filter(x => x !== c);
+  if (S.paint === c.id) exitPaint();
+  if (S.sel === c.id) S.sel = null;
+  edited();
 }
-function row(id, colour, name, note, layer) {
-  const eye = layer ? `<button class="eye${layer.on ? "" : " off"}" data-eye="${id}" title="${layer.on ? "Tắt" : "Bật"} lớp">${layer.on ? "👁" : "🚫"}</button>` : "";
-  const icon = layer ? KIND_ICON[layer.kind] + " " : "";
-  return `<div class="layer${S.sel === id ? " sel" : ""}" data-sel="${id}"><span class="sw" style="background:${colour}"></span>
-    <span class="name">${icon}${esc(name)}${note ? `<small>${esc(note)}</small>` : ""}</span>${eye}</div>`;
+function select(id) {
+  if (S.paint && S.paint !== id && !(id === "base" && (S.paint === "freeze" || S.paint === "fg"))) exitPaint();
+  S.sel = id; renderTimeline(); renderControls();
 }
+
+// the track heads
+tlHeads.addEventListener("click", e => {
+  const p = S.project; if (!p) return;
+  const eye = e.target.closest("[data-eye]"), del = e.target.closest("[data-deltrack]");
+  if (eye) { const t = p.tracks.find(x => x.id === eye.dataset.eye); t.on = !t.on; edited(); }
+  if (del) { p.tracks = p.tracks.filter(x => x.id !== del.dataset.deltrack); if (!p.tracks.length) p.tracks.push({id: newId("t"), on: true}); edited(); }
+});
+tlHeads.addEventListener("wheel", e => { tlScroll.scrollTop += e.deltaY; e.preventDefault(); }, {passive: false});
+tlScroll.addEventListener("wheel", e => {
+  if (!S.project || !(e.ctrlKey || e.altKey)) return;
+  e.preventDefault();
+  const r = tlLanes.getBoundingClientRect();
+  setPps(S.pps * (e.deltaY < 0 ? 1.25 : 0.8), (e.clientX - r.left) / S.pps);
+}, {passive: false});
+$("#tlZoom").addEventListener("input", e => {
+  if (!S.project) return;
+  const min = fitPps(), max = 600;
+  setPps(min * Math.pow(max / min, +e.target.value / 1000), S.time);
+});
+$("#tlFit").onclick = () => { if (S.project) { S.fitTl = true; renderTimeline(); } };
+$("#tlTools").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || !S.project) return;
+  if (b.dataset.tool) { S.tool = b.dataset.tool; renderTimeline(); }
+  if (b.id === "snapBtn") { S.snap = !S.snap; renderTimeline(); }
+  if (b.dataset.len) setLength(+b.dataset.len);
+  if (b.id === "addTrack") {
+    if (S.project.tracks.length >= S.schema.max_tracks) return toast(`Tối đa ${S.schema.max_tracks} track.`, true);
+    S.project.tracks.push({id: newId("t"), on: true}); edited();
+  }
+});
+function setLength(len) {
+  const p = S.project; if (p.length === len) return;
+  const before = total();
+  p.length = len;
+  const after = total();
+  for (const c of p.layers) if (c.end === before) c.end = after;  // clips to the end stay to the end
+  S.fitTl = true;
+  if (S.time >= duration()) S.time = 0;
+  for (const c of p.layers) if (c.kind !== "file") delete S.fx[c.id];  // their preview clips are for one length
+  edited();
+  requestAllFx();
+  const cut = p.layers.filter(c => c.start >= after).length;
+  toast(`Video dài ${len === 60 ? "1 phút" : "30 giây"} (${secLabel(duration())}).` + (cut ? ` ${cut} clip nằm ngoài video (vùng tối), không được xuất.` : ""), false, 5000);
+}
+
+// clips context menu
+tlLanes.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  const el = e.target.closest(".clip[data-clip]"); if (!el) return;
+  const c = clipById(el.dataset.clip); if (!c) return;
+  select(c.id);
+  const fr = snapFrame(frameAtX(e.clientX), c.id);
+  showMenu(e.clientX, e.clientY, [
+    ["✂ Cắt đôi tại đây", () => splitClip(c, fr), "C"],
+    ["⧉ Nhân đôi", () => duplicate(c), "Alt+kéo"],
+    [c.on === false ? "Bật clip" : "Tắt clip", () => { c.on = c.on === false; edited(); }],
+    ["Kéo dài suốt video", () => { if (overlaps(c.track, 0, total(), c.id)) toast("Track này còn clip khác: hãy chuyển clip sang track trống.", true); else { c.start = 0; c.end = total(); c.skip = 0; edited(); } }],
+    null,
+    ["Xoá clip", () => deleteClip(c), "Delete"]]);
+});
+function duplicate(c) {
+  const copy = cloneClip(c);
+  const len = c.end - c.start;
+  copy.start = c.end; copy.end = c.end + len; copy.skip = (c.skip || 0) + len / fps();
+  if (copy.end > total() || overlaps(c.track, copy.start, copy.end, null)) {
+    copy.start = c.start; copy.end = c.end; copy.skip = c.skip || 0;
+    if (S.project.tracks.length >= S.schema.max_tracks) return toast(`Tối đa ${S.schema.max_tracks} track.`, true);
+    const t = {id: newId("t"), on: true}; S.project.tracks.push(t); copy.track = t.id;
+  }
+  S.project.layers.push(copy); S.sel = copy.id; edited();
+}
+function showMenu(x, y, items) {
+  const m = $("#menu");
+  m.innerHTML = items.map((it, i) => it ? `<div data-i="${i}"><span>${esc(it[0])}</span>${it[2] ? `<small>${esc(it[2])}</small>` : ""}</div>` : "<hr>").join("");
+  m.style.display = "block";
+  m.style.left = Math.min(x, innerWidth - m.offsetWidth - 6) + "px"; m.style.top = Math.min(y, innerHeight - m.offsetHeight - 6) + "px";
+  m.onclick = e => { const d = e.target.closest("[data-i]"); if (!d) return; m.style.display = "none"; items[+d.dataset.i][1](); };
+}
+document.addEventListener("pointerdown", e => { if (!e.target.closest("#menu")) $("#menu").style.display = "none"; });
+
+// drag from the library onto the timeline
+function dropTarget(e) {
+  const row = rowAt(e.clientY), N = total();
+  if (!row || row.type === "base") return null;
+  const len0 = S.dragItem && S.dragItem.frames;
+  let s = clamp(snapFrame(frameAtX(e.clientX), null), 0, N - 1);
+  let en = len0 ? Math.min(N, s + len0) : N;
+  if (row.type === "track") {
+    const next = S.project.layers.filter(c => c.track === row.track.id && c.start >= s).reduce((m, c) => Math.min(m, c.start), N);
+    en = Math.min(en, next);
+    const bad = en <= s || overlaps(row.track.id, s, en, null);
+    return {row, s, en, bad};
+  }
+  return {row, s, en, bad: false};
+}
+tlScroll.addEventListener("dragover", e => {
+  if (!S.project) return;
+  const files = e.dataTransfer.types.includes("Files");
+  if (!S.dragItem && !files) return;
+  e.preventDefault();
+  const g = $("#ghost"), d = dropTarget(e);
+  if (!g) return;
+  if (!d) { g.style.display = "none"; return; }
+  const f = fps();
+  Object.assign(g.style, {display: "block", left: d.s / f * S.pps + "px", width: Math.max(4, (d.en - d.s) / f * S.pps) + "px",
+    top: (d.row.y + (d.row.h - CLIP_H) / 2) + "px", height: (d.row.type === "new" ? NEW_H - 4 : CLIP_H) + "px"});
+  g.classList.toggle("bad", d.bad);
+});
+tlScroll.addEventListener("dragleave", e => { if (!tlScroll.contains(e.relatedTarget)) { const g = $("#ghost"); if (g) g.style.display = "none"; } });
+tlScroll.addEventListener("drop", async e => {
+  if (!S.project) return;
+  e.preventDefault(); e.stopPropagation();
+  const g = $("#ghost"); if (g) g.style.display = "none";
+  const d = dropTarget(e); if (!d) return;
+  let item = S.dragItem; S.dragItem = null;
+  if (!item && e.dataTransfer.files.length) {  // a file from the computer: into the library first
+    const lib = await importFiles([...e.dataTransfer.files]);
+    if (!lib.length) return;
+    item = {lib: lib[0].id};
+  }
+  if (!item) return;
+  if (d.bad) return toast("Chỗ đó đã có clip khác. Thả vào chỗ trống, hoặc hàng trên cùng để tạo track mới.", true);
+  addClip(item, d.row.type === "track" ? d.row.track.id : null, d.s, d.en);
+});
+function addClip(item, trackId, s, en) {
+  const p = S.project;
+  if (p.layers.length >= S.schema.max_clips) return toast(`Tối đa ${S.schema.max_clips} clip.`, true);
+  if (!trackId) {
+    const free = p.tracks.find(t => !p.layers.some(c => c.track === t.id));
+    if (free && s === 0 && en === total()) trackId = free.id;
+    else {
+      if (p.tracks.length >= S.schema.max_tracks) return toast(`Tối đa ${S.schema.max_tracks} track.`, true);
+      const t = {id: newId("t"), on: true}; p.tracks.push(t); trackId = t.id;
+    }
+  }
+  const kind = item.lib ? "file" : item.kind;
+  const params = {};
+  for (const d of S.schema.kinds[kind].params) params[d.key] = d.value;
+  let name = kindLabel(kind);
+  const c = {id: newId(kind.slice(0, 2)), kind, name, on: true, behind: false, feather: 20, seed: Math.floor(Math.random() * 2147483647),
+    params, track: trackId, start: s, end: en, fade_in: 0, fade_out: 0, skip: 0};
+  if (kind === "file") {
+    const it = libItem(item.lib); if (!it) return;
+    c.lib = it.id; c.name = it.name; c.file = {lib: it.id, name: it.name, info: it.info};
+    params.blend = it.info.alpha ? "normal" : "screen";
+  } else {
+    const n = p.layers.filter(l => l.kind === kind).length + 1;
+    c.name = name + (n > 1 ? " " + n : "");
+  }
+  if (!(s === 0 && en === total())) { c.fade_in = 0.5; c.fade_out = 0.5; }
+  p.layers.push(c);
+  newMask(c.id, p);
+  S.sel = c.id;
+  edited();
+  if (kind !== "file") setTimeout(() => requestFx(c), 400);
+  if (S.time * fps() < s || S.time * fps() >= en) seek(s / fps());
+}
+
+// --- effect controls -----------------------------------------------------------------------------------
 function slider(key, label, value, min, max, step, extra = "") {
   return `<div class="row"><div class="lab"><span>${esc(label)}</span><b id="v-${key}">${value}</b></div>
     <input type="range" data-param="${key}" min="${min}" max="${max}" step="${step || 1}" value="${value}" ${extra}></div>`;
 }
-function renderProps() {
-  const el = $("#props"); if (!el || !S.project) return;
-  const p = S.project, sel = S.sel;
-  if (sel === "freeze") {
-    const st = p.still || {source: "frame", frame: 0};
-    el.innerHTML = `<h3 style="padding:4px 0">Vùng đứng yên</h3>
-      <p class="note">Tô những chỗ phải đứng yên tuyệt đối (ví dụ: tường, đồ vật bị rung). Ở đó hình được lấy y nguyên từ ảnh gốc, hoặc từ một khung của video.</p>
-      <div class="row"><div class="lab"><span>Lấy hình đứng yên từ</span></div>
-        <select id="stillSource"><option value="frame" ${st.source === "image" ? "" : "selected"}>Một khung của video</option><option value="image" ${st.source === "image" ? "selected" : ""} ${p.has_still_image ? "" : "disabled"}>Ảnh gốc${st.image_name ? ": " + esc(st.image_name) : " (chưa có)"}</option></select></div>
-      ${st.source === "image" ? "" : `<div class="row"><div class="lab"><span>Khung số</span><b>${st.frame + 1}</b></div><button class="small" id="useFrame">Dùng khung đang xem (${S.t + 1})</button></div>`}
-      <div class="btns"><button class="small" id="pickStill">Chọn ảnh gốc…</button></div>
-      ${st.warning && st.source === "image" ? `<p class="warn">⚠ ${esc(st.warning)}</p>` : ""}
-      ${slider("feather", "Độ mềm mép (điểm ảnh)", p.freeze.feather, 0, 200, 1, 'data-target="freeze"')}
-      ${paintHint()}`;
-  } else if (sel === "fg") {
-    el.innerHTML = `<h3 style="padding:4px 0">Tiền cảnh</h3>
-      <p class="note">Tô những vật ở gần (khung cửa sổ, cây, mái nhà…). Lớp hiệu ứng nào bật "Bay ra sau tiền cảnh" sẽ bị chúng che, như bay ở phía sau.</p>
-      ${slider("feather", "Độ mềm mép (điểm ảnh)", p.fg.feather, 0, 200, 1, 'data-target="fg"')}
-      ${paintHint()}`;
+function renderControls() {
+  const el = $("#ec"), p = S.project;
+  if (!p) { el.innerHTML = `<div class="empty">Mở một video để bắt đầu.</div>`; $("#ecNote").textContent = ""; return; }
+  const focus = document.activeElement;
+  if (S.sliding || (focus && focus.closest("#ec") && (focus.type === "text" || focus.type === "number"))) { S.controlsDue = true; return; }
+  S.controlsDue = false;
+  const sel = S.sel;
+  if (sel === "base") return renderBaseControls(el);
+  const c = clipById(sel);
+  if (!c) {
+    $("#ecNote").textContent = "";
+    el.innerHTML = `<div class="empty"><b style="color:var(--text)">Cách làm nhanh:</b><br>
+      1. Kéo một hiệu ứng từ <b>Thư viện</b> (hoặc <b>Tạo sẵn</b>) xuống timeline.<br>
+      2. Bấm vào clip trên timeline để chỉnh ở đây.<br>
+      3. Bấm vào <b>V1 Video gốc</b> để vẽ vùng đứng yên và tiền cảnh.<br>
+      4. Bấm <b>Xuất video</b> ở góc trên.<br><br>
+      Phím tắt: <kbd>Space</kbd> phát/dừng · <kbd>←</kbd> <kbd>→</kbd> từng khung · <kbd>C</kbd> dao cắt · <kbd>V</kbd> chọn · <kbd>Ctrl+K</kbd> cắt tại đầu phát · <kbd>Delete</kbd> xoá clip · <kbd>Ctrl+Z</kbd> hoàn tác.</div>`;
+    return;
+  }
+  const f = fps(), sp = span(c), sch = S.schema.kinds[c.kind];
+  $("#ecNote").textContent = c.kind === "file" ? "Video / ảnh ngoài" : "Hiệu ứng tạo sẵn";
+  const timing = `<h4>Thời gian</h4>
+    <div class="pair"><label>Bắt đầu (giây)<input type="number" step="0.1" min="0" data-time="start" value="${(c.start / f).toFixed(2)}"></label>
+      <label>Kết thúc (giây)<input type="number" step="0.1" min="0" data-time="end" value="${(c.end / f).toFixed(2)}"></label>
+      <label>Dài (giây)<input type="number" step="0.1" min="0.1" data-time="len" value="${((c.end - c.start) / f).toFixed(2)}"></label></div>
+    <div class="btns"><button class="small" id="fullBtn" ${sp.full ? "disabled" : ""}>Suốt video</button><button class="small" id="toHere" title="Bắt đầu ở đầu phát">Bắt đầu tại đầu phát</button></div>
+    ${sp.full ? `<p class="note">Clip chạy suốt video: tự nối liền mạch ở chỗ lặp lại, không cần mờ dần.</p>` :
+      `${slider("fade_in", "Mờ dần vào (giây)", c.fade_in || 0, 0, 5, 0.1, 'data-clipnum="fade_in"')}
+       ${slider("fade_out", "Mờ dần ra (giây)", c.fade_out || 0, 0, 5, 0.1, 'data-clipnum="fade_out"')}
+       ${sp.start === 0 || sp.end === total() ? `<p class="note">Ở đầu và cuối video, clip luôn mờ dần ít nhất ${S.schema.min_edge_fade} giây để chỗ nối loop không bị giật.</p>` : ""}`}`;
+  let source = "";
+  if (c.kind === "file") {
+    const fi = c.file && c.file.info, it = libItem(c.file ? c.file.lib : c.lib);
+    source = `<div class="file">${fi ? `<b>${esc(c.file.name)}</b><br>${fi.image ? "Ảnh" : "Video"} ${fi.w}×${fi.h}${fi.image ? "" : `, ${fi.seconds} giây, ${fi.fps} khung/giây`}${fi.alpha ? ", nền trong suốt" : ""}${it && !it.proxy ? "<br>⏳ Đang chuẩn bị xem nhanh…" : ""}${!it && c.file && c.file.lib ? "<br>⚠ File đã bị xoá khỏi thư viện." : ""}` : "Chưa có file."}</div>`;
   } else {
-    const l = layerById(sel); if (!l) { el.innerHTML = ""; return; }
-    const sch = S.schema.kinds[l.kind];
-    const params = sch.params.map(d => {
-      const v = l.params[d.key];
-      if (d.type === "range") return slider(d.key, d.label, v, d.min, d.max, d.step);
-      if (d.type === "color") return `<div class="row"><div class="lab"><span>${esc(d.label)}</span></div><input type="color" data-param="${d.key}" value="${v}"></div>`;
-      return `<div class="row"><div class="lab"><span>${esc(d.label)}</span></div><select data-param="${d.key}">${d.options.map(o => `<option value="${o.value}" ${o.value === v ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></div>`;
-    }).join("");
-    const f = l.file;
-    const fileBox = l.kind !== "file" ? "" : `<div class="file">${f ? `<b>${esc(f.name)}</b><br>${f.info.image ? "Ảnh" : "Video"} ${f.info.w}×${f.info.h}${f.info.image ? "" : `, ${f.info.seconds} giây, ${f.info.fps} khung/giây`}${f.info.alpha ? ", có nền trong suốt" : ""}` : "Chưa có file."}</div>
-      <div class="btns"><button class="small primary" id="pickLayerFile">${f ? "Đổi file…" : "Chọn file…"}</button></div>
-      <p class="note">Video hiệu ứng trên nền đen: dùng Screen. Video/PNG nền trong suốt: dùng Bình thường. Video dài hay ngắn hơn loop đều được: app tự hoà mượt chỗ nối. Chỉ dùng file công ty sở hữu hoặc có giấy phép.</p>`;
-    const area = p.masks.includes(l.id) ? "Vùng đã vẽ" : "Cả khung hình";
-    el.innerHTML = `<h3 style="padding:4px 0">${KIND_ICON[l.kind]} ${esc(sch.label)}</h3>
-      <div class="row"><div class="lab"><span>Tên lớp</span></div><input type="text" id="layerName" value="${esc(l.name)}" maxlength="40" style="width:100%"></div>
-      ${fileBox}${params}
-      <div class="row"><div class="lab"><span>Vùng hiệu ứng</span><b>${area}</b></div></div>
-      <p class="note">Muốn hiệu ứng chỉ ở một chỗ: vào "Vẽ vùng", bấm "Xoá hết" rồi tô chỗ đó (hoặc chọn "Bớt" để xoá chỗ không cần).</p>
-      ${slider("feather", "Độ mềm mép vùng (điểm ảnh)", l.feather, 0, 200, 1, 'data-target="layer"')}
-      <label class="check"><input type="checkbox" id="behind" ${l.behind ? "checked" : ""}> Bay ra sau tiền cảnh (bị tiền cảnh che)</label>
-      <div class="btns">
-        ${l.kind === "file" ? "" : '<button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">🎲 Đổi kiểu ngẫu nhiên</button>'}
-        <button class="small" id="up" title="Đưa lên trên">▲</button><button class="small" id="down" title="Đưa xuống dưới">▼</button>
-        <button class="small danger" id="delLayer">Xoá lớp</button>
-      </div>`;
+    const fx = S.fx[c.id];
+    source = `<div class="file"><b>${KIND_ICON[c.kind]} ${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? "<br>⏳ Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác." : ""}</div>
+      <div class="btns"><button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">🎲 Đổi kiểu ngẫu nhiên</button></div>`;
   }
+  const params = sch.params.map(d => {
+    const v = c.params[d.key];
+    if (d.type === "range") return slider(d.key, d.label, v, d.min, d.max, d.step);
+    if (d.type === "color") return `<div class="row"><div class="lab"><span>${esc(d.label)}</span><input type="color" data-param="${d.key}" value="${v}"></div></div>`;
+    return `<div class="row"><div class="lab"><span>${esc(d.label)}</span></div><select data-param="${d.key}">${d.options.map(o => `<option value="${o.value}" ${o.value === v ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></div>`;
+  });
+  const fileParams = c.kind === "file" ? (() => {
+    const by = Object.fromEntries(sch.params.map((d, i) => [d.key, params[i]]));
+    return `<h4>Hoà trộn</h4>${by.blend}${by.opacity}<p class="note">Hiệu ứng trên nền đen: Screen. File nền trong suốt (MOV, WebM, PNG): Bình thường.</p>
+      <h4>Vị trí và cỡ</h4>${by.fit}${by.scale}${by.x}${by.y}
+      ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${by.start}${by.fade}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}`;
+  })() : `<h4>Hiệu ứng</h4>${params.join("")}`;
+  const hasArea = p.masks.includes(c.id) || (S.masks[c.id] && !S.masks[c.id].full);
+  el.innerHTML = `<div class="title"><span style="font-size:18px">${KIND_ICON[c.kind]}</span><input type="text" id="clipName" value="${esc(c.name)}" maxlength="60"></div>
+    ${source}${timing}${fileParams}
+    <h4>Vùng</h4>
+    <div class="row"><div class="lab"><span>Hiệu ứng hiện ở</span><b>${hasArea ? "vùng đã vẽ" : "cả khung hình"}</b></div></div>
+    <div class="btns"><button class="small ${S.paint === c.id ? "on" : ""}" id="paintArea">✎ Vẽ vùng</button>${hasArea ? '<button class="small" id="clearArea">Cả khung hình</button>' : ""}</div>
+    ${slider("feather", "Độ mềm mép vùng (điểm ảnh)", c.feather || 0, 0, 200, 1, 'data-clipnum="feather"')}
+    <label class="check"><input type="checkbox" id="behind" ${c.behind ? "checked" : ""}> Bay ra sau tiền cảnh (bị tiền cảnh che)</label>
+    <h4>Clip</h4>
+    <div class="btns">
+      <button class="small" id="splitBtn" title="Cắt clip tại đầu phát (Ctrl+K)">✂ Cắt tại đầu phát</button>
+      <button class="small" id="dupBtn">⧉ Nhân đôi</button>
+      <button class="small" id="onBtn">${c.on === false ? "Bật clip" : "Tắt clip"}</button>
+      <button class="small danger" id="delBtn">Xoá clip</button>
+    </div>`;
 }
-function paintHint() { return `<p class="note">Vào thẻ <b>Vẽ vùng</b> để tô. Cọ: kéo chuột; Khoanh vùng: bấm từng điểm rồi bấm lại điểm đầu (hoặc bấm đúp).</p>`; }
-
-$("#side").addEventListener("click", async e => {
-  const t = e.target.closest("[data-add],[data-eye],[data-sel],button,select,input");
-  if (!t || !S.project) return;
-  const p = S.project;
-  if (t.dataset.add) return addLayer(t.dataset.add);
-  if (t.dataset.eye) { const l = layerById(t.dataset.eye); l.on = !l.on; renderSide(); scheduleSave(); return; }
-  if (t.dataset.sel) { S.sel = t.dataset.sel; S.poly = []; renderSide(); renderTools(); drawBoard(); return; }
-  const l = layerById(S.sel);
-  if (t.id === "pickStill") return $("#fileStill").click();
-  if (t.id === "pickLayerFile") return $("#fileLayer").click();
-  if (t.id === "useFrame") { p.still.frame = S.t; p.still.source = "frame"; renderProps(); scheduleSave(); return; }
-  if (t.id === "reseed" && l) { l.seed = Math.floor(Math.random() * 2147483647); scheduleSave(); return; }
-  if ((t.id === "up" || t.id === "down") && l) {
-    const i = p.layers.indexOf(l), j = t.id === "up" ? i + 1 : i - 1;
-    if (j < 0 || j >= p.layers.length) return;
-    [p.layers[i], p.layers[j]] = [p.layers[j], p.layers[i]];
-    renderSide(); scheduleSave(); return;
+function renderBaseControls(el) {
+  const p = S.project, st = p.still || {source: "frame", frame: 0}, v = info();
+  $("#ecNote").textContent = "Video gốc (V1)";
+  el.innerHTML = `<div class="title"><span style="font-size:18px">🎬</span><b>${esc(p.name)}</b></div>
+    <div class="file">${v.w}×${v.h}, ${v.fps} khung/giây, loop ${v.seconds} giây (${v.frames} khung).<br>Video xuất ra: ${secLabel(duration())} = ${total() / loopFrames()} vòng loop.</div>
+    <h4>Vùng đứng yên</h4>
+    <p class="note">Tô những chỗ phải đứng yên tuyệt đối (tường, đồ vật bị rung…). Ở đó hình lấy y nguyên từ ảnh gốc, hoặc từ một khung của video.</p>
+    <div class="btns"><button class="small ${S.paint === "freeze" ? "on" : ""}" id="paintFreeze">✎ Vẽ vùng đứng yên</button>${S.masks.freeze && !S.masks.freeze.empty ? '<button class="small" id="clearFreeze">Xoá vùng</button>' : ""}</div>
+    <div class="row"><div class="lab"><span>Lấy hình đứng yên từ</span></div>
+      <select id="stillSource"><option value="frame" ${st.source === "image" ? "" : "selected"}>Một khung của video</option><option value="image" ${st.source === "image" ? "selected" : ""} ${p.has_still_image ? "" : "disabled"}>Ảnh gốc${st.image_name ? ": " + esc(st.image_name) : " (chưa có)"}</option></select></div>
+    ${st.source === "image" ? "" : `<div class="row"><div class="lab"><span>Khung số</span><b>${st.frame + 1}</b></div><button class="small" id="useFrame">Dùng khung đang xem (${(curFrame() % loopFrames()) + 1})</button></div>`}
+    <div class="btns"><button class="small" id="pickStill">Chọn ảnh gốc…</button></div>
+    ${st.warning && st.source === "image" ? `<p class="warn">⚠ ${esc(st.warning)}</p>` : ""}
+    ${slider("feather", "Độ mềm mép (điểm ảnh)", p.freeze.feather, 0, 200, 1, 'data-base="freeze"')}
+    <h4>Tiền cảnh</h4>
+    <p class="note">Tô những vật ở gần (khung cửa sổ, cây, mái nhà…). Clip nào bật "Bay ra sau tiền cảnh" sẽ bị chúng che.</p>
+    <div class="btns"><button class="small ${S.paint === "fg" ? "on" : ""}" id="paintFg">✎ Vẽ tiền cảnh</button>${S.masks.fg && !S.masks.fg.empty ? '<button class="small" id="clearFg">Xoá vùng</button>' : ""}</div>
+    ${slider("featherFg", "Độ mềm mép (điểm ảnh)", p.fg.feather, 0, 200, 1, 'data-base="fg"')}`;
+}
+$("#ec").addEventListener("pointerdown", e => { if (e.target.type === "range") S.sliding = true; });
+document.addEventListener("pointerup", () => { if (S.sliding) { S.sliding = false; if (S.controlsDue) setTimeout(renderControls, 0); } });
+$("#ec").addEventListener("focusout", () => setTimeout(() => { if (S.controlsDue) renderControls(); }, 0));
+$("#ec").addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t || !S.project) return;
+  const p = S.project, c = clipById(S.sel);
+  const id = t.id;
+  if (id === "paintFreeze") return S.paint === "freeze" ? exitPaint() : (enterPaint("freeze"), renderControls());
+  if (id === "paintFg") return S.paint === "fg" ? exitPaint() : (enterPaint("fg"), renderControls());
+  if (id === "clearFreeze") return fillMask("freeze", "none");
+  if (id === "clearFg") return fillMask("fg", "none");
+  if (id === "pickStill") return $("#fileStill").click();
+  if (id === "useFrame") { p.still.frame = curFrame() % loopFrames(); p.still.source = "frame"; renderControls(); styleBase(); scheduleSave(); invalidateExact(); return; }
+  if (!c) return;
+  if (id === "paintArea") return S.paint === c.id ? exitPaint() : (enterPaint(c.id), renderControls());
+  if (id === "clearArea") return fillMask(c.id, "all");
+  if (id === "reseed") { c.seed = Math.floor(Math.random() * 2147483647); edited(); return; }
+  if (id === "fullBtn") {
+    if (overlaps(c.track, 0, total(), c.id)) return toast("Track này còn clip khác: hãy kéo clip sang một track trống trước.", true);
+    c.start = 0; c.end = total(); c.skip = 0; edited(); return;
   }
-  if (t.id === "delLayer" && l) {
-    if (!confirm(`Xoá lớp "${l.name}"?`)) return;
-    p.layers = p.layers.filter(x => x !== l);
-    if (S.masks[l.id]) clearTimeout(S.masks[l.id].timer);
-    delete S.masks[l.id];
-    S.sel = p.layers.length ? p.layers[p.layers.length - 1].id : "freeze";
-    renderSide(); renderTools(); drawBoard(); saveNow();
+  if (id === "toHere") {
+    const len = c.end - c.start, s = curFrame();
+    if (s + len > total() || overlaps(c.track, s, s + len, c.id)) return toast("Không đủ chỗ trống trên track này từ đầu phát.", true);
+    c.skip = c.kind === "file" ? c.skip : 0; c.start = s; c.end = s + len; edited(); return;
   }
+  if (id === "splitBtn") return splitAtPlayhead();
+  if (id === "dupBtn") return duplicate(c);
+  if (id === "onBtn") { c.on = c.on === false; edited(); return; }
+  if (id === "delBtn") return deleteClip(c);
 });
-$("#side").addEventListener("input", e => {
+$("#ec").addEventListener("input", e => {
   const t = e.target, p = S.project; if (!p) return;
+  const c = clipById(S.sel);
+  if (t.dataset.base) {
+    const v = +t.value; $("#v-" + (t.dataset.base === "fg" ? "featherFg" : "feather")).textContent = v;
+    p[t.dataset.base].feather = v; styleAll(); invalidateExact(); scheduleSave(); return;
+  }
+  if (!c) return;
+  if (t.id === "clipName") { c.name = t.value; scheduleSave(); renderTimeline(); return; }
+  if (t.dataset.clipnum) {
+    const v = +t.value; $("#v-" + t.dataset.clipnum).textContent = v;
+    c[t.dataset.clipnum] = v;
+    edited({controls: false, remember: false});
+    return;
+  }
   if (t.dataset.param) {
-    const key = t.dataset.param;
+    const key = t.dataset.param, def = S.schema.kinds[c.kind].params.find(d => d.key === key);
     let v = t.type === "range" ? +t.value : t.value;
     const lab = $("#v-" + key); if (lab) lab.textContent = v;
-    if (t.dataset.target === "freeze") p.freeze.feather = v;
-    else if (t.dataset.target === "fg") p.fg.feather = v;
-    else if (t.dataset.target === "layer") layerById(S.sel).feather = v;
-    else {
-      const l = layerById(S.sel);
-      l.params[key] = v;
-      const def = S.schema.kinds[l.kind].params.find(d => d.key === key);
-      if (def && def.presets && def.presets[v]) { Object.assign(l.params, def.presets[v]); renderProps(); }
-    }
-    scheduleSave();
-  } else if (t.id === "layerName") {
-    const l = layerById(S.sel); l.name = t.value; scheduleSave();
-    const n = $(`.layer[data-sel="${S.sel}"] .name`); if (n) n.textContent = KIND_ICON[l.kind] + " " + t.value;
+    c.params[key] = v;
+    if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
+    if (S.els[c.id]) styleLayer(c, S.els[c.id]);
+    applyTime(); invalidateExact(); scheduleSave(); renderTimeline();
   }
 });
-$("#side").addEventListener("change", e => {
+$("#ec").addEventListener("change", e => {
   const t = e.target, p = S.project; if (!p) return;
-  if (t.id === "stillSource") { p.still.source = t.value; renderProps(); scheduleSave(); }
-  if (t.id === "behind") { layerById(S.sel).behind = t.checked; scheduleSave(); }
-  if (t.dataset.param && t.tagName === "SELECT") renderProps();
+  const c = clipById(S.sel);
+  if (t.id === "stillSource") { p.still.source = t.value; renderControls(); styleBase(); scheduleSave(); invalidateExact(); return; }
+  if (!c) { remember(); return; }
+  if (t.id === "behind") { c.behind = t.checked; edited(); return; }
+  if (t.dataset.time) {
+    const f = fps(), v = Math.round(Math.max(0, +t.value || 0) * f), most = Math.max(total(), c.end);
+    let s = c.start, en = c.end;
+    if (t.dataset.time === "start") { const len = en - s; s = clamp(v, 0, most - 1); en = Math.min(most, s + len); }
+    if (t.dataset.time === "end") en = clamp(v, s + 1, most);
+    if (t.dataset.time === "len") en = clamp(s + Math.max(1, v), s + 1, most);
+    if (overlaps(c.track, s, en, c.id)) { toast("Trùng với clip khác trên cùng track.", true); renderControls(); return; }
+    if (c.kind === "file" && t.dataset.time === "start") c.skip = c.skip || 0;
+    c.start = s; c.end = en; edited(); return;
+  }
+  remember();
+  if (t.dataset.param && t.tagName === "SELECT") renderControls();
 });
-function addLayer(kind) {
-  const p = S.project;
-  if (p.layers.length >= 16) return toast("Tối đa 16 lớp.", true);
-  const params = {};
-  for (const d of S.schema.kinds[kind].params) params[d.key] = d.value;
-  const n = p.layers.filter(l => l.kind === kind).length + 1;
-  const l = {id: newId(), kind, name: kindLabel(kind) + (n > 1 ? " " + n : ""), on: true, behind: false, feather: 20,
-    seed: Math.floor(Math.random() * 2147483647), params};
-  p.layers.push(l);
-  S.sel = l.id;
-  S.masks[l.id] = {canvas: blankMask(true), undo: [], redo: [], timer: 0, project: p};
-  renderSide(); renderTools(); drawBoard();
-  saveNow().then(() => { if (kind === "file") $("#fileLayer").click(); });
-  if (S.view === "video") setView("look");
-}
 
-// --- tools under the picture ----------------------------------------------------------------------------
-function renderTools() {
-  const el = $("#tools");
-  if (!S.project) { el.innerHTML = ""; return; }
-  if (S.view === "video") {
-    const p = S.project;
-    const old = p.preview && !p.preview.startsWith(`preview-${p.rev}-`);
-    el.innerHTML = p.preview ? `<span class="hint">Video xem thử (nhỏ, nhanh) của cả vòng loop, phát lặp lại để xem chỗ nối.${old ? " <b style='color:var(--warn)'>Đã đổi thiết lập sau bản này: bấm “Làm video xem thử” để làm lại.</b>" : ""}</span>`
-      : `<span class="hint">Chưa có video xem thử. Bấm “▶ Làm video xem thử” ở dưới.</span>`;
+// --- library, built-in effects and projects (the bin) --------------------------------------------------
+function renderBin() {
+  for (const t of $$("#bin .tab")) t.classList.toggle("on", t.dataset.bin === S.bin);
+  const tools = $("#binTools"), body = $("#binBody");
+  if (S.bin === "lib") {
+    tools.style.display = "flex";
+    tools.innerHTML = `<button class="small primary" id="importBtn">+ Nhập file…</button><input type="text" id="libFilter" placeholder="Tìm…" value="${esc(S.filter)}">`;
+    const items = S.lib.filter(i => !S.filter || i.name.toLowerCase().includes(S.filter.toLowerCase()));
+    body.innerHTML = items.length ? `<div class="tiles">${items.map(i => {
+      const inf = i.info;
+      const meta = inf.image ? `Ảnh ${inf.w}×${inf.h}` : `${inf.seconds} giây · ${inf.w}×${inf.h}`;
+      return `<div class="tile${S.binSel === i.id ? " sel" : ""}" draggable="true" data-lib="${i.id}" title="Kéo xuống timeline. Bấm đúp: thêm suốt video.">
+        <div class="pic" style="background-image:url(/media/lib?id=${i.id}&what=thumb)"></div>
+        ${inf.alpha ? '<span class="tag">trong suốt</span>' : '<span class="tag">nền đen</span>'}
+        <button class="more" data-more="${i.id}">⋯</button>
+        <div class="nm">${esc(i.name)}</div><div class="meta">${i.proxy ? "" : "⏳ "}${esc(meta)}</div></div>`;
+    }).join("")}</div>` : `<div class="bin-empty">${S.lib.length ? "Không có hiệu ứng nào khớp." : `<b style="color:var(--text)">Thư viện hiệu ứng còn trống.</b><br>Bấm <b>+ Nhập file…</b> hoặc kéo file vào đây: video hiệu ứng trên nền đen (tuyết, mưa, bụi, ánh sáng…), video nền trong suốt (MOV, WebM) hoặc ảnh PNG.<br>Thư viện dùng chung cho mọi dự án.<br><br>Chỉ dùng file công ty sở hữu hoặc có giấy phép.`}</div>`;
+  } else if (S.bin === "fx") {
+    tools.style.display = "none";
+    body.innerHTML = `<div class="tiles">${["snow", "leaves", "rain", "glow"].map(k => `<div class="tile" draggable="true" data-kind="${k}" title="Kéo xuống timeline. Bấm đúp: thêm suốt video.">
+        <div class="pic" style="background:#111">${KIND_ICON[k]}</div><div class="nm">${esc(kindLabel(k))}</div><div class="meta">app tự vẽ</div></div>`).join("")}</div>
+      <p class="bin-empty" style="padding-top:0">Hiệu ứng app tự vẽ: chỉnh mật độ, cỡ, tốc độ, gió… và luôn lặp lại liền mạch.</p>`;
+  } else {
+    tools.style.display = "flex";
+    tools.innerHTML = `<button class="small primary" id="newBtn2">+ Video mới…</button><span style="color:var(--dim)">Các dự án đã mở</span>`;
+    const list = (S.state && S.state.projects) || [];
+    body.innerHTML = `<div class="plist">${list.map(p => `<div class="item${S.project && S.project.id === p.id ? " cur" : ""}" data-open="${p.id}"><img src="/api/thumb?id=${p.id}" alt="">
+      <div class="txt"><div>${esc(p.name)}</div><small>${p.w}×${p.h} · loop ${p.seconds} giây · xuất ${p.length === 60 ? "1 phút" : "30 giây"}</small></div>
+      <button class="small danger" data-del="${p.id}" title="Xoá dự án">Xoá</button></div>`).join("") || '<div class="bin-empty">Chưa có dự án nào.</div>'}</div>`;
+  }
+}
+$("#bin").addEventListener("click", async e => {
+  const tab = e.target.closest("[data-bin]");
+  if (tab) { S.bin = tab.dataset.bin; renderBin(); return; }
+  const b = e.target.closest("button");
+  if (b && b.id === "importBtn") return $("#fileLib").click();
+  if (b && b.id === "newBtn2") return $("#fileVideo").click();
+  if (b && b.dataset.more) {
+    const it = libItem(b.dataset.more); if (!it) return;
+    const r = b.getBoundingClientRect();
+    showMenu(r.left, r.bottom + 2, [
+      ["Thêm vào video (suốt video)", () => addWhole({lib: it.id})],
+      ["Đổi tên…", async () => { const n = prompt("Tên mới:", it.name); if (n) { try { await post("/api/library/rename", {id: it.id, name: n}); poll(); } catch (err) { fail(err); } } }],
+      null,
+      ["Xoá khỏi thư viện", async () => { if (!confirm(`Xoá "${it.name}" khỏi thư viện?`)) return; try { await post("/api/library/delete", {id: it.id}); poll(); } catch (err) { fail(err); } }]]);
     return;
   }
-  if (S.view === "look") {
-    el.innerHTML = `<span class="hint">Một khung với mọi hiệu ứng, như video sẽ ra. Kéo thanh thời gian để xem khung khác. Lăn chuột để phóng to, giữ chuột phải để kéo.</span>`;
-    return;
-  }
-  const name = S.sel === "freeze" ? "vùng đứng yên" : S.sel === "fg" ? "tiền cảnh" : `vùng của "${(layerById(S.sel) || {}).name}"`;
-  el.innerHTML = `<span class="hint" style="color:var(--text)">Đang vẽ: <b>${esc(name)}</b></span>
-    <div class="group"><button class="small ${S.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X)">＋ Thêm</button><button class="small ${S.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X)">－ Bớt</button></div>
-    <div class="group"><button class="small ${S.tool === "brush" ? "on" : ""}" data-tool="brush" title="Cọ (B)">🖌 Cọ</button><button class="small ${S.tool === "poly" ? "on" : ""}" data-tool="poly" title="Khoanh vùng (L)">⬠ Khoanh vùng</button></div>
-    <div class="group"><label>Cỡ cọ</label><input type="range" id="brush" min="2" max="400" value="${S.size}"></div>
-    <div class="group"><button class="small" data-fill="all">Tô hết</button><button class="small" data-fill="none">Xoá hết</button><button class="small" data-fill="invert">Đảo</button></div>
-    <div class="group"><button class="small" data-undo="1" title="Hoàn tác (Ctrl+Z)">↶</button><button class="small" data-redo="1" title="Làm lại (Ctrl+Y)">↷</button><button class="small" data-fit="1" title="Vừa khung (0)">⤢</button></div>`;
-}
-$("#tools").addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.mode) { S.mode = b.dataset.mode; renderTools(); drawBoard(); }
-  if (b.dataset.tool) { S.tool = b.dataset.tool; S.poly = []; renderTools(); drawBoard(); }
-  if (b.dataset.fill) fillMask(b.dataset.fill);
-  if (b.dataset.undo) undo(false);
-  if (b.dataset.redo) undo(true);
-  if (b.dataset.fit) { S.zoom = 1; S.panX = S.panY = 0; layoutBoard(); }
-});
-$("#tools").addEventListener("input", e => { if (e.target.id === "brush") S.size = +e.target.value; });
-
-// --- time -----------------------------------------------------------------------------------------------
-function setTime(t) {
-  const p = S.project; if (!p) return;
-  S.t = Math.max(0, Math.min(p.video.frames - 1, t));
-  $("#time").value = S.t; updateTimeLabel();
-  loadFrame(); refreshLook();
-  if (S.sel === "freeze") renderProps();
-}
-$("#time").addEventListener("input", e => setTime(+e.target.value));
-$("#prevBtn").onclick = () => setTime(S.t - 1);
-$("#nextBtn").onclick = () => setTime(S.t + 1);
-
-// --- keyboard -------------------------------------------------------------------------------------------
-document.addEventListener("keydown", e => {
-  if (e.target.matches("input[type=text], input[type=number], select, textarea")) return;
-  if (e.target.type === "range" && e.key.startsWith("Arrow")) return;  // the slider moves itself
-  if (e.code === "Space") { S.space = true; if (e.target === document.body) e.preventDefault(); }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(e.shiftKey); return; }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); undo(true); return; }
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.key === "ArrowLeft") setTime(S.t - 1);
-  else if (e.key === "ArrowRight") setTime(S.t + 1);
-  else if (S.view !== "paint") return;
-  if (e.key === "Enter") closePoly();
-  else if (e.key === "Escape") { S.poly = []; drawBoard(); }
-  else if (e.key === "Backspace" && S.poly.length) { S.poly.pop(); drawBoard(); }
-  else if (e.key === "x" || e.key === "X") { S.mode = S.mode === "add" ? "sub" : "add"; renderTools(); }
-  else if (e.key === "b" || e.key === "B") { S.tool = "brush"; S.poly = []; renderTools(); }
-  else if (e.key === "l" || e.key === "L") { S.tool = "poly"; renderTools(); }
-  else if (e.key === "[" || e.key === "]") { S.size = Math.max(2, Math.min(400, Math.round(S.size * (e.key === "]" ? 1.2 : 1 / 1.2)))); renderTools(); }
-  else if (e.key === "0") { S.zoom = 1; S.panX = S.panY = 0; layoutBoard(); }
-});
-document.addEventListener("keyup", e => { if (e.code === "Space") S.space = false; });
-
-// --- files ----------------------------------------------------------------------------------------------
-$("#openBtn").onclick = () => $("#fileVideo").click();
-$("#fileVideo").onchange = e => { newProjectFrom(e.target.files[0]); e.target.value = ""; };
-$("#fileStill").onchange = async e => {
-  const f = e.target.files[0]; e.target.value = ""; if (!f || !S.project) return;
-  const pid = S.project.id;
-  try {
-    const p = await upload(`/api/upload?kind=still&id=${pid}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi ảnh gốc");
-    if (!S.project || S.project.id !== pid) { toast("Đã dùng ảnh gốc cho vùng đứng yên."); return; }
-    S.project.still = p.still; S.project.has_still_image = p.has_still_image; S.project.rev = p.rev;
-    toast(p.still.warning ? "⚠ " + p.still.warning : "Đã dùng ảnh gốc cho vùng đứng yên.", !!p.still.warning, 8000);
-    renderProps(); refreshLook();
-  } catch (err) { fail(err); }
-};
-$("#fileLayer").onchange = async e => {
-  const f = e.target.files[0]; e.target.value = ""; if (!f || !S.project) return;
-  const l = layerById(S.sel); if (!l || l.kind !== "file") return;
-  const pid = S.project.id, lid = l.id;
-  try {
-    const p = await upload(`/api/upload?kind=layer&id=${pid}&layer=${lid}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi file hiệu ứng");
-    if (!S.project || S.project.id !== pid) return;
-    const mine = layerById(lid), fresh = p.layers.find(x => x.id === lid);
-    if (mine && fresh) { mine.file = fresh.file; mine.params = fresh.params; }
-    S.project.rev = p.rev;
-    toast(`Đã thêm "${f.name}".`);
-    renderProps(); refreshLook();
-  } catch (err) { fail(err); }
-};
-document.addEventListener("dragover", e => { e.preventDefault(); });
-document.addEventListener("drop", e => {
-  e.preventDefault();
-  const f = e.dataTransfer.files[0]; if (!f) return;
-  if (/\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(f.name)) newProjectFrom(f);
-  else toast("Kéo vào đây một file video (mp4, mov…). Ảnh gốc và file hiệu ứng: chọn ở bảng bên phải.", true);
-});
-
-// --- project menu ---------------------------------------------------------------------------------------
-$("#projBtn").onclick = e => {
-  const m = $("#menu");
-  if (m.style.display === "block") { m.style.display = "none"; return; }
-  const list = (S.state && S.state.projects) || [];
-  m.innerHTML = list.length ? list.map(p => `<div class="item" data-open="${p.id}"><span>${esc(p.name)}<br><small>${p.w}×${p.h} · ${p.seconds} giây · ${new Date(p.updated * 1000).toLocaleString("vi-VN")}</small></span><button class="small danger" data-del="${p.id}" title="Xoá dự án">Xoá</button></div>`).join("")
-    : `<div class="item"><span>Chưa có dự án nào.</span></div>`;
-  const r = e.target.getBoundingClientRect();
-  m.style.left = r.left + "px"; m.style.top = (r.bottom + 6) + "px"; m.style.display = "block";
-};
-$("#menu").addEventListener("click", async e => {
-  const del = e.target.closest("[data-del]"), open = e.target.closest("[data-open]");
-  if (del) {
+  if (b && b.dataset.del) {
     e.stopPropagation();
-    const p = (S.state.projects || []).find(x => x.id === del.dataset.del);
+    const p = ((S.state && S.state.projects) || []).find(x => x.id === b.dataset.del);
     if (!confirm(`Xoá dự án "${p ? p.name : ""}"? (Video đã xuất vẫn giữ nguyên.)`)) return;
     try {
-      await post("/api/delete", {id: del.dataset.del});
-      if (S.project && S.project.id === del.dataset.del) { S.project = null; renderAll(); }
-      $("#menu").style.display = "none"; poll();
+      await post("/api/delete", {id: b.dataset.del});
+      if (S.project && S.project.id === b.dataset.del) { pause(); S.project = null; clearLayers(); renderAll(); }
+      poll();
     } catch (err) { fail(err); }
-  } else if (open) { $("#menu").style.display = "none"; openProject(open.dataset.open); }
+    return;
+  }
+  const open = e.target.closest("[data-open]");
+  if (open) return openProject(open.dataset.open);
+  const tile = e.target.closest(".tile[data-lib]");
+  if (tile) { S.binSel = tile.dataset.lib; renderBin(); }
 });
-document.addEventListener("click", e => { if (!e.target.closest("#menu, #projBtn")) $("#menu").style.display = "none"; });
+$("#bin").addEventListener("dblclick", e => {
+  const tile = e.target.closest(".tile"); if (!tile || !S.project) return;
+  addWhole(tile.dataset.lib ? {lib: tile.dataset.lib} : {kind: tile.dataset.kind});
+});
+$("#bin").addEventListener("input", e => { if (e.target.id === "libFilter") { S.filter = e.target.value; const pos = e.target.selectionStart; renderBin(); const f = $("#libFilter"); f.focus(); f.setSelectionRange(pos, pos); } });
+$("#bin").addEventListener("dragstart", e => {
+  const tile = e.target.closest(".tile"); if (!tile) return;
+  if (!S.project) { e.preventDefault(); return toast("Mở một video trước.", true); }
+  S.dragItem = tile.dataset.lib ? {lib: tile.dataset.lib} : {kind: tile.dataset.kind};
+  e.dataTransfer.setData("text/plain", tile.dataset.lib || tile.dataset.kind);
+  e.dataTransfer.effectAllowed = "copy";
+});
+$("#bin").addEventListener("dragend", () => { S.dragItem = null; const g = $("#ghost"); if (g) g.style.display = "none"; });
+$("#bin").addEventListener("dragover", e => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.stopPropagation(); } });
+$("#bin").addEventListener("drop", async e => {
+  if (!e.dataTransfer.files.length) return;
+  e.preventDefault(); e.stopPropagation();
+  S.bin = "lib"; renderBin();
+  await importFiles([...e.dataTransfer.files]);
+});
+function addWhole(item) {
+  if (!S.project) return toast("Mở một video trước.", true);
+  addClip(item, null, 0, total());
+}
+async function importFiles(files) {
+  const done = [];
+  for (const f of files) {
+    try {
+      const it = await upload(`/api/upload?kind=library&name=${encodeURIComponent(f.name)}`, f, `Đang nhập "${f.name}"`);
+      done.push(it);
+      S.lib = [it, ...S.lib.filter(x => x.id !== it.id)];
+    } catch (e) { fail(e); }
+  }
+  if (done.length) { toast(`Đã thêm ${done.length} file vào thư viện.`); renderBin(); pollSoon(); }
+  return done;
+}
+
+// --- header, export, jobs --------------------------------------------------------------------------------
+function renderAll() {
+  const p = S.project, has = !!p;
+  $("#drop").style.display = has ? "none" : "flex";
+  screenEl.style.display = has ? "block" : "none";
+  $("#transport").style.visibility = has ? "visible" : "hidden";
+  $("#exportBtn").disabled = !has;
+  $("#projName").innerHTML = has ? `<b id="projTitle" title="Bấm đúp để đổi tên">${esc(p.name)}</b> · ${p.video.w}×${p.video.h} · loop ${p.video.seconds} giây` : "";
+  $("#monName").textContent = has ? p.name : "";
+  $("#monInfo").textContent = has ? `${p.video.w}×${p.video.h} · ${p.video.fps} khung/giây` : "";
+  $("#tcDur").textContent = has ? tc(duration()) : "";
+  if (has) { layoutScreen(); syncLayers(); styleAll(); }
+  renderTimeline(); renderControls(); renderBin(); renderPaintbar();
+  if (!has) renderRecent();
+  updateWaiting();
+}
+$("#projName").addEventListener("dblclick", e => {
+  if (!S.project || e.target.id !== "projTitle") return;
+  const n = prompt("Tên dự án:", S.project.name);
+  if (n) { S.project.name = n; saveNow().then(() => { poll(); renderAll(); }); }
+});
 function renderRecent() {
   const list = ((S.state && S.state.projects) || []).slice(0, 8);
-  $("#recent").innerHTML = list.map(p => `<div class="card" data-open="${p.id}"><img src="/api/thumb?id=${p.id}" alt=""><div>${esc(p.name)}<br><small>${p.seconds} giây</small></div></div>`).join("");
+  $("#recent").innerHTML = list.map(p => `<div class="card" data-open="${p.id}"><img src="/api/thumb?id=${p.id}" alt=""><div>${esc(p.name)}</div></div>`).join("");
 }
 $("#recent").addEventListener("click", e => { const c = e.target.closest("[data-open]"); if (c) openProject(c.dataset.open); });
 
-// --- preview, export, jobs ------------------------------------------------------------------------------
-$("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b && S.project) setView(b.dataset.view); });
 async function readyToRender() {  // the last painting and settings reach the app before a video is made
   if (!(await flushMasks())) return false;
   return saveNow();
 }
-$("#previewBtn").onclick = async () => {
-  try {
-    if (!(await readyToRender())) return;
-    await post("/api/preview", {id: S.project.id}); toast("Đang làm video xem thử…"); pollSoon();
-  } catch (e) { fail(e); }
-};
-$("#exportBtn").onclick = async () => {
-  try {
-    if (!(await readyToRender())) return;
-    await post("/api/export", {id: S.project.id, seconds: +$("#length").value});
-    toast("Đã bắt đầu xuất video. Có thể tiếp tục làm việc khác."); pollSoon();
-  } catch (e) { fail(e); }
-};
+function exportDialog() {
+  const p = S.project; if (!p) return;
+  pause();
+  const box = $("#modalBox"), v = info();
+  const outside = p.layers.filter(c => c.start >= total()).length;
+  box.innerHTML = `<h3>Xuất video</h3>
+    <table><tr><td>Độ dài</td><td><b>${p.length === 60 ? "1 phút" : "30 giây"}</b> (${secLabel(duration())}, ${total() / loopFrames()} vòng loop)</td></tr>
+    <tr><td>Kích thước</td><td>${v.w}×${v.h}, ${v.fps} khung/giây, như video gốc</td></tr>
+    <tr><td>Định dạng</td><td>MP4 (H.264), không âm thanh, loop liền mạch</td></tr>
+    <tr><td>Lưu vào</td><td>${esc((S.state && S.state.out_dir) || "Videos\\Bokin FX")}</td></tr></table>
+    ${outside ? `<p style="color:var(--warn)">⚠ ${outside} clip nằm ngoài độ dài video, sẽ không có trong video.</p>` : ""}
+    <p style="color:var(--dim);margin-top:0">Đổi độ dài ở thanh Timeline (30 giây / 1 phút). Trong lúc xuất vẫn làm việc khác được.</p>
+    <div class="acts"><button id="mCancel">Huỷ</button><button class="primary" id="mGo">Xuất</button></div>`;
+  $("#modal").style.display = "flex";
+  $("#mCancel").onclick = () => $("#modal").style.display = "none";
+  $("#mGo").onclick = async () => {
+    $("#modal").style.display = "none";
+    try {
+      if (!(await readyToRender())) return;
+      await post("/api/export", {id: p.id});
+      toast("Đã bắt đầu xuất video. Xem tiến độ ở thanh dưới cùng."); pollSoon();
+    } catch (e) { fail(e); }
+  };
+}
+$("#exportBtn").onclick = exportDialog;
 $("#folderBtn").onclick = () => post("/api/open", {}).catch(fail);
 $("#updateBtn").onclick = async () => {
   try { await post("/api/update", {}); $("#updateText").textContent = "Đang cập nhật… app sẽ tự mở lại."; $("#updateBtn").style.display = "none"; S.updating = true; }
   catch (e) { fail(e); }
 };
-$("#modalClose").onclick = () => { $("#modal").style.display = "none"; $("#modalVideo").pause(); };
+$("#modal").addEventListener("click", e => { if (e.target.id === "modal") { $("#modal").style.display = "none"; const v = $("#modal video"); if (v) v.pause(); } });
 function renderJobs(list) {
   const el = $("#jobs");
   const names = Object.fromEntries(((S.state && S.state.projects) || []).map(p => [p.id, p.name]));
   const now = Date.now() / 1000;
-  const shown = list.filter(j => j.state === "running" || j.state === "queued" || (now - (j.finished || 0) < 600 && j.kind === "export") || (j.state === "error" && now - j.finished < 120));
-  el.innerHTML = shown.slice(0, 4).map(j => {
-    const what = (j.kind === "preview" ? "Xem thử" : `Xuất ${lengthLabel(j.seconds)}`) + ` · ${esc(names[j.project] || "")}`;
+  const shown = list.filter(j => j.kind === "export" && (j.state === "running" || j.state === "queued" || now - (j.finished || 0) < 900));
+  el.innerHTML = shown.slice(0, 3).map(j => {
+    const what = `Xuất ${j.seconds === 60 ? "1 phút" : j.seconds + " giây"} · ${esc(names[j.project] || "")}`;
     let status = "";
     if (j.state === "queued") status = "đang chờ";
     else if (j.state === "running") {
       const pct = Math.round(j.progress * 100), took = now - j.started;
       const left = j.progress > 0.03 ? Math.max(0, took / j.progress - took) : null;
       status = `${pct}%` + (left !== null ? ` · còn khoảng ${left > 90 ? Math.round(left / 60) + " phút" : Math.round(left) + " giây"}` : "");
-    } else if (j.state === "done") status = j.kind === "export" ? "xong" : "xong";
+    } else if (j.state === "done") status = "xong";
     else if (j.state === "cancelled") status = "đã huỷ";
     else status = "lỗi: " + esc(j.message);
     const btn = j.state === "running" || j.state === "queued" ? `<button class="small" data-cancel="${j.id}">Huỷ</button>`
-      : j.state === "done" && j.kind === "export" ? `<button class="small" data-play="${esc(j.output)}">Xem</button><button class="small" data-reveal="${esc(j.output)}">Mở thư mục</button>` : "";
-    return `<div class="job ${j.state}"><span class="what" title="${esc(j.output || "")}">${what}</span><span class="bar"><i style="width:${Math.round((j.state === "done" ? 1 : j.progress) * 100)}%"></i></span><span>${status}</span>${btn}</div>`;
+      : j.state === "done" ? `<button class="small" data-play="${esc(j.output)}">Xem</button><button class="small" data-reveal="${esc(j.output)}">Mở thư mục</button>` : "";
+    return `<div class="job ${j.state}"><span>${what}</span><span class="bar"><i style="width:${Math.round((j.state === "done" ? 1 : j.progress) * 100)}%"></i></span><span>${status}</span>${btn}</div>`;
   }).join("");
 }
-$("#jobs").addEventListener("click", async e => {
+$("#jobs").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.cancel) post("/api/cancel", {job: b.dataset.cancel}).then(pollSoon).catch(fail);
   if (b.dataset.reveal) post("/api/open", {name: b.dataset.reveal}).catch(fail);
   if (b.dataset.play) {
-    $("#modalTitle").textContent = b.dataset.play;
-    $("#modalVideo").src = "/media/out?name=" + encodeURIComponent(b.dataset.play);
+    pause();
+    $("#modalBox").innerHTML = `<div class="acts" style="justify-content:space-between;margin-bottom:8px"><b>${esc(b.dataset.play)}</b><button id="mClose">Đóng</button></div><video controls loop autoplay src="/media/out?name=${encodeURIComponent(b.dataset.play)}"></video>`;
     $("#modal").style.display = "flex";
+    $("#mClose").onclick = () => { $("#modal").style.display = "none"; $("#modal video").pause(); };
   }
 });
 
@@ -921,22 +1915,36 @@ async function poll() {
     failures = 0; $("#offline").style.display = "none";
     if (version && st.version !== version) { location.reload(); return; }  // updated: the new page
     version = st.version;
-    S.state = st;
+    const libBefore = JSON.stringify(S.lib.map(i => [i.id, i.proxy, i.name]));
+    S.state = st; S.lib = st.library || [];
     $("#ver").textContent = st.version === "dev" ? "bản chạy từ mã nguồn" : "phiên bản " + st.version;
     const up = st.update || {};
     $("#update").style.display = up.ready || S.updating ? "flex" : "none";
     if (up.ready && !S.updating) $("#updateText").textContent = `Có bản mới ${up.available}`;
+    const p = S.project;
+    let layersChanged = false;
     for (const j of st.jobs) {
       const before = S.jobsSeen[j.id];
-      if (before && before !== "done" && j.state === "done" && S.project && j.project === S.project.id && j.kind === "preview") {
-        S.project.preview = j.output; renderTools();
-        if (S.view !== "video") setView("video"); else showPreview();
+      const fresh = before !== undefined && before !== j.state;
+      if (fresh && j.state === "done" && j.kind === "export") toast(`Đã xuất xong: ${j.output}`, false, 8000);
+      if (fresh && j.state === "error" && j.kind === "export") toast(j.message, true, 9000);
+      if (p && j.project === p.id && j.state === "done" && (fresh || before === undefined)) {
+        if (j.kind === "proxy" && !p.proxy) { p.proxy = j.output; setupScreen(); layersChanged = true; }
+        if (j.kind === "fxclip") {  // every clip with these settings (the halves of a cut clip share it)
+          for (const fx of Object.values(S.fx)) if (fx.want === j.output && !fx.ready) { fx.ready = true; fx.shown = j.output; layersChanged = true; }
+        }
       }
-      if (before && before !== "done" && j.state === "done" && j.kind === "export") toast(`Đã xuất xong: ${j.output}`, false, 8000);
-      if (before && before !== "error" && j.state === "error") toast(j.message, true, 9000);
       S.jobsSeen[j.id] = j.state;
     }
+    for (const it of S.lib) if (!it.proxy && !st.jobs.some(j => j.kind === "libproxy" && j.item === it.id && (j.state === "queued" || j.state === "running"))) post("/api/library/proxy", {id: it.id}).catch(() => {});
+    if (p && !p.proxy && !st.jobs.some(j => j.kind === "proxy" && j.project === p.id && (j.state === "queued" || j.state === "running"))) post("/api/proxy", {id: p.id}).catch(() => {});
+    const projList = JSON.stringify(st.projects);
+    if (JSON.stringify(S.lib.map(i => [i.id, i.proxy, i.name])) !== libBefore) { layersChanged = true; if (S.bin === "lib") renderBin(); }
+    if (S.bin === "proj" && projList !== S.projList) renderBin();
+    S.projList = projList;
+    if (layersChanged && p) { syncLayers(); applyTime(); renderControls(); }
     renderJobs(st.jobs);
+    updateWaiting();
     if (!S.project) renderRecent();
   } catch (e) {
     if (++failures >= 3) $("#offline").style.display = "flex";
@@ -944,17 +1952,113 @@ async function poll() {
   pollTimer = setTimeout(poll, document.hidden ? 5000 : 1500);
 }
 
+// --- keyboard, files, splitters ---------------------------------------------------------------------------
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input[type=text], input[type=number], select, textarea")) return;
+  if (e.target.type === "range" && e.key.startsWith("Arrow")) return;  // the slider moves itself
+  if ($("#modal").style.display === "flex") { if (e.key === "Escape") $("#modal").style.display = "none"; return; }
+  const k = e.key, ctrl = e.ctrlKey || e.metaKey;
+  if (e.code === "Space") {
+    S.space = true;
+    if (e.target.tagName === "BUTTON" || e.target === document.body || e.target.type === "range" || e.target.type === "checkbox") {
+      e.preventDefault();
+      if (!S.paint && !e.repeat) S.playing ? pause() : play();
+    }
+    return;
+  }
+  if (ctrl && k.toLowerCase() === "z") { e.preventDefault(); S.paint ? undoPaint(e.shiftKey) : history(e.shiftKey ? 1 : -1); return; }
+  if (ctrl && k.toLowerCase() === "y") { e.preventDefault(); S.paint ? undoPaint(true) : history(1); return; }
+  if (ctrl && k.toLowerCase() === "k") { e.preventDefault(); splitAtPlayhead(); return; }
+  if (ctrl && k.toLowerCase() === "m") { e.preventDefault(); exportDialog(); return; }
+  if (ctrl || e.altKey || !S.project) return;
+  if (k === "ArrowLeft") { e.preventDefault(); step(e.shiftKey ? -5 : -1); return; }
+  if (k === "ArrowRight") { e.preventDefault(); step(e.shiftKey ? 5 : 1); return; }
+  if (k === "Home") { pause(); seek(0); return; }
+  if (k === "End") { pause(); seek(duration()); return; }
+  if (k === "ArrowUp" || k === "ArrowDown") {  // the previous / next edit point
+    e.preventDefault();
+    const fr = curFrame(), pts = [...new Set(snapPoints(null))].sort((a, b) => a - b);
+    const to = k === "ArrowUp" ? pts.filter(x => x < fr).pop() : pts.find(x => x > fr);
+    if (to !== undefined) { pause(); seek(to / fps()); }
+    return;
+  }
+  if (S.paint) {
+    if (k === "Enter") closePoly();
+    else if (k === "Escape") { if (S.poly.length) { S.poly = []; drawPaint(); } else exitPaint(); }
+    else if (k === "Backspace" && S.poly.length) { S.poly.pop(); drawPaint(); }
+    else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderPaintbar(); }
+    else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; renderPaintbar(); }
+    else if (k === "l" || k === "L") { S.brush.tool = "poly"; renderPaintbar(); }
+    else if (k === "[" || k === "]") { S.brush.size = clamp(Math.round(S.brush.size * (k === "]" ? 1.2 : 1 / 1.2)), 2, 400); renderPaintbar(); }
+    return;
+  }
+  if (k === "v" || k === "V") { S.tool = "select"; renderTimeline(); }
+  else if (k === "c" || k === "C") { S.tool = "razor"; renderTimeline(); }
+  else if (k === "s" || k === "S") { S.snap = !S.snap; renderTimeline(); }
+  else if (k === "Delete" || k === "Backspace") { const c = clipById(S.sel); if (c) deleteClip(c); }
+  else if (k === "Escape") { if (S.sel) { S.sel = null; renderTimeline(); renderControls(); } }
+  else if (k === "+" || k === "=") setPps(S.pps * 1.4, S.time);
+  else if (k === "-" || k === "_") setPps(S.pps / 1.4, S.time);
+  else if (k === "\\") { S.fitTl = true; renderTimeline(); }
+  else if (k === "k" || k === "K") pause();
+  else if (k === "l" || k === "L") play();
+});
+document.addEventListener("keyup", e => { if (e.code === "Space") S.space = false; });
+$("#tPlay").onclick = () => S.playing ? pause() : play();
+$("#tPrev").onclick = () => step(-1);
+$("#tNext").onclick = () => step(1);
+$("#tStart").onclick = () => { pause(); seek(0); };
+$("#tEnd").onclick = () => { pause(); seek(duration()); };
+$("#tLoop").onclick = () => { S.loop = !S.loop; $("#tLoop").classList.toggle("on", S.loop); };
+
+$("#newBtn").onclick = () => $("#fileVideo").click();
+$("#fileVideo").onchange = e => { newProjectFrom(e.target.files[0]); e.target.value = ""; };
+$("#fileLib").onchange = e => { const fs = [...e.target.files]; e.target.value = ""; importFiles(fs); };
+$("#fileStill").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f || !S.project) return;
+  const pid = S.project.id;
+  try {
+    const p = await upload(`/api/upload?kind=still&id=${pid}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi ảnh gốc");
+    if (!S.project || S.project.id !== pid) { toast("Đã dùng ảnh gốc cho vùng đứng yên."); return; }
+    S.project.still = p.still; S.project.has_still_image = p.has_still_image; S.project.rev = p.rev;
+    toast(p.still.warning ? "⚠ " + p.still.warning : "Đã dùng ảnh gốc cho vùng đứng yên.", !!p.still.warning, 8000);
+    renderControls(); styleBase(); refreshExact();
+  } catch (err) { fail(err); }
+};
+document.addEventListener("dragover", e => { e.preventDefault(); });
+document.addEventListener("drop", e => {
+  e.preventDefault();
+  const fs = [...e.dataTransfer.files]; if (!fs.length) return;
+  const isVideo = f => /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(f.name);
+  if (!S.project || e.target.closest("#drop")) { if (isVideo(fs[0])) newProjectFrom(fs[0]); else toast("Kéo vào đây một file video loop (mp4, mov…).", true); return; }
+  S.bin = "lib"; renderBin(); importFiles(fs);
+});
+
+function splitter(el, apply) {
+  el.addEventListener("pointerdown", e => {
+    el.setPointerCapture(e.pointerId);
+    const move = ev => apply(ev);
+    const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); saveLayout(); onResize(); };
+    el.addEventListener("pointermove", move); el.addEventListener("pointerup", up);
+  });
+}
+const work = $("#work");
+splitter($("#splitV"), e => { const r = work.getBoundingClientRect(); work.style.setProperty("--left", clamp(e.clientX - r.left, 240, r.width - 420) + "px"); onResize(); });
+splitter($("#splitH"), e => { const r = work.getBoundingClientRect(); work.style.setProperty("--top", clamp(e.clientY - r.top, 200, r.height - 150) + "px"); onResize(); });
+function saveLayout() { try { localStorage.setItem("fx.layout", JSON.stringify({left: work.style.getPropertyValue("--left"), top: work.style.getPropertyValue("--top")})); } catch (e) { /* storage blocked */ } }
+try { const l = JSON.parse(localStorage.getItem("fx.layout") || "{}"); if (l.left) work.style.setProperty("--left", l.left); if (l.top) work.style.setProperty("--top", l.top); } catch (e) { /* none */ }
+let resizeTimer = 0;
+function onResize() { if (!S.project) return; layoutScreen(); renderTimeline(); clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { invalidateExact(); refreshExact(); }, 200); }
+window.addEventListener("resize", onResize);
+
 // --- start ----------------------------------------------------------------------------------------------
 (async function start() {
-  try {
-    const sch = await get("/api/schema");
-    S.schema = sch; S.lengths = sch.lengths;
-  } catch (e) { $("#offline").style.display = "flex"; return; }
+  try { S.schema = await get("/api/schema"); } catch (e) { $("#offline").style.display = "flex"; return; }
   await poll();
   let last = null;
   try { last = localStorage.getItem("fx.last"); } catch (e) { /* storage blocked */ }
-  if (last && (S.state.projects || []).some(p => p.id === last)) await openProject(last);
-  else renderAll();
+  renderAll();
+  if (last && ((S.state && S.state.projects) || []).some(p => p.id === last)) await openProject(last);
 })();
 </script>
 </body>

@@ -11,6 +11,14 @@ from tests import helpers
 from fx import server
 
 
+def png_bytes():
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("L", (160, 90), 255).save(buf, "PNG")
+    return buf.getvalue()
+
+
 def request(url, data=None, headers=None, method=None):
     req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
     try:
@@ -43,7 +51,7 @@ class Server(unittest.TestCase):
     def test_only_its_own_page(self):
         self.assertEqual(request(self.base + "/")[0], 200)
         self.assertEqual(request(self.base + "/api/state", headers={"Host": "evil.example"})[0], 403)
-        self.assertEqual(request(self.base + "/api/preview", b"{}", {"Content-Type": "application/json"}, "POST")[0], 403)
+        self.assertEqual(request(self.base + "/api/export", b"{}", {"Content-Type": "application/json"}, "POST")[0], 403)
         self.assertEqual(self.post("/api/open", {})[0], 400)  # not on a server
 
     def test_project_flow(self):
@@ -68,32 +76,52 @@ class Server(unittest.TestCase):
         self.assertEqual((code, headers.get("Content-Type")), (200, "image/jpeg"))
         self.assertEqual(request(self.base + f"/api/frame?id={pid}&t=999")[0], 200)  # clamped to the last frame
         self.assertEqual(request(self.base + "/media/out?name=..%2F..%2Fsecret.mp4")[0], 404)
-        self.assertEqual(request(self.base + f"/media/preview?id={pid}&name=..%2Finput.mp4")[0], 404)
+        self.assertEqual(request(self.base + f"/media/fx?id={pid}&name=..%2Finput.mp4")[0], 404)
+        self.assertEqual(request(self.base + "/media/lib?id=..%2F..&what=thumb")[0], 400)
 
-        code, body, _ = self.post("/api/preview", {"id": pid})
-        self.assertEqual(code, 200, body)
-        job = json.loads(body)["id"]
-        for _ in range(240):
-            state = json.loads(request(self.base + "/api/state")[1])
-            mine = next(j for j in state["jobs"] if j["id"] == job)
-            if mine["state"] not in ("queued", "running"):
-                break
-            time.sleep(0.25)
-        self.assertEqual(mine["state"], "done", mine)
-        code, body, headers = request(self.base + f"/media/preview?id={pid}&name={mine['output']}",
-                                      headers={"Range": "bytes=0-99"})
+        # the light copy of the video, made in the background after the upload
+        self.wait_for(lambda: json.loads(request(self.base + f"/api/project?id={pid}")[1])["proxy"])
+        code, body, headers = request(self.base + f"/media/base?id={pid}", headers={"Range": "bytes=0-99"})
         self.assertEqual((code, len(body)), (206, 100))
         self.assertTrue(headers["Content-Range"].startswith("bytes 0-99/"))
 
-        code, body, _ = self.post("/api/export", {"id": pid, "seconds": 2})
+        # an effect in the library, used by a clip, with its light copy
+        with open(clip, "rb") as f:
+            code, body, _ = self.post("/api/upload?kind=library&name=snow.mp4", raw=f.read(),
+                                      headers={"Content-Type": "application/octet-stream"})
+        self.assertEqual(code, 200, body)
+        item = json.loads(body)
+        self.assertEqual(request(self.base + f"/media/lib?id={item['id']}&what=thumb")[0], 200)
+        self.wait_for(lambda: next(i for i in json.loads(request(self.base + "/api/state")[1])["library"]
+                                   if i["id"] == item["id"])["proxy"])
+        self.assertEqual(request(self.base + f"/media/lib?id={item['id']}&what=proxy")[0], 200)
+        project = json.loads(self.post("/api/save", {"id": pid, "layers": [
+            {"id": "snow1", "kind": "snow", "params": {"amount": 50}, "start": 0, "end": 200},
+            {"id": "file1", "kind": "file", "lib": item["id"], "start": 100, "end": 400}]})[1])
+        self.assertEqual([lay["kind"] for lay in project["layers"]], ["snow", "file"])
+        self.assertEqual(self.post("/api/library/delete", {"id": item["id"]})[0], 400)  # in use
+
+        # a built-in effect's preview clip
+        answer = json.loads(self.post("/api/fxclip", {"id": pid, "layer": "snow1"})[1])
+        self.assertFalse(answer["ready"])
+        self.wait_for(lambda: json.loads(self.post("/api/fxclip", {"id": pid, "layer": "snow1"})[1])["ready"])
+        self.assertEqual(request(self.base + f"/media/fx?id={pid}&name={answer['name']}")[0], 200)
+        self.assertEqual(self.post("/api/fxclip", {"id": pid, "layer": "file1"})[0], 400)
+
+        # a cut clip's area is copied to its second half
+        self.post("/api/save", {"id": pid, "layers": project["layers"] + [dict(project["layers"][0], id="snow2")]})
+        self.assertEqual(self.post(f"/api/mask?id={pid}&name=snow1", raw=png_bytes())[0], 200)
+        code, body, _ = self.post("/api/copymask", {"id": pid, "src": "snow1", "dst": "snow2"})
+        self.assertEqual(code, 200, body)
+        self.assertIn("snow2", json.loads(body)["masks"])
+        self.assertEqual(self.post("/api/copymask", {"id": pid, "src": "snow1", "dst": "../x"})[0], 400)
+
+        code, body, _ = self.post("/api/export", {"id": pid})
         job = json.loads(body)["id"]
-        for _ in range(480):
-            mine = next(j for j in json.loads(request(self.base + "/api/state")[1])["jobs"] if j["id"] == job)
-            if mine["state"] not in ("queued", "running"):
-                break
-            time.sleep(0.25)
+        mine = self.wait_for(lambda: next(j for j in json.loads(request(self.base + "/api/state")[1])["jobs"]
+                                          if j["id"] == job and j["state"] not in ("queued", "running")), 600)
         self.assertEqual(mine["state"], "done", mine)
-        self.assertTrue(mine["output"].startswith("Quán cà phê-fx"))
+        self.assertTrue(mine["output"].startswith("Quán cà phê-fx-30s"), mine["output"])
         long_name = urllib.parse.quote("Quán " + "x" * 250 + ".mp4")  # a long name keeps its extension
         with open(clip, "rb") as f:
             code, body, _ = self.post(f"/api/upload?kind=video&name={long_name}", raw=f.read(),
@@ -104,13 +132,24 @@ class Server(unittest.TestCase):
         self.assertEqual(self.post("/api/delete", {"id": pid})[0], 200)
         self.assertEqual(request(self.base + f"/api/project?id={pid}")[0], 400)
 
+    def wait_for(self, check, tries=240):
+        for _ in range(tries):
+            try:
+                got = check()
+            except StopIteration:
+                got = None
+            if got:
+                return got
+            time.sleep(0.25)
+        self.fail("timed out")
+
     def test_refused_request_body_is_not_run(self):
         """A cross-site POST is refused, and its body is never read as a second request."""
         import socket as sk
         port = int(self.base.rsplit(":", 1)[1])
         inner = (f"POST /api/quit HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nX-Bokin: 1\r\n"
                  "Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}").encode()
-        outer = (f"POST /api/preview HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: text/plain\r\n"
+        outer = (f"POST /api/export HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: text/plain\r\n"
                  f"Content-Length: {len(inner)}\r\n\r\n").encode() + inner
         with sk.create_connection(("127.0.0.1", port), timeout=5) as c:
             c.sendall(outer)

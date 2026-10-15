@@ -3,8 +3,8 @@
 Only this computer's own page may use it: a request must name 127.0.0.1 or localhost as its host (so a web site
 cannot reach it through DNS rebinding) and every POST must carry the header X-Bokin: 1, which another web site
 cannot add without asking first (a CORS preflight, never allowed here). Nothing from the page is used as a path:
-projects, masks and files are found by ids checked against fixed patterns, and uploads are written by this code
-into the data folder.
+projects, library items, masks and files are found by ids and names checked against fixed patterns, and uploads
+are written by this code into the data folder.
 """
 import io
 import json
@@ -22,16 +22,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import numpy as np
 from PIL import Image
 
-from . import effects, engine, jobs, overlay, paths, projects, video
+from . import effects, engine, jobs, library, overlay, paths, projects, timeline, video
 
-UPLOAD_LIMITS = {"video": 4 << 30, "layer": 4 << 30, "still": 200 << 20}
+UPLOAD_LIMITS = {"video": 4 << 30, "library": 4 << 30, "still": 200 << 20}
 UPLOAD_TYPES = {"video": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
                 "still": (overlay.IMAGE_TYPES, "Hãy chọn ảnh PNG hoặc JPG."),
-                "layer": (overlay.IMAGE_TYPES | overlay.VIDEO_TYPES, "Hãy chọn video (mp4, mov, webm…) hoặc ảnh (png, jpg).")}
+                "library": (library.TYPES, "Hãy chọn video (mp4, mov, webm…) hoặc ảnh (png, jpg).")}
 MASK_LIMIT = 50 << 20
 JSON_LIMIT = 1 << 20
 OUT_NAME = re.compile(r"^[^\\/:*?\"<>|\x00-\x1f]{1,180}\.mp4$")
-PREVIEW_NAME = re.compile(r"^preview-[0-9]+-[0-9a-f]{4}\.mp4$")
+FX_NAME = re.compile(r"^fx-[0-9a-f]{12}\.(webm|mp4)$")
+PROXY_NAME = re.compile(r"^proxy\.(mp4|webm|png)$")
+MEDIA_TYPES = {".mp4": "video/mp4", ".webm": "video/webm", ".png": "image/png", ".jpg": "image/jpeg"}
+ERRORS = (projects.UserError, video.VideoError, library.LibraryError)
 
 
 class App:
@@ -59,7 +62,8 @@ class App:
         up = self.updater.state if self.updater else {"current": paths.version(), "available": None,
                                                        "ready": False, "error": None, "checked": None}
         return {"app": paths.APP_ID, "version": paths.version(), "update": up, "jobs": self.jobs.public(),
-                "projects": projects.list_all(), "out_dir": paths.out_dir(), "desktop": self.desktop}
+                "projects": projects.list_all(), "library": library.list_all(), "out_dir": paths.out_dir(),
+                "desktop": self.desktop}
 
 
 def _jpeg(arr, quality=88):
@@ -178,7 +182,7 @@ class Handler(BaseHTTPRequestHandler):
         q = {k: v[-1] for k, v in urllib.parse.parse_qs(url.query).items()}
         try:
             self.route_get(url.path, q)
-        except (projects.UserError, video.VideoError) as e:
+        except ERRORS as e:
             self.fail(400, str(e))
         except (ConnectionError, BrokenPipeError):
             pass
@@ -197,7 +201,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             return self.send(200, self.app.state())
         if path == "/api/schema":
-            return self.send(200, {"kinds": effects.SCHEMA, "lengths": jobs.LENGTHS})
+            return self.send(200, {"kinds": effects.SCHEMA, "lengths": list(timeline.LENGTHS),
+                                   "min_edge_fade": timeline.MIN_EDGE_FADE, "max_fade": timeline.MAX_FADE,
+                                   "blend": {k: c.blend for k, c in effects.KINDS.items()},
+                                   "max_clips": projects.MAX_LAYERS, "max_tracks": projects.MAX_TRACKS})
         if path == "/api/project":
             return self.send(200, self.project_view(projects.load(q.get("id"))))
         if path == "/api/frame":  # a frame of the video at the masks' size, to paint on
@@ -237,12 +244,27 @@ class Handler(BaseHTTPRequestHandler):
             arr = self.app.looks.frame(projects.folder(project["id"]), project, _int(q.get("t")),
                                        max(160, min(1920, _int(q.get("w"), engine.LOOK_WIDTH))))
             return self.send(200, _jpeg(arr, 88), "image/jpeg")
-        if path == "/media/preview":
+        if path == "/media/base":  # the project's video for the live preview: its light copy
+            project = projects.load(q.get("id"))
+            name = project.get("proxy") or ""
+            if not PROXY_NAME.match(name):
+                return self.fail(404, "no proxy yet")
+            return self.send_file(os.path.join(projects.folder(project["id"]), name), MEDIA_TYPES[os.path.splitext(name)[1]])
+        if path == "/media/fx":  # a built-in effect's preview clip
             project = projects.load(q.get("id"))
             name = q.get("name") or ""
-            if not PREVIEW_NAME.match(name) or name != project.get("preview"):
-                return self.fail(404, "no preview")
-            return self.send_file(os.path.join(projects.folder(project["id"]), name), "video/mp4")
+            if not FX_NAME.match(name):
+                return self.fail(404, "no such clip")
+            return self.send_file(os.path.join(projects.folder(project["id"]), "clips", name),
+                                  MEDIA_TYPES[os.path.splitext(name)[1]])
+        if path == "/media/lib":  # a library item's small picture or light copy
+            item = library.load(q.get("id"))
+            if q.get("what") == "thumb":
+                return self.send_file(os.path.join(library.folder(item["id"]), "thumb.jpg"), "image/jpeg")
+            name = item.get("proxy") or ""
+            if not PROXY_NAME.match(name):
+                return self.fail(404, "no proxy yet")
+            return self.send_file(library.proxy_path(item), MEDIA_TYPES[os.path.splitext(name)[1]])
         if path == "/media/out":
             name = q.get("name") or ""
             if not OUT_NAME.match(name) or name.startswith("."):
@@ -254,7 +276,7 @@ class Handler(BaseHTTPRequestHandler):
         folder = projects.folder(project["id"])
         masks = sorted(n[:-4] for n in os.listdir(os.path.join(folder, "masks")) if n.endswith(".png"))
         w, h = projects.mask_size(project["video"])
-        return {**project, "masks": masks, "mask_w": w, "mask_h": h,
+        return {**project, "masks": masks, "mask_w": w, "mask_h": h, "frames_out": timeline.project_frames(project),
                 "has_still_image": os.path.exists(os.path.join(folder, "still.png"))}
 
     def do_POST(self):
@@ -265,7 +287,7 @@ class Handler(BaseHTTPRequestHandler):
         self.app.seen = time.time()
         try:
             self.route_post(url.path, q)
-        except (projects.UserError, video.VideoError) as e:
+        except ERRORS as e:
             self.close_connection = True  # the body may not have been read
             self.fail(400, str(e))
         except (ConnectionError, BrokenPipeError):
@@ -328,20 +350,24 @@ class Handler(BaseHTTPRequestHandler):
             name = stem[:200 - len(ext)] + ext  # a long name keeps its extension
             if ext.lower() not in UPLOAD_TYPES[kind][0]:  # before receiving gigabytes
                 raise projects.UserError(UPLOAD_TYPES[kind][1])
-            project = projects.load(q.get("id")) if kind != "video" else None
+            project = projects.load(q.get("id")) if kind == "still" else None
             app.uploading(+1)
             try:
                 upload = self.receive(UPLOAD_LIMITS[kind])
                 try:
                     if kind == "video":
                         project = projects.create(upload, name)
+                        app.jobs.project_proxy(project["id"])
                     elif kind == "still":
                         project = projects.set_still_image(project, upload, name)
                     else:
-                        app.looks.release(projects.folder(project["id"]))  # its readers would keep the old file
-                        project = projects.set_layer_file(project, q.get("layer"), upload, name)
+                        item = library.add(upload, name)
+                        if not item["info"].get("image"):
+                            app.jobs.library_proxy(item["id"])
+                        return self.send(200, library.public(item))
                 finally:
                     _remove(upload)
+                    _remove(upload + os.path.splitext(name)[1].lower())
             finally:
                 app.uploading(-1)
             return self.send(200, self.project_view(project))
@@ -356,16 +382,48 @@ class Handler(BaseHTTPRequestHandler):
             app.looks.release(projects.folder(project["id"]))  # so a removed file layer's file can be deleted
             project = projects.apply(project, data)
             return self.send(200, self.project_view(project))
-        if path == "/api/preview":
-            return self.send(200, app.jobs.preview(data.get("id")))
         if path == "/api/export":
-            return self.send(200, app.jobs.export(data.get("id"), data.get("seconds", 0)))
+            app.looks.release(projects.folder(data.get("id")))
+            return self.send(200, app.jobs.export(data.get("id")))
+        if path == "/api/proxy":  # the light copy of the project's video, if it is not there yet
+            job = app.jobs.project_proxy(data.get("id"))
+            return self.send(200, {"job": job and job["id"]})
+        if path == "/api/fxclip":  # the preview clip of a built-in effect, made if needed
+            project = projects.load(data.get("id"))
+            layer = next((lay for lay in project["layers"] if lay["id"] == data.get("layer")), None)
+            if layer is None or layer["kind"] == "file":
+                raise projects.UserError("Không tìm thấy clip.")
+            name = engine.fx_clip_name(project, layer)
+            if os.path.exists(os.path.join(projects.folder(project["id"]), "clips", name)):
+                return self.send(200, {"name": name, "ready": True})
+            job = app.jobs.fx_clip(project["id"], layer["id"], name)
+            return self.send(200, {"name": name, "ready": False, "job": job["id"]})
+        if path == "/api/copymask":  # a clip cut in two: the second half gets the first one's area
+            project = projects.copy_mask(projects.load(data.get("id")), data.get("src"), data.get("dst"))
+            return self.send(200, {"rev": project["rev"], "masks": self.project_view(project)["masks"]})
+        if path == "/api/library/delete":
+            iid = data.get("id")
+            library.folder(iid)
+            users = projects.using_library(iid)
+            if not users:
+                app.looks.release_all()
+            library.delete(iid, users)
+            return self.send(200, {"ok": True})
+        if path == "/api/library/rename":
+            item = library.rename(data.get("id"), str(data.get("name") or ""))
+            return self.send(200, library.public(item))
+        if path == "/api/library/proxy":
+            job = app.jobs.library_proxy(data.get("id"))
+            return self.send(200, {"job": job and job["id"]})
         if path == "/api/cancel":
             return self.send(200, {"ok": app.jobs.cancel(str(data.get("job")))})
         if path == "/api/delete":
             pid = data.get("id")
-            if any(j["project"] == pid and j["state"] in ("queued", "running") for j in app.jobs.public()):
-                raise projects.UserError("Dự án đang được làm video. Chờ xong hoặc huỷ trước khi xoá.")
+            mine = [j for j in app.jobs.public() if j["project"] == pid and j["state"] in ("queued", "running")]
+            if any(j["kind"] == "export" for j in mine):
+                raise projects.UserError("Dự án đang được xuất video. Chờ xong hoặc huỷ trước khi xoá.")
+            for j in mine:  # preparing its live preview: no longer needed
+                app.jobs.cancel(j["id"])
             app.looks.forget(projects.folder(pid))
             projects.delete(pid)
             return self.send(200, {"ok": True})
