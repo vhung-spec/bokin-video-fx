@@ -75,15 +75,20 @@ def png_bytes(draw, size, mode="L"):
 
 
 def periodic_checks():
-    for kind in ("snow", "leaves", "rain", "glow"):
+    yy, xx = np.mgrid[0:360, 0:640]
+    scene = np.dstack([0.2 + 0.5 * (((xx // 16) + (yy // 16)) % 2), 0.3 + 0.4 * xx / 640, 0.25 + 0.5 * yy / 360])
+    for kind in effects.KINDS:
         for extra in ({}, {"wind": -80, "speed": 100}, {"style": "dust"} if kind == "glow" else {"wind": 60}):
             fx = effects.make(kind, extra, 5, P, FPS, 640, 360)
             canvas = effects.Canvas(640, 360)
             frames = []
             for t in (0, P):
-                pic = np.full((360, 640, 3), 0.3, np.float32)
-                fx.draw(t, canvas, None)
-                canvas.flush(pic, fx.blend)
+                pic = scene.astype(np.float32)  # (a lens effect changes the picture under it: something to see)
+                if fx.lens:
+                    fx.apply(t, pic, None, 1.0)
+                else:
+                    fx.draw(t, canvas, None)
+                    canvas.flush(pic, fx.blend)
                 frames.append(pic)
             diff = float(np.abs(frames[0] - frames[1]).max())
             if not check(f"{kind} {extra or ''} returns to frame 0 after one loop", diff < 1 / 512, f"max diff {diff:.6f}"):
