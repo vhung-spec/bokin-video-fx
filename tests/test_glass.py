@@ -28,6 +28,7 @@ def over(fx, t, mask=None):
 
 class Loops(unittest.TestCase):
     CASES = [{}, MAX, MIN, {"refog": 20, "speed": 0, "drops": 100}, {"refog": 1, "speed": 100, "hits": 100},
+             {"refog": 20, "speed": 100, "drops": 100},  # (trails of many earlier cycles still fogging over)
              {"size": 100, "bead_size": 100, "wiggle": 100, "refraction": 100}] + [
         glass.SCHEMA["params"][0]["presets"][k] for k in glass.LOOKS]
 
@@ -53,6 +54,80 @@ class Loops(unittest.TestCase):
         self.assertTrue(np.array_equal(first, lens(fx, 50)))
         fresh = effects.make("glass", {"drops": 100, "hits": 100}, 3, 144, 24, W, H)
         self.assertTrue(np.array_equal(first, lens(fresh, 50)))
+
+
+class Release(unittest.TestCase):
+    """What is as big as the frame is freed while a clip is not showing (the renderer calls release()) and made
+    again for the next frame drawn: a clip duplicated or cut many times holds about one clip's worth at a time."""
+
+    def test_frames_are_the_same_after_release(self):
+        mask = np.zeros((H, W), np.float32)
+        mask[30:160, 40:150] = 1
+        mask[30:160, 170:290] = 0.7
+        for params in ({}, {"look": "storm", "refog": 20}, MAX):
+            for m in (None, mask):
+                kept = effects.make("glass", params, 3, 720, 24, W, H)
+                freed = effects.make("glass", params, 3, 720, 24, W, H)
+                for k, t in enumerate((5, 6, 300, 301, 302, 719, 0)):  # (it goes off and on again between frames)
+                    if k % 2 == 0:
+                        freed.release()
+                        for name in ("bbox", "buf", "flat", "dirty", "beads_all", "b_idx", "b_id", "b_f", "fog",
+                                     "mottle"):
+                            self.assertIsNone(getattr(freed, name), name)
+                        freed.release()  # (again: nothing to do)
+                    self.assertTrue(np.array_equal(lens(kept, t, m, 0.9), lens(freed, t, m, 0.9)), (params, t))
+                    if k % 3 == 0:
+                        freed.release()
+                    a, b = effects.Canvas(W, H), effects.Canvas(W, H)
+                    kept.draw(t, a, m)
+                    freed.draw(t, b, m)
+                    self.assertTrue(np.array_equal(a.rgb, b.rgb) and np.array_equal(a.a, b.a), ("draw", params, t))
+
+    def test_nothing_that_grows_with_the_frame_is_kept(self):
+        """Made, and released after a frame: no array left of even a quarter of a frame plane (what the layout
+        needs is made small), even with the most and biggest beads."""
+        w, h = 1280, 720
+        for params in ({}, {"beads": 100, "bead_size": 100}):
+            fx = effects.make("glass", params, 3, 720, 24, w, h)
+
+            def biggest():
+                sizes = [0]
+                for v in vars(fx).values():
+                    for a in (v.values() if isinstance(v, dict) else v if isinstance(v, (tuple, list)) else [v]):
+                        if isinstance(a, np.ndarray):
+                            sizes.append(a.size)
+                return max(sizes)
+
+            self.assertLess(biggest(), w * h // 4)  # (nothing that big made before a frame is drawn)
+            fx.apply(3, np.full((h, w, 3), 0.5, np.float32), None, 1.0)
+            self.assertGreaterEqual(biggest(), 8 * w * h)  # the drop buffer
+            fx.release()
+            self.assertLess(biggest(), w * h // 4)
+
+    def test_duplicated_clips_hold_one_clips_worth(self):
+        """Six copies of a clip one after the other, one frame drawn in each, the others released: the memory used
+        at most is about that of one copy drawing a frame, not six times as much."""
+        import tracemalloc
+        w, h = 640, 360
+        scene = np.full((h, w, 3), 0.5, np.float32)
+        clips = [effects.make("glass", {}, 3, 720, 24, w, h) for _ in range(6)]
+        tracemalloc.start()
+        try:
+            base = tracemalloc.get_traced_memory()[0]
+            clips[0].apply(60, scene.copy(), None, 1.0)
+            one = tracemalloc.get_traced_memory()[1] - base
+            clips[0].release()
+            tracemalloc.reset_peak()
+            for k, fx in enumerate(clips):
+                for other in clips:
+                    if other is not fx:
+                        other.release()
+                fx.apply(120 * k + 60, scene.copy(), None, 1.0)
+            six = tracemalloc.get_traced_memory()[1] - base
+        finally:
+            tracemalloc.stop()
+        self.assertGreater(one, 8 * w * h * 4)  # (the drop buffer alone)
+        self.assertLess(six, 1.25 * one)
 
 
 class Area(unittest.TestCase):
@@ -183,6 +258,56 @@ class Look(unittest.TestCase):
                     before, after = fx._running(tau - 1e-7), fx._running(tau + 1e-7)
                     for k in range(4):
                         self.assertAlmostEqual(before[k][i], after[k][i], delta=0.05, msg=(params, i, v, k))
+
+    def test_slow_refog_keeps_the_running_drops(self):
+        """How slowly trails fog over does not change the running drops: as many runs, the same paths and times
+        (it used to make each slot go round less often: 20 s cut the runs per 30 s to a third)."""
+        ref = effects.make("glass", {"refog": 1}, 3, 900, 30, W, H)
+        self.assertGreater(float(ref.r_c.sum()), 2 * ref.r_n)
+        for refog in (6, 15, 20):
+            fx = effects.make("glass", {"refog": refog}, 3, 900, 30, W, H)
+            self.assertEqual(fx.r_n, ref.r_n)
+            for name in ("r_c", "r_T", "r_phi", "r_y0", "r_L", "r_R", "r_sr", "r_se", "r_xk", "r_yk"):
+                self.assertTrue(np.array_equal(getattr(fx, name), getattr(ref, name)), (refog, name))
+            for t in (0, 111, 450, 899):
+                a, b = fx._running(fx.tau(t)), ref._running(ref.tau(t))
+                for k in range(6):  # (all but how open the top is: its trail fogs over more slowly)
+                    self.assertTrue(np.array_equal(a[k], b[k]), (refog, t, k))
+
+    def test_trails_last_refog_seconds_through_later_cycles(self):
+        """With trails slow to fog over, a slot's drop runs again (twice, and more) while the trail it left earlier
+        is still clear (fogged over long before with the default 6 s)."""
+        w, h, fps, frames = 640, 360, 30, 1800
+        params = {"refog": 20, "speed": 100, "drops": 100, "beads": 0, "hits": 0}
+        fx = effects.make("glass", params, 3, frames, fps, w, h)
+        quick = effects.make("glass", {**params, "refog": 6}, 3, frames, fps, w, h)
+        self.assertGreater(int(fx.r_back.max()), 2)
+        slow, fast = [], []
+        for i in np.argsort(fx.r_T):
+            T, c = fx.r_T[i], int(fx.r_c[i])
+            if T > 4.75:  # (two cycles and a bit is under half of 20 s)
+                break
+            for v in range(0, c, 3):
+                y = fx.r_y0[i, v] + 0.5 * fx.r_L[i, v]
+                if fx.r_L[i, v] < 6 * fx.r_R[i, v] or not 0.2 * h < y < 0.8 * h:
+                    continue
+                x = fx._x(np.array([i]), np.array([v]), np.array([y]))[0]
+                if not 0.05 * w < x < 0.95 * w:
+                    continue
+                passed = (v + fx._phase_at(i, v, np.array([y]))[0] - fx.r_phi[i]) / c  # loop phase
+                rows, cols = slice(int(y) - 1, int(y) + 2), slice(int(x) - 1, int(x) + 2)
+                t = (passed + (2 * T + 0.5) / fx.loop_s) % 1.0 * frames
+                for e, out in ((fx, slow), (quick, fast)):
+                    e._fields(t)
+                    out.append(float(e.buf[glass.CLR][rows, cols].mean()))
+        self.assertGreater(len(slow), 10)
+        self.assertGreater(min(slow), 0.2)  # two cycles and a bit later, still clear
+        # (with 6 s, fogged over: unless another drop or trail is there now)
+        self.assertGreater(np.mean(np.array(fast) < np.array(slow) - 0.2), 0.9)
+        # on the whole, more of the glass is kept clear by trails
+        share = [np.mean([(e._fields(t) or (e.buf[glass.CLR] > 0.5).mean()) for t in range(0, frames, 150)])
+                 for e in (quick, fx)]
+        self.assertGreater(share[1], 1.5 * share[0])
 
     def test_rain_hits_stay_then_dry_up_slowly(self):
         fx = effects.make("glass", {"hits": 60}, 3, 720, 24, W, H)
