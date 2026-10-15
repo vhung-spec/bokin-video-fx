@@ -85,6 +85,8 @@ def clean_params(kind, raw):
                 v = int(v)
         elif p["type"] == "choice":
             v = v if v in {o["value"] for o in p["options"]} else p["value"]
+        elif p["type"] == "toggle":
+            v = v is True or v in (1, "1", "true", "on")
         else:
             v = v.lower() if isinstance(v, str) and len(v) == 7 and v[0] == "#" and all(
                 c in "0123456789abcdefABCDEF" for c in v[1:]) else p["value"]

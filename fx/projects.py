@@ -505,10 +505,10 @@ def save_mask(project, name, data):
 
 
 def _retime(project, at, old_total, new_total, most, fps):
-    """The clips' times in frames of a new video (`at`: an old frame to a new one): the same in seconds. Clips that
-    ran to the end still do. Clips past the end of the longest video the new one can make slide back, keeping
-    their length, without running into the clip before them on their track; one with no room left is turned off.
-    Returns (clips moved, clips turned off)."""
+    """The clips' times in frames of a new video (`at`: an old frame to a new one): the same in seconds. A clip
+    over the whole video still covers it; the others are not stretched (the user joins clips). Clips past the end
+    of the longest video the new one can make slide back, keeping their length, without running into the clip
+    before them on their track; one with no room left is turned off. Returns (clips moved, clips turned off)."""
     moved = off = 0
     room = max(1, int(round(2 * timeline.MIN_EDGE_FADE * fps)))  # the least a clip can be: its two fades
     for track in {c["track"] for c in project["layers"]}:
@@ -517,8 +517,9 @@ def _retime(project, at, old_total, new_total, most, fps):
         for c in clips:
             s0, e0 = at(c["start"]), at(c["end"])
             length = max(1, e0 - s0)
-            if c["end"] == old_total:  # to the end
-                s, e = min(s0, max(0, new_total - length)), new_total
+            whole = c["start"] == 0 and c["end"] == old_total
+            if whole:  # over the whole video
+                s, e = 0, new_total
             else:
                 s, e = s0, min(e0, most)
                 if e0 > most:
@@ -529,7 +530,7 @@ def _retime(project, at, old_total, new_total, most, fps):
                 c["on"] = False
                 off += 1
                 s, e = min(s0, most - 1), min(max(s0 + 1, e0), most)  # left where it was, turned off
-            elif (s, e) != (s0, e0) and c["end"] != old_total:
+            elif (s, e) != (s0, e0) and not whole:
                 moved += 1
             c["start"], c["end"] = s, max(e, s + 1)
             before = max(before, c["end"]) if c.get("on", True) else before

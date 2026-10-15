@@ -40,8 +40,11 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 1. **Mở video**: bấm **+ Video mới…** hoặc kéo file video vào màn hình. Thường là video loop 6 giây (1920×1080).
 2. **Chọn độ dài**: trên thanh Timeline, bấm **30 giây** hoặc **1 phút**.
 3. **Nhập hiệu ứng**: ở thẻ **Thư viện**, bấm **+ Nhập file…** (hoặc kéo file vào). Chọn video hiệu ứng hoặc ảnh PNG.
-4. **Thêm vào video**: kéo hiệu ứng từ Thư viện xuống một track trên timeline. Clip chạy từ chỗ thả đến hết video.
-   Bấm đúp vào hiệu ứng để thêm suốt video.
+4. **Thêm vào video**: kéo hiệu ứng từ Thư viện xuống một track trên timeline, hoặc bấm đúp vào hiệu ứng để thêm tại
+   đầu phát. Clip dài đúng bằng file (ảnh và hiệu ứng tạo sẵn: 5 giây), không tự kéo dài đến cuối video.
+   - Muốn dài hơn: kéo mép phải của clip, hoặc bấm **Nhân đôi** để nối thêm một bản ngay sau. Hai clip cùng hiệu ứng
+     nối liền nhau thì chỗ nối không mờ dần, nên file loop nối vào nhau liền mạch.
+   - Muốn hiệu ứng chạy suốt video và tự lặp liền mạch: bấm **Suốt video** trong Bảng chỉnh hiệu ứng.
 5. **Chỉnh clip**: bấm vào clip trên timeline, rồi chỉnh ở **Bảng chỉnh hiệu ứng**:
    - **Thời gian**: bắt đầu, kết thúc, mờ dần vào/ra. Gõ số giây (`2.5` hay `2,5` đều được), rồi bấm Enter.
    - **Hoà trộn**: video hiệu ứng trên nền đen dùng **Screen**. File nền trong suốt dùng **Bình thường**. App tự chọn
@@ -50,7 +53,8 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
      PNG. MOV **HEVC** có nền trong suốt thì app chưa đọc được phần trong suốt (coi là nền đen): hãy xuất lại thành
      ProRes 4444 có kênh alpha.
    - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài, chọn clip là trên màn hình hiện một khung trắng: kéo bên trong
-     khung để di chuyển, kéo một góc để phóng to/thu nhỏ, bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. Bấm vào
+     khung để di chuyển, kéo một góc để phóng to/thu nhỏ (góc đối diện đứng yên, như Premiere; giữ `Alt` để đổi cỡ
+     quanh tâm), bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. **Lật ngang**, **Lật dọc**: ô đánh dấu bên dưới. Bấm vào
      hình của một clip trên màn hình để chọn clip đó; bấm rồi kéo luôn để di chuyển nó. Phóng to màn hình để đặt
      clip thật chính xác (mỗi bước nhích khoảng một điểm ảnh).
    - **Vùng**: bấm **✎ Vẽ vùng** để tô chỗ hiệu ứng được hiện.
@@ -70,7 +74,7 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 | Di chuyển clip | Kéo clip. Kéo lên hàng **+ track mới** để tạo track mới |
 | Cắt bớt đầu / cuối | Kéo mép trái / phải của clip |
 | Cắt đôi | Chọn dao cắt ✂ (phím `C`) rồi bấm vào clip. Hoặc `Ctrl+K`: cắt clip đang chọn tại đầu phát (không chọn clip nào thì cắt mọi clip ở đầu phát). Không cắt ở chỗ clip đang mờ dần |
-| Nhân đôi | Giữ `Alt` rồi kéo clip, hoặc bấm chuột phải vào clip |
+| Nhân đôi (nhân bản) | Nút **Nhân đôi** trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip: bản sao nối ngay sau. Giữ `Alt` rồi kéo clip: bản sao đặt ở chỗ thả |
 | Xoá clip | Chọn clip rồi bấm `Delete` |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Shift+Z` |
 | Ẩn một track | Bấm 👁 ở đầu track |

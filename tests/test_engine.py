@@ -351,7 +351,8 @@ class Replace(unittest.TestCase):
 
     def test_clips_past_the_new_end_keep_their_length(self):
         """A shorter longest video: a clip beyond its end slides back whole (never a one-frame flash), up to the
-        clip before it on its track; one with no room left is turned off. Clips to the end still run to it."""
+        clip before it on its track; one with no room left is turned off. Clips are never stretched (the user
+        joins clips); a clip over the whole video still covers it."""
         src = helpers.make_loop(os.path.join(helpers.ROOT, "two24.mp4"), 160, 90, 48, "24")  # 2 s: 1 min = 1440
         project = projects.create(src, "two24.mp4")
         t0, t1 = project["tracks"][0]["id"], project["tracks"][1]["id"]

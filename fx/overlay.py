@@ -30,6 +30,8 @@ SCHEMA = {"label": "Video / ảnh ngoài", "params": [
     {"key": "scale", "label": "Cỡ (%)", "type": "range", "min": 10, "max": 300, "step": 0.1, "value": 100},
     {"key": "x", "label": "Dịch ngang (%)", "type": "range", "min": -100, "max": 100, "step": 0.05, "value": 0},
     {"key": "y", "label": "Dịch dọc (%)", "type": "range", "min": -100, "max": 100, "step": 0.05, "value": 0},
+    {"key": "flip_h", "label": "Lật ngang", "type": "toggle", "value": False},
+    {"key": "flip_v", "label": "Lật dọc", "type": "toggle", "value": False},
     {"key": "start", "label": "Bắt đầu từ giây thứ (của file)", "type": "range", "min": 0, "max": 600, "step": 0.1,
      "value": 0},
     {"key": "fade", "label": "Hoà mượt khi file lặp lại (giây)", "type": "range", "min": 0, "max": 3, "step": 0.1,
@@ -196,12 +198,19 @@ class Overlay:
         if self.empty:
             return
         kx, ky = sw / info["w"], sh / info["h"]
+        self.flips = [m for m, on in ((Image.Transpose.FLIP_LEFT_RIGHT, params.get("flip_h")),
+                                      (Image.Transpose.FLIP_TOP_BOTTOM, params.get("flip_v"))) if on]
         cx0, cy0, cx1, cy1 = self.crop
+        if params.get("flip_h"):  # turned over, the part inside the frame comes from the other side of the file
+            cx0, cx1 = sw - cx1, sw - cx0
+        if params.get("flip_v"):
+            cy0, cy1 = sh - cy1, sh - cy0
+        self.crop = (cx0, cy0, cx1, cy1)
         if info.get("image"):  # only the part inside the frame is made (a thin strip at "cover" is huge whole)
             with open_picture(path) as im:
                 im = ImageOps.exif_transpose(im).convert("RGBA")
-                self.still = im.resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS,
-                                       box=(cx0 / kx, cy0 / ky, min(cx1 / kx, im.width), min(cy1 / ky, im.height)))
+                self.still = self._turned(im.resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS, box=(
+                    cx0 / kx, cy0 / ky, min(cx1 / kx, im.width), min(cy1 / ky, im.height))))
         else:  # ffmpeg cuts the source pixels under that part first, then scales only them
             # on even pixels: 4:2:0 colour (half size) stays in line with the picture
             sx0, sy0 = math.floor(cx0 / kx) // 2 * 2, math.floor(cy0 / ky) // 2 * 2
@@ -229,7 +238,12 @@ class Overlay:
             frame = Image.fromarray(self.cursors.get(int(when * fps_in + 1e-6)))
             total += weight
             out = frame if out is None else Image.blend(out, frame, weight / total)
-        return out if self.whole else out.crop(self.crop)
+        return self._turned(out if self.whole else out.crop(self.crop))
+
+    def _turned(self, im):
+        for how in self.flips:
+            im = im.transpose(how)
+        return im
 
     def draw(self, t, img, gain=1.0):
         """Lay frame t of the file over `img` (an RGB image of the whole frame, changed in place), `gain` (0..1,

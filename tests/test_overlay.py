@@ -131,3 +131,33 @@ class SeeThroughMov(unittest.TestCase):
         self.assertEqual(pic.shape[2], 4)
         self.assertEqual(pic[5, 5, 3], 0)  # see-through around the shape
         self.assertEqual(pic[40, 80, 3], 255)  # the shape itself
+
+
+class Flips(unittest.TestCase):
+    P = {"fit": "contain", "scale": 100, "x": 0, "y": 0, "blend": "normal", "opacity": 100, "start": 0, "fade": 0,
+         "flip_h": False, "flip_v": False}
+
+    def test_a_picture_turned_over_and_partly_outside(self):
+        """Made bigger, moved and turned over: the part in the frame is that part of the turned-over picture."""
+        from PIL import Image
+        path = os.path.join(helpers.ROOT, "quarters.png")
+        im = Image.new("RGBA", (200, 100), (0, 0, 0, 0))
+        for i, colour in enumerate([(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 0, 255)]):
+            im.paste(colour, ((i % 2) * 100, (i // 2) * 50, (i % 2) * 100 + 100, (i // 2) * 50 + 50))
+        im.save(path)
+        info = overlay.probe_file(path)
+        p = dict(self.P, scale=150, x=20, flip_h=True, flip_v=True)
+        got = np.asarray(overlay.Overlay(path, info, p, 1, 25, 200, 100).picture(0), np.float32)
+        whole = im.resize((300, 150), Image.Resampling.LANCZOS).transpose(Image.Transpose.ROTATE_180)
+        want = np.asarray(whole.crop((10, 25, 210, 125)), np.float32)  # placed at (-10, -25)
+        self.assertLess(float(np.abs(got - want)[3:-3, 3:-3].mean()), 2.0)
+
+    def test_a_video_turned_over(self):
+        clip = helpers.make_loop(os.path.join(helpers.ROOT, "flip.mp4"), 160, 90, 4)
+        info = overlay.probe_file(clip)
+        p = dict(self.P, scale=50)  # inside the frame
+        plain = np.asarray(overlay.Overlay(clip, info, p, 4, 24, 320, 180).picture(1))
+        turned = np.asarray(overlay.Overlay(clip, info, dict(p, flip_h=True), 4, 24, 320, 180).picture(1))
+        self.assertTrue((turned == plain[:, ::-1]).all())
+        upside = np.asarray(overlay.Overlay(clip, info, dict(p, flip_v=True), 4, 24, 320, 180).picture(1))
+        self.assertTrue((upside == plain[::-1]).all())

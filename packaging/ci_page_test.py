@@ -147,15 +147,16 @@ def run(page, folder, edge):
     page.wait_for_function("S.project.proxy && S.lib.every(i => i.proxy)", timeout=120000)
     check("library: both files, with light copies", True)
 
-    # the effect video dropped on V2 at 6 s: it runs to the end of the video
+    # the effect video (3 s) dropped on V2 at 6 s: as long as the file, not stretched to the end
     scroll = page.locator("#tlScroll").bounding_box()
     v2 = lane_y(3)
     page.locator(".tile[data-lib]").last.drag_to(page.locator("#tlScroll"), target_position={
         "x": x_of(6) - scroll["x"], "y": v2 - scroll["y"]})
     page.wait_for_timeout(400)
     c = clips()
-    check("drop on the timeline", len(c) == 1 and abs(c[0]["start"] - 144) <= 2 and c[0]["end"] == 720, str(c))
-    drag(x_of(c[0]["end"] / 24) - 2, v2, x_of(20), v2)  # trim its end to 20 s
+    check("drop on the timeline", len(c) == 1 and abs(c[0]["start"] - 144) <= 2 and
+          c[0]["end"] - c[0]["start"] == 72, str(c))
+    drag(x_of(c[0]["end"] / 24) - 2, v2, x_of(20), v2)  # pull its end out to 20 s
     c = clips()
     check("trim the end", abs(c[0]["end"] - 480) <= 3, str(c[0]))
     drag(x_of(c[0]["start"] / 24 + 2), v2, x_of(c[0]["start"] / 24 + 6), v2)  # move it 4 s later
@@ -168,7 +169,11 @@ def run(page, folder, edge):
           abs(c[0]["skip"] - (c[0]["start"] - start) / 24) < 1e-6, str(c[0]))
 
     page.click('.tab[data-bin="fx"]')
+    page.evaluate("seek(10)")
     page.dblclick('.tile[data-kind="snow"]')
+    snow = page.evaluate("S.project.layers.find(l => l.kind === 'snow')")
+    check("a double-click adds 5 s at the playhead", snow["start"] == 240 and snow["end"] == 360, str(snow))
+    page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
     check("snow over the whole video, with its preview clip", True)
@@ -253,6 +258,25 @@ def run(page, folder, edge):
     page.keyboard.press("Control+z")
     page.wait_for_timeout(200)
     check("undo the move", page.evaluate(params)["x"] == before["x"])
+
+    # a corner pulled out: the opposite corner stays where it was (as in Premiere)
+    page.evaluate(f"(() => {{ const c = clipById('{fid}'); c.params.scale = 40; select(c.id); edited(); }})()")
+    page.wait_for_timeout(300)
+    xb = page.locator("#xform").bounding_box()
+    page.mouse.move(xb["x"] + xb["width"] - 1, xb["y"] + xb["height"] - 1)  # the bottom-right corner
+    page.mouse.down()
+    page.mouse.move(xb["x"] + xb["width"] * 1.5, xb["y"] + xb["height"] * 1.5, steps=6)
+    page.mouse.up()
+    xb2 = page.locator("#xform").bounding_box()
+    check("a corner sizes the clip, the opposite corner stays", abs(xb2["x"] - xb["x"]) < 2 and abs(xb2["y"] - xb["y"]) < 2
+          and xb2["width"] > xb["width"] * 1.3, f"{xb} -> {xb2}")
+    page.click('#ec input[data-param="flip_h"]')
+    page.wait_for_timeout(200)
+    check("turn it over", page.evaluate(f"clipById('{fid}').params.flip_h") is True and
+          "scale(-1" in page.evaluate(f"S.els['{fid}'].media.style.transform"))
+    page.keyboard.press("Control+z")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"
