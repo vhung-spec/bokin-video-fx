@@ -26,7 +26,8 @@ def everything(**extra):
 class Loops(unittest.TestCase):
     CASES = [{}, everything(), everything(wind=-100, speed=100, amount=100, length=100),
              everything(wind=100, speed=0, size=100, depth=100), everything(depth=0, variety=100, ground=10),
-             {"amount": 3, "gust": 100, "waves": 100}] + [dict(v, look=k) for k, v in LOOKS.items()]
+             {"amount": 3, "gust": 100, "waves": 100}, everything(size=0, speed=0, length=0, ground=40)] + [
+        dict(v, look=k) for k, v in LOOKS.items()]
 
     def test_frame_p_is_frame_0(self):
         """Every part (drops, gusts, waves, sheets, splashes, lightning) returns to frame 0 after one loop."""
@@ -107,7 +108,11 @@ class Look(unittest.TestCase):
             strikes = int(np.sum((levels[1:] > 0.5) & (levels[:-1] < 0.05)))
             self.assertEqual(strikes, max(1, round(flashes * seconds / 30)), (flashes, seconds))
             t = int(np.argmax(levels))
-            self.assertGreater(frame(fx, t)[:H // 3].mean(), frame(fx, (t + frames // 2) % frames)[:H // 3].mean())
+            lit, dark = frame(fx, t), frame(fx, (t + frames // 2) % frames)
+            self.assertGreater(lit[:H // 3].mean(), dark[:H // 3].mean())
+            # light from the sky: far more at the top than near the ground
+            gain = (lit - dark).mean(axis=(1, 2))
+            self.assertGreater(gain[:H // 6].mean(), 4 * gain[-H // 6:].mean())
 
     def test_gusts_lean_the_rain(self):
         """Gusts add to the wind's slant now and then, smoothly, the same way as the wind."""
@@ -148,6 +153,67 @@ class Look(unittest.TestCase):
         rows = cover[2].sum(axis=1)
         self.assertGreater(rows[95], 2 * rows[25])  # head (row 110) brighter than the tail (row 10)
         self.assertLessEqual(float(cover[2].max()), 1.0 + 1e-6)
+
+    def test_streaks_do_not_pop_at_the_sides(self):
+        """A drop is dropped only once its whole streak (and its blur) is out of the frame: the frame is the same
+        as one drawn with no drop left out, at 4K and with long, slanted, blurred streaks."""
+        cases = [(3840, 2160, LOOKS["storm"], (100,)),
+                 (1920, 1080, {"wind": -100, "length": 100, "speed": 100, "depth": 100, "gust": 100}, (100, 333)),
+                 (1920, 1080, {"wind": 100, "length": 100, "size": 100, "depth": 100, "blur": 100}, (100, 333))]
+        for w, h, params, times in cases:
+            fx = effects.make("rain", params, 3, 750, 25, w, h)
+            for t in times:
+                culled = frame(fx, t, w=w, h=h)
+                fx.in_view = lambda hx, ux, length, show: np.flatnonzero(show)
+                every = frame(fx, t, w=w, h=h)
+                del fx.in_view
+                self.assertTrue(np.array_equal(culled, every), (w, params, t))
+
+    def test_soft_streaks_have_soft_ends(self):
+        """Out of focus, a streak is blurred along its length as across it: its head fades out past where it is,
+        and it fades into the ground instead of stopping on a line."""
+        one = np.array([1.0])
+        for cut, end in ((999.0, 150), (120.0, 120)):
+            layer = rain.Layer(80, 200)
+            layer.streaks(one * 40, one * 20, one * 40, one * 150, one * 10, one * 1.0, one * cut, soft=True)
+            rows = layer.view().sum(axis=1)
+            self.assertLess(float(np.abs(np.diff(rows)).max()), 0.15 * rows.max(), cut)  # no steps
+            self.assertGreater(rows[end + 3], 0.1 * rows.max(), cut)  # past the end, fading
+            self.assertEqual(float(rows[end + 11:].max()), 0.0, cut)
+
+    def test_rain_comes_in_waves(self):
+        """At 100 the rain is several times as dense at its heaviest as in a lull; at 0 it is steady."""
+        for waves, low, high in ((0, 1.0, 1.05), (100, 3.0, 99)):
+            fx = effects.make("rain", {"waves": waves}, 3, 750, 25, 640, 360)
+            seen = [int(fx.drops(t)[-1].sum()) for t in range(0, 750, 5)]
+            self.assertTrue(low <= max(seen) / min(seen) <= high, (waves, min(seen), max(seen)))
+
+    def test_small_drops_fall_slower_and_wander(self):
+        """Drizzle (small drops) falls slower and drifts a little; the default rain is as it was."""
+        fine = effects.make("rain", {"size": 12}, 3, 750, 25, W, H)
+        mid = effects.make("rain", {}, 3, 750, 25, W, H)
+        big = effects.make("rain", {"size": 100}, 3, 750, 25, W, H)
+        self.assertAlmostEqual(mid.mean_speed, 3.08, places=2)
+        self.assertLess(fine.mean_speed, 0.8 * mid.mean_speed)
+        self.assertGreater(float(fine.wander.max()), 2 * float(mid.wander.max()))
+        self.assertEqual(float(big.wander.max()), 0.0)
+        self.assertTrue(np.all(fine.wm == np.round(fine.wm)) and np.all(fine.wm >= 1))  # whole cycles a loop
+
+    def test_splashes_alike_at_every_size(self):
+        """Splashes and rings on the ground cover about as much of it at 1080p as at 4K."""
+        cover = []
+        for w, h in ((1920, 1080), (3840, 2160)):
+            wet = effects.make("rain", {"ground": 70, "splash": 100, "ripple": 100}, 3, 750, 25, w, h)
+            dry = effects.make("rain", {"ground": 70, "splash": 0, "ripple": 0}, 3, 750, 25, w, h)
+            total = 0.0
+            for t in (40, 300):
+                for fx, sign in ((wet, 1), (dry, -1)):
+                    canvas = effects.Canvas(w, h)
+                    fx.draw(t, canvas, None)
+                    total += sign * float(canvas.a[int(0.7 * h):].mean())
+            cover.append(total)
+        self.assertGreater(min(cover), 0)
+        self.assertLess(max(cover) / min(cover), 1.4, cover)
 
     def test_splashes_only_with_a_ground(self):
         """No ground in view: nothing below where the drops already are; a ground: splashes and rings on it."""
