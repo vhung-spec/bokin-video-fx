@@ -1,3 +1,4 @@
+import math
 import os
 import subprocess
 import unittest
@@ -198,3 +199,260 @@ class Colours(unittest.TestCase):
         self.assertGreater(warm[0], warm[2] + 30)
         white = px(Image.new("RGB", (2, 2), (255, 255, 255)), tint_amt=100, tint="#ff8030")
         self.assertEqual(list(white), [255, 128, 48])
+
+
+def _css_corners(p, rect, w, h):
+    """The corners as the browser lays them, written out point by point from the CSS definitions (checked in
+    Chromium): flips, rotateZ, rotateY, rotateX about the middle, then perspective(d): scaled by d / (d - z)."""
+    x, y, sw, sh = rect
+    a, b, c = (math.radians(p.get(k, 0)) for k in ("rot_x", "rot_y", "rot_z"))
+    d = overlay.homography(p, rect, w, h)[1]
+    out = []
+    for u, v in ((0, 0), (sw, 0), (sw, sh), (0, sh)):
+        px, py, pz = (u - sw / 2) * (-1 if p.get("flip_h") else 1), (v - sh / 2) * (-1 if p.get("flip_v") else 1), 0.0
+        px, py = px * math.cos(c) - py * math.sin(c), px * math.sin(c) + py * math.cos(c)
+        px, pz = px * math.cos(b) + pz * math.sin(b), -px * math.sin(b) + pz * math.cos(b)
+        py, pz = py * math.cos(a) - pz * math.sin(a), py * math.sin(a) + pz * math.cos(a)
+        k = d / (d - pz) if d else 1.0
+        out.append((x + sw / 2 + px * k, y + sh / 2 + py * k))
+    return out
+
+
+class Turned(unittest.TestCase):
+    """A file clip turned in 3D (Xoay 3D): warped onto the quad the page's CSS transform gives."""
+
+    @classmethod
+    def setUpClass(cls):
+        from PIL import Image, ImageDraw
+        rng = np.random.default_rng(5)
+        cls.noise = os.path.join(helpers.ROOT, "turn-noise.png")  # 160 x 120, blocks of 2 x 2 pixels
+        blocks = (rng.random((60, 80, 3)) * 255).astype(np.uint8)
+        Image.fromarray(np.repeat(np.repeat(blocks, 2, 0), 2, 1)).save(cls.noise)
+        cls.dot = os.path.join(helpers.ROOT, "turn-dot.png")  # a red dot on black
+        im = Image.new("RGB", (200, 100), (0, 0, 0))
+        ImageDraw.Draw(im).rectangle([148, 18, 151, 21], fill=(255, 0, 0))
+        im.save(cls.dot)
+        cls.white = os.path.join(helpers.ROOT, "turn-white.png")
+        Image.new("RGB", (120, 80), (255, 255, 255)).save(cls.white)
+        cls.holes = os.path.join(helpers.ROOT, "turn-holes.png")  # see-through but for a square
+        im = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
+        im.paste((0, 255, 0, 255), (30, 30, 70, 70))
+        im.save(cls.holes)
+
+    @staticmethod
+    def params(**p):
+        return effects.clean_params("file", dict({"fit": "contain", "blend": "normal", "fade": 0}, **p))
+
+    @staticmethod
+    def draw(path, p, w=400, h=300, bg=(0, 0, 0)):
+        from PIL import Image
+        o = overlay.Overlay(path, overlay.probe_file(path), p, 1, 24, w, h)
+        try:
+            return o, np.asarray(o.draw(0, Image.new("RGB", (w, h), bg)))
+        finally:
+            o.close()
+
+    def test_no_turn_is_the_plain_way(self):
+        """All three turns 0 (whatever the perspective): the plain way, so old projects render exactly as before."""
+        old = {k: v for k, v in self.params(scale=50, x=7.3, flip_h=True).items()
+               if k not in ("rot_x", "rot_y", "rot_z", "persp")}  # a clip saved before there was any turning
+        a, pa = self.draw(self.noise, old)
+        self.assertIsNone(a.warp)
+        for persp in (0, 50, 100):
+            b, pb = self.draw(self.noise, self.params(scale=50, x=7.3, flip_h=True, persp=persp))
+            self.assertIsNone(b.warp)
+            self.assertEqual(pa.tobytes(), pb.tobytes())
+        self.assertFalse(overlay.rotated(self.params()))
+        self.assertTrue(overlay.rotated(self.params(rot_y=0.1)))
+
+    def test_z_90_is_a_quarter_turn(self):
+        """Turned 90 degrees in the plane, the picture is the upright one turned a quarter clockwise (its middle on a
+        pixel corner, at the file's own size: every pixel lands on a pixel)."""
+        info = overlay.probe_file(self.noise)
+        p = self.params(scale=40)  # 160 x 120 in 400 x 300: pixel for pixel
+        plain = np.asarray(overlay.Overlay(self.noise, info, p, 1, 24, 400, 300).picture(0))
+        o = overlay.Overlay(self.noise, info, dict(p, rot_z=90), 1, 24, 400, 300)
+        got = np.asarray(o.picture(0))
+        self.assertEqual(o.box, (140, 70, 260, 230))
+        want = np.rot90(plain, k=-1)
+        self.assertEqual(got.shape[:2], want.shape[:2])
+        self.assertLessEqual(int(np.abs(got[..., :3].astype(int) - want[..., :3]).max()), 1)
+        self.assertEqual(int(got[..., 3].min()), 255)  # the outline on pixel edges: nothing half covered
+        o = overlay.Overlay(self.noise, info, dict(p, rot_z=-90), 1, 24, 400, 300)
+        self.assertEqual(o.box, (140, 70, 260, 230))
+        self.assertLessEqual(int(np.abs(np.asarray(o.picture(0))[..., :3].astype(int) -
+                                        np.rot90(plain, k=1)[..., :3]).max()), 1)
+
+    def test_corners_are_the_css_transform(self):
+        info = overlay.probe_file(self.noise)
+        rng = np.random.default_rng(9)
+        for _ in range(40):
+            p = self.params(rot_x=float(rng.uniform(-80, 80)), rot_y=float(rng.uniform(-80, 80)),
+                            rot_z=float(rng.uniform(-180, 180)), persp=int(rng.integers(0, 101)),
+                            scale=float(rng.uniform(10, 300)), x=float(rng.uniform(-50, 50)),
+                            y=float(rng.uniform(-50, 50)), flip_h=bool(rng.integers(2)), flip_v=bool(rng.integers(2)),
+                            fit=["cover", "contain"][int(rng.integers(2))])
+            got, want = overlay.quad(p, info, 640, 360), _css_corners(p, overlay.placement(p, info, 640, 360), 640, 360)
+            for g, wnt in zip(got, want):
+                self.assertAlmostEqual(g[0], wnt[0], places=6)
+                self.assertAlmostEqual(g[1], wnt[1], places=6)
+        # rotateX(30): the top edge goes away (shorter), the bottom comes nearer (longer); the middle stays
+        q = overlay.quad(self.params(rot_x=30), info, 640, 360)
+        self.assertLess(q[1][0] - q[0][0], q[2][0] - q[3][0])
+        self.assertAlmostEqual((q[0][0] + q[1][0]) / 2, 320, places=6)
+
+    def test_the_picture_follows_the_corners(self):
+        """A dot of the file lands where the homography takes it."""
+        info = overlay.probe_file(self.dot)
+        for p in (self.params(rot_x=25, rot_y=-35, rot_z=20, persp=70), self.params(rot_y=50, persp=100, flip_h=True),
+                  self.params(rot_z=-150, rot_x=-40, persp=0, scale=80, x=10)):
+            _, got = self.draw(self.dot, p)
+            rect = overlay.placement(p, info, 400, 300)
+            hm, _ = overlay.homography(p, rect, 400, 300)
+            k = rect[2] / info["w"]
+            u, v, wt = hm @ np.array([150 * k, 20 * k, 1.0])
+            red = got[..., 0].astype(float) * (got[..., 1] < 80)
+            ys, xs = np.nonzero(red > 60)
+            cx = (xs * red[ys, xs]).sum() / red[ys, xs].sum() + 0.5
+            cy = (ys * red[ys, xs]).sum() / red[ys, xs].sum() + 0.5
+            self.assertLess(math.hypot(cx - u / wt, cy - v / wt), 1.0, (p, (cx, cy), (u / wt, v / wt)))
+
+    def test_soft_outline_without_a_dark_fringe(self):
+        """The outline is soft (partly covered pixels), and a white picture laid on grey never darkens it."""
+        _, got = self.draw(self.white, self.params(rot_z=30, rot_x=20, persp=60), bg=(128, 128, 128))
+        g = got[..., 0].astype(int)
+        self.assertGreaterEqual(int(g.min()), 127)
+        self.assertGreater(int(((g > 135) & (g < 245)).sum()), 100)  # the soft outline
+        self.assertGreater(int((g == 255).sum()), 2000)
+
+    def test_no_dark_line_on_a_steep_far_edge(self):
+        """An opaque video turned steeply: on the far side a frame pixel spans many of the file's, and the soft
+        outline there still never darkens what is under it (the edge is repeated far enough out)."""
+        from PIL import Image
+        clip = os.path.join(helpers.ROOT, "turn-white.mp4")
+        enc = video.Encoder(clip, 320, 180, "24", crf=18, preset="ultrafast")
+        for _ in range(2):
+            enc.write(np.full((180, 320, 3), 255, np.uint8))
+        enc.close()
+        info = overlay.probe_file(clip)
+        for turn in (dict(rot_y=80), dict(rot_x=80, scale=300), dict(rot_y=-80, rot_x=30, scale=200)):
+            for blend in ("normal", "multiply"):
+                p = self.params(fit="cover", persp=100, blend=blend, **turn)
+                o = overlay.Overlay(clip, info, p, 2, 24, 320, 180)
+                try:
+                    got = np.asarray(o.draw(0, Image.new("RGB", (320, 180), (128, 128, 128))))[..., 0]
+                finally:
+                    o.close()
+                self.assertGreaterEqual(int(got.min()), 127, (turn, blend))
+                self.assertGreater(int((got == 255).sum() if blend == "normal" else (got == 128).sum()), 500)
+
+    def test_a_big_steep_clip_reads_no_more_than_its_file(self):
+        """Made three times as big and tilted far back on a 4K frame: the part read is never more pixels than the
+        file has there (not the clip's placed size, many times that), so it stays quick and small."""
+        import time
+        from PIL import Image
+        clip = os.path.join(helpers.ROOT, "turn-tall.mp4")
+        rng = np.random.default_rng(3)
+        enc = video.Encoder(clip, 180, 320, "24", crf=24, preset="ultrafast")
+        for _ in range(3):
+            enc.write((rng.random((320, 180, 3)) * 255).astype(np.uint8))
+        enc.close()
+        pic = os.path.join(helpers.ROOT, "turn-tall.png")
+        Image.fromarray((rng.random((320, 180, 3)) * 255).astype(np.uint8)).save(pic)
+        base = Image.new("RGB", (3840, 2160), (20, 20, 20))
+        for path in (clip, pic):
+            info = overlay.probe_file(path)
+            for p in (self.params(fit="cover", scale=300, rot_x=80, persp=100, blend="screen"),
+                      self.params(fit="cover", scale=200, rot_x=70, rot_y=20, persp=100, blend="screen")):
+                start = time.perf_counter()
+                o = overlay.Overlay(path, info, p, 3, 24, 3840, 2160)
+                try:
+                    self.assertFalse(o.empty)
+                    self.assertLessEqual(o.read[0] * o.read[1], info["w"] * info["h"], (path, p))
+                    if o.cursors:
+                        x0, y0, x1, y1 = o.cursors.src
+                        self.assertLessEqual(o.read[0] * o.read[1], (x1 - x0) * (y1 - y0))
+                    o.draw(1, base.copy())
+                finally:
+                    o.close()
+                self.assertLess(time.perf_counter() - start, 6.0, (path, p))
+
+    def test_see_through_stays_see_through(self):
+        _, got = self.draw(self.holes, self.params(rot_z=45, rot_y=30, persp=50), bg=(10, 20, 30))
+        green = (got[..., 1] > 200) & (got[..., 0] < 40)
+        self.assertGreater(int(green.sum()), 1000)
+        # only the square's own soft edge differs from the background: nothing of its see-through part shows
+        other = ~green & (np.abs(got.astype(int) - (10, 20, 30)).max(axis=2) > 3)
+        self.assertLess(int(other.sum()), 0.25 * int(green.sum()))
+
+    def test_edge_on_and_out_of_sight(self):
+        """Turned (almost) edge-on, very big and turned, or off the frame: no error, no blow-up, nothing or a
+        clean picture. No corner is ever at or behind the eye (NEAR)."""
+        from PIL import Image
+        info = overlay.probe_file(self.noise)
+        for p in (self.params(rot_x=80, rot_y=80, persp=100, scale=300, fit="cover"),
+                  self.params(rot_x=-80, rot_y=80, rot_z=33, persp=100, scale=300),
+                  self.params(rot_y=-80, persp=100, scale=300, x=100), self.params(rot_x=80, rot_y=-80, persp=0)):
+            rect = overlay.placement(p, info, 400, 300)
+            hm, _ = overlay.homography(p, rect, 400, 300)
+            w = hm[2] @ np.array([[0, rect[2], rect[2], 0], [0, 0, rect[3], rect[3]], [1, 1, 1, 1]])
+            self.assertGreater(float(w.min()), 0.19, p)
+            _, got = self.draw(self.noise, p)
+            self.assertEqual(got.shape, (300, 400, 3))
+        tiny = os.path.join(helpers.ROOT, "turn-tiny.png")
+        Image.new("RGB", (400, 200), (255, 255, 255)).save(tiny)
+        o, got = self.draw(tiny, self.params(scale=10, rot_x=80, rot_y=80, persp=100), w=40, h=20)
+        self.assertTrue(o.empty)  # a sliver of less than a pixel: nothing
+        self.assertEqual(int(got.max()), 0)
+        o, got = self.draw(self.noise, self.params(x=100, y=100, rot_z=10))
+        self.assertTrue(o.empty)
+        self.assertEqual(int(got.max()), 0)
+
+    def test_area_and_blends(self):
+        """The clip's area (its weight), Screen, Add and Multiply work turned as they do upright."""
+        from PIL import Image
+        info = overlay.probe_file(self.white)
+        weight = Image.new("L", (400, 300), 0)
+        weight.paste(255, (0, 0, 200, 300))  # its left half only
+        for blend, bg, inside in (("screen", (40, 40, 40), 255), ("multiply", (200, 100, 50), (200, 100, 50)),
+                                  ("add", (40, 40, 40), 255)):
+            o = overlay.Overlay(self.white, info, self.params(rot_z=20, blend=blend, scale=70), 1, 24, 400, 300, weight)
+            got = np.asarray(o.draw(0, Image.new("RGB", (400, 300), bg))).astype(int)
+            self.assertTrue((got[:, 200:] == bg).all(), blend)  # outside its area: untouched
+            self.assertTrue((got[150, 190] == inside).all(), (blend, got[150, 190]))
+
+    def test_only_what_shows_is_read(self):
+        """A video made big and turned: ffmpeg cuts only the source pixels under what shows."""
+        clip = helpers.make_loop(os.path.join(helpers.ROOT, "turn-src.mp4"), 640, 360, 4)
+        info = overlay.probe_file(clip)
+        o = overlay.Overlay(clip, info, self.params(fit="cover", scale=300, rot_z=15, rot_x=10), 4, 24, 320, 180)
+        try:
+            x0, y0, x1, y1 = o.cursors.src
+            self.assertLess((x1 - x0) * (y1 - y0), 0.3 * 640 * 360)
+            pic = o.picture(2)
+            self.assertEqual((pic.size, pic.mode), ((320, 180), "RGBA"))
+        finally:
+            o.close()
+
+    def test_a_1080p_clip_turned_in_time(self):
+        """The speed budget: a 1080p video over the whole frame, turned, costs well under a second a frame."""
+        import time
+        from PIL import Image
+        clip = os.path.join(helpers.ROOT, "turn-1080.mp4")
+        rng = np.random.default_rng(2)
+        enc = video.Encoder(clip, 1920, 1080, "24", crf=24, preset="ultrafast")
+        for _ in range(4):
+            enc.write((rng.random((1080, 1920, 3)) * 255).astype(np.uint8))
+        enc.close()
+        base = Image.fromarray((rng.random((1080, 1920, 3)) * 255).astype(np.uint8))
+        p = self.params(blend="screen", fit="cover", rot_x=12, rot_y=-18, rot_z=6)
+        o = overlay.Overlay(clip, overlay.probe_file(clip), p, 4, 24, 1920, 1080)
+        try:
+            o.draw(0, base.copy())
+            start = time.perf_counter()
+            for t in (1, 2, 3):
+                o.draw(t, base.copy())
+            per = (time.perf_counter() - start) / 3
+        finally:
+            o.close()
+        self.assertLess(per, 1.5, f"{per:.2f} s a frame")

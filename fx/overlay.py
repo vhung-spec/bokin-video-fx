@@ -34,6 +34,16 @@ SCHEMA = {"label": "Video / ảnh ngoài", "params": [
     {"key": "y", "label": "Dịch dọc (%)", "type": "range", "min": -100, "max": 100, "step": 0.05, "value": 0},
     {"key": "flip_h", "label": "Lật ngang", "type": "toggle", "value": False},
     {"key": "flip_v", "label": "Lật dọc", "type": "toggle", "value": False},
+    # turned about its middle in 3D, as a CSS "perspective(d) rotateX rotateY rotateZ" does (homography(); the page
+    # lays its picture with that transform). All three 0: laid exactly as before. X and Y stop short of edge-on.
+    {"key": "rot_x", "label": "Nghiêng trước / sau (°)", "type": "range", "min": -80, "max": 80, "step": 0.1,
+     "value": 0, "group": "Xoay 3D"},
+    {"key": "rot_y", "label": "Xoay trái / phải (°)", "type": "range", "min": -80, "max": 80, "step": 0.1,
+     "value": 0, "group": "Xoay 3D"},
+    {"key": "rot_z", "label": "Xoay phẳng (°)", "type": "range", "min": -180, "max": 180, "step": 0.1, "value": 0,
+     "group": "Xoay 3D"},
+    {"key": "persp", "label": "Độ sâu phối cảnh", "type": "range", "min": 0, "max": 100, "value": 50,
+     "group": "Xoay 3D"},
     {"key": "start", "label": "Bắt đầu từ giây thứ (của file)", "type": "range", "min": 0, "max": 600, "step": 0.1,
      "value": 0},
     {"key": "fade", "label": "Hoà mượt khi file lặp lại (giây)", "type": "range", "min": 0, "max": 3, "step": 0.1,
@@ -51,6 +61,112 @@ SCHEMA = {"label": "Video / ảnh ngoài", "params": [
 
 LUMA = (0.2126, 0.7152, 0.0722)
 TONE_POINTS = 33  # the tone curve's points (an SVG feComponentTransfer table: straight lines between them)
+
+ROTATIONS = ("rot_x", "rot_y", "rot_z")
+PERSPECTIVE = 0.6  # the viewer's distance at "Độ sâu phối cảnh" 100, in frame diagonals (at 50: twice as far)
+NEAR = 1.25  # the viewer stays at least this many times as far as the nearest corner: none at or behind the eye
+PAD = 4  # least pixels of its edge repeated around a turned picture (its soft outline is never darkened)
+PAD_MOST = 160  # (a steep plane's far side needs more: _pad_for; every turn up to 80 degrees needs fewer)
+
+
+def placement(p, info, w, h):
+    """(x, y, sw, sh): where a file clip's picture lies in a w x h frame before it is turned, in pixels (floats,
+    as the page's placed(); the plain way below rounds them)."""
+    k = (max if p["fit"] == "cover" else min)(w / info["w"], h / info["h"]) * p["scale"] / 100
+    sw, sh = info["w"] * k, info["h"] * k
+    return (w - sw) / 2 + p["x"] / 100 * w, (h - sh) / 2 + p["y"] / 100 * h, sw, sh
+
+
+def rotated(p):
+    """Is the clip turned (in the plane or in 3D)?"""
+    return any(p.get(k) for k in ROTATIONS)
+
+
+def homography(p, rect, w, h):
+    """(H, d): H (3x3) takes a point (u, v, 1) of the placed picture (u from its left, 0..sw; v from its top, 0..sh;
+    the file's own picture, before any flip) to the frame, in homogeneous coordinates. Exactly the page's CSS
+    "perspective(d) rotateX(x) rotateY(y) rotateZ(z) scale(flips)" about the picture's middle (y down, z toward the
+    viewer): turned over first, then turned about Z, Y, X, then seen from d pixels away (d None: flat, no
+    perspective). d comes from "persp" and the frame's diagonal, and is moved back when a corner would come
+    too near (NEAR)."""
+    x, y, sw, sh = rect
+    a, b, c = (math.radians(p.get(k, 0)) for k in ROTATIONS)
+    rx = np.array([[1, 0, 0], [0, math.cos(a), -math.sin(a)], [0, math.sin(a), math.cos(a)]])
+    ry = np.array([[math.cos(b), 0, math.sin(b)], [0, 1, 0], [-math.sin(b), 0, math.cos(b)]])
+    rz = np.array([[math.cos(c), -math.sin(c), 0], [math.sin(c), math.cos(c), 0], [0, 0, 1]])
+    r = rx @ ry @ rz
+    fx, fy = (-1.0 if p.get("flip_h") else 1.0), (-1.0 if p.get("flip_v") else 1.0)
+    ex, ey = r[:, 0] * fx, r[:, 1] * fy  # (u, v) -> a point in space, about the middle
+    turn = np.column_stack([ex, ey, -(ex * sw + ey * sh) / 2])
+    d = None
+    if p.get("persp", 0) > 0:
+        near = max(turn[2] @ (u, v, 1.0) for u, v in ((0, 0), (sw, 0), (sw, sh), (0, sh)))
+        d = max(math.hypot(w, h) * PERSPECTIVE * 100 / p["persp"], NEAR * near)
+    q = 1 / d if d else 0.0
+    cx, cy = x + sw / 2, y + sh / 2
+    view = np.array([[1, 0, -cx * q], [0, 1, -cy * q], [0, 0, -q]])  # then (cx, cy, 1) added
+    return view @ turn + np.array([[0, 0, cx], [0, 0, cy], [0, 0, 1.0]]), d
+
+
+def corners(hm, sw, sh):
+    """The picture's corners (top left, top right, bottom right, bottom left) through H, in frame pixels."""
+    pts = hm @ np.array([[0, sw, sw, 0], [0, 0, sh, sh], [1.0, 1, 1, 1]])
+    return [(float(pts[0, i] / pts[2, i]), float(pts[1, i] / pts[2, i])) for i in range(4)]
+
+
+def jacobians(hm, us, vs):
+    """At the points (us, vs) of the placed picture: H's local scale, [[dX/du, dX/dv], [dY/du, dY/dv]] (frame pixels
+    per placed pixel), one 2 x 2 matrix per point."""
+    w = hm[2, 0] * us + hm[2, 1] * vs + hm[2, 2]
+    fx = (hm[0, 0] * us + hm[0, 1] * vs + hm[0, 2]) / w
+    fy = (hm[1, 0] * us + hm[1, 1] * vs + hm[1, 2]) / w
+    return np.stack([np.stack([(hm[0, 0] - hm[2, 0] * fx) / w, (hm[0, 1] - hm[2, 1] * fx) / w], -1),
+                     np.stack([(hm[1, 0] - hm[2, 0] * fy) / w, (hm[1, 1] - hm[2, 1] * fy) / w], -1)], -2)
+
+
+def quad(p, info, w, h):
+    """Where the corners of a file clip's picture are in a w x h frame (the page's quad(): the same numbers)."""
+    rect = placement(p, info, w, h)
+    return corners(homography(p, rect, w, h)[0], rect[2], rect[3])
+
+
+def _clip_polygon(pts, w, h):
+    """The part of a convex polygon inside the frame [0, w] x [0, h] (Sutherland-Hodgman)."""
+    for axis, lim, keep in ((0, 0, 1), (0, w, -1), (1, 0, 1), (1, h, -1)):
+        out = []
+        for i, a in enumerate(pts):
+            b = pts[(i + 1) % len(pts)]
+            ina, inb = (a[axis] - lim) * keep >= 0, (b[axis] - lim) * keep >= 0
+            if ina:
+                out.append(a)
+            if ina != inb:
+                f = (lim - a[axis]) / (b[axis] - a[axis])
+                out.append((a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])))
+        pts = out
+        if not pts:
+            break
+    return pts
+
+
+def _area(pts):
+    return 0.5 * sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1]))
+
+
+def coverage(quad_pts, box):
+    """How much of each pixel of `box` (x0, y0, x1, y1) the convex quad covers, as an "L" image: 0.5 plus the
+    signed distance of the pixel's middle to the nearest edge (a soft, even outline about a pixel wide)."""
+    x0, y0, x1, y1 = box
+    xs = np.arange(x0, x1, dtype=np.float64) + 0.5
+    ys = (np.arange(y0, y1, dtype=np.float64) + 0.5)[:, None]
+    sign = 1.0 if _area(quad_pts) > 0 else -1.0
+    inside = np.full((y1 - y0, x1 - x0), np.inf, np.float64)
+    for (ax, ay), (bx, by) in zip(quad_pts, quad_pts[1:] + quad_pts[:1]):
+        ex, ey = bx - ax, by - ay
+        n = math.hypot(ex, ey)
+        if n < 1e-9:
+            continue
+        np.minimum(inside, sign * (ex * (ys - ay) - ey * (xs - ax)) / n, out=inside)
+    return Image.fromarray((np.clip(inside + 0.5, 0.0, 1.0) * 255 + 0.5).astype(np.uint8), "L")
 
 
 def colour_ops(p):
@@ -240,6 +356,10 @@ class Overlay:
         self.info, self.p = info, params
         self.frames, self.fps = int(frames), float(fps)
         self.span = None if span is None or span.full else span
+        self.warp = None
+        if rotated(params):  # turned: laid onto its quad (the plain way below stays exactly as it was)
+            self._setup_turned(path, info, params, w, h, weight)
+            return
         k = (max if params["fit"] == "cover" else min)(w / info["w"], h / info["h"]) * params["scale"] / 100
         sw, sh = max(2, round(info["w"] * k)), max(2, round(info["h"] * k))
         ox = round((w - sw) / 2 + params["x"] / 100 * w)
@@ -279,6 +399,102 @@ class Overlay:
             self.whole = self.crop == (0, 0, *size)
             self.cursors = Cursors(path, info, size, bool(info.get("alpha")), (sx0, sy0, sx1, sy1))
 
+    def _setup_turned(self, path, info, params, w, h, weight):
+        """A turned clip: its picture is warped onto the quad homography() gives. Only the source pixels under the
+        part of the quad inside the frame are read, at the size the warp needs there (at most the file's own),
+        then laid by the inverse homography (bicubic) into the box around that part, see-through outside the
+        quad with a soft outline (coverage())."""
+        self.still, self.cursors, self.colours = None, None, colour_ops(params)
+        self.read = None  # (the size of the part of the file read, in pixels)
+        rect = placement(params, info, w, h)
+        sw, sh = rect[2], rect[3]
+        hm, _ = homography(params, rect, w, h)
+        pts = corners(hm, sw, sh)
+        seen = _clip_polygon(pts, w, h) if abs(_area(pts)) >= 1.0 else []  # edge-on (a sliver): nothing
+        if len(seen) >= 3 and abs(_area(seen)) >= 1e-3:
+            x0, y0 = max(0, math.floor(min(q[0] for q in seen))), max(0, math.floor(min(q[1] for q in seen)))
+            x1, y1 = min(w, math.ceil(max(q[0] for q in seen))), min(h, math.ceil(max(q[1] for q in seen)))
+        else:
+            x0 = y0 = x1 = y1 = 0
+        self.empty = x0 >= x1 or y0 >= y1
+        self.box, self.full = (x0, y0, x1, y1), (x0, y0, x1, y1) == (0, 0, w, h)
+        self.weight = None if weight is None or self.empty else (weight if self.full else weight.crop(self.box))
+        if self.empty:
+            return
+        inv = np.linalg.inv(hm)
+        # what shows, back on the placed picture: the corners of the part inside the frame and the middles of its
+        # edges (a projective map grows and shrinks a pixel most there, near enough)
+        ring = seen + [((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in zip(seen, seen[1:] + seen[:1])]
+        back = inv @ np.array([[q[0] for q in ring], [q[1] for q in ring], [1.0] * len(ring)])
+        us, vs = back[0] / back[2], back[1] / back[2]
+        jac = jacobians(hm, us, vs)
+        kx, ky = sw / info["w"], sh / info["h"]  # placed pixels per pixel of the file
+        # the part is read at what the warp needs: a pixel of it spans at most a frame pixel where the picture shows
+        # largest, but is never finer than the file's own pixels (the bicubic warp magnifies as well as a scaler).
+        # So a big or steep clip reads few pixels, and one shrunk far away is averaged down by the reader first.
+        su = max(kx, 1 / max(float(np.hypot(jac[:, 0, 0], jac[:, 1, 0]).max()), 1e-9))
+        sv = max(ky, 1 / max(float(np.hypot(jac[:, 0, 1], jac[:, 1, 1]).max()), 1e-9))
+        # (3 pixels of the part around what shows: the bicubic's reach)
+        u0, v0 = max(0.0, float(us.min()) - 3 * su), max(0.0, float(vs.min()) - 3 * sv)
+        u1, v1 = min(sw, float(us.max()) + 3 * su), min(sh, float(vs.max()) + 3 * sv)
+        if u1 - u0 < 1e-6 or v1 - v0 < 1e-6:
+            self.empty = True
+            return
+        self.cover = coverage(pts, self.box)
+        if info.get("image"):  # only the part that shows is made
+            with open_picture(path) as im:
+                im = ImageOps.exif_transpose(im).convert("RGBA")
+                kx, ky = sw / im.width, sh / im.height
+                size = (max(1, round((u1 - u0) / su)), max(1, round((v1 - v0) / sv)))
+                part = im.resize(size, Image.Resampling.LANCZOS, box=(u0 / kx, v0 / ky, u1 / kx, v1 / ky))
+            self.read = size
+            self._lay(hm, (u0, v0, (u1 - u0) / size[0], (v1 - v0) / size[1]), jac)
+            self.still = self._warp(part)
+        else:  # ffmpeg cuts the source pixels under that part (on even pixels, as above), then scales only them
+            sx0, sy0 = math.floor(u0 / kx) // 2 * 2, math.floor(v0 / ky) // 2 * 2
+            sx1 = min(info["w"], -(-math.ceil(u1 / kx) // 2) * 2)
+            sy1 = min(info["h"], -(-math.ceil(v1 / ky) // 2) * 2)
+            size = (max(1, round((sx1 - sx0) * kx / su)), max(1, round((sy1 - sy0) * ky / sv)))
+            self.read = size
+            self._lay(hm, (sx0 * kx, sy0 * ky, (sx1 - sx0) * kx / size[0], (sy1 - sy0) * ky / size[1]), jac)
+            self.cursors = Cursors(path, info, size, bool(info.get("alpha")), (sx0, sy0, sx1, sy1))
+
+    def _lay(self, hm, part, jac):
+        """The warp's coefficients: from a pixel of the box to the padded part read (whose pixel i lies at
+        u = u0 + i * step in the placed picture), as Pillow's PERSPECTIVE wants them (output -> input). And how
+        much of the part's edge to repeat around it: the soft outline's pixels lie up to about a frame pixel
+        outside the quad, which on a steep plane's far side is many pixels of the part (jac: H's local scale)."""
+        u0, v0, su, sv = part
+        pad = self._pad_for(jac * (su, sv))
+        to_part = np.array([[1 / su, 0, pad - u0 / su], [0, 1 / sv, pad - v0 / sv], [0, 0, 1.0]])
+        g = to_part @ np.linalg.inv(hm) @ np.array([[1, 0, self.box[0]], [0, 1, self.box[1]], [0, 0, 1.0]])
+        g = g / g[2, 2]
+        self.warp = tuple(float(v) for v in g.flatten()[:8])
+
+    def _pad_for(self, jac):
+        """PAD, or more: how many pixels of the part a frame pixel reaches across where it is shrunk most (jac: frame
+        pixels per pixel of the part, at the points of _setup_turned's ring), plus the bicubic's reach. Kept in
+        self.pad."""
+        a, b, c, d = jac[:, 0, 0], jac[:, 0, 1], jac[:, 1, 0], jac[:, 1, 1]
+        with np.errstate(divide="ignore", invalid="ignore"):  # (edge-on there: as far as it goes)
+            reach = np.maximum(np.hypot(d, b), np.hypot(c, a)) / np.abs(a * d - b * c)  # the inverse's rows
+        most = float(np.nan_to_num(reach, nan=np.inf).max())
+        self.pad = int(min(PAD_MOST, max(PAD, math.ceil(most) + 3))) if math.isfinite(most) else PAD_MOST
+        return self.pad
+
+    def _warp(self, im):
+        """The part read (RGB or RGBA) laid onto the quad: an RGBA image of the box."""
+        a = np.asarray(im)
+        a = np.pad(a, ((self.pad, self.pad), (self.pad, self.pad), (0, 0)), mode="edge")
+        size = (self.box[2] - self.box[0], self.box[3] - self.box[1])
+        out = Image.fromarray(a).transform(size, Image.Transform.PERSPECTIVE, self.warp,
+                                         Image.Resampling.BICUBIC)
+        if out.mode == "RGBA":
+            out.putalpha(ImageChops.multiply(out.getchannel("A"), self.cover))
+        else:
+            out.putalpha(self.cover)
+        return out
+
     def picture(self, t):
         """The file's picture for frame t (RGB, or RGBA with transparency), cut to the part inside the frame."""
         if self.still is not None:
@@ -295,6 +511,8 @@ class Overlay:
             frame = Image.fromarray(self.cursors.get(int(when * fps_in + 1e-6)))
             total += weight
             out = frame if out is None else Image.blend(out, frame, weight / total)
+        if self.warp is not None:  # turned: onto its quad
+            return self._warp(out)
         return self._turned(out if self.whole else out.crop(self.crop))
 
     def _turned(self, im):

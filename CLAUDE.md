@@ -49,7 +49,7 @@ hiệu ứng. Cách dùng: `README.md`.
   `anchor` (đầu bấc) và `tip` (đỉnh lửa) là vạch vàng trên khung chỉnh clip; đổi cỡ hiệu ứng có `anchor` giữ yên điểm
   đó (`keepAnchor`).
 - `fx/sprites.py`: hình hạt vẽ bằng mã. `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()` cho clip suốt video,
-  `playing()` cho clip ngắn hơn).
+  `playing()` cho clip ngắn hơn, xoay 3D: `homography()`, `quad()`).
 - `fx/video.py`: ffmpeg (bản đi kèm imageio-ffmpeg): đọc khung, ghi H.264, nối các đoạn bằng stream copy, bản nhẹ cho
   trình duyệt (H.264, hoặc VP9 WebM khi có nền trong suốt).
 - `fx/jobs.py`: hai hàng đợi: xuất video, và chuẩn bị xem nhanh (bản nhẹ, clip hiệu ứng tạo sẵn).
@@ -74,6 +74,15 @@ hiệu ứng. Cách dùng: `README.md`.
 - Khung chỉnh clip (`#xform`, `placed()`): cùng công thức đặt clip với `overlay.Overlay` (và `Effect.box()` của
   hiệu ứng tạo sẵn đặt một chỗ: `BOX`, `placeable()`; clip xem nhanh của nó chỉ là cái hộp, trang đặt vào chỗ).
   Vạch vàng `#xformMark` theo `mark` / `anchor` của schema.
+- Xoay 3D của clip file (`rot_x`, `rot_y`, `rot_z`, `persp`): `overlay.homography()` / `quad()` và trang (`homography`,
+  `quad`, `turnCSS`) dùng cùng một ma trận, đúng như CSS `perspective(d) rotateX rotateY rotateZ scale(lật)` quanh tâm
+  clip (y hướng xuống; `d` theo đường chéo khung, lùi ra khi một góc tới quá gần mắt: `NEAR`). Renderer nắn hình bằng
+  Pillow `PERSPECTIVE` (bicubic), chỉ đọc phần nguồn đang hiện trong khung, mép mềm `coverage()`. Ba góc bằng 0: đường
+  cũ, giống hệt từng byte. Phần nguồn đọc ở cỡ phép nắn cần (`jacobians()`: một điểm ảnh của phần đọc không lớn hơn
+  một điểm ảnh khung chỗ hình to nhất, không mịn hơn file gốc), mép lặp ra đủ xa cho phía xa của mặt nghiêng
+  (`_pad_for`). `#xform` xoay theo clip (bỏ lật), nút tròn `#xformRot` xoay phẳng (giữ con trỏ riêng: bấm đúp là
+  của nó), nút `#xform3d` nằm cạnh nút tròn (không ở giữa: giữa khung là để dời) và nghiêng; nhãn tên tránh hai
+  nút. Chọn clip trên hình theo tứ giác (`hitsClip`). Hiệu ứng tạo sẵn đặt một chỗ không xoay. CI so góc trang với Python.
 - Màu của clip file: `overlay.colour_ops` (đường cong tông giữ đen là đen, rồi ma trận màu) và trang dựng đúng các số
   đó thành bộ lọc SVG (`colourOps`, `colourFilter`, `feComponentTransfer` bảng + `feColorMatrix`, sRGB).
 - Hoàn tác: `S.hist` giữ timeline và cả lần vẽ vùng (mặt nạ trước/sau, chỉ 8 lần gần nhất). Phóng to hình:
