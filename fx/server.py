@@ -214,6 +214,9 @@ class Handler(BaseHTTPRequestHandler):
                                    "lens": {k: c.lens for k, c in effects.KINDS.items()},
                                    "placed": {k: list(c.BOX) for k, c in effects.KINDS.items() if c.BOX},
                                    "under": {k: True for k, c in effects.KINDS.items() if c.UNDER},
+                                   # turned in 3D like a file clip; on a sheet of the frame's shape (not a box)
+                                   "turns": {k: True for k, c in effects.KINDS.items() if c.TURNS},
+                                   "sheet": {k: True for k, c in effects.KINDS.items() if c.TURNS and not c.BOX},
                                    "max_clips": projects.MAX_LAYERS, "max_tracks": projects.MAX_TRACKS})
         if path == "/api/project":
             return self.send(200, self.project_view(projects.load(q.get("id"))))

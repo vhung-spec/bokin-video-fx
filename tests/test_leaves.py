@@ -139,7 +139,11 @@ class Settings(unittest.TestCase):
         for p in leaves.SCHEMA["params"]:
             self.assertTrue(p.get("group"), p["key"])
             self.assertTrue(p["label"], p["key"])
-        self.assertEqual(effects.SCHEMA["leaves"], leaves.SCHEMA)
+        own = len(leaves.SCHEMA["params"])  # (then the place and turn every full-frame effect has: test_sheet)
+        self.assertEqual(effects.SCHEMA["leaves"], dict(leaves.SCHEMA, params=effects.SCHEMA["leaves"]["params"]))
+        self.assertEqual(effects.SCHEMA["leaves"]["params"][:own], leaves.SCHEMA["params"])
+        self.assertEqual([p["group"] for p in effects.SCHEMA["leaves"]["params"][own:]],
+                         ["Vị trí và cỡ"] * 3 + ["Xoay 3D"] * 4)
         self.assertIs(effects.KINDS["leaves"], leaves.Leaves)
         self.assertGreater(leaves.Leaves.VERSION, 1)  # (the first leaves' preview clips are made again)
 

@@ -208,11 +208,16 @@ class Effect:
     # under: a placed lens effect whose preview clip is made from the picture under its box (the video and its
     # still area there, with the effect applied), laid with Normal: the live preview then shows what it does
     UNDER = False
+    # turns: placed and turned in 3D as a file clip is (sheet.Sheet): a full-frame effect on a sheet of the frame's
+    # shape, a placed one in its box. A candle's flame does not turn (it always rises straight up).
+    TURNS = True
 
-    def __init__(self, params, seed, frames, fps, w, h):
+    def __init__(self, params, seed, frames, fps, w, h, aspect=None):
         self.p, self.seed = params, int(seed)
         self.P, self.fps, self.w, self.h = int(frames), float(fps), int(w), int(h)
-        self.aspect = self.w / self.h
+        # (a sheet drawn at a size rounded to whole pixels gets its true shape: how many particles there are follows
+        # it, and a count one off would move many of them; sheet.Sheet)
+        self.aspect = float(aspect) if aspect else self.w / self.h
         self.loop_s = self.P / self.fps
         self.px = self.h / 1080.0  # sizes below are given in pixels of a 1080-line frame
         self.rng = np.random.default_rng([self.seed, 1103])
@@ -344,6 +349,17 @@ SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "stea
 KINDS = {"snow": snow.Snow, "leaves": leaves.Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
          "steam": steam.Steam, "candle": candle.Candle}
 
+# Placed and turned like a file clip (Effect.TURNS): the same settings as a file clip's, under the same headings,
+# after the effect's own. A full-frame effect gets a place and a size (at 100 and in the middle: the frame itself, as
+# before); every effect that turns gets the turn in 3D (a placed effect's place and size are its box's: _place()).
+SHEET_KEYS = ("x", "y", "scale") + overlay.ROTATIONS + ("persp",)  # its place and turn: not in its preview clip
+_FILE = {p["key"]: p for p in overlay.SCHEMA["params"]}
+_PLACE = [dict(_FILE[k], group="Vị trí và cỡ") for k in ("scale", "x", "y")]
+_TURN = [dict(_FILE[k], group="Xoay 3D") for k in overlay.ROTATIONS + ("persp",)]
+for _kind, _cls in KINDS.items():
+    if _cls.TURNS:
+        SCHEMA[_kind] = dict(SCHEMA[_kind], params=SCHEMA[_kind]["params"] + ([] if _cls.BOX else _PLACE) + _TURN)
+
 
 def place_box(box, p, w, h):
     """(x0, y0, w, h) of a box of shape `box` placed by p's scale, x, y in a w x h frame (as a file clip, "contain")."""
@@ -355,6 +371,38 @@ def place_box(box, p, w, h):
 def box_of(kind, params, w, h):
     """Where a placed effect's box lies in a w x h frame, without making the effect."""
     return place_box(KINDS[kind].BOX, clean_params(kind, params), w, h)
+
+
+def sheet_rect(kind, p, w, h):
+    """(x, y, sw, sh): where the sheet an effect is drawn on lies in a w x h frame before it is turned (p: its
+    cleaned settings): a placed effect's box, or the frame's own shape placed as a file clip of the frame's size
+    with fit "contain" (at scale 100, x = y = 0: exactly the frame)."""
+    return place_box(KINDS[kind].BOX or (w, h), p, w, h)
+
+
+def sheet_params(kind, params):
+    """The settings an effect is drawn with on its sheet (and its preview clip made with): its place and turn left
+    out, so they never change what it draws; a placed effect fills its sheet (its box)."""
+    out = {k: v for k, v in (params or {}).items() if k not in SHEET_KEYS}
+    return dict(out, x=0, y=0, scale=100) if KINDS[kind].BOX else out
+
+
+def on_sheet(kind, params):
+    """Is a clip of this kind drawn on a sheet that is placed and turned (sheet.Sheet)? Only when it is placed or
+    turned: unturned, a full-frame effect at scale 100 in the middle is drawn on the frame as it always was, and a
+    placed effect draws itself in its box."""
+    cls = KINDS[kind]
+    if not cls.TURNS:
+        return False
+    p = clean_params(kind, params)
+    return overlay.rotated(p) or (not cls.BOX and (p["scale"] != 100 or p["x"] != 0 or p["y"] != 0))
+
+
+def quad(kind, params, w, h):
+    """Where the corners of an effect's sheet are in a w x h frame (the page's quad(): the same numbers)."""
+    p = clean_params(kind, params)
+    rect = sheet_rect(kind, p, w, h)
+    return overlay.corners(overlay.homography(p, rect, w, h)[0], rect[2], rect[3])
 
 
 def make(kind, params, seed, frames, fps, w, h):

@@ -1593,21 +1593,29 @@ function onlyBase() { return !!S.paint && S.onlyBase; }
 
 // --- moving and sizing a clip on the monitor, as with Premiere's Motion box ---------------------------------
 const xform = $("#xform");
-function placeable(c) { return c.kind === "file" || !!S.schema.placed[c.kind]; }  // has a box on the picture
-function placed(c, inf) {  // where a file clip (or a placed effect's box) lies in the video, in its pixels
-  // (as overlay.Overlay places a file, and effects.Effect.box a placed effect: fit "contain")
+// a built-in effect drawn over the whole frame lies on a sheet of the frame's shape, placed and turned as a file clip
+function sheetKind(c) { return !!(S.schema.sheet || {})[c.kind]; }
+function placeable(c) { return c.kind === "file" || !!S.schema.placed[c.kind] || sheetKind(c); }  // has a box on the picture
+function placed(c, inf) {  // where a file clip (or an effect's sheet or box) lies in the video, in its pixels
+  // (as overlay.Overlay places a file, and effects.sheet_rect an effect: its box, or the frame's shape; fit "contain")
   const box = S.schema.placed[c.kind];
-  inf = inf || (box ? {w: box[0], h: box[1]} : c.file && c.file.info);
+  inf = inf || (box ? {w: box[0], h: box[1]} : sheetKind(c) ? {w: info().w, h: info().h} : c.file && c.file.info);
   if (!inf) return null;
   const pr = c.params, W = info().w, H = info().h;
-  const k = (pr.fit === "cover" && !box ? Math.max : Math.min)(W / inf.w, H / inf.h) * pr.scale / 100;
+  const k = (pr.fit === "cover" && c.kind === "file" ? Math.max : Math.min)(W / inf.w, H / inf.h) * pr.scale / 100;
   const w = inf.w * k, h = inf.h * k;
   return {x: (W - w) / 2 + pr.x / 100 * W, y: (H - h) / 2 + pr.y / 100 * H, w, h};
 }
-// a file clip turned in 3D about its middle: the same numbers as overlay.homography, laid with the CSS
-// "perspective(d) rotateX rotateY rotateZ scale(flips)" that this matrix is (the renderer warps the file with it)
+// a clip turned in 3D about its middle: the same numbers as overlay.homography, laid with the CSS
+// "perspective(d) rotateX rotateY rotateZ scale(flips)" that this matrix is (the renderer warps the file, or the
+// effect's sheet, with it). A file and every built-in effect but the candle turn (a flame rises straight up).
 const ROT_KEYS = ["rot_x", "rot_y", "rot_z"], PERSPECTIVE = 0.6, NEAR = 1.25;
-function turned(c) { return c.kind === "file" && ROT_KEYS.some(k => +c.params[k]); }
+function turns(c) { return c.kind === "file" || !!(S.schema.turns || {})[c.kind]; }
+function turned(c) { return turns(c) && ROT_KEYS.some(k => +c.params[k]); }
+function coversFrame(c) {  // an effect's sheet over the whole frame: picked on the picture only where nothing else is
+  const W = info().w, H = info().h;
+  return sheetKind(c) && [[0, 0], [W, 0], [W, H], [0, H]].every(([x, y]) => hitsClip(c, x, y));
+}
 function mul3(A, B) { return A.map(row => [0, 1, 2].map(j => row[0] * B[0][j] + row[1] * B[1][j] + row[2] * B[2][j])); }
 function homography(pr, r, W, H) {  // {m: (u, v, 1) of the placed picture (before flips) -> the video, d: the viewer's distance or null}
   const rad = k => (+pr[k] || 0) * Math.PI / 180, a = rad("rot_x"), b = rad("rot_y"), z = rad("rot_z");
@@ -1648,7 +1656,7 @@ function hitsClip(c, vx, vy) {  // is this point of the video (its pixels) on th
 }
 const xform3d = $("#xform3d"), xformRot = $("#xformRot"), xformLab = $("#xformLab");
 const TILT_DEG = 0.3;  // degrees of tilt per pixel the "3D" handle is dragged
-function showXform() {  // the box of the selected file clip, over the picture
+function showXform() {  // the box of the selected clip (a file, an effect's sheet or box), over the picture
   spill();
   const c = S.project && clipById(S.sel);
   const r = c && placeable(c) && !S.paint && !S.playing ? placed(c) : null;
@@ -1665,7 +1673,7 @@ function showXform() {  // the box of the selected file clip, over the picture
   xform.classList.toggle("off", !now);
   xform.style.pointerEvents = now ? "" : "none";  // not at this time: an outline only, clicks go to what is shown
   const q = turn ? quad(c) : [[r.x, r.y], [r.x + r.w, r.y + r.h]], xs = q.map(p => ox + p[0] * kx), ys = q.map(p => oy + p[1] * ky);
-  const spin = c.kind === "file";  // only a file clip turns (a built-in effect at one place does not)
+  const spin = turns(c);  // (a candle does not turn)
   xformRot.style.display = spin ? "block" : "none";
   const keep = [];  // what the name tag must not cover: the knob and "3D" (stage pixels)
   if (spin) {  // the knob above the top edge; with no room there (a clip bigger than the picture), the first place
@@ -1765,7 +1773,11 @@ xform.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;
   e.stopPropagation();
   // the last two presses: a double-click is on one clip (on its box, or both on its knob)
-  const knob = e.target === xformRot;
+  const knob = e.target === xformRot, sel = clipById(S.sel);
+  if (!knob && !e.target.dataset.h && sel && coversFrame(sel)) {  // the box of an effect over the whole frame: a
+    const hit = pickAt(e);  // press on another clip's picture in it picks that clip, as with nothing selected
+    if (hit && hit !== sel) { pick(e, hit); return; }
+  }
   S.xdowns = [(S.xdowns || [])[1], {id: S.sel, t: e.timeStamp, knob}];
   startXdrag(e, knob ? xformRot : xform);  // the knob keeps the pointer itself: its clicks are its own
 });
@@ -2210,9 +2222,9 @@ function renderTools() {  // the tool column at the right of the monitor: painti
   const c = clipById(S.sel);
   const pos = c && placeable(c) ? `<h5>Vị trí và cỡ</h5>
       <div class="lab"><span>Cỡ</span><b>${c.params.scale}%</b></div><div class="lab"><span>Ngang, dọc</span><b>${c.params.x}, ${c.params.y}</b></div>
-      <div class="two" style="margin-top:6px"><button class="small" data-center="1" title="Đưa clip về giữa khung">Về giữa</button><button class="small" data-scale100="1" title="${c.kind === "file" ? "Cỡ 100%" : "Cỡ lúc mới thêm"}">${c.kind === "file" ? "Cỡ 100%" : "Cỡ ban đầu"}</button></div>
+      <div class="two" style="margin-top:6px"><button class="small" data-center="1" title="Đưa clip về giữa khung">Về giữa</button><button class="small" data-scale100="1" title="${c.kind === "file" || sheetKind(c) ? "Cỡ 100%" : "Cỡ lúc mới thêm"}">${c.kind === "file" || sheetKind(c) ? "Cỡ 100%" : "Cỡ ban đầu"}</button></div>
       <p class="tip">Kéo khung trắng trên hình để di chuyển, kéo góc để đổi cỡ.</p>
-      ${c.kind === "file" ? `<h5>Xoay 3D</h5>
+      ${turns(c) ? `<h5>Xoay 3D</h5>
       <div class="lab" title="Nghiêng trước / sau, xoay trái / phải, xoay phẳng"><span>Góc</span><b>${num(c.params.rot_x || 0)}°, ${num(c.params.rot_y || 0)}°, ${num(c.params.rot_z || 0)}°</b></div>
       <button class="small wide" data-rotreset="1" ${turned(c) ? "" : "disabled"} title="Thẳng lại như lúc đầu">Đặt lại xoay</button>
       <p class="tip">Kéo nút tròn trên khung để xoay phẳng (giữ Shift: từng nấc 15°). Kéo nút 3D cạnh nút tròn để nghiêng, ví dụ cho mưa nằm đúng ô cửa nhìn chéo.</p>` : ""}` : "";
@@ -2381,6 +2393,20 @@ function closePoly() {
   maskChanged(S.paint, add ? "add" : "sub");
 }
 let panning = null, lastPt = null, painting = false;
+function pickAt(e) {  // the clip a press on the picture picks: the top one there (an effect's sheet over the whole
+  // frame only where nothing else is: snow over the whole picture does not hide the logo under it)
+  const sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
+  const vx = (e.clientX - sc.left) / sc.width * W, vy = (e.clientY - sc.top) / sc.height * H, t = curFrame();
+  const inFrame = vx >= 0 && vx <= W && vy >= 0 && vy <= H;  // outside it, only the selected clip shows (faintly)
+  const hits = clipOrder().reverse().filter(c => (inFrame || c.id === S.sel) && placeable(c) && weight(span(c), t) > 0 &&
+    hitsClip(c, vx, vy));
+  return hits.find(c => !coversFrame(c)) || hits[0] || null;
+}
+function pick(e, hit) {  // a press on a clip's picture: it is selected, and moves if dragged
+  if (hit.id !== S.sel) { select(hit.id); S.xdowns = null; }
+  S.xdowns = [(S.xdowns || [])[1], {id: hit.id, t: e.timeStamp, picked: true}];
+  startXdrag(e);
+}
 stage.addEventListener("pointerdown", e => {
   if (!S.project) return;
   blurField();
@@ -2390,16 +2416,8 @@ stage.addEventListener("pointerdown", e => {
     stage.classList.add("panning"); $("#cursor").style.display = "none"; return;
   }
   if (!S.paint && e.button === 0) {  // a click on a clip's picture selects it (the top one there)
-    const sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
-    const vx = (e.clientX - sc.left) / sc.width * W, vy = (e.clientY - sc.top) / sc.height * H, t = curFrame();
-    const inFrame = vx >= 0 && vx <= W && vy >= 0 && vy <= H;  // outside it, only the selected clip shows (faintly)
-    const hit = clipOrder().reverse().find(c => (inFrame || c.id === S.sel) && placeable(c) && weight(span(c), t) > 0 &&
-      hitsClip(c, vx, vy));
-    if (hit) {
-      if (hit.id !== S.sel) { select(hit.id); S.xdowns = null; }
-      S.xdowns = [(S.xdowns || [])[1], {id: hit.id, t: e.timeStamp, picked: true}];
-      startXdrag(e);
-    }
+    const hit = pickAt(e);
+    if (hit) pick(e, hit);
     return;
   }
   if (!S.paint || e.button !== 0 || !S.masks[S.paint]) return;
@@ -3102,6 +3120,10 @@ function slider(key, label, value, min, max, step, extra = "") {
   return `<div class="row"><div class="lab"><span>${esc(label)}</span><b id="v-${key}">${value}</b></div>
     <input type="range" data-param="${key}" min="${min}" max="${max}" step="${step || 1}" value="${value}" style="${rangeP(value, min, max)}" ${extra}></div>`;
 }
+function turnTail(c) {  // under a clip's "Xoay 3D" settings
+  return `<div class="btns"><button class="small" id="rotReset" title="Thẳng lại như lúc đầu: không nghiêng, không xoay">Đặt lại xoay</button></div>
+      <p class="note">Trên hình: kéo nút tròn phía trên khung để xoay phẳng, kéo nút <b>3D</b> cạnh nút tròn để nghiêng (sang ngang: xoay trái / phải, lên xuống: nghiêng trước / sau). Độ sâu phối cảnh: 0 là phẳng, càng lớn thì phần ở gần càng to, như nhìn ô cửa từ một góc.${c.kind === "file" ? "" : " Ví dụ mưa hoặc nước trên kính trên một ô cửa nhìn chéo: thu nhỏ, kéo khung trắng lên ô cửa, rồi nghiêng cho bốn góc khung trùng bốn góc ô cửa."}</p>`;
+}
 function numSlider(d, value) {  // a slider with a field to type its number in
   const step = d.step || 1;
   return `<div class="row"><div class="lab"><span>${esc(d.label)}</span><input type="number" class="numv" id="v-${d.key}" data-num="${d.key}" min="${d.min}" max="${d.max}" step="${step}" value="${num(value)}"></div>
@@ -3159,16 +3181,16 @@ function renderControls() {
     const turn = sch.params.filter(d => d.group === "Xoay 3D").map(d => numSlider(d, c.params[d.key])).join("");
     return `<h4>Hoà trộn</h4>${by.blend}${by.opacity}<p class="note">Hiệu ứng trên nền đen: Screen. File nền trong suốt (MOV, WebM, PNG): Bình thường.</p>
       <h4>Vị trí và cỡ</h4>${by.fit}${by.scale}${by.x}${by.y}<div class="flips">${by.flip_h}${by.flip_v}</div>
-      <h4>Xoay 3D</h4>${turn}
-      <div class="btns"><button class="small" id="rotReset" title="Thẳng lại như lúc đầu: không nghiêng, không xoay">Đặt lại xoay</button></div>
-      <p class="note">Trên hình: kéo nút tròn phía trên khung để xoay phẳng, kéo nút <b>3D</b> cạnh nút tròn để nghiêng (sang ngang: xoay trái / phải, lên xuống: nghiêng trước / sau). Độ sâu phối cảnh: 0 là phẳng, càng lớn thì phần ở gần càng to, như nhìn ô cửa từ một góc.</p>
+      <h4>Xoay 3D</h4>${turn}${turnTail(c)}
       ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}${by.reverse}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}
       <h4>Màu sắc</h4>${by.bright}${by.contrast}${by.sat}${by.hue}${by.temp}${by.tint_amt}${by.tint}
       <div class="btns"><button class="small" id="colourReset" ${colourOps(c.params) ? "" : "disabled"}>Đặt lại màu như file gốc</button></div>
       <p class="note">Phủ một màu: chọn màu rồi kéo thanh "Phủ một màu" lên (ví dụ tuyết trắng thành vàng ấm).</p>`;
   })() : sch.params.map((d, i) => {  // a heading where the group changes
     const g = d.group || "Hiệu ứng", head = i === 0 || g !== (sch.params[i - 1].group || "Hiệu ứng") ? `<h4>${esc(g)}</h4>` : "";
-    return head + params[i];
+    if (g !== "Xoay 3D") return head + params[i] + (d.key === "y" && sheetKind(c) ? `<p class="note">Cỡ 100%, ở giữa: hiệu ứng phủ đúng cả khung hình. Thu nhỏ rồi kéo khung trắng để hiệu ứng chỉ nằm ở một chỗ (ví dụ một ô cửa sổ).</p>` : "");
+    const last = i === sch.params.length - 1 || sch.params[i + 1].group !== g;  // (the same settings as a file clip's)
+    return head + numSlider(d, c.params[d.key]) + (last ? turnTail(c) : "");
   }).join("");
   const hasArea = p.masks.includes(c.id) || (S.masks[c.id] && !S.masks[c.id].full);
   const mixRow = (b, label) => {  // the Mix of b with the clip before it

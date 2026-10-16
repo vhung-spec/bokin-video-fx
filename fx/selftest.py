@@ -24,7 +24,7 @@ import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw
 
-from . import effects, engine, library, paths, projects, timeline, video
+from . import effects, engine, library, paths, projects, sheet, timeline, video
 
 W, H, FPS, P = 1920, 1080, 24, 48
 RESULTS = []
@@ -96,6 +96,13 @@ def periodic_checks():
             diff = float(np.abs(frames[0] - frames[1]).max())
             if not check(f"{kind} {extra or ''} returns to frame 0 after one loop", diff < 1 / 512, f"max diff {diff:.6f}"):
                 return
+    picture = Image.fromarray((scene * 255 + 0.5).astype(np.uint8))
+    for kind in ("snow", "glass", "steam"):  # placed and turned in 3D: drawn on a sheet, warped onto the frame
+        fx = sheet.Sheet(kind, {"rot_x": 20, "rot_y": -30, "rot_z": 8, "persp": 60, "scale": 70}, 5, P, FPS, 640, 360)
+        a, b = (np.asarray(fx.draw(t, picture.copy())).astype(int) for t in (0, P))
+        diff = int(np.abs(a - b).max())
+        if not check(f"{kind} turned in 3D returns to frame 0 after one loop", diff <= 1, f"max diff {diff}"):
+            return
 
 
 def server_checks():
@@ -183,13 +190,28 @@ def run():
                    "params": {"blend": "normal", "rot_y": 15, "rot_z": 5}},
                   {"id": "file02", "kind": "file", "lib": picture["id"], "seed": 7, "track": tracks[1] + "x",
                    "params": {"scale": 30, "blend": "normal", "rot_x": 25, "rot_y": -30, "rot_z": 12},
-                   "start": 20, "end": 70, "fade_in": 0.5, "fade_out": 0.5}]
-        project = projects.apply(project, {"tracks": project["tracks"] + [{"id": tracks[0] + "x"},
-                                                                          {"id": tracks[1] + "x"}],
+                   "start": 20, "end": 70, "fade_in": 0.5, "fade_out": 0.5},
+                  # built-in effects placed and turned in 3D: snow and water on a window seen at an angle (the
+                  # glass: a lens, only its change laid back), a cup's steam turned
+                  {"id": "snow02", "kind": "snow", "seed": 8, "track": tracks[2] + "x", "behind": True,
+                   "params": {"amount": 70, "scale": 55, "x": -18, "y": -8, "rot_x": 15, "rot_y": 35, "rot_z": -6,
+                              "persp": 70}},
+                  {"id": "glass01", "kind": "glass", "seed": 9, "track": tracks[0] + "y",
+                   "params": {"scale": 45, "x": 22, "y": -12, "rot_x": 10, "rot_y": -35, "rot_z": 4, "persp": 70}},
+                  {"id": "steam01", "kind": "steam", "seed": 10, "track": tracks[1] + "y",
+                   "params": {"scale": 40, "x": -25, "y": 20, "rot_y": 25, "rot_z": 5}, "start": 30, "end": 80,
+                   "fade_in": 0.3, "fade_out": 0.3}]
+        extra = ["x", "y"]
+        project = projects.apply(project, {"tracks": project["tracks"] + [{"id": tracks[i] + k} for k in extra
+                                                                          for i in range(3) if (i, k) != (2, "y")],
                                            "layers": layers})
         project = projects.save_mask(project, "snow01",
                                      png_bytes(lambda d: d.rectangle([mw // 3, 0, mw, mh // 2], fill=255), (mw, mh)))
-        check("timeline saved", [lay["track"] for lay in project["layers"]][-2:] == [tracks[0] + "x", tracks[1] + "x"])
+        check("timeline saved", [lay["track"] for lay in project["layers"]][5:7] == [tracks[0] + "x", tracks[1] + "x"])
+        small = engine.Scene(folder, project, (64, 36))
+        check("built-in effects turned in 3D: drawn on their sheets",
+              [isinstance(d, sheet.Sheet) for d, _, _ in small.layers][-3:] == [True, True, True])
+        small.close()
 
         # still areas are the picture, pixel for pixel, where nothing is drawn over them
         bare = engine.Scene(folder, dict(project, layers=[]), (W, H))

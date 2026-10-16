@@ -76,7 +76,8 @@ SCHEMA = {"label": "Lửa nến", "params": [
             "đứng yên, tô lên ngọn nến (chọn khung hình có lửa đẹp); (2) kéo khung trắng cho vạch vàng dưới (đầu bấc) "
             "nằm ở chân ngọn lửa, rồi kéo góc khung (vạch dưới đứng yên) cho vạch vàng trên (đỉnh lửa) chạm đỉnh ngọn "
             "lửa: phía trên còn trống để có quầng sáng; (3) Cách sửa: Làm sống ngọn lửa có sẵn, hoặc Vẽ ngọn lửa mới nếu lửa cũ hỏng "
-            "nặng. Bấm Suốt video để lửa sống cả video. Mỗi ngọn nến một clip Lửa nến."}
+            "nặng. Bấm Suốt video để lửa sống cả video. Mỗi ngọn nến một clip Lửa nến. Lửa nến không xoay 3D: "
+            "ngọn lửa luôn bốc thẳng lên."}
 
 
 def _smooth(x):
@@ -222,6 +223,7 @@ class Candle(Effect):
     blend = "screen"
     lens = True
     UNDER = True  # its preview clip: the flame there, alive (made from the picture under the box)
+    TURNS = False  # a flame always rises straight up: never turned in 3D
     VERSION = 3  # (1: a first sketch, a glow only; 2: the first flame)
 
     def __init__(self, *a):

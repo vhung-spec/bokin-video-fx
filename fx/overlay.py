@@ -66,7 +66,7 @@ ROTATIONS = ("rot_x", "rot_y", "rot_z")
 PERSPECTIVE = 0.6  # the viewer's distance at "Độ sâu phối cảnh" 100, in frame diagonals (at 50: twice as far)
 NEAR = 1.25  # the viewer stays at least this many times as far as the nearest corner: none at or behind the eye
 PAD = 4  # least pixels of its edge repeated around a turned picture (its soft outline is never darkened)
-PAD_MOST = 160  # (a steep plane's far side needs more: _pad_for; every turn up to 80 degrees needs fewer)
+PAD_MOST = 160  # (a steep plane's far side needs more: pad_for(); every turn up to 80 degrees needs fewer)
 
 
 def placement(p, info, w, h):
@@ -128,6 +128,53 @@ def quad(p, info, w, h):
     """Where the corners of a file clip's picture are in a w x h frame (the page's quad(): the same numbers)."""
     rect = placement(p, info, w, h)
     return corners(homography(p, rect, w, h)[0], rect[2], rect[3])
+
+
+def outline(hm, sw, sh, w, h):
+    """Where a picture of sw x sh placed pixels laid by H shows in a w x h frame: (its corners, the part of its quad
+    inside the frame (a polygon), the box of frame pixels around that part (x0, y0, x1, y1)). The box is empty
+    (x0 >= x1) when nothing of it shows, or when it is turned edge-on (a sliver)."""
+    pts = corners(hm, sw, sh)
+    seen = _clip_polygon(pts, w, h) if abs(_area(pts)) >= 1.0 else []
+    if len(seen) >= 3 and abs(_area(seen)) >= 1e-3:
+        x0, y0 = max(0, math.floor(min(q[0] for q in seen))), max(0, math.floor(min(q[1] for q in seen)))
+        x1, y1 = min(w, math.ceil(max(q[0] for q in seen))), min(h, math.ceil(max(q[1] for q in seen)))
+    else:
+        x0 = y0 = x1 = y1 = 0
+    return pts, seen, (x0, y0, x1, y1)
+
+
+def seen_back(hm, seen):
+    """What shows (the polygon `seen`, in frame pixels) back on the placed picture: its corners and the middles of
+    its edges (a projective map grows and shrinks a pixel most there, near enough) as (us, vs), and H's local scale
+    at those points (jacobians())."""
+    inv = np.linalg.inv(hm)
+    ring = seen + [((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in zip(seen, seen[1:] + seen[:1])]
+    back = inv @ np.array([[q[0] for q in ring], [q[1] for q in ring], [1.0] * len(ring)])
+    us, vs = back[0] / back[2], back[1] / back[2]
+    return us, vs, jacobians(hm, us, vs)
+
+
+def pad_for(jac):
+    """PAD, or more: how many pixels of a part read a frame pixel reaches across where it is shrunk most (jac: frame
+    pixels per pixel of the part, at the points of seen_back()), plus the bicubic's reach. The soft outline's pixels
+    lie up to about a frame pixel outside the quad, which on a steep plane's far side is many pixels of the part."""
+    a, b, c, d = jac[:, 0, 0], jac[:, 0, 1], jac[:, 1, 0], jac[:, 1, 1]
+    with np.errstate(divide="ignore", invalid="ignore"):  # (edge-on there: as far as it goes)
+        reach = np.maximum(np.hypot(d, b), np.hypot(c, a)) / np.abs(a * d - b * c)  # the inverse's rows
+    most = float(np.nan_to_num(reach, nan=np.inf).max())
+    return int(min(PAD_MOST, max(PAD, math.ceil(most) + 3))) if math.isfinite(most) else PAD_MOST
+
+
+def warp_coefficients(hm, part, pad, box):
+    """The warp, as Pillow's PERSPECTIVE wants it (output -> input): from a pixel of `box` (x0, y0, ...: its top
+    left corner in the frame) to the part read, whose pixel i lies at u = u0 + i * su in the placed picture
+    (part = (u0, v0, su, sv)), with `pad` pixels of its edge repeated around it."""
+    u0, v0, su, sv = part
+    to_part = np.array([[1 / su, 0, pad - u0 / su], [0, 1 / sv, pad - v0 / sv], [0, 0, 1.0]])
+    g = to_part @ np.linalg.inv(hm) @ np.array([[1, 0, box[0]], [0, 1, box[1]], [0, 0, 1.0]])
+    g = g / g[2, 2]
+    return tuple(float(v) for v in g.flatten()[:8])
 
 
 def _clip_polygon(pts, w, h):
@@ -344,7 +391,48 @@ class Cursors:
         self.open = []
 
 
-class Overlay:
+def lay(img, top, box, full, weight, blend, gain=1.0):
+    """Lay `top` (RGB, or RGBA with transparency: the picture of the frame's pixels in `box`; all of them when
+    `full`) over `img` (an RGB image of the whole frame, changed in place) with `blend`, where `weight` (an "L" image
+    of the box, or None: everywhere, fully) says, `gain` (0..1, a fade) times as strongly; returns it."""
+    alpha = top.getchannel("A") if top.mode == "RGBA" else None
+    rgb = top.convert("RGB") if alpha is not None else top
+    region = img if full else img.crop(box)
+    if gain < 1:
+        weight = (Image.new("L", region.size, round(255 * gain)) if weight is None
+                  else weight.point(lambda v: round(v * gain)))
+    if blend == "normal":
+        mask = alpha if weight is None else (weight if alpha is None else ImageChops.multiply(alpha, weight))
+        out = rgb if mask is None else Image.composite(rgb, region, mask)
+    else:
+        if blend == "multiply":
+            if alpha is not None:  # see-through parts multiply by white: no change
+                rgb = Image.composite(rgb, Image.new("RGB", rgb.size, (255, 255, 255)), alpha)
+            mixed = ImageChops.multiply(region, rgb)
+        else:
+            if alpha is not None:  # see-through parts add nothing
+                rgb = ImageChops.multiply(rgb, Image.merge("RGB", (alpha, alpha, alpha)))
+            mixed = ImageChops.screen(region, rgb) if blend == "screen" else ImageChops.add(region, rgb)
+        out = mixed if weight is None else Image.composite(mixed, region, weight)
+    if full:
+        return out
+    img.paste(out, box[:2])
+    return img
+
+
+class Laid:
+    """A clip laid on the 8-bit picture with Pillow (draw(t, img, gain) -> img), not on the float copy that runs of
+    built-in effects share: a clip from a file (Overlay), or a built-in effect placed or turned (sheet.Sheet)."""
+    empty = False
+
+    def draw(self, t, img, gain=1.0):
+        raise NotImplementedError
+
+    def close(self):
+        pass
+
+
+class Overlay(Laid):
     """One clip from a file, laid over w x h frames of a video `frames` long at `fps`.
 
     Works on 8-bit Pillow images (the blend modes and masks are Pillow's C routines: fast, and exact where a mask
@@ -409,25 +497,13 @@ class Overlay:
         rect = placement(params, info, w, h)
         sw, sh = rect[2], rect[3]
         hm, _ = homography(params, rect, w, h)
-        pts = corners(hm, sw, sh)
-        seen = _clip_polygon(pts, w, h) if abs(_area(pts)) >= 1.0 else []  # edge-on (a sliver): nothing
-        if len(seen) >= 3 and abs(_area(seen)) >= 1e-3:
-            x0, y0 = max(0, math.floor(min(q[0] for q in seen))), max(0, math.floor(min(q[1] for q in seen)))
-            x1, y1 = min(w, math.ceil(max(q[0] for q in seen))), min(h, math.ceil(max(q[1] for q in seen)))
-        else:
-            x0 = y0 = x1 = y1 = 0
+        pts, seen, (x0, y0, x1, y1) = outline(hm, sw, sh, w, h)
         self.empty = x0 >= x1 or y0 >= y1
         self.box, self.full = (x0, y0, x1, y1), (x0, y0, x1, y1) == (0, 0, w, h)
         self.weight = None if weight is None or self.empty else (weight if self.full else weight.crop(self.box))
         if self.empty:
             return
-        inv = np.linalg.inv(hm)
-        # what shows, back on the placed picture: the corners of the part inside the frame and the middles of its
-        # edges (a projective map grows and shrinks a pixel most there, near enough)
-        ring = seen + [((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in zip(seen, seen[1:] + seen[:1])]
-        back = inv @ np.array([[q[0] for q in ring], [q[1] for q in ring], [1.0] * len(ring)])
-        us, vs = back[0] / back[2], back[1] / back[2]
-        jac = jacobians(hm, us, vs)
+        us, vs, jac = seen_back(hm, seen)  # what shows, back on the placed picture
         kx, ky = sw / info["w"], sh / info["h"]  # placed pixels per pixel of the file
         # the part is read at what the warp needs: a pixel of it spans at most a frame pixel where the picture shows
         # largest, but is never finer than the file's own pixels (the bicubic warp magnifies as well as a scaler).
@@ -464,23 +540,8 @@ class Overlay:
         u = u0 + i * step in the placed picture), as Pillow's PERSPECTIVE wants them (output -> input). And how
         much of the part's edge to repeat around it: the soft outline's pixels lie up to about a frame pixel
         outside the quad, which on a steep plane's far side is many pixels of the part (jac: H's local scale)."""
-        u0, v0, su, sv = part
-        pad = self._pad_for(jac * (su, sv))
-        to_part = np.array([[1 / su, 0, pad - u0 / su], [0, 1 / sv, pad - v0 / sv], [0, 0, 1.0]])
-        g = to_part @ np.linalg.inv(hm) @ np.array([[1, 0, self.box[0]], [0, 1, self.box[1]], [0, 0, 1.0]])
-        g = g / g[2, 2]
-        self.warp = tuple(float(v) for v in g.flatten()[:8])
-
-    def _pad_for(self, jac):
-        """PAD, or more: how many pixels of the part a frame pixel reaches across where it is shrunk most (jac: frame
-        pixels per pixel of the part, at the points of _setup_turned's ring), plus the bicubic's reach. Kept in
-        self.pad."""
-        a, b, c, d = jac[:, 0, 0], jac[:, 0, 1], jac[:, 1, 0], jac[:, 1, 1]
-        with np.errstate(divide="ignore", invalid="ignore"):  # (edge-on there: as far as it goes)
-            reach = np.maximum(np.hypot(d, b), np.hypot(c, a)) / np.abs(a * d - b * c)  # the inverse's rows
-        most = float(np.nan_to_num(reach, nan=np.inf).max())
-        self.pad = int(min(PAD_MOST, max(PAD, math.ceil(most) + 3))) if math.isfinite(most) else PAD_MOST
-        return self.pad
+        self.pad = pad_for(jac * (part[2], part[3]))
+        self.warp = warp_coefficients(hm, part, self.pad, self.box)
 
     def _warp(self, im):
         """The part read (RGB or RGBA) laid onto the quad: an RGBA image of the box."""
@@ -532,30 +593,7 @@ class Overlay:
             else:  # a picture: once
                 self.still = top = coloured(top, self.colours)
                 self.colours = None
-        alpha = top.getchannel("A") if top.mode == "RGBA" else None
-        rgb = top.convert("RGB") if alpha is not None else top
-        region = img if self.full else img.crop(self.box)
-        weight, blend = self.weight, self.p["blend"]
-        if gain < 1:
-            weight = (Image.new("L", region.size, round(255 * gain)) if weight is None
-                      else weight.point(lambda v: round(v * gain)))
-        if blend == "normal":
-            mask = alpha if weight is None else (weight if alpha is None else ImageChops.multiply(alpha, weight))
-            out = rgb if mask is None else Image.composite(rgb, region, mask)
-        else:
-            if blend == "multiply":
-                if alpha is not None:  # see-through parts multiply by white: no change
-                    rgb = Image.composite(rgb, Image.new("RGB", rgb.size, (255, 255, 255)), alpha)
-                mixed = ImageChops.multiply(region, rgb)
-            else:
-                if alpha is not None:  # see-through parts add nothing
-                    rgb = ImageChops.multiply(rgb, Image.merge("RGB", (alpha, alpha, alpha)))
-                mixed = ImageChops.screen(region, rgb) if blend == "screen" else ImageChops.add(region, rgb)
-            out = mixed if weight is None else Image.composite(mixed, region, weight)
-        if self.full:
-            return out
-        img.paste(out, self.box[:2])
-        return img
+        return lay(img, top, self.box, self.full, self.weight, self.p["blend"], gain)
 
     def close(self):
         if self.cursors:

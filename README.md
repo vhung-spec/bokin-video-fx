@@ -78,9 +78,10 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
    - File nền trong suốt app đọc được: MOV ProRes 4444 có kênh alpha, MOV PNG hoặc Animation, WebM VP9 có alpha, ảnh
      PNG. MOV **HEVC** có nền trong suốt thì app chưa đọc được phần trong suốt (coi là nền đen): hãy xuất lại thành
      ProRes 4444 có kênh alpha.
-   - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài, chọn clip là trên màn hình hiện một khung trắng: kéo bên trong
-     khung để di chuyển, kéo một góc để phóng to/thu nhỏ (góc đối diện đứng yên, như Premiere; giữ `Alt` để đổi cỡ
-     quanh tâm), bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. **Lật ngang**, **Lật dọc**: ô đánh dấu bên dưới.
+   - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài (cả hiệu ứng tạo sẵn), chọn clip là trên màn hình hiện một
+     khung trắng: kéo bên trong khung để di chuyển, kéo một góc để phóng to/thu nhỏ (góc đối diện đứng yên, như
+     Premiere; giữ `Alt` để đổi cỡ quanh tâm), bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. **Lật ngang**,
+     **Lật dọc**: ô đánh dấu bên dưới.
      **Xoay 3D**: nút tròn trên khung để xoay, nút **3D** cạnh nút tròn để nghiêng (xem mục **Xoay 3D** bên dưới).
      **Phát ngược** (tua ngược, chỉ với video): ô trong mục **Phát file**; lần đầu app làm sẵn một bản phát ngược của
      file (vài giây đến vài phút), clip hiện lại khi xong. Bấm vào
@@ -193,11 +194,26 @@ video gốc ở chỗ ngọn nến. Sau khi vẽ vùng đứng yên lên ngọn 
 
 ### Xoay 3D (ghép hiệu ứng vào ô cửa nhìn chéo)
 
-Video hoặc ảnh nhập từ ngoài xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng
-khi cần đặt mưa, ánh sáng… nằm đúng một ô cửa kính nhìn từ một góc.
+Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, hạt sáng, nước trên kính, khói cốc cà phê),
+xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng khi cần đặt mưa, ánh sáng…
+nằm đúng một ô cửa kính nhìn từ một góc. Riêng **lửa nến** không xoay: ngọn lửa luôn bốc thẳng lên.
 
-1. Chọn clip (video / ảnh ngoài). Trên hình có khung trắng, một **nút tròn** phía trên khung và nút **3D** ngay cạnh
-   nút tròn.
+Hiệu ứng tạo sẵn phủ cả hình (tuyết, mưa, lá, hạt sáng, nước trên kính) giống như một tấm phim bằng đúng khung hình:
+chọn clip là thấy khung trắng quanh cả khung hình. Cỡ 100%, ở giữa, không xoay: y như trước. Thu nhỏ, dời, xoay tấm
+phim đó như một ảnh ngoài; hạt rơi tới mép tấm phim thì bị cắt ở mép.
+
+Ví dụ: mưa (hoặc nước trên kính) trên một ô cửa sổ nhìn chéo:
+
+1. Kéo **Mưa** (hoặc **Nước trên kính**) xuống timeline, bấm **Suốt video**.
+2. Kéo góc khung trắng cho nhỏ lại cỡ ô cửa, kéo bên trong khung để đặt lên ô cửa.
+3. Kéo nút **3D** sang trái / phải cho khung nghiêng theo bức tường, rồi kéo các góc / nút tròn cho bốn góc khung trùng
+   bốn góc ô cửa. Chỉnh số cho thật đúng ở mục **Xoay 3D** trong Bảng chỉnh hiệu ứng.
+4. Dừng hình để xem đúng như video xuất ra (nước trên kính: lúc phát chỉ xem gần đúng).
+
+Cách xoay (video, ảnh ngoài, hiệu ứng tạo sẵn đều như nhau):
+
+1. Chọn clip. Trên hình có khung trắng, một **nút tròn** phía trên khung và nút **3D** ngay cạnh nút tròn. Hiệu ứng phủ
+   cả hình: khung trắng là cả khung hình; thu nhỏ hình (chọn **50%**) để kéo góc khung ở vùng tối quanh hình.
 2. **Xoay phẳng**: kéo nút tròn vòng quanh khung. Giữ `Shift` để xoay từng nấc 15°. Bấm đúp nút tròn: về 0°.
 3. **Nghiêng**: nhấn giữ nút **3D** rồi kéo. Kéo sang trái / phải: clip xoay trái / phải. Kéo lên / xuống: clip nghiêng
    trước / sau. Giữ `Shift` để chỉ đi một hướng. Bấm đúp nút **3D**: thẳng lại (vẫn giữ góc xoay phẳng).
@@ -210,8 +226,11 @@ khi cần đặt mưa, ánh sáng… nằm đúng một ô cửa kính nhìn t�
    - **Đặt lại xoay**: bỏ hết nghiêng và xoay, clip thẳng lại như lúc đầu.
 6. Muốn hiệu ứng chỉ hiện trong ô kính: **Vẽ vùng** khoanh đúng ô kính như bình thường.
 
-Lúc xem nhanh và trong video xuất ra, clip nằm đúng cùng một chỗ. `Ctrl+Z` hoàn tác được mọi lần xoay. Khói cốc cà
-phê và lửa nến không xoay 3D.
+Lúc xem nhanh và trong video xuất ra, clip nằm đúng cùng một chỗ. `Ctrl+Z` hoàn tác được mọi lần xoay. Xoay hiệu ứng
+tạo sẵn thì xem nhanh đổi ngay (không phải chờ app làm lại bản xem nhanh). Video xuất ra vẫn loop liền mạch.
+
+Trên hình, bấm vào một clip để chọn nó. Hiệu ứng phủ cả hình (như tuyết cả khung) chỉ được chọn khi bấm vào chỗ không
+có clip nào khác, nên vẫn bấm chọn được logo hay ảnh nằm trong khung tuyết.
 
 ### Màu của video hiệu ứng nhập từ ngoài
 

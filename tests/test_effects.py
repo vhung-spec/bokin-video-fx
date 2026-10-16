@@ -40,6 +40,22 @@ class Periodic(unittest.TestCase):
                         diff = np.abs(frame(fx, 0, None) - frame(fx, frames, None)).max()
                         self.assertLess(diff, 1 / 512, f"{kind} {params} P={frames} fps={fps}")
 
+    def test_every_kind_turned_returns_to_frame_zero(self):
+        """Placed and turned in 3D (drawn on a sheet, warped onto the frame: sheet.Sheet), frame P is frame 0 again:
+        the turn does not move. (The candle does not turn.)"""
+        from PIL import Image
+        from fx import sheet
+        img = Image.fromarray((SCENE * 255 + 0.5).astype(np.uint8))
+        for kind in KINDS:
+            if not effects.KINDS[kind].TURNS:
+                continue
+            for frames, fps in ((144, 24), (150, 25)):
+                for params in ({"rot_x": 20, "rot_y": -35, "rot_z": 10, "persp": 70},
+                               {"rot_z": -60, "scale": 60, "x": 15, "amount": 100, "wind": 80}):
+                    fx = sheet.Sheet(kind, params, 3, frames, fps, W, H)
+                    a, b = (np.asarray(fx.draw(t, img.copy())).astype(int) for t in (0, frames))
+                    self.assertLessEqual(int(np.abs(a - b).max()), 1, f"{kind} {params} P={frames} fps={fps}")
+
     def test_moves_between(self):
         for kind in KINDS:
             fx = effects.make(kind, {"amount": 80}, 3, 144, 24, W, H)
