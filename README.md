@@ -21,6 +21,13 @@ Premiere Pro:
   - **Tuyết**: **Kiểu tuyết** (tuyết nhẹ, vừa, dày, bão tuyết, lấp lánh, bông to bay chậm) và **Hình bông tuyết** (tròn
     mềm, tinh thể sáu cánh, tự nhiên). Chỉnh thêm: đung đưa, xoáy nhẹ, gió giật, bông to sát ống kính (nhoè), màn tuyết
     mờ trắng xoá, lấp lánh, quầng sáng, màu bông ở gần và ở xa.
+  - **Lá rơi**: chọn nhanh ở **Kiểu lá rơi** (lác đác, vừa, dày, gió thu cuốn lá, lá to bay chậm), **Loại lá** (lá
+    phong, lá phong lẫn lá thường, lá thường, cánh hoa anh đào) và **Màu theo mùa** (thu đỏ rực, thu vàng, thu đỏ vàng,
+    đỏ vàng xanh, đầu thu nhiều lá xanh, lá xanh). Ba thanh **Lá đỏ**, **Lá vàng**, **Lá xanh** chỉnh mỗi màu nhiều
+    hay ít (khi đã có lá đỏ hay vàng, vài lá xanh ngả vàng ở mép; mùa hè chỉ toàn lá xanh). **Lá to nhất** và **Lá nhỏ
+    nhất**: lá to lá nhỏ bay cùng lúc (nhiều lá nhỏ ở xa, vài lá to ở gần). Chỉnh thêm: tốc độ rơi (rơi chậm thì chao
+    cũng chậm), chao qua lại, xoay lật mặt (kéo về 0: lá không xoay), gió và gió giật, nhoè lá ở gần, lá ở xa mờ nhạt,
+    nhoè khi bay nhanh. Cánh hoa luôn màu hồng.
   - **Nước trên kính**: kính mờ hơi nước làm nhoè cảnh bên ngoài, giọt nước đọng, giọt chảy xuống để lại vệt trong,
     giọt mưa mới bám vào kính; trong mỗi giọt thấy cảnh lộn ngược như thật. Thường dùng cho ô cửa kính: thêm hiệu ứng,
     rồi **Vẽ vùng** (nút có hình bút chì) khoanh đúng ô kính (khung cửa thì để ngoài). Muốn mưa rơi bên ngoài: thêm

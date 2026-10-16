@@ -1,4 +1,5 @@
-"""The effects: falling snow, leaves and rain, and glowing particles (fireflies, dust in the light).
+"""The effects: what they share (the canvas they draw on, falling particles), glowing particles (fireflies, dust in
+the light), and the list of every effect (snow, rain, leaves... each in its own module).
 
 Every particle moves as a function of the phase tau = t / P, where t is the frame number and P the number of
 frames of the loop, and every frequency in it is a whole number of cycles per loop. So frame P is exactly frame 0
@@ -15,7 +16,6 @@ what it should and leaves every particle where it was.
 import math
 
 import numpy as np
-from PIL import Image, ImageFilter
 
 from . import overlay, sprites
 
@@ -47,13 +47,6 @@ def _place(scale=20, x=0, y=0, group="Vị trí và cỡ"):
 
 
 SCHEMA = {
-    "leaves": {"label": "Lá rơi", "params": [
-        _choice("style", "Kiểu", "autumn", [("autumn", "Lá thu"), ("green", "Lá xanh"),
-                                             ("petal", "Cánh hoa anh đào")]),
-        _num("amount", "Số lá", 30), _num("size", "Cỡ lá", 45), _num("speed", "Tốc độ rơi", 35),
-        _num("wind", "Gió (trái ← → phải)", 15, -100, 100), _num("spin", "Xoay, lật", 50),
-        _num("sway", "Đung đưa", 50), _num("depth", "Chiều sâu (xa nhỏ, gần to)", 50),
-        _num("blur", "Nhoè lá ở gần", 30), _num("opacity", "Độ đậm", 100)]},
     "glow": {"label": "Hạt sáng", "params": [
         _choice("style", "Kiểu", "firefly", [("firefly", "Đom đóm"), ("dust", "Bụi sáng lơ lửng")],
                 presets={"firefly": {"color": "#f2ff8c"}, "dust": {"color": "#fff1d6"}}),
@@ -64,7 +57,7 @@ SCHEMA = {
 
 
 SCHEMA["file"] = overlay.SCHEMA  # a layer from an outside file (video or picture)
-# (snow, rain and water on glass: their own modules, added at the end)
+# (snow, rain, leaves, water on glass, steam, candle: their own modules, added at the end)
 
 
 def defaults(kind):
@@ -75,6 +68,9 @@ def clean_params(kind, raw):
     """The parameters of a `kind` layer from the page: every key present, numbers clamped, choices checked."""
     out = {}
     raw = raw if isinstance(raw, dict) else {}
+    upgrade = getattr(KINDS.get(kind), "upgrade", None)
+    if upgrade:  # (settings saved by an older version of the effect)
+        raw = upgrade(raw)
     for p in SCHEMA[kind]["params"]:
         v = raw.get(p["key"], p["value"])
         if p["type"] == "range":
@@ -288,104 +284,6 @@ class Falling(Effect):
         return self.xe + d * self.sin, -self.my + d * self.cos, d >= 0
 
 
-_LEAVES = {}
-
-
-def leaf_set(style, seed):
-    key = (style, seed)
-    if key not in _LEAVES:
-        if len(_LEAVES) > 8:
-            _LEAVES.clear()
-        _LEAVES[key] = [sprites.Leaf(style, i, seed) for i in range(6)]
-    return _LEAVES[key]
-
-
-class Leaves(Falling):
-    CAP = 400
-
-    def __init__(self, *a):
-        super().__init__(*a)
-        p, px = self.p, self.px
-        u = self.rng.random((self.CAP, 16))
-        z = u[:, 0] ** 1.2
-        ds = p["depth"] / 100
-        size_k = (1 - ds) + ds * (0.45 + 1.6 * z ** 1.3)
-        speed_k = (1 - ds) + ds * (0.55 + 0.9 * z)
-        length = _lerp(22, 80, p["size"] / 100) * size_k * (0.8 + 0.4 * u[:, 4]) * px  # pixels
-        speed = _lerp(0.1, 0.42, p["speed"] / 100) * speed_k * (0.85 + 0.3 * u[:, 3])
-        angle = math.radians(50) * p["wind"] / 100 + np.radians(8) * (u[:, 9] - 0.5)
-        swing = p["sway"] / 100 * _lerp(0.015, 0.06, u[:, 5]) * (0.6 + 0.6 * z)
-        spin = p["spin"] / 100
-        turns = np.where(u[:, 10] < 0.6 * spin, np.sign(u[:, 11] - 0.5) * self.cycles(_lerp(0.1, 0.4, u[:, 12])), 0)
-        margin = float(length.max()) / self.h + 0.02
-        share = self.paths(u[:, 1], u[:, 2], speed, angle, margin, margin + float(swing.max()) + 0.03)
-        wanted = p["amount"] / 100 * 60 * self.aspect / (16 / 9)
-        defocus = p["blur"] / 100 * np.clip((z - 0.7) / 0.3, 0, 1)
-        kept = self.choose(share, wanted, {
-            "z": z, "length": length, "swing": swing, "m": self.cycles(_lerp(0.2, 0.5, u[:, 6])),
-            "phi": u[:, 7] * 2 * math.pi, "tilt": (0.25 + 0.6 * spin) * _lerp(0.5, 1.0, u[:, 8]),
-            "turns": turns, "rot0": u[:, 13] * 2 * math.pi,
-            "flips": np.rint(self.loop_s * _lerp(0.0, 0.35, u[:, 14]) * spin), "chi": (u[:, 15] - 0.5) * 2.0,
-            "kind": (u[:, 12] * 6).astype(int) % 6, "blur": defocus * 5 * px,
-            "opacity": p["opacity"] / 100 * _lerp(0.85, 1.0, z)})
-        self.__dict__.update(kept)
-        self.gusts(0.025 * abs(p["wind"]) / 100 + 0.01 * p["sway"] / 100)
-        self.leaves = leaf_set(p["style"], self.seed)
-
-    def pose(self, t):
-        x, y, on = self.where(t)
-        tau = self.tau(t)
-        phase = 2 * math.pi * self.m * tau + self.phi
-        x = x + self.swing * np.sin(phase) + self.gust_at(tau) * (0.3 + 0.7 * self.z)
-        y = y + 0.25 * self.swing * np.sin(2 * phase)
-        turn = self.rot0 + 2 * math.pi * self.turns * tau + self.tilt * np.cos(phase)
-        flip = np.cos(2 * math.pi * self.flips * tau + self.chi)
-        return x * self.h, y * self.h, turn, flip, on
-
-    def draw(self, t, canvas, mask):
-        now = self.pose(t)
-        before, after = self.pose(t - 0.25), self.pose(t + 0.25)  # a 180-degree shutter
-        xs, on = now[0], now[4]
-        moved = np.hypot(after[0] - before[0], after[1] - before[1]) + np.abs(after[2] - before[2]) * self.length
-        for i in np.flatnonzero(on & (xs > -200) & (xs < self.w + 200)):
-            poses = (before, now, after) if moved[i] > 1.5 else (now,)
-            patch = self._patch(i, poses)
-            if patch is not None:
-                canvas.over_rgba(*patch, mask)
-
-    def _patch(self, i, poses):
-        parts = [self._sample(i, pose[0][i], pose[1][i], pose[2][i], pose[3][i]) for pose in poses]
-        x0, y0 = min(p[0] for p in parts), min(p[1] for p in parts)
-        x1 = max(p[0] + p[2].shape[1] for p in parts)
-        y1 = max(p[1] + p[2].shape[0] for p in parts)
-        acc = np.zeros((y1 - y0, x1 - x0, 4), np.float32)
-        for px0, py0, arr in parts:
-            acc[py0 - y0:py0 - y0 + arr.shape[0], px0 - x0:px0 - x0 + arr.shape[1]] += arr
-        acc *= self.opacity[i] / len(parts)
-        return x0, y0, acc[..., :3], acc[..., 3]
-
-    def _sample(self, i, x, y, turn, flip):
-        box = self.length[i] / 0.9  # the leaf fills 90 % of its image
-        img = self.leaves[self.kind[i]].image(flip < 0, box)
-        size = img.size[0]
-        sx, sy = max(abs(flip), 0.06) * box / size, box / size
-        ca, sa = math.cos(turn), math.sin(turn)
-        blur = float(self.blur[i])
-        hw = (abs(ca) * sx + abs(sa) * sy) * size / 2 + 2 + 3 * blur
-        hh = (abs(sa) * sx + abs(ca) * sy) * size / 2 + 2 + 3 * blur
-        x0, y0 = math.floor(x - hw), math.floor(y - hh)
-        w, h = math.ceil(x + hw) - x0, math.ceil(y + hh) - y0
-        ox, oy = x0 - x, y0 - y
-        data = (ca / sx, sa / sx, (ca * ox + sa * oy) / sx + size / 2,
-                -sa / sy, ca / sy, (-sa * ox + ca * oy) / sy + size / 2)
-        out = img.transform((w, h), Image.Transform.AFFINE, data, resample=Image.Resampling.BICUBIC)
-        if blur > 0.3:
-            out = out.filter(ImageFilter.GaussianBlur(blur))
-        arr = np.asarray(out, np.float32) * (1 / 255.0)
-        arr[..., :3] *= 0.78 + 0.22 * abs(flip)  # a leaf seen edge-on catches less light
-        return x0, y0, arr
-
-
 class Glow(Effect):
     """Points of light that wander and twinkle in place: fireflies, or dust catching the light."""
     blend = "screen"
@@ -439,11 +337,11 @@ class Glow(Effect):
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)
 
 
-from . import candle, glass, rain, snow, steam  # (here: they build on the classes above)
+from . import candle, glass, leaves, rain, snow, steam  # (here: they build on the classes above)
 
 SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "steam": steam.SCHEMA,
-          "candle": candle.SCHEMA, **SCHEMA}
-KINDS = {"snow": snow.Snow, "leaves": Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
+          "candle": candle.SCHEMA, "leaves": leaves.SCHEMA, **SCHEMA}
+KINDS = {"snow": snow.Snow, "leaves": leaves.Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
          "steam": steam.Steam, "candle": candle.Candle}
 
 

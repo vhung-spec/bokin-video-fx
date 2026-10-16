@@ -36,13 +36,18 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/library.py`: thư viện hiệu ứng dùng chung trong `%APPDATA%\Bokin\FX\library\<id>` (file gốc, ảnh nhỏ, bản nhẹ).
 - `fx/engine.py`: ghép một khung (video → vùng đứng yên → các clip theo track, mờ dần), kết xuất song song nhiều đoạn,
   khung chính xác cho trang (`Looks`), clip xem nhanh của hiệu ứng tạo sẵn (`fx_clip`), bản nhẹ của video gốc.
-- `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), lá, hạt sáng, và danh sách `KINDS`
+- `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), hạt sáng, và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
-  `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, nước trên kính, khói cốc cà phê, lửa nến, mỗi cái một
-  file. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên kính, lửa
-  nến) đổi cả hình bên dưới: `apply()` cho video xuất và khung chính xác; trang chỉ phát clip xem nhanh, nên xem
-  nhanh gần đúng và dừng hình thì hiện khung chính xác (`liveIncomplete`).
+  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, lá rơi, nước trên kính, khói cốc cà phê,
+  lửa nến, mỗi cái một file. Lá rơi: lá phong (đỏ, vàng, xanh), lá thường, cánh hoa vẽ bằng trường khoảng cách (thuỳ,
+  răng cưa, gân), mỗi mẫu làm một lần ở cỡ vừa đủ (`master`, `sprite()`, giới hạn `MAX_BYTES`); lá xanh ngả màu
+  (`turning`) chỉ khi đã có lá đỏ/vàng; mỗi lần rơi lại là lá khác (`passes()`, `design()`); lá nghiêng chọn hình theo
+  chiều dài, ép bằng bộ lọc trung bình (`place()`); chao theo tốc độ rơi; `upgrade()` của lớp
+  hiệu ứng (gọi trong `clean_params`) chuyển thông số clip của bản cũ. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi
+  (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên kính, lửa nến) đổi cả hình bên dưới: `apply()` cho video xuất
+  và khung chính xác; trang chỉ phát clip xem nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung chính xác
+  (`liveIncomplete`).
 - Hiệu ứng đặt một chỗ (`BOX`: khói, nến): thông số `x`, `y`, `scale` (`_place()`), `box()` cùng công thức với clip
   file (vừa khung). `UNDER` (nến): clip xem nhanh làm từ chính hình dưới hộp (video + vùng đứng yên, `apply()`),
   chỉ giữ phần đổi (`change_rgba`: độ đục vừa đủ), trang đặt nó bằng Normal ngay trên video và vùng đứng yên, dưới
@@ -51,8 +56,8 @@ hiệu ứng. Cách dùng: `README.md`.
   hiện (`elsewhere`, server trả `at`); vẽ vùng đứng yên xong thì trang hỏi lại (`requestAllFx`). `mark` (miệng cốc),
   `anchor` (đầu bấc) và `tip` (đỉnh lửa) là vạch vàng trên khung chỉnh clip; đổi cỡ hiệu ứng có `anchor` giữ yên điểm
   đó (`keepAnchor`).
-- `fx/sprites.py`: hình hạt vẽ bằng mã. `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()` cho clip suốt video,
-  `playing()` cho clip ngắn hơn, xoay 3D: `homography()`, `quad()`).
+- `fx/sprites.py`: hình hạt vẽ bằng mã (chấm, quầng sáng). `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()`
+  cho clip suốt video, `playing()` cho clip ngắn hơn, xoay 3D: `homography()`, `quad()`).
 - `fx/video.py`: ffmpeg (bản đi kèm imageio-ffmpeg): đọc khung, ghi H.264, nối các đoạn bằng stream copy, bản nhẹ cho
   trình duyệt (H.264, hoặc VP9 WebM khi có nền trong suốt).
 - `fx/jobs.py`: hai hàng đợi: xuất video, và chuẩn bị xem nhanh (bản nhẹ, clip hiệu ứng tạo sẵn).
