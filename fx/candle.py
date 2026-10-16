@@ -67,12 +67,16 @@ SCHEMA = {"label": "Lửa nến", "params": [
     _num("reach", "Ánh sáng lan xa", 40, group="Ánh sáng"),
     _num("warmth", "Màu lửa (vàng ← → cam)", 50, group="Màu"),
     *_place(13)],
-    # where the flame's base goes in the box (fractions of its width and height), for a mark on the page's box
-    "anchor": [0.5, BASE], "anchor_hint": "Đặt chân ngọn lửa (đầu bấc) vào vạch này",
+    # where the flame's base and tip go in the box (fractions of its width and height), for marks on the page's box:
+    # the flame of the video is as tall as the effect's flame at size 50 (FLAME), with room for its halo above
+    "anchor": [0.5, BASE], "anchor_hint": "Đặt chân ngọn lửa (đầu bấc) vào vạch này", "anchor_label": "đầu bấc",
+    "tip": [0.5, BASE - FLAME], "tip_hint": "Kéo góc khung cho đỉnh ngọn lửa trong video chạm vạch này",
+    "tip_label": "đỉnh lửa",
     "note": "Sửa nến bị lỗi: (1) nếu lửa trong video giật, méo hay biến mất ở chỗ loop, bấm V1 Video gốc rồi Vẽ vùng "
-            "đứng yên, tô lên ngọn nến (chọn khung hình có lửa đẹp); (2) kéo khung trắng cho vạch vàng nằm ở chân ngọn "
-            "lửa (đầu bấc), kéo góc cho khung ôm vừa ngọn lửa; (3) Cách sửa: Làm sống ngọn lửa có sẵn, hoặc Vẽ ngọn "
-            "lửa mới nếu lửa cũ hỏng nặng. Bấm Suốt video để lửa sống cả video. Mỗi ngọn nến một clip Lửa nến."}
+            "đứng yên, tô lên ngọn nến (chọn khung hình có lửa đẹp); (2) kéo khung trắng cho vạch vàng dưới (đầu bấc) "
+            "nằm ở chân ngọn lửa, rồi kéo góc khung cho vạch vàng trên (đỉnh lửa) chạm đỉnh ngọn lửa: phía trên còn "
+            "trống để có quầng sáng; (3) Cách sửa: Làm sống ngọn lửa có sẵn, hoặc Vẽ ngọn lửa mới nếu lửa cũ hỏng "
+            "nặng. Bấm Suốt video để lửa sống cả video. Mỗi ngọn nến một clip Lửa nến."}
 
 
 def _smooth(x):

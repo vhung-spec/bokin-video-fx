@@ -104,6 +104,10 @@ header .prep { color: var(--dim); font-size: 12px; }
 .xform i[data-h=se] { right: -6px; bottom: -6px; cursor: nwse-resize; }
 .xform .xmark { position: absolute; display: none; pointer-events: none; border: 2px dashed #ffd84d; box-shadow: 0 0 0 1px #0008; }
 .xform .xmark.dot { border-radius: 50%; }
+.xform .xmark.tip { border-style: dotted; }
+.xform .xmark[data-lab]::after { content: attr(data-lab); position: absolute; left: 100%; top: -8px; margin-left: 5px;
+  font-size: 11px; line-height: 14px; color: #ffd84d; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
+.xform .xmark.dot[data-lab]::after { top: 50%; margin-top: -7px; }
 .xform .lab { position: absolute; left: -1px; top: -21px; font-size: 11px; background: #000c; color: #fff; padding: 1px 6px; white-space: nowrap; pointer-events: none; border-radius: 3px; }
 .mon-body { flex: 1; min-height: 0; display: flex; }
 .mon-body .stage { flex: 1; min-width: 0; }
@@ -278,7 +282,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
           <canvas id="paintCanvas"></canvas>
           <canvas id="polyCanvas"></canvas>
         </div>
-        <div class="xform" id="xform" title="Kéo để di chuyển, kéo góc để đổi cỡ: góc đối diện đứng yên (Alt: đổi cỡ quanh tâm). Shift: đi thẳng, Alt: không bám giữa"><span class="lab" id="xformLab"></span><span class="xmark" id="xformMark"></span><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div>
+        <div class="xform" id="xform" title="Kéo để di chuyển, kéo góc để đổi cỡ: góc đối diện đứng yên (Alt: đổi cỡ quanh tâm). Shift: đi thẳng, Alt: không bám giữa"><span class="lab" id="xformLab"></span><span class="xmark" id="xformMark"></span><span class="xmark tip" id="xformTip"></span><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div>
         <div class="cursor" id="cursor"></div>
         <div class="badge" id="badge"></div>
         <div class="waiting" id="waiting"></div>
@@ -875,6 +879,7 @@ async function sendMask(name, m) {
     p.masks = list;
     if (S.project !== p) return true;
     if (keep !== had) { bgControls(); renderTimeline(); }  // "vùng đã vẽ" / "cả khung hình"
+    if (name === "freeze") requestAllFx();  // a clip made from the picture under its box shows it
     refreshExact();
     return true;
   } catch (e) {
@@ -1068,6 +1073,13 @@ function styleBase() {
     stillImg.style.display = url && !onlyBase() ? "block" : "none";
   } else stillImg.style.display = "none";
 }
+function placeOf(c) { return [+c.params.x, +c.params.y, +c.params.scale]; }
+function elsewhere(c) {  // a preview clip made from the picture under its box, now somewhere else: not shown
+  if (!(S.schema.under || {})[c.kind]) return false;
+  if (S.xdrag && S.xdrag.c === c) return true;  // being moved: the picture under the box shows
+  const fx = S.fx[c.id], at = fx && fx.at && fx.at[fx.shown];
+  return !!at && placeOf(c).some((v, i) => Math.abs(v - at[i]) > 1e-6);
+}
 function blendOf(c) {  // (an effect whose preview clip is the picture under its box with it applied: laid as it is)
   if (c.kind === "file") return c.params.blend;
   return S.schema.blend[c.kind] === "screen" && !(S.schema.under || {})[c.kind] ? "screen" : "normal";
@@ -1123,16 +1135,20 @@ function showXform() {  // the box of the selected file clip, over the picture
   xform.style.pointerEvents = now ? "" : "none";  // not at this time: an outline only, clicks go to what is shown
   $("#xformLab").textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}`;
   // where the thing it belongs to goes: a cup's mouth (a flat ellipse on the bottom edge), a candle's wick (a line)
-  const sch = S.schema.kinds[c.kind], mk = $("#xformMark"), bw = Math.max(4, r.w * kx);
+  const sch = S.schema.kinds[c.kind], mk = $("#xformMark"), tip = $("#xformTip"), bw = Math.max(4, r.w * kx), bh = Math.max(4, r.h * ky);
+  const line = (el, at, w, hint, lab) => {  // a level line at `at` (fractions of the box)
+    Object.assign(el.style, {display: "block", left: at[0] * bw - w / 2 - 1 + "px", width: w + "px", height: "0px", top: at[1] * bh - 1 + "px", bottom: ""});
+    el.title = hint || ""; if (lab) el.dataset.lab = lab; else delete el.dataset.lab;
+  };
+  tip.style.display = "none";
   if (sch.mark) {
     const w = bw * clamp(+c.params[sch.mark.width] || 0, 0, 100) / 100, h = Math.max(6, 0.22 * w);
     Object.assign(mk.style, {display: "block", left: (bw - w) / 2 - 1 + "px", width: w + "px", height: h + "px", top: "", bottom: -h / 2 - 1 + "px"});
     mk.className = "xmark dot"; mk.title = sch.mark.tip;
+    if (sch.mark.label) mk.dataset.lab = sch.mark.label; else delete mk.dataset.lab;
   } else if (sch.anchor) {
-    const w = 0.5 * bw;
-    Object.assign(mk.style, {display: "block", left: sch.anchor[0] * bw - w / 2 - 1 + "px", width: w + "px", height: "0px",
-      top: sch.anchor[1] * Math.max(4, r.h * ky) - 1 + "px", bottom: ""});
-    mk.className = "xmark"; mk.title = sch.anchor_hint;
+    mk.className = "xmark"; line(mk, sch.anchor, 0.5 * bw, sch.anchor_hint, sch.anchor_label);
+    if (sch.tip) line(tip, sch.tip, 0.3 * bw, sch.tip_hint, sch.tip_label);
   } else mk.style.display = "none";
 }
 function num(v) { return String(+(+v).toFixed(2)); }
@@ -1151,6 +1167,7 @@ function startXdrag(e) {  // a press on the selected clip's box, or on its pictu
   S.xdrag = {c, scale: !!h, h, x0: e.clientX, y0: e.clientY, p0: Object.assign({}, c.params), r0: placed(c), sc, cx, cy, ox, oy,
     d0: Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy))};
   invalidateExact();
+  if (S.schema.under[c.kind]) applyTime();  // its preview clip hides while it moves
 }
 xform.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;
@@ -1188,6 +1205,7 @@ xform.addEventListener("pointermove", e => {
 xform.addEventListener("pointerup", () => {
   const d = S.xdrag; if (!d) return;
   S.xdrag = null;
+  if (S.schema.under[d.c.kind]) applyTime();  // (back if it did not move)
   if (["x", "y", "scale"].some(k => d.c.params[k] !== d.p0[k])) {
     if (S.els[d.c.id]) styleLayer(d.c, S.els[d.c.id]);
     showXform(); scheduleSave(); remember(); renderControls(); renderTools();
@@ -1228,7 +1246,7 @@ function applyTime(hold) {  // hold: after a pause, videos a frame or two off st
   for (const c of S.project.layers) {
     const el = S.els[c.id]; if (!el) continue;
     const sp = spans[c.id], w = ws[c.id];
-    const show = w > 0.001;
+    const show = w > 0.001 && !elsewhere(c);
     el.wrap.style.display = show ? "" : "none";
     el.wrap.style.opacity = (w * el.opacity).toFixed(3);
     if (el.media.tagName !== "VIDEO") continue;
@@ -1454,6 +1472,7 @@ async function requestFx(c) {
     if (S.project !== p || r.length !== p.length) return;  // made for the other length: asked again after the save
     const fx = S.fx[c.id] = S.fx[c.id] || {};
     fx.want = r.name; fx.ready = r.ready;
+    if (r.at) (fx.at = fx.at || {})[r.name] = r.at;  // the place it is made for
     if (r.ready) fx.shown = r.name;
     syncLayers(); applyTime();
   } catch (e) { /* the clip may be gone */ }
@@ -3047,7 +3066,7 @@ $("#fileStill").onchange = async e => {
     if (!S.project || S.project.id !== pid) { toast("Đã dùng ảnh gốc cho vùng đứng yên."); return; }
     S.project.still = p.still; S.project.has_still_image = p.has_still_image; S.project.rev = p.rev;
     toast(p.still.warning ? "⚠ " + p.still.warning : "Đã dùng ảnh gốc cho vùng đứng yên.", !!p.still.warning, 8000);
-    renderControls(); styleBase(); refreshExact();
+    renderControls(); styleBase(); refreshExact(); requestAllFx();
   } catch (err) { fail(err); }
 };
 document.addEventListener("dragover", e => { e.preventDefault(); });

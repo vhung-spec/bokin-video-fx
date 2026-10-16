@@ -490,17 +490,52 @@ def fx_clip_frame(info, kind, layer=None):
     return max(2, round(h * box[0] / box[1] / 2) * 2), h
 
 
-def _under_key(project):
-    """What the picture under a box is made of: the video, and its still area (settings, mask and picture)."""
-    folder = os.path.join(paths.projects_dir(), project.get("id") or "-")
-    stamps = []
-    for name in (os.path.join("masks", "freeze.png"), "still.png"):
+_painted = {}  # a mask file's (stamp) -> where it is painted, fractions of its size (left, top, right, bottom)
+
+
+def _painted_box(path, stamp):
+    """Where a mask has anything painted, as fractions of its size; None if nothing (kept for its stamp)."""
+    if _painted.get(path, (None,))[0] != stamp:
         try:
-            st = os.stat(os.path.join(folder, name))
-            stamps.append([st.st_mtime_ns, st.st_size])
+            with Image.open(path) as im:
+                im.load()
+                m = im.getchannel("A") if "A" in im.getbands() else im.convert("L")
+                bb = m.getbbox()
+                _painted[path] = (stamp, bb and (bb[0] / m.width, bb[1] / m.height, bb[2] / m.width, bb[3] / m.height))
+        except (OSError, ValueError):
+            return (0.0, 0.0, 1.0, 1.0)  # (unreadable: as if it reached everywhere)
+    return _painted[path][1]
+
+
+def _under_key(project, layer):
+    """What the picture under a placed effect's box is made of: the video, and the still area if its soft edge
+    reaches the box (then its softness, mask and picture). A still area elsewhere does not make the clip again."""
+    key = [project["video"].get("file")]
+    folder = os.path.join(paths.projects_dir(), project.get("id") or "-")
+    path = mask_path(folder, "freeze")
+    try:
+        st = os.stat(path)
+    except OSError:
+        return key
+    painted = _painted_box(path, (st.st_mtime_ns, st.st_size))
+    if not painted:
+        return key
+    info = project["video"]
+    w, h = info["w"], info["h"]
+    feather = float((project.get("freeze") or {}).get("feather", 0) or 0)
+    grow = 3 * feather + 2  # (a Gaussian blur of radius r spreads about 2.5 r)
+    x0, y0, bw, bh = effects.box_of(layer["kind"], layer.get("params"), w, h)
+    if (painted[0] * w - grow >= x0 + bw or painted[2] * w + grow <= x0 or painted[1] * h - grow >= y0 + bh
+            or painted[3] * h + grow <= y0):
+        return key
+    still, picture = project.get("still") or {}, None
+    if still.get("source") == "image":  # (as still_picture: a frame of the video when there is no picture)
+        try:
+            sp = os.stat(os.path.join(folder, "still.png"))
+            picture = ["image", sp.st_mtime_ns, sp.st_size]
         except OSError:
-            stamps.append(None)
-    return [project["video"].get("file"), project.get("freeze"), project.get("still"), stamps]
+            pass
+    return key + [feather, [st.st_mtime_ns, st.st_size], picture or ["frame", still.get("frame", 0)]]
 
 
 def fx_clip_params(kind, params):
@@ -518,8 +553,9 @@ def fx_clip_name(project, layer):
     key = json.dumps([layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1),
                       project_frames(project), info["fps"],
                       fx_clip_frame(info, layer["kind"], layer)] + [cls.VERSION] * (cls.VERSION > 1)  # (1: as before)
-                     + ([effects.clean_params(layer["kind"], layer.get("params")), _under_key(project)] if cls.UNDER
-                        else []), sort_keys=True)  # (made from the picture under its box: the box's place too)
+                     + ([effects.clean_params(layer["kind"], layer.get("params")), _under_key(project, layer), 2]
+                        if cls.UNDER else []), sort_keys=True)  # (made from the picture under its box: the box's
+    # place too; 2: only its change kept, see change_rgba)
     alpha = cls.blend != "screen" or cls.UNDER  # (made from the picture under its box: soft edges)
     return f"fx-{hashlib.sha1(key.encode()).hexdigest()[:12]}" + (".webm" if alpha else ".mp4")
 
@@ -554,9 +590,25 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
         shutil.rmtree(work, ignore_errors=True)
 
 
+def change_rgba(before, after, fade):
+    """An RGBA picture (uint8) that, laid with Normal blend over `before`, gives `after` (both float RGB in 0..1),
+    its change faded out by `fade` (h, w, 1). Its alpha is no more than the change needs (softly spread a little),
+    so wherever the picture is not changed, what the page lays under it (other clips) shows through."""
+    d = (np.clip(after, 0.0, 1.0) - before) * fade
+    # the least alpha that reaches before + d with a colour in 0..1: d / (1 - before) up, -d / before down
+    need = np.where(d > 0, d / np.maximum(1.0 - before, 1e-4), -d / np.maximum(before, 1e-4)).max(axis=2)
+    a = Image.fromarray((np.clip(need, 0.0, 1.0) * 255.0 + 0.999).astype(np.uint8))
+    # spread a little: a gentler alpha keeps the colours tame where it changes fast (the clip's colour is halved)
+    a = np.maximum(np.asarray(a), np.asarray(a.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(2))))
+    k = np.where(a > 0, 255.0 / np.maximum(a, 1), 0.0).astype(np.float32)[..., None]
+    colour = np.clip(before + d * k, 0.0, 1.0)
+    return np.concatenate([(colour * 255.0 + 0.5).astype(np.uint8), a[..., None]], 2)
+
+
 def _under_part(project, layer, total, folder, start, end, path):
     """fx_part of an effect made from the picture under its box (Effect.UNDER): the video and its still area there,
-    the box alone applied to it, its edges fading out so it sits softly on the video the page plays under it."""
+    the box alone applied to it; only its change is kept (change_rgba), fading out toward the box's edges, so it
+    sits on the video the page plays under it and lets the clips of lower tracks show where nothing changes."""
     info = project["video"]
     fps, kind, seed = video.fps_value(info["fps"]), layer["kind"], layer.get("seed", 1)
     w, h = info["w"], info["h"]
@@ -566,7 +618,7 @@ def _under_part(project, layer, total, folder, start, end, path):
     yy, xx = np.mgrid[0:ch, 0:cw].astype(np.float32)
     edge = np.minimum(np.minimum(xx + 0.5, cw - 0.5 - xx), np.minimum(yy + 0.5, ch - 0.5 - yy))
     fade = np.clip(edge / max(2.0, 0.08 * min(cw, ch)), 0.0, 1.0)
-    fade = (fade * fade * (3 - 2 * fade) * 255.0 + 0.5).astype(np.uint8)[..., None]
+    fade = (fade * fade * (3 - 2 * fade))[..., None]
     inside = 0 <= x0 and 0 <= y0 and x0 + bw <= w and y0 + bh <= h
     under = Scene(folder, dict(project, layers=[]), (w, h), total)  # the video with its still area, no clips
     writer = video.ClipWriter(path, cw, ch, info["fps"], True)
@@ -582,8 +634,9 @@ def _under_part(project, layer, total, folder, start, end, path):
                 img = img.crop((math.floor(x0), math.floor(y0), math.ceil(x0 + bw), math.ceil(y0 + bh))).resize(
                     (cw, ch), Image.Resampling.BICUBIC)
             picture = np.asarray(img, np.float32) * (1 / 255.0)
+            before = picture.copy()
             alone.apply(t, picture, None, 1.0)
-            writer.write(np.concatenate([(np.clip(picture, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8), fade], 2))
+            writer.write(change_rgba(before, picture, fade))
         writer.close()
         return True
     except BaseException:

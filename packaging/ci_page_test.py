@@ -385,8 +385,11 @@ def run(page, folder, edge):
         cid = page.evaluate(f"S.project.layers.find(l => l.kind === '{kind}').id")
         page.click("#fullBtn")
         page.wait_for_timeout(300)
-        mk = page.evaluate("[$('#xform').style.display, $('#xformMark').style.display, $('#xformMark').className]")
-        check(f"{kind}: its box on the picture, with the yellow mark", mk == ["block", "block", mark], str(mk))
+        mk = page.evaluate("[$('#xform').style.display, $('#xformMark').style.display, $('#xformMark').className, "
+                           "$('#xformTip').style.display, $('#xformMark').dataset.lab]")
+        tip = "block" if kind == "candle" else "none"  # (the candle: the wick, and the flame's tip)
+        check(f"{kind}: its box on the picture, with the yellow marks", mk[:4] == ["block", "block", mark, tip]
+              and bool(mk[4]), str(mk))
         page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.els['{cid}']", timeout=300000)
         laid = f"""(() => {{ const c = clipById('{cid}'), e = S.els['{cid}'], q = placed(c);
             return [e.media.getAttribute('src'), e.wrap.style.mixBlendMode,
@@ -395,7 +398,17 @@ def run(page, folder, edge):
         check(f"{kind}: its preview clip, laid in the box", ".webm" in el[0] and el[1:] == ["normal", True], str(el))
         before = page.evaluate(f"[S.fx['{cid}'].shown, clipById('{cid}').params.x]")
         xb = page.locator("#xform").bounding_box()
-        drag(xb["x"] + xb["width"] / 2, xb["y"] + xb["height"] / 2, xb["x"] + xb["width"] / 2 + 40, xb["y"] + xb["height"] / 2)
+        cx0, cy0 = xb["x"] + xb["width"] / 2, xb["y"] + xb["height"] / 2
+        page.mouse.move(cx0, cy0)
+        page.mouse.down()
+        page.mouse.move(cx0 + 20, cy0, steps=4)
+        mid = page.evaluate(f"S.els['{cid}'] ? S.els['{cid}'].wrap.style.display : 'gone'")
+        page.mouse.move(cx0 + 40, cy0, steps=4)
+        page.mouse.up()
+        page.wait_for_timeout(300)
+        check(f"{kind}: while its box moves, its preview clip " +
+              ("hides (made from the picture under the box: the video shows)" if kind == "candle" else "moves with it"),
+              mid == ("none" if kind == "candle" else ""), mid)
         page.evaluate("saveNow()")
         page.wait_for_timeout(1500)
         if kind == "candle":  # asked for once the app has the new place
@@ -407,6 +420,13 @@ def run(page, folder, edge):
         made_again = after[0] != before[0]
         check(f"{kind}: dragging its box moves it" + (", with a new preview clip" if kind == "candle" else ""),
               after[1] > before[1] + 1 and made_again == (kind == "candle"), f"{before} -> {after}")
+        if kind == "candle":  # the old clip is not laid at the new place; the new one is, once made
+            hidden = page.evaluate(f"S.fx['{cid}'].ready || S.els['{cid}'].wrap.style.display === 'none'")
+            page.wait_for_function(f"S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want", timeout=300000)
+            page.evaluate("applyTime()")
+            el = page.evaluate(laid + ".concat([S.els['" + cid + "'].wrap.style.display])")
+            check("candle: its old preview clip hides until the new one is made, then that one shows in the box",
+                  hidden and el[2] is True and el[3] == "", str([hidden] + el))
     shot("05b-steam-candle")
 
     page.evaluate("saveNow()")

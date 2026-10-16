@@ -149,15 +149,17 @@ dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong 
 1. Nếu lửa trong video giật, méo hay biến mất ở chỗ loop: bấm **V1 Video gốc**, rồi **✎ Vẽ vùng đứng yên**, tô lên
    ngọn lửa. Dời đầu phát tới khung có lửa đẹp, bấm **Dùng khung đang xem**. Lửa lúc này đứng yên, không còn lỗi.
 2. Bấm **Tạo sẵn** → **🕯 Lửa nến**, kéo xuống một track trống (hàng ghi **trống**).
-3. Kéo khung trắng cho **vạch vàng** nằm ở chân ngọn lửa (đầu bấc). Kéo góc cho khung ôm vừa ngọn lửa.
+3. Kéo khung trắng cho **vạch vàng dưới** (ghi "đầu bấc") nằm ở chân ngọn lửa. Rồi kéo góc khung cho **vạch vàng
+   trên** (ghi "đỉnh lửa") chạm đỉnh ngọn lửa. Phần trống phía trên là chỗ cho quầng sáng.
 4. **Cách sửa**: **Làm sống ngọn lửa có sẵn** (lửa cũ lung linh, lay nhẹ), hoặc **Vẽ ngọn lửa mới** khi lửa cũ hỏng
-   nặng (kéo **Che ngọn lửa cũ** lên nếu còn thấy lửa cũ).
+   nặng. Nếu vẫn còn thấy lửa cũ: kéo góc cho khung to hơn một chút, hoặc tăng **Cỡ ngọn lửa**.
 5. Chọn **Kiểu** (nến trong phòng, nến gần cửa sổ, lửa nhỏ dịu, lửa to sáng ấm). Chỉnh thêm lung linh, quầng sáng,
    ánh nến hắt lên xung quanh, màu lửa.
 6. Bấm **Suốt video**. Nhiều ngọn nến thì mỗi ngọn một clip Lửa nến.
 
 Lúc phát, lửa nến chỉ xem gần đúng (ánh nến hắt ra ngoài khung trắng chưa hiện). Dừng hình thì thấy đúng như video
-xuất ra.
+xuất ra. Sau khi dời khung hay vẽ vùng đứng yên, app cần một lúc để làm lại bản xem nhanh của lửa nến. Trong lúc đó,
+khi phát chỉ thấy video gốc ở chỗ ngọn nến.
 
 ### Màu của video hiệu ứng nhập từ ngoài
 

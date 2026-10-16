@@ -223,10 +223,7 @@ class Effect:
 
     def box(self):
         """(x0, y0, w, h): where a placed effect's box lies in the frame, in pixels (floats)."""
-        bw, bh = self.BOX
-        k = min(self.w / bw, self.h / bh) * self.p["scale"] / 100
-        w, h = bw * k, bh * k
-        return (self.w - w) / 2 + self.p["x"] / 100 * self.w, (self.h - h) / 2 + self.p["y"] / 100 * self.h, w, h
+        return place_box(self.BOX, self.p, self.w, self.h)
 
     def cycles(self, rate_hz):
         """The whole number of cycles per loop nearest to `rate_hz` cycles a second (at least 1)."""
@@ -448,6 +445,18 @@ SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "stea
           "candle": candle.SCHEMA, **SCHEMA}
 KINDS = {"snow": snow.Snow, "leaves": Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
          "steam": steam.Steam, "candle": candle.Candle}
+
+
+def place_box(box, p, w, h):
+    """(x0, y0, w, h) of a box of shape `box` placed by p's scale, x, y in a w x h frame (as a file clip, "contain")."""
+    bw, bh = box
+    k = min(w / bw, h / bh) * p["scale"] / 100
+    return (w - bw * k) / 2 + p["x"] / 100 * w, (h - bh * k) / 2 + p["y"] / 100 * h, bw * k, bh * k
+
+
+def box_of(kind, params, w, h):
+    """Where a placed effect's box lies in a w x h frame, without making the effect."""
+    return place_box(KINDS[kind].BOX, clean_params(kind, params), w, h)
 
 
 def make(kind, params, seed, frames, fps, w, h):

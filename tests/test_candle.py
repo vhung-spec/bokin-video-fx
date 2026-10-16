@@ -366,6 +366,34 @@ class Picture(unittest.TestCase):
                 want = under(lens(whole, t, pic))
                 self.assertLess(float(np.abs(got - want).mean()), 0.02, (mode, t))
 
+    def test_preview_keeps_only_its_change(self):
+        """The preview clip (engine.change_rgba) laid with Normal blend on the picture under the box gives the
+        effect's picture; where nothing changes it is clear and where little changes (the halo's faint glow) it is
+        nearly so, so the clips of lower tracks show there."""
+        from PIL import Image, ImageFilter
+        pic = soft_flame(scene(False), CX, BASE, TALL, 5)
+        for halo in (40, 0):
+            params = {"mode": "alive", "light": 0, "halo": halo, **AT}
+            x0, y0, bw, bh = make(params).box()
+            cw, ch = round(bw * 4), round(bh * 4)
+            alone = effects.make("candle", engine.fx_clip_params("candle", params), 3, 144, 24, cw, ch)
+            before = np.asarray(Image.fromarray((pic * 255 + 0.5).astype(np.uint8)).resize(
+                (cw, ch), Image.Resampling.BICUBIC, box=(x0, y0, x0 + bw, y0 + bh)), np.float32) / 255
+            after = before.copy()
+            alone.apply(50, after, None, 1.0)
+            rgba = engine.change_rgba(before, after, np.ones((ch, cw, 1), np.float32)).astype(np.float32) / 255
+            a = rgba[..., 3:]
+            laid = rgba[..., :3] * a + before * (1 - a)
+            self.assertLess(float(np.abs(laid - np.clip(after, 0, 1)).max()), 1.01 / 255, halo)
+            self.assertGreater(float(a.max()), 0.9, halo)  # the flame
+            self.assertLess(float((a > 0.1).mean()), 0.2, halo)  # most of the box: nearly clear
+            if halo == 0:
+                changed = np.abs(after - before).max(axis=2) > 0
+                clear = ~np.asarray(Image.fromarray(changed.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(15)),
+                                    bool)
+                self.assertGreater(clear.mean(), 0.5)
+                self.assertEqual(float(a[..., 0][clear].max()), 0.0)  # far from any change: clear
+
     def test_alive_keeps_the_white_core_white(self):
         """When the light dims, what the camera saw white stays white (it does not turn grey)."""
         fx = make({"mode": "alive", "flicker": 100, "light": 100, "brightness": 0})
@@ -443,14 +471,18 @@ class Settings(unittest.TestCase):
         self.assertEqual(defaults["mode"], "alive")
 
     def test_anchor(self):
-        """Where the flame's base goes in the box (for a mark on the page's box): its bottom middle."""
+        """Where the flame's base and tip go in the box (marks on the page's box): its bottom middle, and the top of
+        the flame the effect takes the video's flame to be (at size 50), with room above it for the halo."""
         self.assertEqual(candle.SCHEMA["anchor"], [0.5, candle.BASE])
-        self.assertTrue(candle.SCHEMA["anchor_hint"])
+        self.assertEqual(candle.SCHEMA["tip"], [0.5, candle.BASE - candle.FLAME])
+        self.assertTrue(candle.SCHEMA["anchor_hint"] and candle.SCHEMA["tip_hint"])
+        self.assertGreater(candle.SCHEMA["tip"][1], 0.25)  # room for the halo
         fx = make({})
         x0, y0, w, h = fx.box()
         g = fx._geom()
         self.assertAlmostEqual(g[4], x0 + 0.5 * w)
         self.assertAlmostEqual(g[5], y0 + candle.BASE * h)
+        self.assertAlmostEqual(g[5] - g[6] * fx.size_k, y0 + candle.SCHEMA["tip"][1] * h)
 
     def test_screen_blend_and_lens(self):
         """A lens whose preview clip is made from the picture under its box (a transparent WebM laid as it is, its
@@ -464,6 +496,41 @@ class Settings(unittest.TestCase):
         self.assertNotEqual(a, b)
         self.assertEqual(engine.fx_clip_frame(info, "candle", {"kind": "candle", "params": {"scale": 13}}),
                          (104, 140))  # no bigger than the box is in the video
+
+    def test_preview_follows_the_still_area_under_its_box(self):
+        """The preview clip is made again when the still area under its box changes (its mask, softness, picture),
+        not for a still area elsewhere in the frame."""
+        import os
+        from PIL import Image
+        from fx import paths
+        info = {"w": 480, "h": 270, "fps": "24", "frames": 144, "seconds": 6.0, "file": "input.mp4"}
+        project = {"id": "c4ndl3t35t", "video": info, "length": 30, "freeze": {"feather": 10},
+                   "still": {"source": "frame", "frame": 0}}
+        layer = {"kind": "candle", "params": dict(AT)}
+        masks = os.path.join(paths.projects_dir(), project["id"], "masks")
+        os.makedirs(masks, exist_ok=True)
+        x0, y0, bw, bh = effects.box_of("candle", AT, W, H)
+        bare = engine.fx_clip_name(project, layer)
+
+        def paint(x, y, w, h):
+            m = Image.new("L", (W, H), 0)
+            m.paste(255, (int(x), int(y), int(x + w), int(y + h)))
+            m.save(os.path.join(masks, "freeze.png"))
+            os.utime(os.path.join(masks, "freeze.png"), ns=(1, 10 ** 9 * int(x + 7 * y)))  # (a new stamp)
+            return engine.fx_clip_name(project, layer)
+        far = paint(5, 5, 30, 30)  # far from the box (top left; the box is right of the middle)
+        self.assertGreater(x0, 120)
+        self.assertEqual(far, bare)
+        self.assertEqual(engine.fx_clip_name(dict(project, still={"source": "frame", "frame": 9}), layer), bare)
+        self.assertEqual(engine.fx_clip_name(dict(project, freeze={"feather": 20}), layer), bare)
+        over = paint(x0 + 2, y0 + 2, 8, 8)
+        self.assertNotEqual(over, bare)
+        self.assertNotEqual(engine.fx_clip_name(dict(project, still={"source": "frame", "frame": 9}), layer), over)
+        self.assertNotEqual(engine.fx_clip_name(dict(project, freeze={"feather": 20}), layer), over)
+        near = paint(x0 - 30, y0 + 10, 20, 20)  # 10 px left of the box: its soft edge (10 px) reaches it
+        self.assertNotEqual(near, bare)
+        moved = engine.fx_clip_name(project, {"kind": "candle", "params": dict(AT, x=AT["x"] + 30)})
+        self.assertNotEqual(moved, near)
 
 
 if __name__ == "__main__":

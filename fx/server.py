@@ -427,11 +427,15 @@ class Handler(BaseHTTPRequestHandler):
                 raise projects.UserError("Không tìm thấy clip.")
             name = engine.fx_clip_name(project, layer)
             length = project.get("length") or timeline.DEFAULT_LENGTH  # the page drops a clip of another length
+            at = None  # where a clip made from the picture under its box was made for (it shows only there)
+            if effects.KINDS[layer["kind"]].UNDER:
+                p = effects.clean_params(layer["kind"], layer.get("params"))
+                at = [p["x"], p["y"], p["scale"]]
             if os.path.exists(os.path.join(projects.folder(project["id"]), "clips", name)):
-                return self.send(200, {"name": name, "ready": True, "length": length})
+                return self.send(200, {"name": name, "ready": True, "length": length, "at": at})
             wanted = {engine.fx_clip_name(project, lay) for lay in project["layers"] if lay["kind"] != "file"}
             job = app.jobs.fx_clip(project["id"], layer["id"], name, wanted)
-            return self.send(200, {"name": name, "ready": False, "job": job["id"], "length": length})
+            return self.send(200, {"name": name, "ready": False, "job": job["id"], "length": length, "at": at})
         if path == "/api/copymask":  # a clip cut in two: the second half gets the first one's area
             project = projects.copy_mask(projects.load(data.get("id")), data.get("src"), data.get("dst"))
             return self.send(200, {"rev": project["rev"], "masks": self.project_view(project)["masks"]})
