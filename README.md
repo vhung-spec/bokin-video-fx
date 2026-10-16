@@ -42,7 +42,7 @@ dưới. Khi có bản mới, góc trên có nút **Cập nhật ngay**. Nếu k
 | Vùng | Dùng để |
 |---|---|
 | Trên bên trái: **Bảng chỉnh hiệu ứng** | Chỉnh clip đang chọn: thời gian, mờ dần, hoà trộn, vị trí, cỡ, vùng |
-| Trên bên phải: **Chương trình** | Xem video. Nút phát, khung trước/sau, phóng to hình. Cột **Công cụ** bên phải: vẽ vùng, vị trí và cỡ |
+| Trên bên phải: **Chương trình** | Xem video. Nút phát, khung trước/sau, phóng to / thu nhỏ hình, **✋ Bàn tay** để dời hình. Cột **Công cụ** bên phải: vẽ vùng, vị trí và cỡ |
 | Dưới bên trái: **Thư viện / Tạo sẵn / Dự án** | Các hiệu ứng để kéo xuống timeline. Các dự án đã mở |
 | Dưới bên phải: **Timeline** | V1 là video gốc (lặp lại thành 30 giây hoặc 1 phút). V2, V3… là các track hiệu ứng |
 
@@ -76,7 +76,10 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
      **Phát ngược** (tua ngược, chỉ với video): ô trong mục **Phát file**; lần đầu app làm sẵn một bản phát ngược của
      file (vài giây đến vài phút), clip hiện lại khi xong. Bấm vào
      hình của một clip trên màn hình để chọn clip đó; bấm rồi kéo luôn để di chuyển nó. Phóng to màn hình để đặt
-     clip thật chính xác (mỗi bước nhích khoảng một điểm ảnh).
+     clip thật chính xác (mỗi bước nhích khoảng một điểm ảnh). Clip nằm một phần hay cả ra ngoài khung hình: thu nhỏ
+     hình (lăn chuột xuống, hoặc chọn **25%**) để thấy vùng tối quanh khung. Phần ngoài khung của clip đang chọn hiện
+     mờ ở đó; bấm vào chỗ clip nằm, kéo khung trắng hoặc kéo góc của nó như bình thường (xem
+     [Phóng to, thu nhỏ, dời hình](#phóng-to-thu-nhỏ-dời-hình)).
    - **Vùng**: bấm **✎ Vẽ vùng** để tô chỗ hiệu ứng được hiện.
 6. **Vùng đứng yên và tiền cảnh**: bấm vào **V1 Video gốc** trên timeline, rồi bấm **✎ Vẽ vùng đứng yên** hoặc
    **✎ Vẽ tiền cảnh**.
@@ -115,7 +118,7 @@ hiện trong cột đó, hình không bị thu nhỏ.
 | Khoanh vùng | Chọn **⬠ Khoanh**, bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (nó sáng vòng vàng khi chuột tới gần), bấm đúp, bấm **Khép vùng** hoặc Enter. Bấm **Xong** khi chưa khép thì vùng cũng được khép. `Backspace` bỏ điểm cuối |
 | Thêm / bớt | **＋ Thêm**, **－ Bớt** (phím `X` để đổi). Ở chế độ Bớt, nét và đường khoanh có màu đỏ |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` |
-| Phóng to, kéo hình | Lăn chuột trên hình để phóng to. Giữ chuột phải (hoặc phím cách) rồi kéo |
+| Phóng to, kéo hình | Lăn chuột trên hình để phóng to / thu nhỏ. Bấm **✋** (phím `H`) rồi kéo, rồi `Esc` (hoặc chọn **Cọ** / **Khoanh**) để tô tiếp. Hoặc giữ chuột phải (hoặc phím cách) rồi kéo. Vẫn tô đúng chỗ chuột |
 | Xoá cả vùng | **Xoá vùng** (vùng đứng yên, tiền cảnh) hoặc **Cả khung hình** (vùng của clip). Bấm `Ctrl+Z` để lấy lại |
 | Xong | Bấm **Xong** hoặc `Esc`. Vùng của clip vẫn hiện bằng viền xanh để bạn kéo clip vào đúng chỗ (tắt bằng ô **Hiện vùng của clip**) |
 
@@ -127,9 +130,24 @@ Mép mềm của vùng clip nằm bên trong đường viền xanh: ra ngoài đ
 `Space` phát/dừng · `←` `→` khung trước/sau (`Shift`: 5 khung) · `↑` `↓` về mép clip trước/sau · `Home` `End`
 về đầu/cuối · `Ctrl+M` xuất video.
 
-Phóng to hình (như Photoshop, Premiere): `Ctrl` `+` / `Ctrl` `-` phóng to / thu nhỏ hình, `Ctrl` `0` vừa khung, `Ctrl`
-`1` cỡ thật (100%). Khi chuột ở trên hình: `+` `-` cũng phóng hình, `\` về vừa khung. Lăn chuột trên hình, hoặc nút
-**−** **+** cạnh ô phóng to. Giữ chuột phải (hoặc phím cách) rồi kéo để dời hình.
+### Phóng to, thu nhỏ, dời hình
+
+Như Premiere và Photoshop. Hình thu nhỏ được hơn khung (tới 10%) và dời đi đâu cũng được, nên thấy và kéo được cả phần
+hiệu ứng nằm ngoài khung hình (rất cần khi clip to hơn khung hoặc nằm lệch ra ngoài). Quanh khung hình là vùng tối,
+viền khung là đường kẻ mảnh: cái gì nằm ở vùng tối thì không có trong video xuất ra.
+
+| Thao tác | Cách làm |
+|---|---|
+| Phóng to / thu nhỏ | Lăn chuột trên hình: phóng quanh chỗ chuột. Hoặc `Ctrl` `+` / `Ctrl` `-`, nút **−** **+**, hoặc chọn trong ô cỡ hình (10%, 25%, 50%, Vừa khung, 100%, 200%, 400%). Khi chuột ở trên hình: `+` `-` |
+| Dời hình | Bấm nút **✋ Bàn tay** cạnh ô cỡ hình (phím `H`) rồi kéo. Bấm `Esc` hoặc `V` để thôi. Lúc nào cũng dời được: giữ chuột phải, nút giữa (bánh xe) hoặc phím cách rồi kéo |
+| Dời ngang bằng chuột | `Shift` + lăn chuột |
+| Bàn di chuột (laptop) | Trượt hai ngón: dời hình. Chụm / mở hai ngón: thu nhỏ / phóng to |
+| Về vừa khung, ở giữa | `Ctrl` `0`, phím `\` khi chuột ở trên hình, chọn **Vừa khung**, hoặc bấm đúp vào vùng tối quanh hình |
+| Cỡ thật | `Ctrl` `1` (100%: mỗi điểm ảnh của video là một điểm trên màn hình) |
+
+Ô cỡ hình luôn ghi cỡ đang xem (ví dụ 37%). Hình không bao giờ bị kéo mất: luôn còn một góc của khung trên màn hình.
+Phần ngoài khung của clip đang chọn hiện mờ trên vùng tối; khung trắng và các góc của nó kéo được cả ở đó. Nếu lăn
+chuột mà hình bị dời đi thay vì phóng to (vài loại chuột lăn mượt, không có nấc), giữ `Ctrl` rồi lăn.
 
 ### Khói cốc cà phê, lửa nến
 
