@@ -4,8 +4,9 @@
 
 Starts the app's server on test data, then works the page as a person would: opens a loop, imports an effect video
 and a picture into the library, drags the effect onto the timeline, adds snow, plays, cuts a clip, moves and trims
-clips, undoes, paints a still area and exports a 30-second video. It checks the timeline the page saved, that the
-live preview plays the light copies (H.264 and transparent WebM), and that the page reports no script errors.
+clips, undoes, paints a still area, zooms and moves the picture (a clip outside the frame grabbed there) and exports a
+30-second video. It checks the timeline the page saved, that the live preview plays the light copies (H.264 and
+transparent WebM), and that the page reports no script errors.
 Screenshots of each step go to the folder given (default: page-test).
 
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
@@ -108,6 +109,278 @@ def launch(p):
         except Exception as e:  # noqa: BLE001
             print(f"no Edge ({e}); Playwright's Chromium instead", flush=True)
     return p.chromium.launch(), False
+
+
+def move_the_picture(page, fid, drag, shot):
+    """The picture moves freely, as in Premiere: smaller than "Vừa khung", moved with the hand tool (H), the middle
+    button, two fingers on a touchpad or Shift + wheel, never lost; a clip outside the frame is grabbed there by its
+    box; Ctrl 0, \\ or a double-click around the picture put it back in the middle; painting lands under the mouse."""
+    looks = []
+    page.on("request", lambda r: looks.append(r.url) if "/api/look" in r.url else None)
+    scr = "(() => { const r = screenEl.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })()"
+    zoom = ("[S.zoom, S.scale, $('#zoomSel').value, $('#zoomSel').selectedOptions[0].textContent, "
+            "Math.round(100 * zoomOf(S.scale, fitSize())) + '%']")
+    params = f"Object.assign({{}}, clipById('{fid}').params)"
+    st = page.locator("#stage").bounding_box()
+    sx, sy = st["x"] + st["width"] / 2, st["y"] + st["height"] / 2
+
+    def moved(a, b, dx, dy):  # the picture moved by (dx, dy), at the same size
+        return abs(b[0] - a[0] - dx) < 1 and abs(b[1] - a[1] - dy) < 1 and abs(b[2] - a[2]) < 0.01
+
+    page.mouse.move(sx, sy)
+    page.keyboard.press("Control+0")
+    fit = page.evaluate(scr)
+    page.keyboard.press("Control+Minus")
+    page.keyboard.press("Control+Minus")
+    z = page.evaluate(zoom)
+    check("zoom out below Vừa khung (Ctrl -), the menu shows the size it is",
+          z[1] < 0.7 and z[2] == "" and z[3] == z[4], str(z))
+    at = (st["x"] + st["width"] * 0.3, st["y"] + st["height"] * 0.35)
+    where = (f"(() => {{ const r = screenEl.getBoundingClientRect(); "
+             f"return [({at[0]} - r.left) / r.width, ({at[1]} - r.top) / r.height, S.scale]; }})()")
+    page.mouse.move(*at)
+    p0 = page.evaluate(where)
+    page.mouse.wheel(0, 100)  # a notch towards you: smaller, about the mouse
+    page.wait_for_timeout(150)
+    p1 = page.evaluate(where)
+    check("the wheel zooms about the mouse: the point under it stays", p1[2] < p0[2] and
+          abs(p1[0] - p0[0]) < 1e-3 and abs(p1[1] - p0[1]) < 1e-3, f"{p0} -> {p1}")
+    page.select_option("#zoomSel", "0.1")
+    z = page.evaluate(zoom)
+    check("the menu's 10%", z[0] == "0.1" and z[2] == "0.1" and z[4] == "10%", str(z))
+
+    # the hand tool in "Vừa khung": a drag that starts on the clip's box moves the picture, not the clip; the app is
+    # not asked for a new exact frame (it moves with the picture)
+    page.mouse.move(sx, sy)
+    page.keyboard.press("Control+0")
+    page.evaluate(f"select('{fid}')")
+    page.wait_for_timeout(800)  # (the exact frame of this zoom asked for)
+    before = page.evaluate(params)
+    page.click("#handBtn")
+    b0 = page.evaluate(scr)
+    looks.clear()
+    xb = page.locator("#xform").bounding_box()
+    x0, y0 = xb["x"] + xb["width"] / 2, xb["y"] + xb["height"] / 2
+    drag(x0, y0, x0 + 120, y0 + 70)
+    page.wait_for_timeout(600)
+    b1 = page.evaluate(scr)
+    z = page.evaluate(zoom)
+    check("the hand tool moves the whole picture from Vừa khung, not the clip", moved(b0, b1, 120, 70) and
+          page.evaluate(params) == before and z[0] != "fit" and z[3] == z[4], f"{b0} -> {b1}, {z}")
+    check("moving the picture asks nothing of the app (no new exact frame)", not looks, str(looks))
+    page.keyboard.press("Escape")
+    h1 = page.evaluate("[S.hand, S.sel]")
+    page.keyboard.press("h")
+    h2 = page.evaluate("S.hand && $('#handBtn').classList.contains('on')")
+    page.keyboard.press("v")
+    check("H takes the hand tool, Esc or V puts it down", h1 == [False, fid] and h2 is True and
+          page.evaluate("S.hand") is False, str([h1, h2]))
+    # H held down (the key repeats, as Windows sends it) while dragging: the hand for that drag only
+    b0 = page.evaluate(scr)
+    page.mouse.move(sx, sy)
+    page.keyboard.down("h")
+    for _ in range(4):
+        page.keyboard.down("h")  # (repeat: true)
+    held = page.evaluate("S.hand")
+    drag(sx, sy, sx + 40, sy + 25)
+    page.keyboard.up("h")
+    b1 = page.evaluate(scr)
+    let_go = page.evaluate("S.hand")
+    check("H held while dragging: the hand stays through the key's repeats, and goes when H comes up",
+          held is True and moved(b0, b1, 40, 25) and let_go is False and page.evaluate(params) == before,
+          str([held, b0, b1, let_go]))
+
+    # Space held: a drag moves the picture and plays nothing (the clip's box stays); Space alone plays and stops
+    page.evaluate("document.activeElement && document.activeElement.blur()")
+    b0 = page.evaluate(scr)
+    page.keyboard.down("Space")
+    page.keyboard.down("Space")  # (a repeat)
+    drag(sx, sy, sx - 30, sy + 20)
+    page.keyboard.up("Space")
+    b1 = page.evaluate(scr)
+    sp = page.evaluate("[S.playing, S.space, $('#xform').style.display, stage.classList.contains('grab')]")
+    page.keyboard.press("Space")
+    p1 = page.evaluate("S.playing")
+    page.keyboard.press("Space")
+    p2 = page.evaluate("S.playing")
+    check("Space + drag moves the picture without playing; Space alone still plays and stops",
+          moved(b0, b1, -30, 20) and sp == [False, False, "block", False] and p1 is True and p2 is False,
+          str([b0, b1, sp, p1, p2]))
+
+    # the keys + - (and Ctrl + -) with the mouse on the picture zoom about the mouse, as the wheel
+    page.keyboard.press("Control+0")
+    at = (st["x"] + st["width"] * 0.2, st["y"] + st["height"] * 0.25)
+    under = (f"(() => {{ const r = screenEl.getBoundingClientRect(); "
+             f"return [({at[0]} - r.left) / r.width, ({at[1]} - r.top) / r.height, S.scale]; }})()")
+    page.mouse.move(*at)
+    ks = [page.evaluate(under)]
+    for key in ("Minus", "Control+Minus", "Equal", "Control+Equal"):
+        page.keyboard.press(key)
+        ks.append(page.evaluate(under))
+    check("+ - and Ctrl + - with the mouse on the picture: the point under the mouse stays",
+          ks[1][2] < ks[0][2] and ks[2][2] < ks[1][2] and ks[4][2] > ks[3][2] > ks[2][2] and
+          all(abs(k[0] - ks[0][0]) < 1e-3 and abs(k[1] - ks[0][1]) < 1e-3 for k in ks), str(ks))
+
+    # the middle button, two fingers on a touchpad (sideways too), Shift + wheel (sideways)
+    page.mouse.move(sx, sy)
+    b0 = page.evaluate(scr)
+    page.mouse.down(button="middle")
+    page.mouse.move(sx - 50, sy - 30, steps=4)
+    page.mouse.up(button="middle")
+    b1 = page.evaluate(scr)
+    page.mouse.wheel(30, 20)
+    page.wait_for_timeout(100)
+    b2 = page.evaluate(scr)
+    page.keyboard.down("Shift")
+    page.mouse.wheel(0, 40)
+    page.keyboard.up("Shift")
+    page.wait_for_timeout(400)
+    b3 = page.evaluate(scr)
+    check("the middle button, two fingers and Shift + wheel move the picture", moved(b0, b1, -50, -30) and
+          moved(b1, b2, -30, -20) and moved(b2, b3, -40, 0), str([b0, b1, b2, b3]))
+    page.mouse.wheel(-6000, -6000)  # far away: a corner of the frame stays on the monitor
+    page.wait_for_timeout(100)
+    r = page.evaluate(scr)
+    seen = (min(r[0] + r[2], st["x"] + st["width"]) - max(r[0], st["x"]),
+            min(r[1] + r[3], st["y"] + st["height"]) - max(r[1], st["y"]))
+    check("the picture is never lost", seen[0] >= 60 and seen[1] >= 60, f"{r} in {st}")
+    page.mouse.dblclick(st["x"] + 30, st["y"] + 30)  # on the empty area around it
+    page.wait_for_timeout(200)
+    r = page.evaluate(scr)
+    check("a double-click around the picture: Vừa khung, in the middle", page.evaluate("S.zoom") == "fit" and
+          all(abs(a - b) < 0.5 for a, b in zip(r, fit)), f"{r} / {fit}")
+
+    # a clip wholly outside the frame, not selected: nothing of it shows there, so a press there neither picks nor
+    # moves it, and a double-click there is "Vừa khung"; picked on the timeline, its picture shows there (faintly)
+    # and its box with it; a corner sizes it there and its box drags it back
+    page.evaluate(f"(() => {{ const c = clipById('{fid}'); Object.assign(c.params, {{x: 90, y: 0, scale: 40}}); "
+                  "S.sel = null; edited(); })()")
+    page.select_option("#zoomSel", "0.25")
+    page.wait_for_timeout(300)
+    where_out = (f"(() => {{ const q = placed(clipById('{fid}')), sc = screenEl.getBoundingClientRect(); "
+                 "return [sc.left + (q.x + q.w / 2) / info().w * sc.width, sc.top + (q.y + q.h / 2) / info().h "
+                 "* sc.height, sc.right, sc.left + sc.width / 2, sc.top + sc.height / 2]; })()")
+    out = page.evaluate(where_out)
+    p0 = page.evaluate(params)
+    drag(out[0], out[1], out[0] - 40, out[1] + 10)
+    blind = page.evaluate(f"[S.sel, {params}]")
+    page.mouse.dblclick(out[0], out[1])
+    page.wait_for_timeout(200)
+    check("outside the frame, a clip not selected (not shown there) is not picked by a press, nor moved; "
+          "a double-click there is Vừa khung", out[0] > out[2] and blind == [None, p0] and
+          page.evaluate("S.zoom") == "fit", str([out, blind, p0]))
+    page.select_option("#zoomSel", "0.25")
+    page.wait_for_timeout(300)
+    out = page.evaluate(where_out)
+    page.click(f".clip[data-clip='{fid}']")
+    page.wait_for_timeout(300)
+    sel = page.evaluate(f"[S.sel === '{fid}', $('#xform').style.display, "
+                        f"S.els['{fid}'].wrap.classList.contains('spill'), getComputedStyle($('#frame')).display]")
+    xb = page.locator("#xform").bounding_box()
+    check("a clip outside the frame, picked on the timeline: its box shows where it lies",
+          sel == [True, "block", True, "block"] and abs(xb["x"] + xb["width"] / 2 - out[0]) < 2 and
+          abs(xb["y"] + xb["height"] / 2 - out[1]) < 2, str([out, sel, xb]))
+    shot("05c-outside-the-frame")
+    xb = page.locator("#xform").bounding_box()
+    s0 = page.evaluate(params)["scale"]
+    drag(xb["x"] + xb["width"] - 1, xb["y"] + xb["height"] - 1, xb["x"] + xb["width"] + 30, xb["y"] + xb["height"] + 17)
+    s1 = page.evaluate(params)["scale"]
+    xb = page.locator("#xform").bounding_box()
+    drag(xb["x"] + xb["width"] / 2, xb["y"] + xb["height"] / 2, out[3], out[4])
+    back = page.evaluate(params)
+    check("outside the frame: a corner sizes it, its box drags it back", s1 > s0 * 1.2 and abs(back["x"]) < 3 and
+          abs(back["y"]) < 3, f"{s0} -> {s1}, {back}")
+    page.evaluate(f"(() => {{ Object.assign(clipById('{fid}').params, {{x: 0, y: 0, scale: 40}}); edited(); }})()")
+
+    # the selected clip's picture shows faintly outside the frame (a picture: it shows in any browser), and the
+    # picture inside the frame is just as it was
+    lid = page.evaluate("""(() => { const t = {id: newId("t"), on: true}; S.project.tracks.push(t);
+        addClip({lib: S.lib.find(i => i.info.image).id}, t.id, 0, total());
+        const c = clipById(S.sel); Object.assign(c.params, {x: 60, y: 0, scale: 50}); edited(); return c.id; })()""")
+    page.select_option("#zoomSel", "0.5")
+    page.wait_for_function(f"S.els['{lid}'] && S.els['{lid}'].media.complete && "
+                           f"S.els['{lid}'].wrap.style.display === ''", timeout=30000)
+    page.wait_for_timeout(1000)
+    pts = page.evaluate("""(() => { const sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
+        const at = (x, y) => [sc.left + x / W * sc.width, sc.top + y / H * sc.height];
+        return [at(1.2 * W, 0.5 * H), at(1.2 * W, 0.87 * H)]; })()""")  # in the logo's yellow; under it, nothing
+
+    def px(png, p):
+        return np.asarray(Image.open(io.BytesIO(png)).convert("RGB"))[int(p[1]), int(p[0])].astype(int).tolist()
+
+    on = page.screenshot()
+    page.keyboard.press("Escape")  # no clip selected
+    page.wait_for_timeout(200)
+    off = page.screenshot()
+    esc = page.evaluate(f"[S.sel, $('#xform').style.display, S.els['{lid}'].wrap.classList.contains('spill')]")
+    yellow, empty, gone = px(on, pts[0]), px(on, pts[1]), px(off, pts[0])
+    check("the selected clip's picture shows faintly outside the frame, and only while it is selected (Esc: gone, "
+          "its box too)", yellow[0] > empty[0] + 20 and yellow[0] > yellow[2] + 20 and
+          max(abs(a - b) for a, b in zip(gone, empty)) <= 3 and esc == [None, "none", False],
+          str([yellow, empty, gone, esc]))
+    page.evaluate(f"(() => {{ select('{lid}'); xform.style.display = 'none'; invalidateExact(); }})()")
+    page.wait_for_timeout(300)
+    inside = page.locator("#screen").screenshot()
+    page.evaluate(f"S.els['{lid}'].wrap.classList.remove('spill')")
+    page.wait_for_timeout(200)
+    diff = np.abs(np.asarray(Image.open(io.BytesIO(inside)).convert("RGB"), np.int16) - np.asarray(
+        Image.open(io.BytesIO(page.locator("#screen").screenshot())).convert("RGB"), np.int16)).max(axis=2)
+    diff = diff[2:-2, 2:-2]  # (the screenshot's edge pixels lie partly outside the frame)
+    # the same picture: at most the smoothing of a few edge pixels differs (the browser composites the layer anew)
+    changed = float((diff > 8).mean())
+    check("the picture inside the frame is the same with the clip's outside part shown",
+          changed < 0.01 and float(diff.mean()) < 0.5, f"{100 * changed:.2f}% changed, mean {diff.mean():.2f}")
+    page.evaluate(f"(() => {{ const c = clipById('{lid}'), t = c.track; deleteClip(c); "
+                  "S.project.tracks = S.project.tracks.filter(x => x.id !== t); edited(); })()")
+
+    page.mouse.wheel(40, 0)
+    page.keyboard.press("Backslash")  # the mouse on the picture: Vừa khung
+    r1 = page.evaluate(scr)
+    page.mouse.wheel(-40, 25)
+    page.keyboard.press("Control+0")
+    r2 = page.evaluate(scr)
+    check(r"\ and Ctrl 0: Vừa khung, in the middle", all(abs(a - b) < 0.5 for r in (r1, r2) for a, b in zip(r, fit)),
+          str([r1, r2, fit]))
+    tl = page.locator("#tlScroll").bounding_box()
+    page.mouse.move(tl["x"] + tl["width"] / 2, tl["y"] + tl["height"] / 2)
+    pps = page.evaluate("S.pps")
+    page.keyboard.press("Equal")
+    check("+ with the mouse on the timeline still zooms the timeline", page.evaluate("[S.pps > " + str(pps) +
+          ", S.scale, S.zoom]") == [True, 1, "fit"])
+    page.keyboard.press("Minus")
+
+    # painting: the picture zoomed and moved, a dab of the brush lands under the mouse, with the brush circle
+    page.mouse.move(sx, sy)
+    page.select_option("#zoomSel", "2")
+    page.keyboard.press("h")
+    drag(sx, sy, sx - 90, sy + 40)
+    page.keyboard.press("v")
+    page.click(".clip.base >> nth=0")
+    page.click("#paintFg")
+    page.mouse.move(sx, sy)
+    ring = page.evaluate("(() => { const r = $('#cursor').getBoundingClientRect(); "
+                         "return [r.left + r.width / 2, r.top + r.height / 2, $('#cursor').style.display]; })()")
+    page.mouse.down()
+    page.mouse.up()
+    page.wait_for_timeout(200)
+    dab = page.evaluate(f"""(() => {{ const r = paintCanvas.getBoundingClientRect(), m = S.masks.fg, g = mctx(m);
+        const x = ({sx} - r.left) / r.width * m.canvas.width, y = ({sy} - r.top) / r.height * m.canvas.height;
+        const d = S.brush.size / 2;
+        const a = (u, v) => g.getImageData(Math.round(u), Math.round(v), 1, 1).data[3];
+        return [a(x, y), a(x - .8 * d, y), a(x + .8 * d, y), a(x, y - .8 * d), a(x, y + .8 * d),
+                a(x - 1.3 * d, y), a(x + 1.3 * d, y), a(x, y - 1.3 * d), a(x, y + 1.3 * d)]; }})()""")
+    check("the picture moved and zoomed: the brush lands under the mouse, its circle there too",
+          all(v > 0 for v in dab[:5]) and not any(dab[5:]) and abs(ring[0] - sx) < 1.5 and abs(ring[1] - sy) < 1.5
+          and ring[2] == "block", str([dab, ring, (sx, sy)]))
+    shot("05d-paint-moved")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    page.keyboard.press("Control+z")  # the painting undone
+    page.wait_for_timeout(300)
+    page.keyboard.press("Control+0")
+    check("the painting undone", page.evaluate("S.masks.fg.empty") is True)
+    page.evaluate(f"select('{fid}')")
+    page.wait_for_timeout(300)
 
 
 def run(page, folder, edge):
@@ -295,6 +568,7 @@ def run(page, folder, edge):
     page.keyboard.press("Control+z")
     page.keyboard.press("Control+z")
     page.wait_for_timeout(200)
+    move_the_picture(page, fid, drag, shot)
 
     # an outside file's colours: the live preview's filter has the renderer's numbers; "Đặt lại màu" takes it off
     from fx import effects as fx_effects, overlay as fx_overlay
