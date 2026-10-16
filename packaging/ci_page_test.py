@@ -240,6 +240,18 @@ def run(page, folder, edge):
     page.keyboard.press("Escape")
     page.wait_for_function("S.project.masks.includes('freeze')", timeout=30000)
     check("still area painted and saved", True)
+    page.keyboard.press("Control+z")  # after Xong: the whole painting is one step back, and forward again
+    page.wait_for_timeout(400)
+    undone = page.evaluate("S.masks.freeze.empty")
+    page.keyboard.press("Control+y")
+    page.wait_for_function("S.project.masks.includes('freeze') && !S.masks.freeze.empty", timeout=30000)
+    check("a painted area: undone and done again with Ctrl+Z / Ctrl+Y", undone is True)
+    page.keyboard.press("Control+Equal")  # the picture's zoom, not the page's
+    page.wait_for_timeout(200)
+    zoomed = page.evaluate("[S.scale, window.devicePixelRatio]")
+    page.keyboard.press("Control+0")
+    page.wait_for_timeout(200)
+    check("Ctrl + / Ctrl 0 zoom the picture", zoomed[0] > 1.2 and page.evaluate("S.zoom") == "fit", str(zoomed))
 
     # an effect's picture on the monitor: a double-click selects it and leaves it in place; a press and drag moves it
     fid = page.evaluate("S.project.layers.find(c => c.kind === 'file').id")
@@ -281,6 +293,21 @@ def run(page, folder, edge):
     page.keyboard.press("Control+z")
     page.keyboard.press("Control+z")
     page.wait_for_timeout(200)
+
+    # an outside file's colours: the live preview's filter has the renderer's numbers; "Đặt lại màu" takes it off
+    from fx import effects as fx_effects, overlay as fx_overlay
+    page.evaluate(f"(() => {{ Object.assign(clipById('{fid}').params, {{contrast: 40, sat: -30, hue: 60, temp: 50, "
+                  "tint_amt: 20, bright: -10}); select(S.sel); edited(); })()")
+    page.wait_for_timeout(300)
+    js = page.evaluate(f"(() => {{ const o = colourOps(clipById('{fid}').params); return [o.curve, o.mat]; }})()")
+    curve, mat = fx_overlay.colour_ops(fx_effects.clean_params("file", page.evaluate(f"clipById('{fid}').params")))
+    check("colours: the live preview uses the renderer's numbers",
+          np.abs(np.array(js[0]) - curve).max() < 1e-9 and np.abs(np.array(js[1]) - mat).max() < 1e-9 and
+          "#cc-" in page.evaluate(f"S.els['{fid}'].media.style.filter"))  # (url("#cc-…"))
+    page.click("#colourReset")
+    page.wait_for_timeout(200)
+    check("colours back as the file's", page.evaluate(f"S.els['{fid}'].media.style.filter") == "" and
+          page.evaluate(f"clipById('{fid}').params.contrast") == 0)
 
     # played backwards: its copy is made in the background, then the live preview plays it (and so does the export)
     page.click('#ec input[data-param="reverse"]')

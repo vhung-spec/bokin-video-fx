@@ -10,6 +10,8 @@ than it needs is played over and over, each repeat dissolving into the next.
 import math
 import os
 
+import numpy as np
+
 from PIL import Image, ImageChops, ImageOps
 
 from . import video
@@ -37,7 +39,53 @@ SCHEMA = {"label": "Video / ảnh ngoài", "params": [
     {"key": "fade", "label": "Hoà mượt khi file lặp lại (giây)", "type": "range", "min": 0, "max": 3, "step": 0.1,
      "value": 1.0},
     {"key": "reverse", "label": "Phát ngược (tua ngược)", "type": "toggle", "value": False},
+    # its colours (colour_ops; the page builds the same SVG filter)
+    {"key": "bright", "label": "Độ sáng", "type": "range", "min": -100, "max": 100, "value": 0},
+    {"key": "contrast", "label": "Độ tương phản", "type": "range", "min": -100, "max": 100, "value": 0},
+    {"key": "sat", "label": "Độ đậm màu", "type": "range", "min": -100, "max": 100, "value": 0},
+    {"key": "hue", "label": "Đổi màu (xoay vòng màu)", "type": "range", "min": -180, "max": 180, "value": 0},
+    {"key": "temp", "label": "Lạnh ↔ ấm", "type": "range", "min": -100, "max": 100, "value": 0},
+    {"key": "tint_amt", "label": "Phủ một màu", "type": "range", "min": 0, "max": 100, "value": 0},
+    {"key": "tint", "label": "Màu phủ", "type": "color", "value": "#ffb066"},
 ]}
+
+LUMA = (0.2126, 0.7152, 0.0722)
+TONE_POINTS = 33  # the tone curve's points (an SVG feComponentTransfer table: straight lines between them)
+
+
+def colour_ops(p):
+    """(tone curve at TONE_POINTS points, 3x3 colour matrix) for a file clip's colour settings, or None when they
+    change nothing. The tone curve keeps black black (an effect on black laid with Screen stays clean): contrast
+    bends it into an S (or flattens it) through 0 and 1, brightness then multiplies. The matrix: saturation, then
+    hue, warmth and a colour laid over, as SVG's feColorMatrix (the page's live preview uses the same numbers)."""
+    b, c = p.get("bright", 0) / 100, p.get("contrast", 0) / 100
+    s, h = 1 + p.get("sat", 0) / 100, math.radians(p.get("hue", 0))
+    w, a = p.get("temp", 0) / 100, p.get("tint_amt", 0) / 100
+    if not (b or c or s != 1 or h or w or a):
+        return None
+    x = np.linspace(0.0, 1.0, TONE_POINTS)
+    curve = np.clip((x + c * (x * x * (3 - 2 * x) - x)) * 2.0 ** b, 0.0, 1.0)
+    sat = np.array([[0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s],
+                    [0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s],
+                    [0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s]])
+    co, si = math.cos(h), math.sin(h)
+    hue = np.array([[0.213 + co * 0.787 - si * 0.213, 0.715 - co * 0.715 - si * 0.715, 0.072 - co * 0.072 + si * 0.928],
+                    [0.213 - co * 0.213 + si * 0.143, 0.715 + co * 0.285 + si * 0.140, 0.072 - co * 0.072 - si * 0.283],
+                    [0.213 - co * 0.213 - si * 0.787, 0.715 - co * 0.715 + si * 0.715, 0.072 + co * 0.928 + si * 0.072]])
+    warm = np.diag([1 + 0.2 * w, 1 + 0.04 * w, 1 - 0.2 * w])
+    t = np.array([int(p.get("tint", "#ffb066")[i:i + 2], 16) / 255 for i in (1, 3, 5)])
+    tint = (1 - a) * np.eye(3) + a * np.outer(t, LUMA)  # white becomes the colour, black stays black
+    return curve, tint @ warm @ hue @ sat
+
+
+def coloured(im, ops):
+    """`im` (RGB or RGBA Pillow image) with colour_ops applied to its colour (not to its transparency)."""
+    curve, mat = ops
+    a = np.asarray(im, np.float32) * (1 / 255.0)
+    rgb = np.interp(a[..., :3], np.linspace(0.0, 1.0, TONE_POINTS), curve).astype(np.float32)
+    rgb = np.clip(rgb @ mat.T.astype(np.float32), 0.0, 1.0)
+    out = (np.concatenate([rgb, a[..., 3:]], axis=2) if a.shape[2] == 4 else rgb) * 255.0 + 0.5
+    return Image.fromarray(out.astype(np.uint8), im.mode)
 
 
 def is_image(name):
@@ -203,6 +251,7 @@ class Overlay:
         self.whole = self.crop == (0, 0, sw, sh)
         self.weight = None if weight is None or self.empty else (weight if self.full else weight.crop(self.box))
         self.still, self.cursors = None, None
+        self.colours = colour_ops(params)
         if self.empty:
             return
         kx, ky = sw / info["w"], sh / info["h"]
@@ -259,6 +308,12 @@ class Overlay:
         if self.empty or self.p["opacity"] <= 0 or gain <= 0:
             return img
         top = self.picture(t)
+        if self.colours is not None:
+            if self.still is None:
+                top = coloured(top, self.colours)
+            else:  # a picture: once
+                self.still = top = coloured(top, self.colours)
+                self.colours = None
         alpha = top.getchannel("A") if top.mode == "RGBA" else None
         rgb = top.convert("RGB") if alpha is not None else top
         region = img if self.full else img.crop(self.box)

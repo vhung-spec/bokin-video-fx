@@ -270,6 +270,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
           <img id="baseFrame" alt="" style="display:none">
           <img id="stillImg" alt="" style="display:none">
           <div id="layers" style="width:100%;height:100%"></div>
+          <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="ccDefs"></defs></svg>
           <img id="exact" alt="">
           <canvas id="areaCanvas"></canvas>
           <canvas id="paintCanvas"></canvas>
@@ -288,9 +289,11 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
       </div>
       <div class="transport" id="transport">
         <span class="tc" id="tcNow">00:00:00</span>
-        <select id="zoomSel" title="Phóng to hình (lăn chuột trên hình)">
+        <button class="icon" id="zOut" title="Thu nhỏ hình (Ctrl −, hoặc − khi chuột ở trên hình)">−</button>
+        <select id="zoomSel" title="Phóng to hình: lăn chuột trên hình, Ctrl + / Ctrl −, Ctrl 0 vừa khung, Ctrl 1 cỡ thật">
           <option value="" hidden>Tuỳ chỉnh</option><option value="fit">Vừa khung</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option>
         </select>
+        <button class="icon" id="zIn" title="Phóng to hình (Ctrl +, hoặc + khi chuột ở trên hình)">+</button>
         <div class="mid">
           <button class="icon" id="tStart" title="Về đầu (Home)">⏮</button>
           <button class="icon" id="tPrev" title="Khung trước (←)">◀|</button>
@@ -315,6 +318,8 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
       <div class="panel-head">
         <span class="tab on">Timeline</span>
         <div class="tl-tools" id="tlTools">
+          <button class="icon" id="undoBtn" title="Hoàn tác (Ctrl+Z)" disabled>↶</button>
+          <button class="icon" id="redoBtn" title="Làm lại (Ctrl+Y hoặc Ctrl+Shift+Z)" disabled>↷</button>
           <span class="sep"></span>
           <button class="icon on" data-tool="select" title="Chọn, kéo, kéo mép để cắt bớt (V)">➤</button>
           <button class="icon" data-tool="razor" title="Dao cắt: bấm vào clip để cắt đôi (C)">✂</button>
@@ -358,6 +363,41 @@ const COLORS = {freeze: "#3d8bff", fg: "#ff9a3d", area: "#3ddc84"};
 const KIND_ICON = {snow: "❄", leaves: "🍂", rain: "☔", glow: "✨", glass: "🪟", file: "🎞"};
 const FX_KINDS = ["snow", "rain", "glass", "leaves", "glow"];  // the Tạo sẵn tab, in this order
 const BLEND_CSS = {normal: "normal", screen: "screen", add: "plus-lighter", multiply: "multiply"};
+const COLOUR_KEYS = ["bright", "contrast", "sat", "hue", "temp", "tint_amt", "tint"], TONE_POINTS = 33, LUMA = [0.2126, 0.7152, 0.0722];
+function colourOps(p) {  // as overlay.colour_ops: {curve, mat} for a file clip's colours, or null when they change nothing
+  const b = (p.bright || 0) / 100, c = (p.contrast || 0) / 100, s = 1 + (p.sat || 0) / 100, h = (p.hue || 0) * Math.PI / 180;
+  const w = (p.temp || 0) / 100, a = (p.tint_amt || 0) / 100;
+  if (!(b || c || s !== 1 || h || w || a)) return null;
+  const curve = [];
+  for (let i = 0; i < TONE_POINTS; i++) { const x = i / (TONE_POINTS - 1); curve.push(clamp((x + c * (x * x * (3 - 2 * x) - x)) * Math.pow(2, b), 0, 1)); }
+  const sat = [[0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s],
+               [0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s],
+               [0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s]];
+  const co = Math.cos(h), si = Math.sin(h);
+  const hue = [[0.213 + co * 0.787 - si * 0.213, 0.715 - co * 0.715 - si * 0.715, 0.072 - co * 0.072 + si * 0.928],
+               [0.213 - co * 0.213 + si * 0.143, 0.715 + co * 0.285 + si * 0.140, 0.072 - co * 0.072 - si * 0.283],
+               [0.213 - co * 0.213 - si * 0.787, 0.715 - co * 0.715 + si * 0.715, 0.072 + co * 0.928 + si * 0.072]];
+  const warm = [[1 + 0.2 * w, 0, 0], [0, 1 + 0.04 * w, 0], [0, 0, 1 - 0.2 * w]];
+  const t = [1, 3, 5].map(i => parseInt((p.tint || "#ffb066").slice(i, i + 2), 16) / 255);
+  const tint = [0, 1, 2].map(r => [0, 1, 2].map(k => (r === k ? 1 - a : 0) + a * t[r] * LUMA[k]));
+  const mul = (A, B) => A.map(row => [0, 1, 2].map(j => row[0] * B[0][j] + row[1] * B[1][j] + row[2] * B[2][j]));
+  return {curve, mat: mul(mul(mul(tint, warm), hue), sat)};
+}
+function colourFilter(c, media) {  // a file clip's colours on its picture in the live preview: an SVG filter
+  const ops = c.kind === "file" ? colourOps(c.params) : null, id = "cc-" + c.id;
+  let f = document.getElementById(id);
+  if (!ops) { if (f) f.remove(); media.style.filter = ""; return; }
+  if (!f) {
+    f = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+    f.id = id; f.setAttribute("color-interpolation-filters", "sRGB"); $("#ccDefs").appendChild(f);
+  }
+  const tv = ops.curve.map(v => +v.toFixed(5)).join(" "), m = ops.mat;
+  const vals = [...m[0], 0, 0, ...m[1], 0, 0, ...m[2], 0, 0, 0, 0, 0, 1, 0].map(v => +v.toFixed(6)).join(" ");
+  const html = `<feComponentTransfer><feFuncR type="table" tableValues="${tv}"/><feFuncG type="table" tableValues="${tv}"/>` +
+    `<feFuncB type="table" tableValues="${tv}"/></feComponentTransfer><feColorMatrix type="matrix" values="${vals}"/>`;
+  if (f.innerHTML !== html) f.innerHTML = html;
+  media.style.filter = `url(#${id})`;
+}
 const ROW_H = 44, NEW_H = 24, CLIP_H = 36, MASK_CSS_W = 960;
 
 // --- talking to the app ----------------------------------------------------------------------------------
@@ -603,22 +643,46 @@ async function sendSave(p) {  // the project as it is now, not as it was when th
   } catch (e) { fail(e); return false; }
 }
 
-// undo / redo of timeline edits (painting has its own)
+// undo / redo: S.hist holds {tl: the timeline (snapshot), paint: null or a painting session's mask before and after};
+// strokes while painting have their own undo (undoPaint), the whole session is one step here
 function snapshot() { const p = S.project; return JSON.stringify({length: p.length, tracks: p.tracks, layers: p.layers}); }
 function remember() {
   if (!S.project) return;
-  const snap = snapshot();
-  if (S.hist[S.histAt] === snap) return;
-  S.hist = S.hist.slice(0, S.histAt + 1);
-  S.hist.push(snap);
-  if (S.hist.length > 80) S.hist.shift();
-  S.histAt = S.hist.length - 1;
+  const snap = snapshot(), cur = S.hist[S.histAt];
+  if (cur && cur.tl === snap) return;
+  pushHist({tl: snap, paint: null});
 }
+function pushHist(entry) {
+  S.hist = S.hist.slice(0, S.histAt + 1);
+  S.hist.push(entry);
+  if (S.hist.length > 80) S.hist.shift();
+  let kept = 0;  // a mask is a whole picture: only the last few sessions keep theirs
+  for (let i = S.hist.length - 1; i >= 0; i--) if (S.hist[i].paint && ++kept > 8) S.hist[i].paint = null;
+  S.histAt = S.hist.length - 1;
+  undoState();
+}
+function rememberArea(name, before) {  // a painting session changed this mask: undone in one step
+  const m = S.masks[name]; if (!S.project || !m || !before) return;
+  pushHist({tl: snapshot(), paint: {name, before, after: mctx(m).getImageData(0, 0, m.canvas.width, m.canvas.height)}});
+}
+function undoState() {  // the ↶ ↷ buttons
+  const u = $("#undoBtn"), r = $("#redoBtn"); if (!u || !r) return;
+  u.disabled = !S.project || (!S.paint && S.histAt <= 0);
+  r.disabled = !S.project || (!S.paint && S.histAt >= S.hist.length - 1);
+}
+function undo(redo) { if (S.paint) undoPaint(redo); else history(redo ? 1 : -1); }
 function history(step) {
   const at = S.histAt + step;
   if (!S.project || at < 0 || at >= S.hist.length) return;
+  const area = (step < 0 ? S.hist[S.histAt] : S.hist[at]).paint;  // the step undone or done again painted a mask
   S.histAt = at;
-  const snap = JSON.parse(S.hist[at]), p = S.project, before = p.length, had = new Set(p.layers.map(c => c.id));
+  undoState();
+  if (area && S.masks[area.name]) {
+    const m = S.masks[area.name];
+    mctx(m).putImageData(step < 0 ? area.before : area.after, 0, 0);
+    maskChanged(area.name, null);
+  }
+  const snap = JSON.parse(S.hist[at].tl), p = S.project, before = p.length, had = new Set(p.layers.map(c => c.id));
   p.length = snap.length; p.tracks = snap.tracks; p.layers = snap.layers;
   for (const c of p.layers) {
     if (!S.masks[c.id]) loadMask(c.id);
@@ -932,6 +996,7 @@ function clearLayers() {
   for (const el of Object.values(S.els)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); }
   for (const box of Object.values(S.trackEls)) box.remove();
   S.els = {}; S.trackEls = {}; S.mixRole = {};
+  $("#ccDefs").innerHTML = "";
 }
 function trackBox(id) {  // a track's clips lie in one box: in a Mix its two clips are laid there as one picture
   let box = S.trackEls[id];
@@ -955,7 +1020,11 @@ function syncLayers() {  // one element per clip, in drawing order
   if (!S.project) return;
   const order = clipOrder(), want = new Set(order.map(c => c.id));
   for (const [id, el] of Object.entries(S.els)) {
-    if (!want.has(id)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); delete S.els[id]; }
+    if (!want.has(id)) {
+      if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); }
+      el.wrap.remove(); delete S.els[id];
+      const f = document.getElementById("cc-" + id); if (f) f.remove();  // its colour filter
+    }
   }
   for (const [id, box] of Object.entries(S.trackEls)) if (!S.project.tracks.some(t => t.id === id)) { box.remove(); delete S.trackEls[id]; }
   for (const t of S.project.tracks) layersEl.appendChild(trackBox(t.id));  // bottom first
@@ -1017,6 +1086,7 @@ function styleLayer(c, el) {
     Object.assign(media.style, {left: (100 * r.x / W) + "%", top: (100 * r.y / H) + "%", width: (100 * r.w / W) + "%", height: (100 * r.h / H) + "%",
       transform: c.params.flip_h || c.params.flip_v ? `scale(${c.params.flip_h ? -1 : 1}, ${c.params.flip_v ? -1 : 1})` : ""});
   } else Object.assign(media.style, {left: 0, top: 0, width: "100%", height: "100%"});
+  colourFilter(c, media);
   el.opacity = c.kind === "file" ? c.params.opacity / 100 : 1;
 }
 function onlyBase() { return !!S.paint && S.onlyBase; }
@@ -1393,6 +1463,9 @@ function enterPaint(name) {
   invalidateExact(); showXform();
   renderTools(); styleAll(); applyTime(); drawPaint(); drawArea();
   snapshotSoon(S.masks[name]);
+  const m = S.masks[name];
+  S.paintStart = {name, ver: m.ver, data: mctx(m).getImageData(0, 0, m.canvas.width, m.canvas.height)};
+  undoState();
 }
 function exitPaint() {
   endStroke();
@@ -1406,6 +1479,9 @@ function exitPaint() {
   styleAll(); applyTime(); renderControls(); showXform(); drawArea();
   // the area goes to the app now; the exact frame is made once it is there (sendMask asks for it), never before
   if (m && m.timer) queueMask(name, m); else refreshExact();
+  const st = S.paintStart; S.paintStart = null;
+  if (m && st && st.name === name && m.ver !== st.ver) rememberArea(name, st.data);  // Ctrl+Z after Xong undoes it
+  undoState();
 }
 // the area of the selected clip, outlined over the picture after painting: to move and size the clip into it
 try { S.showArea = localStorage.getItem("fx.area") !== "0"; } catch (e) { S.showArea = true; }
@@ -1690,21 +1766,37 @@ for (const ev of ["pointercancel", "lostpointercapture"]) stage.addEventListener
 stage.addEventListener("pointerleave", () => { $("#cursor").style.display = "none"; });
 stage.addEventListener("dblclick", e => { if (S.paint && S.brush.tool === "poly") { e.preventDefault(); closePoly(); } });
 stage.addEventListener("contextmenu", e => e.preventDefault());
-stage.addEventListener("wheel", e => {
+function zoomPicture(how, cx, cy) {  // "fit", "100" (a video pixel per screen pixel) or a factor, about a point
   if (!S.project) return;
-  e.preventDefault();
+  if (how === "fit" || how === "100") {
+    S.zoom = how === "fit" ? "fit" : "1"; S.panX = S.panY = 0;
+    layoutScreen(); invalidateExact(); refreshExact(); return;
+  }
   const f = fitSize(), sr = stage.getBoundingClientRect();
+  if (cx === undefined) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }  // keys: about the middle
   const old = S.scale;
-  let z = clamp(old * (e.deltaY < 0 ? 1.15 : 1 / 1.15), Math.min(old, 1), Math.max(old, 12));  // a menu zoom past these stays
+  let z = clamp(old * how, Math.min(old, 1), Math.max(old, 12));  // a menu zoom past these stays
   if ((old - 1) * (z - 1) < 0) z = 1;  // stops at "Vừa khung" on the way
   if (z === old) return;
   const left = (f.sw - f.w * old) / 2 + S.panX, top = (f.sh - f.h * old) / 2 + S.panY;
-  const mx = e.clientX - sr.left - left, my = e.clientY - sr.top - top;  // the point under the mouse stays put
-  const nl = e.clientX - sr.left - mx * z / old, nt = e.clientY - sr.top - my * z / old;
+  const mx = cx - sr.left - left, my = cy - sr.top - top;  // the point there stays put
+  const nl = cx - sr.left - mx * z / old, nt = cy - sr.top - my * z / old;
   S.panX = nl - (f.sw - f.w * z) / 2; S.panY = nt - (f.sh - f.h * z) / 2;
   if (Math.abs(z - 1) < 1e-4) { S.zoom = "fit"; $("#zoomSel").value = "fit"; } else { S.zoom = String(z * f.w * devicePixelRatio / info().w); $("#zoomSel").value = ""; }
-  layoutScreen(); moveCursor(e); invalidateExact(); refreshExact();
+  layoutScreen(); invalidateExact(); refreshExact();
+}
+stage.addEventListener("wheel", e => {
+  if (!S.project) return;
+  e.preventDefault();
+  zoomPicture(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
+  moveCursor(e);
 }, {passive: false});
+stage.addEventListener("pointerenter", () => { S.overStage = true; });
+stage.addEventListener("pointerleave", () => { S.overStage = false; });
+// Ctrl + wheel anywhere else would zoom the whole page (the window's own zoom): not here
+document.addEventListener("wheel", e => { if (e.ctrlKey && !e.defaultPrevented) e.preventDefault(); }, {passive: false});
+$("#zIn").onclick = () => zoomPicture(1.25);
+$("#zOut").onclick = () => zoomPicture(1 / 1.25);
 $("#zoomSel").addEventListener("change", e => { S.zoom = e.target.value || "fit"; S.panX = S.panY = 0; layoutScreen(); invalidateExact(); refreshExact(); });
 
 // --- timeline ------------------------------------------------------------------------------------------
@@ -2338,7 +2430,10 @@ function renderControls() {
     const by = Object.fromEntries(sch.params.map((d, i) => [d.key, params[i]]));
     return `<h4>Hoà trộn</h4>${by.blend}${by.opacity}<p class="note">Hiệu ứng trên nền đen: Screen. File nền trong suốt (MOV, WebM, PNG): Bình thường.</p>
       <h4>Vị trí và cỡ</h4>${by.fit}${by.scale}${by.x}${by.y}<div class="flips">${by.flip_h}${by.flip_v}</div>
-      ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}${by.reverse}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}`;
+      ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}${by.reverse}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}
+      <h4>Màu sắc</h4>${by.bright}${by.contrast}${by.sat}${by.hue}${by.temp}${by.tint_amt}${by.tint}
+      <div class="btns"><button class="small" id="colourReset" ${colourOps(c.params) ? "" : "disabled"}>Đặt lại màu như file gốc</button></div>
+      <p class="note">Phủ một màu: chọn màu rồi kéo thanh "Phủ một màu" lên (ví dụ tuyết trắng thành vàng ấm).</p>`;
   })() : sch.params.map((d, i) => {  // a heading where the group changes
     const g = d.group || "Hiệu ứng", head = i === 0 || g !== (sch.params[i - 1].group || "Hiệu ứng") ? `<h4>${esc(g)}</h4>` : "";
     return head + params[i];
@@ -2440,6 +2535,10 @@ $("#ec").addEventListener("click", e => {
   if (id === "paintArea") return S.paint === c.id ? exitPaint() : (enterPaint(c.id), renderControls());
   if (id === "clearArea") return clear(c.id, "all");
   if (id === "reseed") { c.seed = Math.floor(Math.random() * 2147483647); edited(); return; }
+  if (id === "colourReset") {  // the file's own colours again
+    for (const d of S.schema.kinds.file.params) if (COLOUR_KEYS.includes(d.key)) c.params[d.key] = d.value;
+    edited(); return;
+  }
   if (id === "fullBtn") {
     if (overlaps(c.track, 0, total(), c.id)) return toast("Track này còn clip khác: hãy kéo clip sang một track trống trước.", true);
     moveClip(c, 0, total()); c.skip = 0; edited(); return;
@@ -2820,7 +2919,14 @@ async function poll() {
 document.addEventListener("keydown", e => {
   const menu = $("#menu");  // a key closes the clip menu, as a native menu (its items would act on an old clip)
   if (menu && menu.style.display === "block") { menu.style.display = "none"; if (e.key === "Escape") return; }
-  if (e.target.matches("input[type=text], input[type=number], select, textarea")) return;
+  const ctrlKey = e.ctrlKey || e.metaKey, zk = e.key;
+  if (ctrlKey && ["=", "+", "-", "_", "0", "1"].includes(zk) && S.project) {  // the picture's zoom (not the page's)
+    e.preventDefault();
+    if (zk === "0") zoomPicture("fit"); else if (zk === "1") zoomPicture("100"); else zoomPicture(zk === "-" || zk === "_" ? 1 / 1.25 : 1.25);
+    return;
+  }
+  if (e.target.matches("input[type=text], input[type=number], textarea")) return;
+  if (e.target.matches("select") && !ctrlKey) return;  // (its own keys pick an option; Ctrl+Z still undoes)
   if (e.target.type === "range" && e.key.startsWith("Arrow")) return;  // the slider moves itself
   if ($("#modal").style.display === "flex") { if (e.key === "Escape" && !$("#modal").dataset.locked) $("#modal").style.display = "none"; return; }
   if (S.drag) {  // a clip is being dragged: only the snap switch (nothing redrawn or removed under it)
@@ -2836,8 +2942,8 @@ document.addEventListener("keydown", e => {
     }
     return;
   }
-  if (ctrl && k.toLowerCase() === "z") { e.preventDefault(); S.paint ? undoPaint(e.shiftKey) : history(e.shiftKey ? 1 : -1); return; }
-  if (ctrl && k.toLowerCase() === "y") { e.preventDefault(); S.paint ? undoPaint(true) : history(1); return; }
+  if (ctrl && k.toLowerCase() === "z") { e.preventDefault(); undo(e.shiftKey); return; }
+  if (ctrl && k.toLowerCase() === "y") { e.preventDefault(); undo(true); return; }
   if (ctrl && k.toLowerCase() === "k") { e.preventDefault(); splitAtPlayhead(); return; }
   if (ctrl && k.toLowerCase() === "m") { e.preventDefault(); exportDialog(); return; }
   if (ctrl || e.altKey || !S.project) return;
@@ -2867,14 +2973,16 @@ document.addEventListener("keydown", e => {
   else if (k === "s" || k === "S") { S.snap = !S.snap; renderTimeline(); }
   else if (k === "Delete" || k === "Backspace") { const c = clipById(S.sel); if (c) deleteClip(c); }
   else if (k === "Escape") { if (S.sel) { S.sel = null; renderTimeline(); renderControls(); } }
-  else if (k === "+" || k === "=") setPps(S.pps * 1.4, S.time);
-  else if (k === "-" || k === "_") setPps(S.pps / 1.4, S.time);
-  else if (k === "\\") { S.fitTl = true; renderTimeline(); }
+  else if (k === "+" || k === "=") S.overStage ? zoomPicture(1.25) : setPps(S.pps * 1.4, S.time);  // the panel under the mouse
+  else if (k === "-" || k === "_") S.overStage ? zoomPicture(1 / 1.25) : setPps(S.pps / 1.4, S.time);
+  else if (k === "\\") { if (S.overStage) zoomPicture("fit"); else { S.fitTl = true; renderTimeline(); } }
   else if (k === "k" || k === "K") pause();
   else if (k === "l" || k === "L") play();
 });
 document.addEventListener("keyup", e => { if (e.code === "Space") S.space = false; });
 $("#tPlay").onclick = () => S.playing ? pause() : play();
+$("#undoBtn").onclick = () => undo(false);
+$("#redoBtn").onclick = () => undo(true);
 $("#tPrev").onclick = () => step(-1);
 $("#tNext").onclick = () => step(1);
 $("#tStart").onclick = () => { pause(); seek(0); };

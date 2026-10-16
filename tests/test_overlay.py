@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 
 from tests import helpers
-from fx import overlay, video
+from fx import effects, overlay, video
 
 
 def dominant(parts):
@@ -165,3 +165,36 @@ class Flips(unittest.TestCase):
         self.assertTrue((turned == plain[:, ::-1]).all())
         upside = np.asarray(overlay.Overlay(clip, info, dict(p, flip_v=True), 4, 24, 320, 180).picture(1))
         self.assertTrue((upside == plain[::-1]).all())
+
+
+class Colours(unittest.TestCase):
+    def test_settings_that_change_nothing(self):
+        self.assertIsNone(overlay.colour_ops(effects.clean_params("file", {})))
+        self.assertIsNone(overlay.colour_ops(effects.clean_params("file", {"tint": "#00ff00"})))  # no amount
+
+    def test_black_stays_black_and_transparency_stays(self):
+        """An effect on black laid with Screen must not get a veil from its colour settings; transparency is kept."""
+        from PIL import Image
+        im = Image.new("RGBA", (8, 4), (0, 0, 0, 0))
+        im.paste((255, 255, 255, 128), (4, 0, 8, 4))
+        for p in ({"contrast": -100}, {"contrast": 100, "bright": 100}, {"sat": 100, "hue": 90, "temp": 100},
+                  {"tint_amt": 100, "tint": "#ff8030"}):
+            out = np.asarray(overlay.coloured(im, overlay.colour_ops(effects.clean_params("file", p))))
+            self.assertEqual(out[:, :4, :3].max(), 0, p)
+            self.assertTrue((out[..., 3] == np.asarray(im)[..., 3]).all(), p)
+
+    def test_what_each_setting_does(self):
+        from PIL import Image
+        grey = Image.new("RGB", (2, 2), (128, 128, 128))
+        orange = Image.new("RGB", (2, 2), (230, 120, 40))
+
+        def px(im, **p):
+            return np.asarray(overlay.coloured(im, overlay.colour_ops(effects.clean_params("file", p))), int)[0, 0]
+        self.assertGreater(px(grey, bright=50)[0], 160)
+        self.assertLess(px(grey, bright=-50)[0], 100)
+        self.assertLess(px(Image.new("RGB", (2, 2), (60, 60, 60)), contrast=80)[0], 60)  # darks darker
+        self.assertLess(np.ptp(px(orange, sat=-100)), 2)  # grey
+        warm = px(grey, temp=100)
+        self.assertGreater(warm[0], warm[2] + 30)
+        white = px(Image.new("RGB", (2, 2), (255, 255, 255)), tint_amt=100, tint="#ff8030")
+        self.assertEqual(list(white), [255, 128, 48])

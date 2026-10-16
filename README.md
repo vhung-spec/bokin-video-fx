@@ -94,9 +94,9 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 | Cắt đôi | Chọn dao cắt ✂ (phím `C`) rồi bấm vào clip. Hoặc `Ctrl+K`: cắt clip đang chọn tại đầu phát (không chọn clip nào thì cắt mọi clip ở đầu phát). Không cắt ở chỗ clip đang mờ dần |
 | Nhân đôi (nhân bản) | Nút **Nhân đôi** trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip: bản sao nối ngay sau. Giữ `Alt` rồi kéo clip: bản sao đặt ở chỗ thả |
 | Xoá clip | Chọn clip rồi bấm `Delete` |
-| Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Shift+Z` |
+| Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` (hoặc `Ctrl+Shift+Z`), hoặc nút **↶ ↷** ở đầu thanh timeline. Hoàn tác được cả vùng đã vẽ (cả lần vẽ là một bước) |
 | Ẩn một track | Bấm 👁 ở đầu track |
-| Phóng to timeline | Kéo thanh trượt ở góc phải, phím `+` `-`, hoặc `Ctrl` + lăn chuột. Phím `\` để xem cả timeline |
+| Phóng to timeline | Kéo thanh trượt ở góc phải, phím `+` `-` khi chuột ở trên timeline, hoặc `Ctrl` + lăn chuột. Phím `\` để xem cả timeline |
 | Bám dính | Nút 🧲 (phím `S`): clip bám vào đầu phát, mép clip khác và chỗ nối loop |
 
 Clip chạy suốt video tự nối liền mạch ở chỗ video lặp lại. Clip ngắn hơn luôn mờ dần ở đầu và cuối video, để chỗ
@@ -124,6 +124,16 @@ Mép mềm của vùng clip nằm bên trong đường viền xanh: ra ngoài đ
 
 `Space` phát/dừng · `←` `→` khung trước/sau (`Shift`: 5 khung) · `↑` `↓` về mép clip trước/sau · `Home` `End`
 về đầu/cuối · `Ctrl+M` xuất video.
+
+Phóng to hình (như Photoshop, Premiere): `Ctrl` `+` / `Ctrl` `-` phóng to / thu nhỏ hình, `Ctrl` `0` vừa khung, `Ctrl`
+`1` cỡ thật (100%). Khi chuột ở trên hình: `+` `-` cũng phóng hình, `\` về vừa khung. Lăn chuột trên hình, hoặc nút
+**−** **+** cạnh ô phóng to. Giữ chuột phải (hoặc phím cách) rồi kéo để dời hình.
+
+### Màu của video hiệu ứng nhập từ ngoài
+
+Chọn clip, mục **Màu sắc** trong Bảng chỉnh hiệu ứng: độ sáng, độ tương phản, độ đậm màu, đổi màu (xoay vòng màu),
+lạnh ↔ ấm, và **Phủ một màu** (chọn màu rồi kéo thanh lên, ví dụ tuyết trắng thành vàng ấm). Nền đen của hiệu ứng vẫn
+đen. **Đặt lại màu như file gốc** để bỏ hết.
 
 ## Bản quyền hình và video
 
