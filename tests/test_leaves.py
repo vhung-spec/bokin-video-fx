@@ -233,7 +233,9 @@ class Settings(unittest.TestCase):
                 self.assertIn(preset["season"], leaves.SEASONS, name)
                 self.assertEqual({k: preset[k] for k in ("red", "yellow", "green")}, leaves.SEASONS[preset["season"]])
         self.assertEqual(len(names), len(leaves.SCENES))  # (no two with the same shapes)
-        self.assertEqual(leaves.SCENES["almond"]["season"], "red")  # (a bàng tree in winter: red)
+        self.assertEqual(leaves.SCENES["almond"]["season"], "winter")  # (a bàng tree in winter: red, orange, a few
+        # yellow and green)
+        self.assertEqual(leaves.SEASONS["winter"], {"red": 55, "yellow": 35, "green": 10})
         self.assertEqual(leaves.SCENES["ginkgo"]["season"], "gold")
         self.assertEqual(leaves.scene_of(only("oak", "willow")), leaves.CUSTOM)
         labels = {o["value"]: o["label"] for o in scene["options"]}
@@ -241,8 +243,8 @@ class Settings(unittest.TestCase):
         self.assertIn("anh đào", labels["petal"].lower())
 
     def test_shapes_ticked(self):
-        """The leaves are the shapes ticked, in about equal shares; none ticked: maple leaves; ticking another shape
-        leaves which shape every other leaf is."""
+        """The leaves are the shapes ticked, in about equal shares; none ticked: maple leaves; the same settings, the
+        same leaves (ticking another shape makes a new mix: other shapes and places)."""
         for s in leaves.SHAPES:
             fx = effects.make("leaves", only(s, amount=100), 3, 144, 24, W, H)
             self.assertEqual(set(fx.kind.tolist()), {s}, s)
@@ -411,7 +413,8 @@ class Settings(unittest.TestCase):
         self.assertEqual(int(effects.make("leaves", {"big": 100}, 2, 144, 24, 1280, 720).master.max()), 288)
         self.assertEqual(int(effects.make("leaves", {"big": 70}, 2, 144, 24, 1280, 720).master.max()), 144)
         fx = made[1]  # (each leaf's pictures as large as it: the small far ones small)
-        self.assertTrue(((fx.master >= 288) == (0.7 * 144 < 1.1 * fx.longest)).all())
+        share = np.array([leaves.SHARE[k] for k in fx.kind])
+        self.assertTrue(((fx.master >= 288) == (share * 144 < 1.1 * fx.longest)).all())
         self.assertGreater((fx.master <= 144).mean(), 0.5)
 
     def test_same_seed_same_picture(self):
@@ -436,11 +439,15 @@ class Settings(unittest.TestCase):
         self.assertGreater(float(np.abs(pic[:, W // 2:] - 0.3).max()), 0.1)
 
     def test_preview_clip_is_sharper(self):
-        """The leaves' preview clip is 960 wide (small leaves blur at 640); every other effect's is as it was, its
-        name too (no preview made again for them)."""
+        """The leaves' preview clip has as many pixels as 960 x 540 (small leaves blur at 640 wide), never fewer than
+        the usual one (a tall video: the usual, the page shows it small) nor more than the video; every other
+        effect's is as it was, its name too (no preview made again for them)."""
         info = {"w": 1920, "h": 1080, "fps": "30", "frames": 300, "seconds": 10.0, "file": "input.mp4"}
         self.assertEqual(engine.fx_clip_frame(info, "leaves"), (960, 540))
-        self.assertEqual(engine.fx_clip_frame(dict(info, w=1080, h=1920), "leaves"), (960, 1706))
+        self.assertEqual(engine.fx_clip_frame(dict(info, w=3840, h=2160), "leaves"), (960, 540))
+        self.assertEqual(engine.fx_clip_frame(dict(info, w=1080, h=1920), "leaves"), (640, 1138))  # (as snow's)
+        self.assertEqual(engine.fx_clip_frame(dict(info, w=1080, h=1920), "snow"), (640, 1138))
+        self.assertEqual(engine.fx_clip_frame(dict(info, w=1440, h=1080), "leaves"), (830, 622))
         self.assertEqual(engine.fx_clip_frame(dict(info, w=640, h=360), "leaves"), (640, 360))  # (never larger)
         for kind in ("snow", "rain", "glow", "glass"):
             self.assertEqual(engine.fx_clip_frame(info, kind), (640, 360), kind)
@@ -545,6 +552,70 @@ class Pictures(unittest.TestCase):
                     self.assertGreaterEqual((inside & mirror).sum() / (inside | mirror).sum(), least,
                                             (kind, palette, v))
 
+    def test_maple_lobes_end_in_points(self):
+        """Every main lobe of every maple design narrows to a point (an oak's or a bàng leaf's end is rounded): at 97%
+        of its length it is less than a fifth as wide as at its widest."""
+        def width(lobe, t):  # across its (bent) axis at t of its length
+            x0, y0 = lobe.axis(t * lobe.L)
+            x1, y1 = lobe.axis(t * lobe.L + 1e-3)
+            tx, ty = (x1 - x0) / math.hypot(x1 - x0, y1 - y0), (y1 - y0) / math.hypot(x1 - x0, y1 - y0)
+            q = np.linspace(-0.6, 0.6, 2401, dtype=np.float32)
+            d = lobe.field((x0 + q * ty)[None, :], (y0 - q * tx)[None, :])[0][0]
+            return float((d < 0).sum() * (q[1] - q[0]))
+        for palette in leaves.PALETTES:
+            for v in range(leaves.VARIANTS["maple"]):
+                design, _ = leafshapes.design_of("maple", palette, v)
+                for lobe in design["lobes"]:
+                    if lobe.kind == "lobe":
+                        self.assertLess(width(lobe, 0.97), 0.2 * width(lobe, lobe.widest), (palette, v))
+        for kind in ("oak", "almond"):
+            design, _ = leafshapes.design_of(kind, "red", 0)
+            lobe = design["lobes"][0]
+            self.assertGreater(width(lobe, 0.97), 0.25 * width(lobe, lobe.widest), kind)
+
+    def test_oak_leaves_look_like_oak_leaves(self):
+        """An English oak's leaf: broad rounded lobes, the sinuses between them cut in a third to two thirds of the
+        way to the midrib (not to it: no fern; measured across, against the lobes either side), widest beyond its
+        middle (its lobes smaller towards the stem). The oak before measured 0.83-0.87 here."""
+        deepest = []
+        xs = np.linspace(-0.7, 0.7, 1401, dtype=np.float32)
+        c = int(np.argmin(np.abs(xs)))
+        for palette in leaves.PALETTES:
+            for v in range(leaves.VARIANTS["oak"]):
+                design, _ = leafshapes.design_of("oak", palette, v)
+                mid = design["lobes"][0]
+                sides, along = [[], []], np.linspace(0.15, 0.8, 200)
+                for s in along:
+                    bx, by = mid.axis(s)
+                    row = np.full((1, xs.size), by, np.float32)
+                    inside = leafshapes._blade(design, (bx + xs)[None, :], row)[0][0] < 0
+                    sides[0].append(xs[c] - xs[c - int(np.argmax(~inside[c::-1])) + 1])
+                    sides[1].append(xs[c + int(np.argmax(~inside[c:])) - 1] - xs[c])
+                for w in map(np.array, sides):
+                    cuts = [1 - w[i] / min(w[:i].max(), w[i:].max()) for i in range(1, len(w) - 1)
+                            if w[i] < w[i - 1] and w[i] <= w[i + 1]]
+                    deepest.append(max(cuts))
+                    self.assertTrue(0.1 < deepest[-1] < 0.7, (palette, v, deepest[-1]))
+                width = np.array(sides[0]) + np.array(sides[1])
+                self.assertGreater(along[int(np.argmax(width))], 0.45, (palette, v))  # (obovate)
+                self.assertLess(width[along < 0.3].max(), 0.85 * width.max(), (palette, v))
+        self.assertTrue(0.25 < np.median(deepest) < 0.6, np.median(deepest))
+
+    def test_heart_leaves_are_lopsided(self):
+        """A linden's leaf is a little lopsided: one lobe by the stem bigger than the other; its upper sides and its
+        lobes toothed alike, its point short."""
+        for v in range(leaves.VARIANTS["heart"]):
+            inside, gx, gy = blade("heart", "yellow", v, 300)
+            low = inside & (gy < 0.2)
+            left, right = (low & (gx < 0)).sum(), (low & (gx > 0)).sum()
+            self.assertGreater(max(left, right) / min(left, right), 1.04, v)
+            design, _ = leafshapes.design_of("heart", "yellow", v)
+            th = np.linspace(-math.pi, math.pi, 3601)
+            _, teeth = leafshapes._heart_radius(design, th)
+            for part in ((th > 0.5) & (th < 1.5), (th > 2.0) & (th < 2.6)):  # (up the side, and on a lobe)
+                self.assertGreater(float(np.ptp(teeth[part])), 0.8 * design["teeth"][0], v)
+            self.assertLess(design["point"][0], 0.12, v)
+
     def test_natural_colours(self):
         """Each shape in its own colours: red maples red (not orange), a ginkgo's "red" a deep golden orange (it
         never goes red), an oak's red russet brown, a bàng leaf's red to orange; yellows yellow, greens green; a
@@ -590,6 +661,53 @@ class Pictures(unittest.TestCase):
             self.assertGreater(sb.mean(), 0.15, v)
             self.assertLess(abs(lb.mean() / lf.mean() - 1), 0.05, v)
             self.assertTrue(((hf > 300) | (hf < 15)).mean() > 0.8, v)  # (pink)
+
+    def test_petals_glow_pink(self):
+        """A cherry petal lit from behind glows brighter and stays pink (no peach or cream)."""
+        def mean_hue(img):
+            h, s, l = hsv(img)
+            return math.degrees(math.atan2(np.sin(np.radians(h)).mean(), np.cos(np.radians(h)).mean())) % 360, l
+        for v in range(leaves.VARIANTS["petal"]):
+            spr = leafshapes.make_sprite("petal", "red", v, 144)
+            (hf, lf), (hl, ll) = mean_hue(spr.front[0]), mean_hue(spr.lit[0])
+            self.assertLess(abs((hl - hf + 180) % 360 - 180), 15, v)
+            self.assertGreater(ll.mean(), lf.mean(), v)
+            half = Image.blend(spr.front[0], spr.lit[0], 0.5)  # (as a falling petal glows)
+            self.assertLess(abs((mean_hue(half)[0] - hf + 180) % 360 - 180), 15, v)
+
+    def test_bang_leaves_in_winter(self):
+        """Bàng leaves in winter: red ones from wine red through brick and orange to russet brown (not all one red),
+        their thick midrib and veins showing lighter on the front; yellow ones a clear yellow, no darker band down the
+        middle; the "Lá bàng mùa đông" mix has orange-yellow and a few green leaves among the red."""
+        hues = []
+        for v in range(leaves.VARIANTS["almond"]):
+            design, _ = leafshapes.design_of("almond", "red", v)
+            spr = leafshapes.make_sprite("almond", "red", v, 288)
+            h, s, l = hsv(spr.front[0])
+            hues.append(math.degrees(math.atan2(np.sin(np.radians(h)).mean(), np.cos(np.radians(h)).mean())))
+            main = _main_veins(design, 288)
+            front = np.asarray(spr.front[0], np.float32)[..., :3].sum(axis=2)
+            near = (np.asarray(spr.front[0])[..., 3] > 250) & (main < 0.05)
+            self.assertGreater(front[main > 0.6].mean(), 1.15 * front[near].mean(), v)
+        self.assertGreater(max(hues) - min(hues), 18, hues)  # (each leaf's mean: wine red to orange)
+        for v in range(leaves.VARIANTS["almond"]):
+            a = np.asarray(leafshapes.make_sprite("almond", "yellow", v, 288).front[0], np.float32) / 255
+            rgb = a[..., :3] / np.maximum(a[..., 3:], 1e-6)
+            lum = rgb @ np.array([0.3, 0.55, 0.15], np.float32)
+            band, rest = [], []
+            for r in range(a.shape[0]):
+                cols = np.flatnonzero(a[r, :, 3] > 0.9)
+                if len(cols) >= 40:
+                    c = (cols.min() + cols.max()) / 2
+                    band += lum[r, cols[np.abs(cols - c) < 8]].tolist()
+                    rest += lum[r, cols[np.abs(cols - c) >= 8]].tolist()
+            self.assertGreater(np.mean(band), 0.98 * np.mean(rest), v)
+            self.assertGreater(np.mean(rest), 0.55, v)
+            hues.append(float(np.median(hsv(leafshapes.make_sprite("almond", "yellow", v, 144).front[0])[0])))
+        self.assertGreater(max(hues) - min(hues), 25, hues)  # (red and yellow leaves together)
+        fx = effects.make("leaves", dict(leaves.SCENES["almond"], amount=100), 3, 720, 24, 1920, 1080)
+        shares = np.bincount(fx.family, minlength=3) / fx.n
+        self.assertTrue(0.4 < shares[0] < 0.7 and shares[1] > 0.2 and shares[2] > 0.03, shares)
 
     def test_colour_varies_across_a_leaf(self):
         """No flat fills: across a leaf its colour and lightness vary (more than its grain alone would)."""
@@ -652,11 +770,14 @@ class Pictures(unittest.TestCase):
             for params, size in ((only(*leaves.SHAPES, amount=100, big=100), (3840, 2160)), ({}, (1920, 1080)),
                                  (dict(only(*leaves.SHAPES), **leaves.LOOKS["many"]), (1920, 1080))):
                 fx = effects.make("leaves", params, 3, 720, 24, *size)
-                pictures = set()
+                pictures = {}
                 for t in range(0, 720, 3):
                     for i, d in enumerate(fx.design(t)):
-                        pictures.add((fx.kind[i], fx.palette[i] if fx.kind[i] != "petal" else 0, d, fx.master[i]))
-                self.assertLessEqual(sum(leafshapes.sprite_bytes(m) for *_, m in pictures), 0.8 * most, params)
+                        key = (fx.kind[i], fx.palette[i] if fx.kind[i] != "petal" else 0, d)
+                        pictures[key] = max(pictures.get(key, 0), fx.master[i])
+                self.assertEqual(pictures, fx.sizes, params)  # (each design made once, as large as needed)
+                self.assertLessEqual(sum(map(leafshapes.sprite_bytes, pictures.values())),
+                                     leaves.CLIP_SHARE * most, params)
                 self.assertTrue((fx.count >= (2 if size[0] < 2000 else 1)).all(), params)  # (4K: their largest)
             single = effects.make("leaves", only("maple", amount=100), 3, 720, 24, 1920, 1080)
             self.assertTrue((single.count == leaves.VARIANTS["maple"]).all())  # (one shape: every design)
@@ -671,6 +792,53 @@ class Pictures(unittest.TestCase):
         finally:
             leafshapes.MAX_BYTES = most
             leaves._SPRITES.clear()
+
+    def test_several_clips_share_the_pictures(self):
+        """Three leaves clips drawn together (as one export worker draws them) fit their pictures in memory at once:
+        over a whole loop, twice, no picture is made twice (here in less room, and small)."""
+        most, made = leafshapes.MAX_BYTES, []
+        make = leafshapes.make_sprite
+        leaves._SPRITES.clear()
+        try:
+            leafshapes.MAX_BYTES = 6 << 20
+            leafshapes.make_sprite = lambda *a: made.append(a) or make(*a)
+            clips = [effects.make("leaves", params, seed, 720, 24, 640, 360) for seed, params in
+                     ((1, {"amount": 100}), (2, only("ginkgo", amount=100)), (3, only("almond", "oak", amount=100)))]
+            for fx in clips:  # (each within its share, and with more than one design where it can)
+                self.assertLessEqual(sum(map(leafshapes.sprite_bytes, fx.sizes.values())),
+                                     leaves.CLIP_SHARE * leafshapes.MAX_BYTES)
+            self.assertGreater(int(clips[0].count.min()), 1)
+            canvas = effects.Canvas(640, 360)
+            for _ in range(2):
+                for t in range(0, 720, 12):
+                    for fx in clips:
+                        fx.draw(t, canvas, None)
+                        canvas.reset()
+            self.assertEqual(len(made), len(set(made)))
+            self.assertLessEqual(sum(s.bytes for s in leaves._SPRITES.values()), leafshapes.MAX_BYTES)
+            self.assertGreater(len(made), 20)
+        finally:
+            leafshapes.MAX_BYTES, leafshapes.make_sprite = most, make
+            leaves._SPRITES.clear()
+
+    def test_no_holes(self):
+        """No design of any shape, in any colour, has a hole through its blade (two lobes' points shutting in a bit
+        of a notch, say), at the largest pictures; the blades themselves hardly ever do (a pixel or two at most,
+        filled)."""
+        n = 288
+        for kind in leafshapes.SHAPES:
+            for family in (("red",) if kind == "petal" else leaves.PALETTES):
+                for v in range(leaves.VARIANTS[kind]):
+                    design, _ = leafshapes.design_of(kind, family, v)
+                    *_, alpha, _, filled = leafshapes._blade_picture(design, n)
+                    self.assertFalse(leafshapes.enclosed(alpha < 0.999).any(), (kind, family, v))
+                    self.assertLessEqual(filled, 3, (kind, family, v))
+        # the fill itself: a hole shut in by the blade is found, a notch open to the edge is not
+        bg = np.ones((12, 12), bool)
+        bg[2:9, 2:10] = False
+        bg[4, 4] = bg[5, 6] = bg[6, 6] = True  # (two holes)
+        bg[3:6, 9] = True  # (a notch from the edge)
+        self.assertEqual(np.argwhere(leafshapes.enclosed(bg)).tolist(), [[4, 4], [5, 6], [6, 6]])
 
 
 def _main_veins(design, n):
@@ -721,12 +889,18 @@ class Drawing(unittest.TestCase):
 
     def test_every_leaf_drawn_large_enough(self):
         """Every leaf on screen comes from pictures at least as large as it is seen, whatever its shape (a ginkgo's
-        long stem or a willow's narrow blade do not shrink it)."""
+        long stem or a willow's narrow blade do not shrink it): made that large at once (its shape's SHARE holds for
+        every design), never a smaller picture first."""
         fx = effects.make("leaves", only(*leaves.SHAPES, amount=100, big=100), 3, 144, 24, 1920, 1080)
         for i in np.flatnonzero(fx.longest > 50):
             for d in range(int(fx.count[i])):
                 spr = fx.picture(i, d)
                 self.assertTrue(spr.extent >= fx.longest[i] - 1e-6 or spr.size == leaves.MIPS[0], (fx.kind[i], d))
+        for kind in leaves.SHAPES:
+            for v in range(leaves.VARIANTS[kind]):
+                for family in (("red",) if kind == "petal" else leaves.PALETTES):
+                    spr = leafshapes.make_sprite(kind, family, v, 72)
+                    self.assertGreaterEqual(spr.extent / spr.size, leaves.SHARE[kind], (kind, family, v))
 
     def test_light(self):
         """Face on, a leaf is about as bright as its picture; turned to the light in front, brighter; turned away,
@@ -828,6 +1002,16 @@ class Speed(unittest.TestCase):
         self.assertLess(windy, 4 * snow + 0.01, (windy, snow))
         every = self.cost("leaves", only(*leaves.SHAPES))
         self.assertLess(every, 1.4 * leaf + 0.005, (every, leaf))
+
+    def test_every_kind_of_leaves_costs_about_as_much(self):
+        """Each "Loại lá" at 1080p costs no more than about one and a half times the defaults (a ginkgo's long stem
+        or a willow's narrow blade: only the box round the leaf is drawn). Measured: defaults 44 ms, ginkgo 67 (113
+        when its whole square picture was drawn), birch 61, heart 59, the others 36-52 (bound: 1.75x, for noise)."""
+        leaf = self.cost("leaves", {})
+        for name in leaves.SCENES:
+            leaves._SPRITES.clear()  # (each on its own, as one clip renders)
+            cost = self.cost("leaves", dict(leaves.SCENES[name], scene=name))
+            self.assertLess(cost, 1.75 * leaf + 0.005, (name, cost, leaf))
 
     def test_pictures_made_quickly(self):
         """The pictures a 1080p clip needs are made in a few seconds, however many shapes are ticked (measured: 3 s

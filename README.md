@@ -26,7 +26,8 @@ Premiere Pro:
     gió thu cuốn lá, lá to bay chậm). Muốn tự trộn: tích các ô ở **Kiểu dáng lá** (lá phong 5 thuỳ, lá phong Nhật, lá
     bạch quả, lá sồi, lá bàng, lá bạch dương, lá liễu, lá hình tim, cánh hoa anh đào). Tích nhiều ô thì các loại rơi
     cùng lúc; không tích ô nào thì là lá phong. Mỗi loại có màu tự nhiên của nó (bạch quả vàng cam chứ không đỏ, sồi đỏ
-    nâu, bàng đỏ cam gân sẫm) và to nhỏ đúng tỉ lệ (lá bàng, lá phong to; bạch dương, liễu nhỏ). **Màu theo mùa** và
+    nâu, bàng từ đỏ thẫm, đỏ gạch, cam tới nâu, gân sáng) và to nhỏ đúng tỉ lệ (lá bàng, lá phong to; bạch dương, liễu
+    nhỏ). "Lá bàng mùa đông" có cả lá đỏ, lá cam vàng và vài lá xanh. **Màu theo mùa** và
     ba thanh **Lá đỏ**, **Lá vàng**, **Lá xanh** chỉnh mỗi màu nhiều hay ít. **Nắng chiếu xuyên lá**: lá quay về phía
     nắng thì rực sáng, thấy gân lá. **Lá to nhất** và **Lá nhỏ nhất**: lá to lá nhỏ bay cùng lúc (nhiều lá nhỏ ở xa,
     vài lá to ở gần). Chỉnh thêm: tốc độ rơi, chao qua lại, xoay lật mặt (kéo về 0: lá không xoay), gió và gió giật,

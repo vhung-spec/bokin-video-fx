@@ -5,23 +5,28 @@ Nine shapes, each drawn from distance fields (negative inside the leaf):
 - maple: five pointed lobes and two small ones by the stem, each a tapering blade along a slightly bent axis with
   teeth along its sides (sugar maple: broad, with pointed side lobes; red maple: shallower, doubly toothed), joined
   to the palm with rounded sinuses (a smooth minimum of their fields); veins from the stem to every lobe tip.
-- japanese: a Japanese maple's seven long narrow lobes, cut deep, sharply and doubly toothed.
+- japanese: a Japanese maple's seven lobes, widest near their middle, webbed at the palm, cut about two thirds of
+  the way in, doubly toothed.
 - ginkgo: a fan, its outer edge wavy and often notched in the middle, fine veins forking out from the stem.
-- oak: an English oak's rounded lobes either side of the midrib, deep round sinuses, small ears at the base.
+- oak: an English oak's leaf, obovate: broad rounded lobes either side of a wide middle, sinuses cut in about half
+  way, the lobes smaller towards the stem, small ears by it.
 - almond: lá bàng (Terminalia catappa): big, widest near its rounded tip, narrowing to a small notched base, a thick
   midrib and side veins curving up to loop by the edge.
 - birch: small, triangular-ovate with a long tip, doubly toothed, straight parallel side veins.
 - willow: long and narrow, often a little curved, finely toothed, its back silvery.
-- heart: a linden's heart-shaped leaf: rounded lobes either side of the stem, a short pointed tip, fine teeth.
+- heart: a linden's leaf, an outline round its middle: ovate, its lobes by the stem one a little bigger than the
+  other, finely toothed all round, a short abrupt point; veins fanning out from the stem.
 - petal: a cherry blossom's petal, notched at its tip.
+A gap that lobes shut in (two points crossing a notch) is filled: no leaf is seen through.
 
 Each shape has its own natural colours for the red, yellow and green the sliders count (a ginkgo has no red: its
-"red" is a deep golden orange; an oak's red is russet; a bàng leaf goes from wine red to orange, its veins darker;
-a willow is yellow-green), varying across the leaf (tones that drift, deeper edges and tips, patches still green
-by the veins, freckles, dry tips), with a faint texture. The shading comes from a leaf that is cupped, curled,
-twisted, folded along its midrib and a little sunk along its veins, with a thin lighter rim (the edge lets light
-through). The back is duller and lighter, its veins standing out (a leaf turned over shows it mirrored). Lit from
-behind, a leaf glows: warmer and brighter, its veins and the fine net between them dark against the light.
+"red" is a deep golden orange; an oak's red is russet; a bàng leaf's runs from wine red through brick and orange to
+russet brown, its thick veins lighter; a willow is yellow-green), varying across the leaf (tones that drift, deeper
+edges and tips, patches still green by the veins, freckles, dry tips), with a faint texture. The shading comes from a
+leaf that is cupped, curled, twisted, folded along its midrib and a little sunk along its veins, with a thin lighter
+rim (the edge lets light through). The back is duller and lighter, its veins standing out (a leaf turned over shows
+it mirrored). Lit from behind, a leaf glows: warmer and brighter, its veins and the fine net between them dark
+against the light (a petal: brighter, still pink).
 """
 import math
 
@@ -30,6 +35,10 @@ from PIL import Image, ImageDraw
 
 MIPS = (288, 144, 72, 36, 18)  # px across a leaf's pictures: it is drawn at one of the first three (as large as
 # the leaf will be seen), the smaller ones made from that
+# the least share of its picture each shape's blade takes (its longest side: a ginkgo's long stem, a heart's or a
+# birch leaf's take room too), at most 0.7: a picture this much larger than a leaf will be seen holds it
+SHARE = {"maple": 0.69, "japanese": 0.7, "ginkgo": 0.46, "oak": 0.7, "almond": 0.63, "birch": 0.63, "willow": 0.7,
+         "heart": 0.63, "petal": 0.7}
 FAMILIES = ("red", "yellow", "green")  # the colours the sliders count
 PALETTES = FAMILIES + ("turning",)  # how a leaf is painted: "turning" is a green leaf going yellow or red at its
 # edges (only when some leaves are already red or yellow: not in summer)
@@ -78,13 +87,16 @@ class Lobe:
     """A tapering blade along an axis from (ox, oy) at `angle` (radians from straight up, positive to the right),
     `length` long and `width` at its widest (half-widths), the axis bent sideways by `bend` (at the tip, in lengths),
     with teeth along its sides (amp, period: leaf units). kind "vein": a vein only (no blade of its own). The
-    profile is (1 - t)^tip (base + t)^b: tip above 1 is a long drawn-out point, 1 a straight one, below 1 a rounded
-    end; `base` sets how wide it starts."""
+    profile is (1 - t)^tip (base + t)^b: tip above 1 is a long drawn-out point, 1 a straight one, below 1 a blunter
+    one; `base` sets how wide it starts. `round_end`: past its widest, half an ellipse (an oak's or a bàng leaf's
+    rounded end; a maple's lobes stay pointed, whatever their tip)."""
 
     def __init__(self, ox, oy, angle, length, width, bend=0.0, amp=0.0, period=0.05, double=0.0, phase=(0.0, 0.0),
-                 widest=0.35, tip=1.0, base=0.3, teeth_from=0.22, kind="lobe", soft=None, round_base=0.0):
+                 widest=0.35, tip=1.0, base=0.3, teeth_from=0.22, kind="lobe", soft=None, round_base=0.0,
+                 round_end=False):
         self.ox, self.oy, self.a, self.L, self.W = ox, oy, angle, length, width
         self.round_base = round_base  # (how round the corners where it is cut across at its base)
+        self.round_end = round_end
         self.bend, self.amp, self.period, self.double, self.phase = bend, amp, period, double, phase
         self.tip, self.base, self.teeth_from, self.kind, self.soft = tip, base, teeth_from, kind, soft
         self.widest = widest
@@ -136,8 +148,8 @@ class Lobe:
         hw = self.W * f
         slope = np.minimum(np.abs(self.W * fs / self.L), 6.0)
         d = (np.abs(q) - hw) / np.sqrt(1 + slope * slope)
-        if self.tip < 1:  # a rounded end: past its widest, half an ellipse (the profile there is so steep at the
-            # tip that every point across from it would seem to be on its edge)
+        if self.round_end:  # a rounded end: past its widest, half an ellipse (a profile with a tip below 1 is so
+            # steep there that every point across from it would seem to be on its edge)
             sw = self.widest * self.L
             past = s > sw
             if past.any():
@@ -180,7 +192,7 @@ def _common(rng, shape, field, veins, stem, stem_w, cup=(-0.25, 0.45), curl=(-0.
             "vfold": rng.uniform(*vfold), "twist": rng.uniform(*twist), "lobes": [], "palm": 0.0, "k": 0.0, **extra}
 
 
-def maple_design(rng):
+def maple_design(rng, family=None):
     """A maple leaf with five lobes (and two small ones by the stem): broad lobes with pointed side lobes (sugar
     maple), or shallower lobes with doubly toothed edges (red maple). The two sides mirror each other, each a little
     different (a real leaf is never quite symmetric)."""
@@ -192,7 +204,7 @@ def maple_design(rng):
     low = up + rng.uniform(0.8, 0.95)
     lengths = (1.0, rng.uniform(0.9, 1.0), rng.uniform(0.52, 0.68), rng.uniform(0.14, 0.24))
     widths = (rng.uniform(0.25, 0.3), rng.uniform(0.23, 0.28), rng.uniform(0.17, 0.21), 0.09) if broad else \
-        (rng.uniform(0.3, 0.36), rng.uniform(0.27, 0.32), rng.uniform(0.18, 0.22), 0.1)
+        (rng.uniform(0.27, 0.32), rng.uniform(0.24, 0.29), rng.uniform(0.17, 0.21), 0.1)  # (cut a third in)
     if broad:
         amp, period, double = rng.uniform(0.0, 0.008), rng.uniform(0.07, 0.1), 0.0
     else:
@@ -234,30 +246,33 @@ def maple_design(rng):
                    k=k, curl_by="along")
 
 
-def japanese_design(rng):
-    """A Japanese maple's leaf: seven long narrow lobes, pointed, cut deep (about two thirds of the way in), sharply
-    and doubly toothed, the lowest ones reaching out sideways."""
+def japanese_design(rng, family=None):
+    """A Japanese maple's leaf: seven long lobes, widest near their middle and webbed together at the palm, pointed,
+    cut about two thirds of the way in, doubly toothed (sharply when red or yellow, finer while green), the lowest
+    ones reaching out sideways."""
     lobes, jit = [], _jit(rng)
-    palm, k = rng.uniform(0.13, 0.18), rng.uniform(0.025, 0.035)
+    palm, k = rng.uniform(0.15, 0.2), rng.uniform(0.03, 0.04)
     spread = rng.uniform(0.56, 0.62)  # radians between lobes
     lengths = (1.0, rng.uniform(0.9, 0.97), rng.uniform(0.72, 0.82), rng.uniform(0.42, 0.54))
-    width = rng.uniform(0.105, 0.125)
+    width = rng.uniform(0.11, 0.125)
     amp, period, double = rng.uniform(0.014, 0.02), rng.uniform(0.038, 0.05), rng.uniform(0.4, 0.6)
-    widest, tip = rng.uniform(0.52, 0.6), rng.uniform(1.25, 1.5)  # (narrow where the lobes part)
+    if family in ("green", "turning"):  # (finer teeth: the webbed palm and the broad lobes read first)
+        amp, double = amp * 0.6, double * 0.6
+    widest, tip = rng.uniform(0.42, 0.48), rng.uniform(1.25, 1.5)
     for i, ln in enumerate(lengths):
         bend = rng.uniform(0.0, 0.08)
-        w = width * (0.85 if i == 3 else 1.0)
+        w = width * (0.7 + 0.3 * ln)  # (the shorter lobes narrower: the sinuses between them stay open)
         for side in ((0,) if i == 0 else (-1, 1)):
             a = side * (i * spread + rng.uniform(-0.012, 0.012)) if i else rng.uniform(-0.01, 0.01)
             lobes.append(Lobe(0, 0, a, jit(ln, 0.02), jit(w, 0.02),
                               bend=side * jit(bend, 0.2) if i else rng.normal(0, 0.01),
                               amp=amp, period=period, double=double, phase=tuple(rng.random(2)),
-                              widest=jit(widest, 0.02), tip=jit(tip, 0.02), base=0.1, teeth_from=0.36))
+                              widest=jit(widest, 0.02), tip=jit(tip, 0.02), base=0.22, teeth_from=0.42))
     return _common(rng, "japanese", "lobes", {"style": "palmate"}, (0.4, 0.55), (0.016, 0.022), lobes=lobes,
                    palm=palm, k=k, curl_by="along", cup=(-0.1, 0.5))
 
 
-def ginkgo_design(rng):
+def ginkgo_design(rng, family=None):
     """A ginkgo leaf: a fan on a long stem, its outer edge wavy, often notched in the middle (some deeply, in two
     lobes), its sides drawn in toward the stem; fine veins fork out from the stem to the edge."""
     deep = rng.random()
@@ -273,57 +288,74 @@ def ginkgo_design(rng):
                    cup=(0.1, 0.5), twist=(-0.15, 0.15), fold=(0.01, 0.02))
 
 
-def oak_design(rng):
-    """An English oak's leaf: rounded lobes either side of the midrib (not opposite each other), the biggest
-    beyond the middle, deep rounded sinuses, a rounded end lobe and small ears at the base."""
+def oak_design(rng, family=None):
+    """An English oak's leaf: obovate (widest about two thirds of the way up), 4-6 broad rounded lobes either side
+    of a wide middle (not opposite each other: the sinuses between them cut in about half way), the lobes smaller
+    towards the base, a broad rounded end lobe, two small ears hugging the short stem."""
     jit = _jit(rng)
-    lobes = [Lobe(0, 0, rng.normal(0, 0.04), 1.0, rng.uniform(0.075, 0.095), bend=rng.normal(0, 0.05),
-                  widest=0.7, tip=0.6, base=0.25)]
-    mid = lobes[0]
+    wc = rng.uniform(0.155, 0.175)  # the middle's half-width at its widest (the sinuses' bottoms)
+    reach = rng.uniform(0.33, 0.37)  # the lobes' tips at the widest
+
+    def outline(u):  # how far the lobes reach at u along the leaf (obovate: furthest about two thirds up)
+        return reach * math.sin(math.pi * min(1.0, max(u, 0.0) / 1.02) ** 1.55)
+
+    mid = Lobe(0, 0, rng.normal(0, 0.04), 0.86, wc, bend=rng.normal(0, 0.04), widest=0.64, tip=0.7, base=0.14,
+               round_end=True)
+    lobes = [mid]
+    ex, ey = mid.axis(0.58)  # the end lobe: broad and rounded
+    lobes.append(Lobe(float(ex), float(ey), mid.a + rng.normal(0, 0.06), rng.uniform(0.4, 0.44),
+                      jit(rng.uniform(0.13, 0.155), 0.08), widest=0.48, tip=0.7, base=0.5, round_end=True,
+                      soft=0.04))
     pairs = int(rng.integers(4, 6))
+    spacing = 0.56 / (pairs - 0.5)
     for side in (-1, 1):
-        offset = rng.uniform(0.35, 0.65) if side > 0 else 0.0  # (the two sides' lobes alternate)
+        offset = rng.uniform(0.3, 0.6) if side > 0 else 0.0  # (the two sides' lobes alternate)
         for j in range(pairs):
-            s = 0.1 + 0.74 * (j + offset + rng.uniform(-0.08, 0.08)) / pairs
-            if s > 0.86:
+            s = 0.1 + spacing * (j + offset * 0.8 + rng.uniform(-0.06, 0.06))
+            if s > 0.68:
                 continue
-            env = 0.2 + 0.24 * math.sin(math.pi * min(1.0, s / 0.92) ** 0.8)  # (biggest beyond the middle)
+            ang = 1.3 - 0.75 * s + rng.normal(0, 0.05)
+            ln = 0.2
+            for _ in range(4):  # (its tip on the outline)
+                ln = outline(s + ln * math.cos(ang)) / math.sin(ang)
+            ln = jit(ln, 0.07) + 0.03
+            w = jit(min(0.5 * spacing * math.sin(ang) + 0.01, 0.4 * ln), 0.08)
             bx, by = mid.axis(s)
-            ang = mid.a + side * (1.1 - 0.6 * s + rng.normal(0, 0.08))
-            lobes.append(Lobe(float(bx), float(by), ang, jit(env, 0.12), jit(rng.uniform(0.06, 0.08), 0.1),
-                              bend=side * rng.uniform(0.0, 0.1), widest=0.62, tip=0.6, base=0.4, kind="side",
-                              soft=rng.uniform(0.025, 0.04)))
-    for side in (-1, 1):  # the ears by the stem
-        lobes.append(Lobe(0.0, 0.03, side * rng.uniform(2.2, 2.6), rng.uniform(0.07, 0.1), 0.045, widest=0.5,
-                          tip=0.6, base=0.5, kind="side", soft=0.02))
+            lobes.append(Lobe(float(bx), float(by), mid.a + side * ang, ln, w,
+                              bend=side * rng.uniform(-0.02, 0.08), widest=0.55, tip=0.7, base=0.6, kind="side",
+                              soft=rng.uniform(0.03, 0.045), round_end=True))
+    for side in (-1, 1):  # the ears by the stem: small, hugging it
+        lobes.append(Lobe(side * 0.01, 0.04, side * rng.uniform(1.9, 2.2), rng.uniform(0.055, 0.07),
+                          rng.uniform(0.026, 0.032), widest=0.5, tip=0.7, base=0.6, kind="side", soft=0.03,
+                          round_end=True))
     return _common(rng, "oak", "lobes", {"style": "pinnate", "step": None, "main_w": 0.022, "sub_w": 0.009},
-                   (0.08, 0.14), (0.02, 0.026), lobes=lobes, k=0.06, curl_by="r", vfold=(0.03, 0.08),
+                   (0.05, 0.09), (0.02, 0.026), lobes=lobes, k=0.06, curl_by="r", vfold=(0.03, 0.08),
                    wave=(0.02, 0.05))
 
 
-def almond_design(rng):
+def almond_design(rng, family=None):
     """A bàng leaf (Terminalia catappa): big and obovate, widest near its rounded end (with a short point), narrowing
     to a small notched base on a short thick stem; a thick midrib and side veins curving up to loop by the edge."""
     jit = _jit(rng)
     width = rng.uniform(0.26, 0.3)
     lobes = [Lobe(0, 0, rng.normal(0, 0.03), 1.0, width, bend=rng.normal(0, 0.04), widest=rng.uniform(0.7, 0.76),
-                  tip=rng.uniform(0.38, 0.48), base=0.04, teeth_from=0.0)]
+                  tip=rng.uniform(0.38, 0.48), base=0.04, teeth_from=0.0, round_end=True)]
     mid = lobes[0]
     if rng.random() < 0.7:  # a short abrupt point at the rounded end
         tx, ty = mid.axis(0.93)
         lobes.append(Lobe(float(tx), float(ty), mid.a + rng.normal(0, 0.05), rng.uniform(0.08, 0.12), 0.045,
                           widest=0.15, tip=1.2, base=0.3, kind="side", soft=0.05))
     for side in (-1, 1):  # the small ears of the base
-        lobes.append(Lobe(0.0, 0.04, side * rng.uniform(2.2, 2.5), jit(0.045, 0.15), 0.024, widest=0.5, tip=0.6,
-                          base=0.5, kind="side", soft=0.012))
+        lobes.append(Lobe(0.0, 0.04, side * rng.uniform(2.2, 2.5), jit(0.035, 0.15), 0.017, widest=0.5, tip=0.6,
+                          base=0.5, kind="side", soft=0.015, round_end=True))
     return _common(rng, "almond", "lobes", {"style": "pinnate", "step": rng.uniform(0.085, 0.1), "lean": 1.0,
-                                             "curve": 0.42, "reach": 0.9, "main_w": 0.03, "side_w": 0.009,
+                                             "curve": 0.42, "reach": 0.9, "main_w": 0.034, "side_w": 0.012,
                                              "from": 0.08},
                    (0.06, 0.1), (0.032, 0.04), lobes=lobes, curl_by="r", vfold=(0.03, 0.07), fold=(0.04, 0.07),
                    wave=(0.02, 0.05), cup=(-0.15, 0.4))
 
 
-def birch_design(rng):
+def birch_design(rng, family=None):
     """A birch leaf: small, round-ovate with a short drawn-out point and a broad rounded base, doubly toothed;
     straight side veins running out to the teeth, all alike."""
     lobes = [Lobe(0, 0, rng.normal(0, 0.03), 1.0, rng.uniform(0.35, 0.41), bend=rng.normal(0, 0.03),
@@ -336,7 +368,7 @@ def birch_design(rng):
                    (0.25, 0.36), (0.014, 0.018), lobes=lobes, curl_by="r", vfold=(0.02, 0.06))
 
 
-def willow_design(rng):
+def willow_design(rng, family=None):
     """A willow leaf: long and narrow, often a little curved, with a long point and fine teeth; a pale midrib and
     faint side veins; its back silvery."""
     lobes = [Lobe(0, 0, rng.normal(0, 0.03), 1.0, rng.uniform(0.07, 0.09), bend=rng.choice([-1, 1]) *
@@ -350,26 +382,83 @@ def willow_design(rng):
                    twist=(-0.5, 0.5), vfold=(0.02, 0.05))
 
 
-def heart_design(rng):
-    """A heart-shaped leaf, like a linden's: broad, with rounded lobes either side of a notch at the stem (one a
-    little bigger: the leaf is lopsided), a short drawn-out point and fine teeth; veins fan out from the stem, then
-    run along the midrib."""
+def heart_design(rng, family=None):
+    """A linden's heart-shaped leaf: broad and round, widest below its middle, an abrupt short point, two rounded
+    lobes either side of a notch at the stem, one of them a little bigger (the leaf is lopsided), finely toothed all
+    round; veins fan out from the stem (the midrib, a pair to the sides, a pair down into the lobes), then run
+    along the midrib."""
     tilt = rng.normal(0, 0.05)
-    drop = rng.uniform(0.13, 0.18)
-    lobes = [Lobe(0.0, -drop, tilt, 1.0 + drop, rng.uniform(0.44, 0.5), bend=rng.normal(0, 0.04),
-                  amp=rng.uniform(0.008, 0.012), period=rng.uniform(0.034, 0.044), double=rng.uniform(0.0, 0.3),
-                  phase=tuple(rng.random(2)), widest=rng.uniform(0.3, 0.36), tip=rng.uniform(1.6, 2.0),
-                  base=rng.uniform(0.32, 0.4), teeth_from=0.12, round_base=rng.uniform(0.1, 0.14))]
-    for side in (-1, 1):  # the veins out to the lobes by the stem
-        lobes.append(Lobe(0.0, 0.0, tilt + side * rng.uniform(1.7, 1.95), rng.uniform(0.3, 0.36), 0.1, kind="vein"))
-    return _common(rng, "heart", "lobes", {"style": "pinnate", "step": rng.uniform(0.12, 0.14), "lean": 0.8,
-                                            "curve": 0.3, "reach": 0.92, "main_w": 0.017, "side_w": 0.007,
-                                            "from": 0.3, "sub_w": 0.011, "sub_side": True},
-                   (0.3, 0.45), (0.014, 0.018), lobes=lobes, curl_by="r", vfold=(0.01, 0.04),
-                   sinus=(rng.normal(0, 0.01), 0.02, rng.uniform(0.5, 0.75), 0.03))
+    cy = rng.uniform(0.33, 0.37)  # (the middle of its round body: the stem at the notch's bottom, 0, 0)
+    half = rng.uniform(0.46, 0.52)  # across
+    top = rng.uniform(0.54, 0.6)  # up from the middle, without the point (tapering: ovate)
+    taper = rng.uniform(1.6, 1.8)  # (2: round; less: the upper sides straighter, running into the point)
+    point = (rng.uniform(0.07, 0.1), rng.uniform(0.13, 0.18))  # how long the point, how narrow (radians)
+    low = cy + rng.uniform(0.12, 0.16)  # down from the middle: the lobes hang below the stem
+    skew = rng.choice([-1, 1]) * rng.uniform(0.05, 0.12)  # (one lobe bigger)
+    teeth = (rng.uniform(0.008, 0.012), rng.uniform(0.032, 0.042), rng.uniform(0.0, 0.35), tuple(rng.random(2)))
+    sinus = (rng.uniform(0.24, 0.32), rng.normal(0, 0.03))  # its opening (radians), and a little to one side
+    apex = cy + top + point[0]
+    vein_w = half * 0.95
+    lobes = [Lobe(0, 0, tilt, apex * 0.97, vein_w, bend=rng.normal(0, 0.03), widest=0.33, tip=1.1, base=0.5,
+                  teeth_from=0.0)]  # (veins only: the blade is the outline below)
+    for side in (-1, 1):
+        big = 1 + skew * side * 0.5
+        lobes.append(Lobe(0.0, 0.0, tilt + side * rng.uniform(0.95, 1.25), rng.uniform(0.42, 0.5) * big, 0.16,
+                          bend=-side * rng.uniform(0.02, 0.08), kind="vein"))  # up and out to the sides
+        lobes.append(Lobe(0.0, 0.0, tilt + side * rng.uniform(1.95, 2.25), rng.uniform(0.26, 0.32) * big, 0.1,
+                          bend=-side * rng.uniform(0.04, 0.1), kind="vein"))  # down into the lobes
+    return _common(rng, "heart", "heart", {"style": "pinnate", "step": rng.uniform(0.12, 0.14), "lean": 0.8,
+                                            "curve": 0.3, "reach": 0.9, "main_w": 0.017, "side_w": 0.007,
+                                            "from": 0.36, "sub_w": 0.011, "sub_side": True},
+                   (0.3, 0.45), (0.014, 0.018), lobes=lobes, curl_by="r", vfold=(0.01, 0.04), tilt=tilt, cy=cy,
+                   half=half, top=top, taper=taper, point=point, low=low, skew=skew, teeth=teeth, sinus=sinus,
+                   apex=apex)
 
 
-def petal_design(rng):
+def _heart_radius(g, th, teeth=True):
+    """How far a heart-shaped leaf's outline is from the middle of its body at angle th (from its axis, up); and how
+    far its teeth stand out there (0 if not `teeth`)."""
+    c, s = np.cos(th), np.sin(th)
+    up = c >= 0
+    b = np.where(up, g["top"], g["low"])
+    p = np.where(up, g["taper"], 2.0)
+    lobe = 1 + g["skew"] * np.sign(s) * 0.5 * _smoothstep(1.4, 2.6, np.abs(th))  # (one lobe bigger)
+    r = lobe / ((np.abs(s) / g["half"]) ** p + (np.abs(c) / b) ** p) ** (1 / p)  # the body: round below, ovate
+    length, width = g["point"]
+    r = r + length * np.exp(-(th / width) ** 2)  # the short point
+    opening, aside = g["sinus"]
+    u = np.clip(1 - np.abs(np.mod(th - aside, 2 * math.pi) - math.pi) / opening, 0, 1)  # (1 at the notch)
+    r = r - (r - g["cy"] + 0.01) * u ** 1.6 * (3 - 2 * u)  # the notch, in to the stem
+    amp, period, double, phase = g["teeth"]  # fine teeth all round, leaning to the point, none in the notch
+    if not teeth:
+        return r, 0.0
+    env = _smoothstep(0.12, 0.35, np.abs(th)) * (1 - _smoothstep(0.55, 1.0, u))
+    out = 0.0
+    for share, freq, extra in ((1 - double, 1.0, 0.0), (double, 2.0, 0.37)):
+        if share > 0:
+            v = np.mod(-np.abs(th) * 0.5 * freq / period + np.where(s > 0, phase[0], phase[1]) + extra, 1.0)
+            out = out + share * np.where(v < 0.78, v / 0.78, (1 - v) / 0.22)
+    return r, amp * env * (out - 0.45)
+
+
+def _heart_field(g, x, y):
+    """A heart-shaped leaf (the stem at the bottom of its notch, 0, 0): a distance-like field and how far out a point
+    is (0 in the middle of its body, 1 at its edge: a linden turns from its edge in)."""
+    ct, st = math.cos(g["tilt"]), math.sin(g["tilt"])
+    px, py = x * ct - y * st, x * st + y * ct - g["cy"]
+    rho = np.hypot(px, py)
+    th = np.arctan2(px, py)
+    R, tw = _heart_radius(g, th)
+    dR = (_heart_radius(g, th + 1e-3, False)[0] - _heart_radius(g, th - 1e-3, False)[0]) / 2e-3
+    d = (rho - R) / np.sqrt(1 + (dR / np.maximum(R, 0.05)) ** 2)
+    amp = g["teeth"][0]  # the teeth move the margin only: they fade out within a few of their sizes of it
+    near = np.exp(-(d / (2.5 * amp)) ** 2)
+    slope = (_heart_radius(g, th + 1e-3)[1] - _heart_radius(g, th - 1e-3)[1]) / (2e-3 * np.maximum(R, 0.05))
+    d = (d - tw * near) / np.sqrt(1 + (slope * near) ** 2)
+    return d, np.clip(rho / np.maximum(R, 0.05), 0.0, 1.0)
+
+
+def petal_design(rng, family=None):
     """A cherry petal: a rounded blade, narrow at its base, with a small notch at its tip."""
     return _common(rng, "petal", "petal", {"style": "petal"}, (0.0, 0.0), (0.0, 0.0), w=rng.uniform(0.34, 0.42),
                    notch=rng.uniform(0.06, 0.12), tilt=rng.normal(0, 0.06), cup=(0.2, 0.6), curl=(-0.2, 0.3),
@@ -413,7 +502,8 @@ def _ginkgo_field(g, x, y):
     th = np.arctan2(x, y)
     R = _ginkgo_radius(g, th)
     dR = (_ginkgo_radius(g, th + 1e-3) - _ginkgo_radius(g, th - 1e-3)) / 2e-3
-    out = (r - R) / np.sqrt(1 + (dR / np.maximum(r, 0.05)) ** 2)  # (a distance: as steep at the notch as elsewhere)
+    out = (r - R) / np.sqrt(1 + (dR / np.maximum(R, 0.05)) ** 2)  # (a distance by its edge, as steep at the notch as
+    # elsewhere; well inside, far from it: not drawn towards 0 along the notch's line, as a slope over r would)
     side = g["half"] * (1 - g["concave"] * np.clip(1 - r / g["R"], 0, 1) ** 2)  # the sides drawn in to the stem
     across = r * np.sin(np.clip(np.abs(th) - side, -0.5 * math.pi, 0.5 * math.pi))
     d = _smax(out, across, g["round"])
@@ -430,6 +520,8 @@ def _blade(design, x, y, k_side=0.4):
         return _petal_field(design, x, y)
     if design["field"] == "ginkgo":
         return _ginkgo_field(design, x, y)
+    if design["field"] == "heart":
+        return _heart_field(design, x, y)
     palm, k = design["palm"], design["k"]
     if palm > 0:  # the palm, cut straight across at the bottom: the base of the leaf is the lobes by the stem
         d = np.maximum(np.hypot(x, y - 0.4 * palm) - palm, -(y + 0.25 * palm))
@@ -454,11 +546,6 @@ def _blade(design, x, y, k_side=0.4):
         w = np.exp(-np.clip(dl, -0.5, 1.0) / SOFT)
         weight[sl] += w
         along[sl] += w * np.clip(t, 0, 1)
-    if design.get("sinus"):  # a notch cut up into the base, to the stem (a heart's)
-        sx, sy, half, soft = design["sinus"]
-        c, s = math.cos(half), math.sin(half)
-        wedge = (np.abs(x - sx) * c - (sy - y) * s)  # (negative inside the wedge, which opens downwards)
-        d = _smax(d, -wedge, soft)
     return d, along / weight
 
 
@@ -580,6 +667,12 @@ def _bounds(design):
         reach = design["R"] * 1.05
         across = reach * math.sin(min(design["half"], 0.5 * math.pi)) + 0.05
         bx, by = [-across, across], [-0.05, reach + 0.05]
+    elif design["field"] == "heart":
+        th = np.linspace(-math.pi, math.pi, 721)
+        r = _heart_radius(design, th, False)[0] + 0.03
+        ct, st = math.cos(design["tilt"]), math.sin(design["tilt"])
+        px, py = r * np.sin(th), design["cy"] + r * np.cos(th)
+        bx, by = list(px * ct + py * st), list(-px * st + py * ct)
     else:
         bx = [design["palm"], -design["palm"]]
         by = [design["palm"], -design["palm"]]
@@ -666,13 +759,14 @@ PAINT = {
             "deep": {"red": (0.3, 0.13, 0.05), "yellow": (0.5, 0.32, 0.12)},
             "warm": [((0.66, 0.52, 0.18), 0.6), ((0.55, 0.28, 0.08), 0.4)], "veins": 0.22, "dry": 0.7,
             "freckles": (2, 9)},
-    "almond": {"red": [(0.0, (0.42, 0.03, 0.05)), (0.3, (0.6, 0.06, 0.05)), (0.65, (0.78, 0.17, 0.05)),
-                       (1.0, (0.88, 0.36, 0.07))],
-               "yellow": [(0.0, (0.96, 0.7, 0.15)), (0.5, (0.93, 0.56, 0.1)), (1.0, (0.8, 0.43, 0.11))],
+    "almond": {"red": [(0.0, (0.46, 0.04, 0.07)), (0.2, (0.63, 0.08, 0.05)), (0.4, (0.77, 0.2, 0.06)),
+                       (0.62, (0.88, 0.4, 0.09)), (0.82, (0.9, 0.52, 0.12)), (1.0, (0.68, 0.38, 0.12))],
+               # (wine, brick, orange, russet)
+               "yellow": [(0.0, (0.99, 0.83, 0.25)), (0.5, (0.97, 0.7, 0.15)), (1.0, (0.93, 0.56, 0.11))],
                "green": [(0.0, (0.1, 0.3, 0.07)), (0.5, (0.17, 0.4, 0.09)), (1.0, (0.26, 0.49, 0.12))],
-               "deep": {"red": (0.33, 0.06, 0.04), "yellow": (0.6, 0.27, 0.07)},
-               "warm": [((0.8, 0.2, 0.05), 0.65), ((0.92, 0.55, 0.1), 0.35)], "veins": -0.35, "dry": 0.5,
-               "freckles": (1, 7)},
+               "deep": {"red": (0.48, 0.14, 0.05), "yellow": (0.86, 0.46, 0.08)},
+               "warm": [((0.8, 0.2, 0.05), 0.65), ((0.92, 0.55, 0.1), 0.35)], "veins": 0.62, "dry": 0.5,
+               "freckles": (0, 4), "patches": {"red": 0.55, "yellow": 0.3}, "vein_tint": (1.0, 0.84, 0.48)},
     "birch": {"red": [(0.0, (0.88, 0.55, 0.12)), (0.5, (0.82, 0.45, 0.1)), (1.0, (0.7, 0.36, 0.11))],
               "yellow": [(0.0, (0.98, 0.91, 0.34)), (0.5, (0.97, 0.83, 0.21)), (1.0, (0.94, 0.73, 0.14))],
               "green": [(0.0, (0.28, 0.48, 0.11)), (0.5, (0.38, 0.57, 0.14)), (1.0, (0.5, 0.65, 0.18))],
@@ -707,6 +801,8 @@ def _paint(design, family, rng, f):
     heart = np.maximum(halo, np.exp(-f["r"] / 0.3))  # near the main veins and the middle
     kind = design["shape"]
     tone = rng.random()
+    if kind == "almond":  # (a bàng tree's leaves: each design another tone, from wine red to russet, however few)
+        tone = (design["variant"] * 0.618034 + 0.3 * tone) % 1.0
     drift = 0.22 * big + 0.07 * mid  # (a leaf's colour drifts across it: no flat fill)
     if kind == "petal":
         col = _ramp(PINK, np.clip(tone + 0.5 * drift, 0, 1))
@@ -716,7 +812,7 @@ def _paint(design, family, rng, f):
         stem = np.array((0.8, 0.55, 0.5), np.float32)
         col = col * (1 + (0.07 * mid + 0.03 * grain)[..., None] * 0.3)
         front = _mix(col, veins, np.clip(vein_k * side, 0, 1))
-        return np.clip(front, 0, 1), col * 1.02, _lit(col, f, 0.25), stem
+        return np.clip(front, 0, 1), col * 1.02, _lit(col, f, 0.25, warm=False), stem
     pal = PAINT[kind]
     green = _ramp(pal["green"], np.clip(tone + drift, 0, 1))
     if family in ("red", "yellow"):
@@ -726,11 +822,11 @@ def _paint(design, family, rng, f):
         col = _mix(col, bright, np.clip(0.45 * big + 0.15 * mid, 0, 1) * rng.uniform(0.2, 0.6))  # brighter patches
         deep = pal["deep"][family]
         col = _mix(col, deep, np.clip(edge * rng.uniform(0.3, 0.75) + 0.3 * tips * rng.random(), 0, 0.9))
-        if family == "yellow" and kind != "ginkgo":  # green-tinged parts left by the veins, in the middle
+        if family == "yellow" and kind not in ("ginkgo", "almond"):  # green-tinged parts left by the veins
             tinge = _mix(green, (0.75, 0.72, 0.2), 0.4)
             col = _mix(col, tinge, np.clip(heart * rng.uniform(0.15, 0.55) + np.clip(big - 0.3, 0, 1)
                                            * rng.uniform(0.2, 0.7), 0, 0.8))
-        elif family == "yellow":  # a ginkgo: a little green left by the stem only
+        elif family == "yellow":  # a ginkgo or a bàng leaf: a clear yellow, a little green by the stem only
             col = _mix(col, (0.72, 0.74, 0.22), np.clip((1 - _smoothstep(0.0, 0.35, along)) * rng.uniform(0, 0.6),
                                                         0, 1))
         if family == "red" and rng.random() < 0.35:  # a little orange-yellow left by the main veins
@@ -742,6 +838,10 @@ def _paint(design, family, rng, f):
         if rng.random() < pal["dry"]:  # dry brown tips and edges
             col = _mix(col, (0.45, 0.28, 0.1), np.clip(_smoothstep(0.75, 1.0, along) * edge * 1.6, 0, 0.85)
                        * rng.uniform(0.5, 1.0))
+        patches = pal.get("patches", {}).get(family, 0.0)
+        if patches and rng.random() < patches:  # (a bàng leaf: russet brown patches drying across the blade)
+            brown = _ramp([(0.0, (0.5, 0.22, 0.08)), (1.0, (0.66, 0.4, 0.14))], np.float32(rng.random()))
+            col = _mix(col, brown, np.clip((big + 0.35 * mid - rng.uniform(0.0, 0.35)) * 2.2, 0, 0.8))
     else:
         base = green
         col = _mix(green, green * 1.22 + np.array((0.05, 0.05, 0.0), np.float32), np.clip(halo * 0.5, 0, 1))
@@ -758,15 +858,17 @@ def _paint(design, family, rng, f):
     lo, hi = pal["freckles"]
     if family in ("yellow", "red") and hi > 0:
         spot = (0.42, 0.25, 0.09) if family == "yellow" else (0.3, 0.06, 0.05)
-        if kind == "almond":
-            spot = (0.25, 0.1, 0.04)
+        if kind == "almond":  # (a bàng leaf's spots: brown, soft)
+            spot = (0.48, 0.27, 0.09)
         n = int(rng.integers(lo, hi + 1)) if family == "yellow" or rng.random() < 0.4 else 0
         col = _freckles(col, f, rng, spot, n)
     stem = np.clip(_ramp(pal[family if family in FAMILIES else "green"], np.array(0.85, np.float32)) * 0.72, 0, 1)
-    # the veins: lighter on most leaves, darker on a bàng leaf turning red (its veins stay dark)
+    # the veins: lighter on most leaves (a bàng leaf's thick midrib and looped veins: clearly), darker on a ginkgo
     k = pal["veins"]
     if k >= 0:
         veins = np.clip(col * 1.1 + np.array((0.2, 0.16, 0.08), np.float32), 0, 1)
+        if pal.get("vein_tint") and family in ("red", "yellow"):  # (a bàng leaf's: pale yellow on red or orange)
+            veins = _mix(veins, pal["vein_tint"], 0.5)
     else:
         veins = col * (0.55 if family in ("red", "yellow") else 1.3)
         k = -k * (1.0 if family in ("red", "yellow") else 0.6)
@@ -785,12 +887,15 @@ def _paint(design, family, rng, f):
     return np.clip(front, 0, 1), back, _lit(col, f, 1.0), stem
 
 
-def _lit(col, f, veins):
+def _lit(col, f, veins, warm=True):
     """A leaf lit from behind: the light through it, warmer and brighter, its veins (and the fine net between them)
-    dark against it, the thin edge glowing."""
+    dark against it, the thin edge glowing. A petal (not `warm`): brighter, still pink."""
     lum = (col @ np.array([0.3, 0.55, 0.15], np.float32))[..., None]
     glow = np.clip(lum + (col - lum) * 1.3, 0, 1)  # (more saturated)
-    glow = glow ** 0.72 * np.array((1.15, 1.03, 0.78), np.float32) + np.array((0.07, 0.04, 0.0), np.float32)
+    if warm:
+        glow = glow ** 0.72 * np.array((1.15, 1.03, 0.78), np.float32) + np.array((0.07, 0.04, 0.0), np.float32)
+    else:
+        glow = _mix(glow ** 0.8, (1.0, 0.86, 0.92), 0.3)
     dark = np.clip(veins * (0.38 * f["main"] + 0.28 * f["side"] + 0.1 * f["net"]), 0, 0.6)
     glow = glow * (1 - dark[..., None])
     glow = glow * (1 + 0.15 * np.exp(-f["inside"] / 0.01))[..., None]
@@ -849,12 +954,12 @@ def _shade(design, f, back):
 class Sprite:
     """One leaf design in one colour: front, back and lit from behind as premultiplied RGBA pictures (Pillow "RGBa")
     at the MIPS sizes up to `size`, all the same way round (the leaf turning over mirrors the back); `extent`: the
-    leaf's longest side and `reach`: how far it reaches from the picture's middle, in the largest picture (px); `rgb`:
-    its mean colour."""
+    leaf's longest side, `reach`: how far it reaches from the picture's middle and `box`: the box round it (left, top,
+    right, bottom from the middle, y down), in the largest picture (px); `rgb`: its mean colour."""
 
-    def __init__(self, front, back, lit, size, extent, reach, rgb):
+    def __init__(self, front, back, lit, size, extent, reach, rgb, box):
         self.front, self.back, self.lit, self.size = front, back, lit, size
-        self.extent, self.reach, self.rgb = extent, reach, rgb
+        self.extent, self.reach, self.rgb, self.box = extent, reach, rgb, box
         self.bytes = sum(img.size[0] * img.size[1] * 4 for img in front + back + lit)
 
     def level(self, size):
@@ -871,6 +976,32 @@ class Sprite:
         return Image.blend(img, self.lit[i], min(1.0, glow)) if glow > 0.01 else img
 
 
+def _runs_reached(bg, reached):
+    """Runs of background along each row (`bg`, bool): the whole run where any pixel of it is `reached`."""
+    flat = bg.ravel()
+    start = flat.copy()
+    start[1:] &= ~flat[:-1]
+    start[::bg.shape[1]] = flat[::bg.shape[1]]  # (each row starts anew)
+    ids = np.cumsum(start) * flat  # (0: not background)
+    hit = np.bincount(ids, weights=reached.ravel(), minlength=int(ids.max()) + 1) > 0
+    hit[0] = False
+    return hit[ids].reshape(bg.shape)
+
+
+def enclosed(bg):
+    """The background pixels (`bg`, bool) no way out from to the picture's edge (4-connected): holes inside the
+    blade, where two lobes' points cross a notch, say. Spread along rows and columns in turn, as runs."""
+    reached = np.zeros_like(bg)
+    reached[[0, -1], :] = bg[[0, -1], :]
+    reached[:, [0, -1]] |= bg[:, [0, -1]]
+    count = -1
+    while int(reached.sum()) != count:
+        count = int(reached.sum())
+        reached = _runs_reached(bg, reached)
+        reached = _runs_reached(bg.T, reached.T).T
+    return bg & ~reached
+
+
 def _grid(n, cx, cy, ppu):
     xs = (cx + (np.arange(n) + 0.5 - n / 2) / ppu).astype(np.float32)
     ys = (cy - (np.arange(n) + 0.5 - n / 2) / ppu).astype(np.float32)
@@ -881,29 +1012,42 @@ def design_of(kind, family, variant):
     """The design of leaf `variant` of shape `kind` in colour `family` (each its own: a red maple leaf is not a
     yellow one repainted), and the random draws that paint it."""
     rng = np.random.default_rng([SHAPES.index(kind), PALETTES.index(family), variant, 4111])
-    design = DESIGNS[kind](rng)
+    design = DESIGNS[kind](rng, family)
     design["seed"] = int(rng.integers(1 << 30))
+    design["variant"] = variant
     return design, rng
 
 
-def make_sprite(kind, family, variant, size=MIPS[0]):
-    """The pictures of leaf design `variant` of shape `kind` in colour `family`, the largest `size` px across (one of
-    MIPS: the same leaf at any of them). Its `extent` is its blade's longest side (its stem left out)."""
-    design, rng = design_of(kind, family, variant)
+def _blade_picture(design, n):
+    """A design's blade in a picture n px across, round where its weight is (the leaf turns about it): the grid (x,
+    y: leaf units) and its middle (cx, cy), px per leaf unit, its field (holes shut in by it filled), its coverage
+    (alpha), how far along its lobes, and how many px were filled."""
     x0, y0, x1, y1 = _bounds(design)
-    # where its weight is (the leaf turns about it): worked out roughly first
+    # where its weight is: worked out roughly first
     n0 = 64
     ppu0 = (n0 - 4) / max(x1 - x0, y1 - y0)
     gx, gy = _grid(n0, (x0 + x1) / 2, (y0 + y1) / 2, ppu0)
     a0 = np.clip(0.5 - _blade(design, gx, gy)[0] * ppu0, 0, 1)
     total = float(a0.sum()) or 1.0
     cx, cy = float((a0 * gx).sum()) / total, float((a0 * gy).sum()) / total
-    n = size
     half = max(cx - x0, x1 - cx, cy - y0, y1 - cy) + 0.02
     ppu = (n / 2 - 2) / half
     gx, gy = _grid(n, cx, cy, ppu)
     d, along = _blade(design, gx, gy)
     alpha = np.clip(0.5 - d * ppu, 0, 1).astype(np.float32)
+    holes = enclosed(alpha < 0.999)  # (a gap shut in by the blade: filled, never seen through)
+    if holes.any():
+        d = np.where(holes, np.minimum(d, -0.03), d)
+        alpha[holes] = 1.0
+    return gx, gy, (cx, cy), ppu, d, alpha, along, int(holes.sum())
+
+
+def make_sprite(kind, family, variant, size=MIPS[0]):
+    """The pictures of leaf design `variant` of shape `kind` in colour `family`, the largest `size` px across (one of
+    MIPS: the same leaf at any of them). Its `extent` is its blade's longest side (its stem left out)."""
+    design, rng = design_of(kind, family, variant)
+    n = size
+    gx, gy, (cx, cy), ppu, d, alpha, along, _ = _blade_picture(design, n)
     # the stem and the veins: drawn larger, then made smaller
     big = n * SS
     ox, oy = cx - n / 2 / ppu, cy + n / 2 / ppu  # the leaf point at the image's top-left corner
@@ -959,8 +1103,10 @@ def make_sprite(kind, family, variant, size=MIPS[0]):
     extent = float(max(xs.max() - xs.min(), ys.max() - ys.min()) + 1)
     ys, xs = np.nonzero(a > 0.02)
     reach = float(np.hypot(xs + 0.5 - n / 2, ys + 0.5 - n / 2).max()) + 1.5
+    box = (float(xs.min()) - n / 2 - 1.5, float(ys.min()) - n / 2 - 1.5, float(xs.max()) + 1 - n / 2 + 1.5,
+           float(ys.max()) + 1 - n / 2 + 1.5)  # (a picture made smaller spreads a little: grown by 1.5 px)
     rgb = (front * a[..., None]).reshape(-1, 3).sum(axis=0) / max(float(a.sum()), 1e-6)
-    return Sprite(_mips(front, a), _mips(back, a), _mips(lit, a), n, extent, reach, rgb)
+    return Sprite(_mips(front, a), _mips(back, a), _mips(lit, a), n, extent, reach, rgb, box)
 
 
 def _mips(rgb, alpha):
@@ -975,7 +1121,7 @@ def _mips(rgb, alpha):
 
 
 _SPRITES = {}
-MAX_BYTES = 96 << 20  # the pictures kept take at most this much memory
+MAX_BYTES = 128 << 20  # the pictures kept take at most this much memory (several leaves clips share them)
 
 
 def sprite(kind, family, variant, size=MIPS[0]):

@@ -27,7 +27,7 @@ from PIL import Image, ImageFilter
 
 from . import leafshapes
 from .effects import Falling, _choice, _lerp, _num, _toggle
-from .leafshapes import _SPRITES, FAMILIES, MIPS, PALETTES, SHAPES, VARIANTS, sprite, sprite_bytes  # noqa: F401
+from .leafshapes import _SPRITES, FAMILIES, MIPS, PALETTES, SHAPES, SHARE, VARIANTS, sprite, sprite_bytes  # noqa: F401
 # (the pictures kept, and the colours the sliders count: as the tests and the page know them)
 from .snow import GUST_LEAD, gust_push
 
@@ -72,6 +72,7 @@ SEASONS = {  # the "Màu theo mùa" presets: how many leaves are red, yellow and
     "red": {"red": 80, "yellow": 15, "green": 5},
     "gold": {"red": 8, "yellow": 85, "green": 7},
     "redgold": {"red": 50, "yellow": 50, "green": 0},
+    "winter": {"red": 55, "yellow": 35, "green": 10},
     "mixed": {"red": 40, "yellow": 35, "green": 25},
     "early": {"red": 12, "yellow": 23, "green": 65},
     "summer": {"red": 0, "yellow": 0, "green": 100},
@@ -79,7 +80,7 @@ SEASONS = {  # the "Màu theo mùa" presets: how many leaves are red, yellow and
 # the "Loại lá" presets: which shapes, in which season's colours (cherry petals: the colours left as they are)
 SCENE_LIST = [("maple", "Rừng phong (phong 5 thuỳ và phong Nhật)", DEFAULT_SHAPES, "mixed"),
               ("japanese", "Phong Nhật đỏ rực", ("japanese",), "red"),
-              ("almond", "Lá bàng mùa đông", ("almond",), "red"),
+              ("almond", "Lá bàng mùa đông", ("almond",), "winter"),
               ("ginkgo", "Bạch quả vàng", ("ginkgo",), "gold"),
               ("oak", "Rừng sồi", ("oak",), "redgold"),
               ("birch", "Bạch dương vàng", ("birch",), "gold"),
@@ -100,7 +101,8 @@ SCHEMA = {"label": "Lá rơi", "params": [
              ("windy", "Gió thu cuốn lá"), ("dreamy", "Lá to bay chậm")], presets=LOOKS, group="Kiểu"),
     *[_toggle(s, SHAPE_LABELS[s], s in DEFAULT_SHAPES, group=SHAPES_GROUP) for s in SHAPES],
     _choice("season", "Màu theo mùa", "mixed",
-            [("red", "Thu đỏ rực"), ("gold", "Thu vàng"), ("redgold", "Thu đỏ vàng"), ("mixed", "Đỏ vàng xanh"),
+            [("red", "Thu đỏ rực"), ("gold", "Thu vàng"), ("redgold", "Thu đỏ vàng"),
+             ("winter", "Đỏ cam, vàng, ít lá xanh"), ("mixed", "Đỏ vàng xanh"),
              ("early", "Đầu thu (nhiều lá xanh)"), ("summer", "Lá xanh (mùa hè)")], presets=SEASONS,
             group=COLOURS_GROUP),
     _num("red", "Lá đỏ (nhiều hay ít)", 40, group=COLOURS_GROUP),
@@ -165,6 +167,8 @@ GLIDE, TUMBLE, SPIRAL = 0, 1, 2  # how a leaf falls
 SQUASHED = 0.75  # seen at more of a slant than this (its width / its length), a leaf is drawn in two steps
 PASS = (0.6180339887, 0.7548776662)  # steps of two sequences that spread evenly (lanes; a lane's shift each pass)
 DESIGNS_MOST = 48  # designs (shape x colour x design) one clip draws from at most: fewer each with many shapes
+CLIP_SHARE = 0.4  # the share of the pictures' memory (leafshapes.MAX_BYTES) one clip's pictures take at most: two
+# of the heaviest leaves clips (or three as usual) drawn together never make a picture again
 
 
 def _unit(v):
@@ -199,7 +203,7 @@ class Leaves(Falling):
     FULL = 90  # leaves on screen at a time at the top of the "Số lá" slider (16:9)
     SHUTTER = 0.5  # the share of a frame the shutter is open at the top of the motion blur slider
     SWING_HZ = 0.6  # swings a second of a middling leaf at the default fall speed
-    PREVIEW = 960  # the width of its preview clip (small leaves blur at 640: about the size the page shows it)
+    PREVIEW = 960  # its preview clip: as many pixels as 960 x 540 (small leaves blur at 640 wide)
     upgrade = staticmethod(upgrade)
 
     def __init__(self, *a):
@@ -209,8 +213,8 @@ class Leaves(Falling):
         self.gph = float(self.rng.random()) * 2 * math.pi  # when the gusts come
         ds, spin, sway = p["depth"] / 100, p["spin"] / 100, p["sway"] / 100
         shapes = ticked(p)
-        # which shape each leaf is (each in an equal share; drawn before anything else, so that a shape ticked or
-        # not leaves the others' places)
+        # which shape each leaf is (each in an equal share). Ticking another shape gives most leaves another
+        # shape, and (the sizes and margins changing) other places too: a new mix of leaves
         shape = np.array(shapes)[np.minimum((u[:, 26] * len(shapes)).astype(int), len(shapes) - 1)]
 
         # size: from "Lá nhỏ nhất" to "Lá to nhất", many small and a few really big (as many more far away as the
@@ -329,29 +333,31 @@ class Leaves(Falling):
         # in the sun or in the shade: how much a leaf glows when the sun is behind it
         self.sun = p["glow"] / 100 * _lerp(0.35, 1.0, u[:, 37]) * np.where(petal, 0.6, 1.0)
         self.soft = np.clip(_lerp(0.72, 1.0, near[order] / 0.35), 0.72, 1.0)  # (far ones a little softer)
-        # the leaves' pictures: each drawn as large as the leaf will be seen (small in a small preview), from as
-        # many designs as memory allows
+        # the leaves' pictures: each drawn as large as the leaf will be seen (small in a small preview: its shape's
+        # blade takes SHARE of its picture at least), from as many designs as memory allows
         self.longest = self.size * self.px * (1 + self.zs)
-        self.master = np.array([next((s for s in MIPS[2::-1] if 0.7 * s >= 1.1 * v), MIPS[0]) for v in self.longest],
-                               int)
+        self.master = np.array([next((s for s in MIPS[2::-1] if SHARE[str(kind)] * s >= 1.1 * v), MIPS[0])
+                                for kind, v in zip(self.kind, self.longest)], int)
         self.count = self._designs(u[:, 28])
 
     def _designs(self, draw):
         """How many designs of each shape the leaves come in (fewer when many shapes and colours fall together, so
-        that all their pictures fit in memory at once: none is made again and again), and which each leaf starts
-        with (`variant`)."""
+        that all their pictures fit in a share of memory at once, room left for another leaves clip: none is made
+        again and again), which each leaf starts with (`variant`), and how large each design's pictures are made
+        (`sizes`: as large as the largest leaf showing it needs, the others drawn from them, so no design's pictures
+        are made twice)."""
         pal = np.where(self.kind == "petal", 0, self.palette)
         combos = len(set(zip(self.kind.tolist(), pal.tolist()))) or 1
         most = max(2, DESIGNS_MOST // combos)
         while True:
             count = np.array([min(VARIANTS[str(k)], most) for k in self.kind], int)
             self.variant = (draw * count).astype(int)
-            pictures = set()
+            self.sizes = {}
             for i in range(self.n):
-                ks = int(min(self.k[i], count[i]))
-                for j in range(ks):
-                    pictures.add((self.kind[i], pal[i], (self.variant[i] + 3 * j) % count[i], self.master[i]))
-            if most <= 1 or sum(sprite_bytes(m) for *_, m in pictures) <= 0.8 * leafshapes.MAX_BYTES:
+                for j in range(int(min(self.k[i], count[i]))):
+                    key = (str(self.kind[i]), int(pal[i]), int((self.variant[i] + 3 * j) % count[i]))
+                    self.sizes[key] = max(self.sizes.get(key, 0), int(self.master[i]))
+            if most <= 1 or sum(map(sprite_bytes, self.sizes.values())) <= CLIP_SHARE * leafshapes.MAX_BYTES:
                 return count
             most -= 1
 
@@ -439,7 +445,8 @@ class Leaves(Falling):
         """The pictures of leaf i's design: drawn large enough for it (made larger when its blade turns out to be
         smaller in its picture than the leaf will be seen)."""
         kind, pal = str(self.kind[i]), PALETTES[self.palette[i]]
-        spr = sprite(kind, pal, design, int(self.master[i]))
+        size = self.sizes.get((kind, 0 if kind == "petal" else int(self.palette[i]), design), int(self.master[i]))
+        spr = sprite(kind, pal, design, size)
         while spr.extent < self.longest[i] and spr.size < MIPS[0]:
             spr = sprite(kind, pal, design, spr.size * 2)
         return spr
@@ -448,6 +455,12 @@ class Leaves(Falling):
         out, x0, y0 = placed
         if self.blur[i] > 0.4:
             out = out.filter(ImageFilter.GaussianBlur(float(self.blur[i])))
+        drawn = out.getbbox()  # (only what the leaf covers: its box's corners are often empty)
+        if drawn is None:
+            return
+        if drawn != (0, 0) + out.size:
+            out = out.crop(drawn)
+            x0, y0 = x0 + drawn[0], y0 + drawn[1]
         arr = np.asarray(out, np.float32) * (1 / 255.0)
         rgb = arr[..., :3]
         rgb *= gain
@@ -471,31 +484,36 @@ def place(spr, back, length, roll, turn, squash, x, y, pad, glow=0.0, soft=1.0, 
     The picture is chosen by the leaf's full length (`soft` < 1: up to 1 / soft times smaller, a little soft, for a
     far leaf), so its long side is not enlarged more than that (no blur that comes and goes as it turns). Squashed a
     lot, it is turned first, made lower with a filter that averages (not point by point: a leaf seen edge-on stays a
-    solid line, no shimmer), then turned to its place."""
+    solid line, no shimmer), then turned to its place. Only the box round the leaf is drawn (its corners where the
+    turns take them: a ginkgo's long stem or a willow's narrow blade leave much of its square picture empty)."""
     img = spr.image(back, length * soft, glow)
     n = img.size[0]
-    k = length / (spr.extent * n / spr.size)  # frame px per picture px
-    r = spr.reach * n / spr.size  # how far the leaf reaches from the picture's middle (picture px)
+    f = n / spr.size
+    k = length / (spr.extent * f)  # frame px per picture px
+    corners = [(px * f, py * f) for px in spr.box[0::2] for py in spr.box[1::2]]  # (from the picture's middle)
     ca, sa, cb, sb = math.cos(roll), math.sin(roll), math.cos(turn), math.sin(turn)
-    # the frame box: as far as the leaf reaches along each axis, R(roll) diag(1, squash) R(turn) k
+    # the frame box: where the corners go, R(roll) diag(1, squash) R(turn) k
     a, b = k * (ca * cb - sa * squash * sb), k * (-ca * sb - sa * squash * cb)
     c, d = k * (sa * cb + ca * squash * sb), k * (-sa * sb + ca * squash * cb)
-    hw, hh = r * math.hypot(a, b) + pad, r * math.hypot(c, d) + pad
+    us, vs = [a * px + b * py for px, py in corners], [c * px + d * py for px, py in corners]
+    box = (min(us) - pad, min(vs) - pad, max(us) + pad, max(vs) + pad)
     if abs(squash) >= SQUASHED:  # in one step: frame offsets -> the picture, the inverse of [[a, b], [c, d]]
         det = a * d - b * c
         ia, ib, ic, id_ = d / det, -b / det, -c / det, a / det
-        return _laid(img, (ia, ib, n / 2, ic, id_, n / 2), x, y, hw, hh, smear, Image.Resampling.BICUBIC)
-    # 1. turned by `turn` and made `k` times the size (k R(turn)), in a square around the leaf's middle
-    size = 2 * math.ceil(r * k) + 4
-    half = size / 2
-    data = (cb / k, sb / k, n / 2 - (cb + sb) / k * half, -sb / k, cb / k, n / 2 - (cb - sb) / k * half)
-    turned = img.transform((size, size), Image.Transform.AFFINE, data, resample=Image.Resampling.BICUBIC)
+        return _laid(img, (ia, ib, n / 2, ic, id_, n / 2), x, y, box, smear, Image.Resampling.BICUBIC)
+    # 1. turned by `turn` and made `k` times the size (k R(turn)), in a box round the leaf, its middle at (ox, oy)
+    qx = [k * (cb * px - sb * py) for px, py in corners]
+    qy = [k * (sb * px + cb * py) for px, py in corners]
+    ox, oy = 2 - math.floor(min(qx)), 2 - math.floor(min(qy))
+    tw, th = ox + math.ceil(max(qx)) + 2, oy + math.ceil(max(qy)) + 2
+    data = (cb / k, sb / k, n / 2 - (cb * ox + sb * oy) / k, -sb / k, cb / k, n / 2 - (cb * oy - sb * ox) / k)
+    turned = img.transform((tw, th), Image.Transform.AFFINE, data, resample=Image.Resampling.BICUBIC)
     # 2. squashed up-down, averaging
-    low = max(1, round(size * abs(squash)))
-    turned = turned.resize((size, low), Image.Resampling.LANCZOS)
-    e = math.copysign(abs(squash) * size / low, squash)  # (what is left of the squash: about 1, and the mirroring)
+    low = max(1, round(th * abs(squash)))
+    turned = turned.resize((tw, low), Image.Resampling.LANCZOS)
+    e = math.copysign(abs(squash) * th / low, squash)  # (what is left of the squash: about 1, and the mirroring)
     # 3. turned by `roll` into the frame: frame offset = R(roll) diag(1, e) (q - middle)
-    return _laid(turned, (ca, sa, half, -sa / e, ca / e, low / 2), x, y, hw, hh, smear, Image.Resampling.BICUBIC)
+    return _laid(turned, (ca, sa, ox, -sa / e, ca / e, oy * low / th), x, y, box, smear, Image.Resampling.BICUBIC)
 
 
 def _warp(img, src, size, out, resample):
@@ -508,34 +526,36 @@ def _warp(img, src, size, out, resample):
     return img.transform(size, Image.Transform.AFFINE, data, resample=resample)
 
 
-def _laid(img, src, x, y, hw, hh, smear, resample):
-    """`img` laid in the frame, its points at frame offsets (u, v) from (x, y) where `src` takes them in it, as far
-    as hw, hh from there: (picture, x0, y0). Smeared over (dx, dy) = `smear`: drawn first where the way it moves runs
-    straight down (or across: each row moved aside by a fraction of a pixel, never whole pixels, which would leave a
-    fine zipper along its edges), averaged along it (a box: a long smear costs no more than a short one), then put
-    back."""
+def _laid(img, src, x, y, box, smear, resample):
+    """`img` laid in the frame, its points at frame offsets (u, v) from (x, y) where `src` takes them in it, within
+    `box` (u0, v0, u1, v1) round there: (picture, x0, y0). Smeared over (dx, dy) = `smear`: drawn first where the
+    way it moves runs straight down (or across: each row moved aside by a fraction of a pixel, never whole pixels,
+    which would leave a fine zipper along its edges), averaged along it (a box: a long smear costs no more than a
+    short one), then put back."""
+    u0, v0, u1, v1 = box
     dx, dy = smear
     if dx * dx + dy * dy <= 1.0:
-        x0, y0 = math.floor(x - hw), math.floor(y - hh)
-        size = (math.ceil(x + hw) - x0, math.ceil(y + hh) - y0)
+        x0, y0 = math.floor(x + u0), math.floor(y + v0)
+        size = (math.ceil(x + u1) - x0, math.ceil(y + v1) - y0)
         return _warp(img, src, size, (1, 0, x0 - x, 0, 1, y0 - y), resample), x0, y0
     down = abs(dy) >= abs(dx)
     k = dx / dy if down else dy / dx
     if down:  # sheared: (u - k v, v), the way straight down
-        sw, sh = hw + abs(k) * hh + 2, hh + abs(dy) / 2 + 2
-        sox, soy = -math.ceil(sw), -math.ceil(sh)
-        sheared = _warp(img, src, (2 * math.ceil(sw), 2 * math.ceil(sh)), (1, k, sox + k * soy, 0, 1, soy), resample)
+        lo, hi = u0 - max(k * v0, k * v1) - 2, u1 - min(k * v0, k * v1) + 2
+        sox, soy = math.floor(lo), math.floor(v0 - abs(dy) / 2 - 2)
+        size = (math.ceil(hi) - sox, math.ceil(v1 + abs(dy) / 2 + 2) - soy)
+        sheared = _warp(img, src, size, (1, k, sox + k * soy, 0, 1, soy), resample)
         sheared = sheared.filter(ImageFilter.BoxBlur((0, max(0.0, (abs(dy) - 1) / 2))))
     else:  # sheared: (u, v - k u), the way straight across
-        sw, sh = hw + abs(dx) / 2 + 2, hh + abs(k) * hw + 2
-        sox, soy = -math.ceil(sw), -math.ceil(sh)
-        sheared = _warp(img, src, (2 * math.ceil(sw), 2 * math.ceil(sh)), (1, 0, sox, k, 1, soy + k * sox), resample)
+        lo, hi = v0 - max(k * u0, k * u1) - 2, v1 - min(k * u0, k * u1) + 2
+        sox, soy = math.floor(u0 - abs(dx) / 2 - 2), math.floor(lo)
+        size = (math.ceil(u1 + abs(dx) / 2 + 2) - sox, math.ceil(hi) - soy)
+        sheared = _warp(img, src, size, (1, 0, sox, k, 1, soy + k * sox), resample)
         sheared = sheared.filter(ImageFilter.BoxBlur((max(0.0, (abs(dx) - 1) / 2), 0)))
-    fw, fh = hw + abs(dx) / 2 + 1, hh + abs(dy) / 2 + 1
-    x0, y0 = math.floor(x - fw), math.floor(y - fh)
+    x0, y0 = math.floor(x + u0 - abs(dx) / 2 - 1), math.floor(y + v0 - abs(dy) / 2 - 1)
     fox, foy = x0 - x, y0 - y
     data = (1, -k, fox - k * foy - sox, 0, 1, foy - soy) if down else (1, 0, fox - sox, -k, 1, foy - k * fox - soy)
-    size = (math.ceil(x + fw) - x0, math.ceil(y + fh) - y0)
+    size = (math.ceil(x + u1 + abs(dx) / 2 + 1) - x0, math.ceil(y + v1 + abs(dy) / 2 + 1) - y0)
     return sheared.transform(size, Image.Transform.AFFINE, data, resample=Image.Resampling.BILINEAR), x0, y0
 
 
@@ -543,4 +563,5 @@ def smear(img, dx, dy):
     """A picture (Pillow "RGBa") smeared evenly over the (dx, dy) px it moves while the shutter is open (as place()
     smears a leaf). Returns (image, x0, y0): where its top-left pixel now sits relative to the original's."""
     w, h = img.size
-    return _laid(img, (1, 0, w / 2, 0, 1, h / 2), w / 2, h / 2, w / 2, h / 2, (dx, dy), Image.Resampling.BILINEAR)
+    return _laid(img, (1, 0, w / 2, 0, 1, h / 2), w / 2, h / 2, (-w / 2, -h / 2, w / 2, h / 2), (dx, dy),
+                 Image.Resampling.BILINEAR)

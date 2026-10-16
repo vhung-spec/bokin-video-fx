@@ -42,15 +42,20 @@ hiệu ứng. Cách dùng: `README.md`.
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, lá rơi, nước trên kính, khói cốc cà phê,
   lửa nến, mỗi cái một file. Lá rơi: chuyển động, thông số trong `fx/leaves.py`; hình lá trong `fx/leafshapes.py`:
   chín kiểu dáng (`SHAPES`: phong 5 thuỳ, phong Nhật, bạch quả, sồi, bàng, bạch dương, liễu, hình tim, cánh hoa) vẽ bằng
-  trường khoảng cách (`Lobe`: thuỳ, răng cưa, đầu tròn là nửa ellipse; quạt bạch quả, khe tim `sinus`; gân), mỗi kiểu
-  màu riêng cho đỏ/vàng/xanh (`PAINT`: bạch quả không đỏ, sồi đỏ nâu, bàng gân sẫm), mặt trước, mặt sau và hình ngược
-  sáng (`lit`: trang trộn theo hướng lá, `light()`, thanh "Nắng chiếu xuyên lá"). Mỗi kiểu là một ô tích (`_toggle`,
+  trường khoảng cách (`Lobe`: thuỳ, răng cưa; đầu tròn là nửa ellipse chỉ khi `round_end`: sồi, bàng, còn thuỳ phong
+  luôn nhọn; quạt bạch quả; lá tim là đường viền theo góc `_heart_radius`: lệch, răng cưa quanh, mũi ngắn; gân), lỗ bị
+  thuỳ khép kín được lấp (`enclosed()`), mỗi kiểu màu riêng cho đỏ/vàng/xanh (`PAINT`: bạch quả không đỏ, sồi đỏ nâu,
+  bàng đỏ thẫm tới cam, nâu, gân sáng), mặt trước, mặt sau và hình ngược sáng (`lit`: trang trộn theo hướng lá,
+  `light()`, thanh "Nắng chiếu xuyên lá"; cánh hoa sáng vẫn hồng). Mỗi kiểu là một ô tích (`_toggle`,
   không tích ô nào: phong 5 thuỳ); "Loại lá" (`SCENES`, `match`: trang tự chuyển về "Tự chọn" khi tích tay,
   `followChoices`) tích sẵn vài kiểu và tô màu theo mùa; to nhỏ đúng tỉ lệ giữa các kiểu (`REL`, kiểu to nhất đạt "Lá
-  to nhất"). Mỗi lá một cỡ hình vừa đủ (`master` theo từng lá, `picture()`), số mẫu mỗi kiểu giảm khi tích nhiều kiểu
-  để mọi hình vừa `MAX_BYTES` (`_designs()`); lá xanh ngả màu (`turning`) chỉ khi đã có lá đỏ/vàng; mỗi lần rơi lại là
-  lá khác (`passes()`, `design()`); lá nghiêng chọn hình theo chiều dài, ép bằng bộ lọc trung bình (`place()`); lá xa
-  hơi mềm; chao theo tốc độ rơi; clip xem nhanh rộng 960 (`PREVIEW`). `upgrade()` của lớp hiệu ứng (gọi trong
+  to nhất"). Mỗi lá một cỡ hình vừa đủ (`master` theo từng lá và `SHARE` của kiểu), mỗi mẫu chỉ làm một cỡ trong một
+  clip (`sizes`, lớn nhất mà lá cần), số mẫu mỗi kiểu giảm khi tích nhiều kiểu để hình của một clip không quá
+  `CLIP_SHARE` của `MAX_BYTES` (`_designs()`: vài clip lá cùng lúc không làm hình lại); lá xanh ngả màu (`turning`) chỉ
+  khi đã có lá đỏ/vàng; mỗi lần rơi lại là lá khác (`passes()`, `design()`); lá nghiêng chọn hình theo chiều dài, ép
+  bằng bộ lọc trung bình (`place()`, chỉ vẽ trong hộp quanh lá `Sprite.box`: cuống dài của bạch quả không tốn thêm);
+  lá xa hơi mềm; chao theo tốc độ rơi; clip xem nhanh nhiều điểm ảnh bằng 960x540 (`PREVIEW`,
+  `engine.sharper_size`: video dọc giữ cỡ cũ). `upgrade()` của lớp hiệu ứng (gọi trong
   `clean_params`) chuyển thông số clip của bản cũ ("shape" cũ thành ô tích). `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi
   (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên kính, lửa nến) đổi cả hình bên dưới: `apply()` cho video xuất
   và khung chính xác; trang chỉ phát clip xem nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung chính xác

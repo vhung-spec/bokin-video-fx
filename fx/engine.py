@@ -486,14 +486,24 @@ def fx_clip_size(info, width=FX_CLIP_WIDTH):
     return w, max(2, round(info["h"] * w / info["w"] / 2) * 2)
 
 
+def sharper_size(info, width):
+    """A sharper preview clip's size: as many pixels as a 16:9 one `width` wide (a tall video gains nothing from
+    more: the page shows it small), never fewer than the usual clip's, never more than the video's."""
+    usual = fx_clip_size(info)
+    scale = min(1.0, math.sqrt(width * width * 9 / 16 / (info["w"] * info["h"])))
+    w = int(info["w"] * scale)
+    w -= w % 2
+    return usual if w <= usual[0] else (w, max(2, round(info["h"] * w / info["w"] / 2) * 2))
+
+
 def fx_clip_frame(info, kind, layer=None):
-    """The size of a built-in effect's preview clip: the video's, small (FX_CLIP_WIDTH wide, or the effect's own
-    PREVIEW width: small falling leaves blur at 640); for a placed effect, its box's shape (one made from the picture
-    under it no bigger than the box is in the video)."""
+    """The size of a built-in effect's preview clip: the video's, small (FX_CLIP_WIDTH wide, or as many pixels as a
+    16:9 clip the effect's own PREVIEW wide: small falling leaves blur at 640); for a placed effect, its box's shape
+    (one made from the picture under it no bigger than the box is in the video)."""
     cls = effects.KINDS[kind]
     box = cls.BOX
     if not box:
-        return fx_clip_size(info, cls.PREVIEW or FX_CLIP_WIDTH)
+        return sharper_size(info, cls.PREVIEW) if cls.PREVIEW else fx_clip_size(info)
     h = min(FX_CLIP_WIDTH, max(64, info["h"]))
     if cls.UNDER and layer is not None:
         p = effects.clean_params(kind, layer.get("params"))
