@@ -209,6 +209,9 @@ class Effect:
     # Inside the box every size is relative to the box, so the preview clip is the box alone (rendered with x, y 0
     # and scale 100 on a canvas of the box's shape) and the page lays it where the box is.
     BOX = None
+    # under: a placed lens effect whose preview clip is made from the picture under its box (the video and its
+    # still area there, with the effect applied), laid with Normal: the live preview then shows what it does
+    UNDER = False
 
     def __init__(self, params, seed, frames, fps, w, h):
         self.p, self.seed = params, int(seed)

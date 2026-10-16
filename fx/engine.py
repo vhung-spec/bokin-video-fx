@@ -22,6 +22,7 @@ import copy
 import hashlib
 import io
 import json
+import math
 import multiprocessing
 import os
 import secrets
@@ -31,7 +32,7 @@ import threading
 import numpy as np
 from PIL import Image, ImageChops, ImageFilter
 
-from . import effects, library, overlay, timeline, video
+from . import effects, library, overlay, paths, timeline, video
 
 LOOK_WIDTH = 1280
 FX_CLIP_WIDTH = 640
@@ -474,13 +475,32 @@ def fx_clip_size(info):
 PLACED = ("x", "y", "scale")  # a placed effect's place: not in its preview clip (the page lays the box)
 
 
-def fx_clip_frame(info, kind):
-    """The size of a built-in effect's preview clip: the video's, small; for a placed effect, its box's shape."""
-    box = effects.KINDS[kind].BOX
+def fx_clip_frame(info, kind, layer=None):
+    """The size of a built-in effect's preview clip: the video's, small; for a placed effect, its box's shape (one
+    made from the picture under it no bigger than the box is in the video)."""
+    cls = effects.KINDS[kind]
+    box = cls.BOX
     if not box:
         return fx_clip_size(info)
     h = min(FX_CLIP_WIDTH, max(64, info["h"]))
+    if cls.UNDER and layer is not None:
+        p = effects.clean_params(kind, layer.get("params"))
+        h = min(h, max(64, math.ceil(min(info["w"] / box[0], info["h"] / box[1]) * p["scale"] / 100 * box[1])))
+    h -= h % 2
     return max(2, round(h * box[0] / box[1] / 2) * 2), h
+
+
+def _under_key(project):
+    """What the picture under a box is made of: the video, and its still area (settings, mask and picture)."""
+    folder = os.path.join(paths.projects_dir(), project.get("id") or "-")
+    stamps = []
+    for name in (os.path.join("masks", "freeze.png"), "still.png"):
+        try:
+            st = os.stat(os.path.join(folder, name))
+            stamps.append([st.st_mtime_ns, st.st_size])
+        except OSError:
+            stamps.append(None)
+    return [project["video"].get("file"), project.get("freeze"), project.get("still"), stamps]
 
 
 def fx_clip_params(kind, params):
@@ -494,11 +514,13 @@ def fx_clip_name(project, layer):
     """The file name of a built-in effect's preview clip: a key of everything that changes its picture (not its
     place on the timeline: the effect is drawn over the whole length), so the two halves of a cut clip share it."""
     info = project["video"]
+    cls = effects.KINDS[layer["kind"]]
     key = json.dumps([layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1),
                       project_frames(project), info["fps"],
-                      fx_clip_frame(info, layer["kind"])] + [effects.KINDS[layer["kind"]].VERSION] * (
-                          effects.KINDS[layer["kind"]].VERSION > 1), sort_keys=True)  # (version 1: as before)
-    alpha = effects.KINDS[layer["kind"]].blend != "screen"
+                      fx_clip_frame(info, layer["kind"], layer)] + [cls.VERSION] * (cls.VERSION > 1)  # (1: as before)
+                     + ([effects.clean_params(layer["kind"], layer.get("params")), _under_key(project)] if cls.UNDER
+                        else []), sort_keys=True)  # (made from the picture under its box: the box's place too)
+    alpha = cls.blend != "screen" or cls.UNDER  # (made from the picture under its box: soft edges)
     return f"fx-{hashlib.sha1(key.encode()).hexdigest()[:12]}" + (".webm" if alpha else ".mp4")
 
 
@@ -520,7 +542,7 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
     ext = os.path.splitext(name)[1]
     parts = [os.path.join(work, f"part-{i:02d}{ext}") for i in range(count)]
     try:
-        if not _in_pieces(fx_part, (project, layer, total), total, parts, progress, cancelled):
+        if not _in_pieces(fx_part, (project, layer, total, folder), total, parts, progress, cancelled):
             return None
         if cancelled and cancelled():
             return None
@@ -532,8 +554,49 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
         shutil.rmtree(work, ignore_errors=True)
 
 
-def fx_part(project, layer, total, start, end, path):
+def _under_part(project, layer, total, folder, start, end, path):
+    """fx_part of an effect made from the picture under its box (Effect.UNDER): the video and its still area there,
+    the box alone applied to it, its edges fading out so it sits softly on the video the page plays under it."""
+    info = project["video"]
+    fps, kind, seed = video.fps_value(info["fps"]), layer["kind"], layer.get("seed", 1)
+    w, h = info["w"], info["h"]
+    cw, ch = fx_clip_frame(info, kind, layer)
+    x0, y0, bw, bh = effects.make(kind, layer.get("params"), seed, total, fps, w, h).box()
+    alone = effects.make(kind, fx_clip_params(kind, layer.get("params")), seed, total, fps, cw, ch)
+    yy, xx = np.mgrid[0:ch, 0:cw].astype(np.float32)
+    edge = np.minimum(np.minimum(xx + 0.5, cw - 0.5 - xx), np.minimum(yy + 0.5, ch - 0.5 - yy))
+    fade = np.clip(edge / max(2.0, 0.08 * min(cw, ch)), 0.0, 1.0)
+    fade = (fade * fade * (3 - 2 * fade) * 255.0 + 0.5).astype(np.uint8)[..., None]
+    inside = 0 <= x0 and 0 <= y0 and x0 + bw <= w and y0 + bh <= h
+    under = Scene(folder, dict(project, layers=[]), (w, h), total)  # the video with its still area, no clips
+    writer = video.ClipWriter(path, cw, ch, info["fps"], True)
+    try:
+        for t, base in zip(range(start, end), base_frames(folder, project, (w, h), start, end)):
+            if _stopped():
+                writer.abort()
+                return False
+            img = under.image(t, base)
+            if inside:
+                img = img.resize((cw, ch), Image.Resampling.BICUBIC, box=(x0, y0, x0 + bw, y0 + bh))
+            else:  # partly outside the frame (black there)
+                img = img.crop((math.floor(x0), math.floor(y0), math.ceil(x0 + bw), math.ceil(y0 + bh))).resize(
+                    (cw, ch), Image.Resampling.BICUBIC)
+            picture = np.asarray(img, np.float32) * (1 / 255.0)
+            alone.apply(t, picture, None, 1.0)
+            writer.write(np.concatenate([(np.clip(picture, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8), fade], 2))
+        writer.close()
+        return True
+    except BaseException:
+        writer.abort()
+        raise
+    finally:
+        under.close()
+
+
+def fx_part(project, layer, total, folder, start, end, path):
     """Frames start..end-1 of a built-in effect's preview clip, written to `path`. False if stopped."""
+    if effects.KINDS[layer["kind"]].UNDER:
+        return _under_part(project, layer, total, folder, start, end, path)
     info = project["video"]
     w, h = fx_clip_frame(info, layer["kind"])
     fx = effects.make(layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1), total,

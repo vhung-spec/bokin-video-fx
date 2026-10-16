@@ -11,6 +11,7 @@ Screenshots of each step go to the folder given (default: page-test).
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
 """
 import io
+import json
 import math
 import os
 import shutil
@@ -176,7 +177,8 @@ def run(page, folder, edge):
           str([snow["start"], snow["end"]]))
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
-    check("the built-in effects offered", glass == ["snow", "rain", "glass", "leaves", "glow"], str(glass))
+    check("the built-in effects offered", glass == ["snow", "rain", "glass", "steam", "candle", "leaves", "glow"],
+          str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
     check("snow over the whole video, with its preview clip", True)
@@ -372,6 +374,40 @@ def run(page, folder, edge):
         deleteClip(c); p.tracks = p.tracks.filter(x => x !== t); setLength(was); return [saved, kept]; })()""")
     check("60 s -> 30 s -> 60 s keeps a clip that only reached the 30 s end", r == [True, [0, 720]], str(r))
     page.wait_for_timeout(200)
+
+    # a cup's steam and a candle's flame sit in a box on the picture, with a yellow mark where the cup's mouth or the
+    # wick goes. Steam's preview clip is its box alone (moving the box keeps it); the candle's is made from the picture
+    # under its box (moving the box makes a new one). Both stay on for the export.
+    page.click('.tab[data-bin="fx"]')
+    page.evaluate("seek(2)")
+    for kind, mark in (("steam", "xmark dot"), ("candle", "xmark")):
+        page.dblclick(f'.tile[data-kind="{kind}"]')
+        cid = page.evaluate(f"S.project.layers.find(l => l.kind === '{kind}').id")
+        page.click("#fullBtn")
+        page.wait_for_timeout(300)
+        mk = page.evaluate("[$('#xform').style.display, $('#xformMark').style.display, $('#xformMark').className]")
+        check(f"{kind}: its box on the picture, with the yellow mark", mk == ["block", "block", mark], str(mk))
+        page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.els['{cid}']", timeout=300000)
+        laid = f"""(() => {{ const c = clipById('{cid}'), e = S.els['{cid}'], q = placed(c);
+            return [e.media.getAttribute('src'), e.wrap.style.mixBlendMode,
+                    Math.abs(parseFloat(e.media.style.left) - 100 * q.x / info().w) < 0.01]; }})()"""
+        el = page.evaluate(laid)
+        check(f"{kind}: its preview clip, laid in the box", ".webm" in el[0] and el[1:] == ["normal", True], str(el))
+        before = page.evaluate(f"[S.fx['{cid}'].shown, clipById('{cid}').params.x]")
+        xb = page.locator("#xform").bounding_box()
+        drag(xb["x"] + xb["width"] / 2, xb["y"] + xb["height"] / 2, xb["x"] + xb["width"] / 2 + 40, xb["y"] + xb["height"] / 2)
+        page.evaluate("saveNow()")
+        page.wait_for_timeout(1500)
+        if kind == "candle":  # asked for once the app has the new place
+            try:
+                page.wait_for_function(f"S.fx['{cid}'].want !== {json.dumps(before[0])}", timeout=20000)
+            except Exception:
+                pass
+        after = page.evaluate(f"[S.fx['{cid}'].want, clipById('{cid}').params.x]")
+        made_again = after[0] != before[0]
+        check(f"{kind}: dragging its box moves it" + (", with a new preview clip" if kind == "candle" else ""),
+              after[1] > before[1] + 1 and made_again == (kind == "candle"), f"{before} -> {after}")
+    shot("05b-steam-candle")
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

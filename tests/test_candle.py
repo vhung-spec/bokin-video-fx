@@ -453,12 +453,17 @@ class Settings(unittest.TestCase):
         self.assertAlmostEqual(g[5], y0 + candle.BASE * h)
 
     def test_screen_blend_and_lens(self):
-        """Screen (light on black for the preview clip, as the name of the clip says) and a lens."""
+        """A lens whose preview clip is made from the picture under its box (a transparent WebM laid as it is, its
+        name changing with the box's place)."""
         self.assertEqual(candle.Candle.blend, "screen")
-        self.assertTrue(candle.Candle.lens)
+        self.assertTrue(candle.Candle.lens and candle.Candle.UNDER)
         info = {"w": 1920, "h": 1080, "fps": "24", "frames": 144, "seconds": 6.0}
-        name = engine.fx_clip_name({"video": info, "length": 30}, {"kind": "candle", "params": {}})
-        self.assertTrue(name.endswith(".mp4"))
+        a = engine.fx_clip_name({"video": info, "length": 30}, {"kind": "candle", "params": {}})
+        b = engine.fx_clip_name({"video": info, "length": 30}, {"kind": "candle", "params": {"x": 5}})
+        self.assertTrue(a.endswith(".webm"))
+        self.assertNotEqual(a, b)
+        self.assertEqual(engine.fx_clip_frame(info, "candle", {"kind": "candle", "params": {"scale": 13}}),
+                         (104, 140))  # no bigger than the box is in the video
 
 
 if __name__ == "__main__":

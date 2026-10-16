@@ -52,6 +52,8 @@ def _p(key, label, value, group, lo=0, hi=100):
 
 SCHEMA = {
     "label": "Khói cốc cà phê",
+    "note": "Kéo khung trắng trên hình lên cốc: vạch vàng ở đáy khung nằm ngang miệng cốc. Kéo góc khung cho vạch dài "
+            "bằng miệng cốc. Khói chỉ bay trong khung.",
     # for the page: a mark where the cup's mouth goes, a flat ellipse centred on the middle of the box's bottom edge,
     # as wide as the setting "rim" (% of the box's width), and a tip to go with it
     "mark": {"width": "rim", "tip": "Đặt vạch ở đáy khung trắng ngang giữa miệng cốc, rồi kéo góc khung cho vạch "

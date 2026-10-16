@@ -213,6 +213,7 @@ class Handler(BaseHTTPRequestHandler):
                                    "blend": {k: c.blend for k, c in effects.KINDS.items()},
                                    "lens": {k: c.lens for k, c in effects.KINDS.items()},
                                    "placed": {k: list(c.BOX) for k, c in effects.KINDS.items() if c.BOX},
+                                   "under": {k: True for k, c in effects.KINDS.items() if c.UNDER},
                                    "max_clips": projects.MAX_LAYERS, "max_tracks": projects.MAX_TRACKS})
         if path == "/api/project":
             return self.send(200, self.project_view(projects.load(q.get("id"))))

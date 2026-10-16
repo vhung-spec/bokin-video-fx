@@ -13,7 +13,8 @@ Premiere Pro:
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
   khoanh cho kỹ.
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
-- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, lá rơi, đom đóm / bụi sáng. App tự vẽ, chỉnh được mật độ, cỡ, gió…
+- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói cốc cà phê, lửa nến, lá rơi, đom đóm / bụi sáng. App tự
+  vẽ, chỉnh được mật độ, cỡ, gió…
   - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
     dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt gần to và nhoè),
     màn mưa bay theo gió, hơi nước, nước bắn và gợn nước khi có mặt đất trong hình, chớp sáng.
@@ -25,6 +26,7 @@ Premiere Pro:
     rồi **✎ Vẽ vùng** khoanh đúng ô kính (khung cửa thì để ngoài). Muốn mưa rơi bên ngoài: thêm **Mưa** ở track dưới,
     cũng khoanh vùng ô kính. Lúc phát chỉ xem gần đúng; độ nhoè và cảnh trong giọt nước thấy khi dừng hình và trong
     video xuất ra.
+  - **Khói cốc cà phê** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói cốc cà phê, lửa nến** bên dưới).
 
 ## Cài đặt
 
@@ -128,6 +130,34 @@ về đầu/cuối · `Ctrl+M` xuất video.
 Phóng to hình (như Photoshop, Premiere): `Ctrl` `+` / `Ctrl` `-` phóng to / thu nhỏ hình, `Ctrl` `0` vừa khung, `Ctrl`
 `1` cỡ thật (100%). Khi chuột ở trên hình: `+` `-` cũng phóng hình, `\` về vừa khung. Lăn chuột trên hình, hoặc nút
 **−** **+** cạnh ô phóng to. Giữ chuột phải (hoặc phím cách) rồi kéo để dời hình.
+
+### Khói cốc cà phê, lửa nến
+
+Hai hiệu ứng này nằm ở một chỗ trong hình, không phủ cả khung. Khi chọn clip, hình có một **khung trắng**: kéo khung để
+dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong Bảng chỉnh hiệu ứng).
+
+**Khói cốc cà phê**
+
+1. Bấm **Tạo sẵn** → **☕ Khói cốc cà phê**, kéo xuống một track trống (hàng ghi **trống**).
+2. Kéo khung trắng lên cốc: **vạch vàng** ở đáy khung nằm ngang miệng cốc. Kéo góc cho vạch dài bằng miệng cốc.
+3. Chọn **Kiểu**: hơi nóng nhẹ, khói đậm, khói lượn dài, khói bay nghiêng theo gió. Chỉnh thêm lượng khói, độ cao,
+   độ loe, uốn lượn, gió, màu khói.
+4. Bấm **Suốt video** để khói bay cả video.
+
+**Lửa nến** (sửa ngọn nến bị lỗi trong video gốc)
+
+1. Nếu lửa trong video giật, méo hay biến mất ở chỗ loop: bấm **V1 Video gốc**, rồi **✎ Vẽ vùng đứng yên**, tô lên
+   ngọn lửa. Dời đầu phát tới khung có lửa đẹp, bấm **Dùng khung đang xem**. Lửa lúc này đứng yên, không còn lỗi.
+2. Bấm **Tạo sẵn** → **🕯 Lửa nến**, kéo xuống một track trống (hàng ghi **trống**).
+3. Kéo khung trắng cho **vạch vàng** nằm ở chân ngọn lửa (đầu bấc). Kéo góc cho khung ôm vừa ngọn lửa.
+4. **Cách sửa**: **Làm sống ngọn lửa có sẵn** (lửa cũ lung linh, lay nhẹ), hoặc **Vẽ ngọn lửa mới** khi lửa cũ hỏng
+   nặng (kéo **Che ngọn lửa cũ** lên nếu còn thấy lửa cũ).
+5. Chọn **Kiểu** (nến trong phòng, nến gần cửa sổ, lửa nhỏ dịu, lửa to sáng ấm). Chỉnh thêm lung linh, quầng sáng,
+   ánh nến hắt lên xung quanh, màu lửa.
+6. Bấm **Suốt video**. Nhiều ngọn nến thì mỗi ngọn một clip Lửa nến.
+
+Lúc phát, lửa nến chỉ xem gần đúng (ánh nến hắt ra ngoài khung trắng chưa hiện). Dừng hình thì thấy đúng như video
+xuất ra.
 
 ### Màu của video hiệu ứng nhập từ ngoài
 

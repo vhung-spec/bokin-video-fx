@@ -35,10 +35,15 @@ hiệu ứng. Cách dùng: `README.md`.
   khung chính xác cho trang (`Looks`), clip xem nhanh của hiệu ứng tạo sẵn (`fx_clip`), bản nhẹ của video gốc.
 - `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), lá, hạt sáng, và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
-  kiểu có sẵn đặt nhiều thông số một lúc). `fx/snow.py`, `fx/rain.py`, `fx/glass.py`: tuyết, mưa, nước trên kính, mỗi
-  cái một file. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên
-  kính) đổi cả hình bên dưới: `apply()` cho video xuất và khung chính xác; trang chỉ phát `draw()` (phần phủ lên), nên
-  xem nhanh gần đúng và dừng hình thì hiện khung chính xác (`liveIncomplete`).
+  kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
+  `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, nước trên kính, khói cốc cà phê, lửa nến, mỗi cái một
+  file. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên kính, lửa
+  nến) đổi cả hình bên dưới: `apply()` cho video xuất và khung chính xác; trang chỉ phát clip xem nhanh, nên xem
+  nhanh gần đúng và dừng hình thì hiện khung chính xác (`liveIncomplete`).
+- Hiệu ứng đặt một chỗ (`BOX`: khói, nến): thông số `x`, `y`, `scale` (`_place()`), `box()` cùng công thức với clip
+  file (vừa khung). `UNDER` (nến): clip xem nhanh làm từ chính hình dưới hộp (video + vùng đứng yên, `apply()`),
+  trang đặt nó bằng Normal; tên clip đổi theo chỗ đặt, video và vùng đứng yên (`_under_key`). `mark` (vạch miệng cốc)
+  và `anchor` (chân ngọn lửa) là vạch vàng trên khung chỉnh clip.
 - `fx/sprites.py`: hình hạt vẽ bằng mã. `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()` cho clip suốt video,
   `playing()` cho clip ngắn hơn).
 - `fx/video.py`: ffmpeg (bản đi kèm imageio-ffmpeg): đọc khung, ghi H.264, nối các đoạn bằng stream copy, bản nhẹ cho
@@ -64,6 +69,7 @@ hiệu ứng. Cách dùng: `README.md`.
 - Vẽ vùng: nét cọ vẽ thẳng lên mặt nạ và lớp màu; việc nặng (gửi vùng, làm mềm cho xem nhanh) chỉ chạy khi ngừng vẽ.
 - Khung chỉnh clip (`#xform`, `placed()`): cùng công thức đặt clip với `overlay.Overlay` (và `Effect.box()` của
   hiệu ứng tạo sẵn đặt một chỗ: `BOX`, `placeable()`; clip xem nhanh của nó chỉ là cái hộp, trang đặt vào chỗ).
+  Vạch vàng `#xformMark` theo `mark` / `anchor` của schema.
 - Màu của clip file: `overlay.colour_ops` (đường cong tông giữ đen là đen, rồi ma trận màu) và trang dựng đúng các số
   đó thành bộ lọc SVG (`colourOps`, `colourFilter`, `feComponentTransfer` bảng + `feColorMatrix`, sRGB).
 - Hoàn tác: `S.hist` giữ timeline và cả lần vẽ vùng (mặt nạ trước/sau, chỉ 8 lần gần nhất). Phóng to hình:

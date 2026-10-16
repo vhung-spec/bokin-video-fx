@@ -68,7 +68,11 @@ SCHEMA = {"label": "Lửa nến", "params": [
     _num("warmth", "Màu lửa (vàng ← → cam)", 50, group="Màu"),
     *_place(13)],
     # where the flame's base goes in the box (fractions of its width and height), for a mark on the page's box
-    "anchor": [0.5, BASE], "anchor_hint": "Đặt chân ngọn lửa (đầu bấc) vào vạch này"}
+    "anchor": [0.5, BASE], "anchor_hint": "Đặt chân ngọn lửa (đầu bấc) vào vạch này",
+    "note": "Sửa nến bị lỗi: (1) nếu lửa trong video giật, méo hay biến mất ở chỗ loop, bấm V1 Video gốc rồi Vẽ vùng "
+            "đứng yên, tô lên ngọn nến (chọn khung hình có lửa đẹp); (2) kéo khung trắng cho vạch vàng nằm ở chân ngọn "
+            "lửa (đầu bấc), kéo góc cho khung ôm vừa ngọn lửa; (3) Cách sửa: Làm sống ngọn lửa có sẵn, hoặc Vẽ ngọn "
+            "lửa mới nếu lửa cũ hỏng nặng. Bấm Suốt video để lửa sống cả video. Mỗi ngọn nến một clip Lửa nến."}
 
 
 def _smooth(x):
@@ -213,6 +217,7 @@ class Candle(Effect):
     ANCHOR = (0.5, BASE)
     blend = "screen"
     lens = True
+    UNDER = True  # its preview clip: the flame there, alive (made from the picture under the box)
     VERSION = 3  # (1: a first sketch, a glow only; 2: the first flame)
 
     def __init__(self, *a):
