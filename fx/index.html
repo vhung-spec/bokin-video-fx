@@ -4,85 +4,271 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bokin FX</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317202e'/%3E%3Cg stroke='%23cfe6ff' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234f8cff'/%3E%3Cg stroke='white' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20'/%3E%3C/g%3E%3C/svg%3E">
 <style>
+/* Dark, blue accent (#4f8cff). Panels are 10px-radius cards on the page background, 6px apart.
+   Spacing on a 4/8px grid. Every colour, radius, size and spacing step is a token on :root (the script reads the
+   ruler's colours from them). Rules marked "functional" hold what the script relies on: positions, sizes, masks,
+   pointer-events, cursors, z-index, display:none of hidden parts. */
+
 :root {
-  --bg: #141414; --panel: #1e1e1e; --panel2: #262626; --head: #232323; --line: #333; --line2: #3d3d3d;
-  --text: #d8d8d8; --dim: #8e8e8e; --accent: #2d8ceb; --accent2: #1f6fc0; --good: #3ddc84; --warn: #ffb547;
-  --bad: #ff6b6b; --c-base: #3b6fa8; --c-file: #8a6fd1; --c-fx: #1f9e8f; --playhead: #2d8ceb;
+  /* surfaces */
+  --bg: #16181d;            /* page, header, footer, the gutters between panels */
+  --panel: #1e2128;         /* panels */
+  --head: #1e2128;          /* panel headers (same as the panel; a hairline under them) */
+  --raised: #282c35;        /* buttons, tiles, cards */
+  --hover: #313643;         /* hover on raised or ghost controls */
+  --pressed: #3a404c;       /* a pressed button */
+  --field: #17191e;         /* text fields, lists, wells */
+  --lanes: #1a1d23;         /* timeline lanes, ruler */
+  --stage: #0e0f11;         /* around the picture: neutral, nearly black */
+  --line: #2a2e37;          /* hairlines inside panels */
+  --line-2: #363b46;        /* borders of fields */
+  --line-3: #4a5160;        /* a field or control border on hover */
+  --hair: rgba(255, 255, 255, .045);   /* lines between timeline rows */
+  /* text: on --panel 13.1 / 8.3 / 6.3 : 1; --text-3 stays >= 4.7 : 1 on --hover */
+  --text: #e6e8ec;
+  --text-2: #b4bac5;
+  --text-3: #9ba2b1;
+  --dim: var(--text-3);     /* (the page's inline styles use --dim and --text) */
+  /* accent */
+  --accent: #4f8cff;        /* lines, rings, the playhead, toggles, slider fill, the play button */
+  --accent-hi: #6b9fff;
+  --accent-text: #8fb5ff;   /* accent as text on dark (7.8 : 1 on --panel) */
+  --accent-fill: #3570e0;   /* a filled button with white text (4.6 : 1) */
+  --accent-fill-hover: #2f66cf;
+  --accent-fill-active: #2a5bb8;
+  --accent-soft: rgba(79, 140, 255, .16);
+  --accent-soft-2: rgba(79, 140, 255, .26);
+  --accent-ring: rgba(79, 140, 255, .45);
+  --accent2: var(--accent-fill);       /* (old name) */
+  /* status */
+  --good: #3fcf8e; --warn: #f5b14c; --bad: #ff7b7b; --bad-text: #ff8f8f; --bad-soft: rgba(255, 107, 107, .14);
+  /* clips: one colour per kind, white text on each >= 5 : 1 */
+  --k-file: #6b52c8; --k-snow: #2c7299; --k-rain: #3d5fa8; --k-glass: #1a7375; --k-steam: #7d5f4a;
+  --k-candle: #9f5417; --k-leaves: #4f7a32; --k-glow: #9e4686; --k-base: #2c4a70;
+  --c-base: var(--k-base); --c-file: var(--k-file); --c-fx: var(--k-snow);   /* (old names) */
+  --mix: #7257e6; --mix-line: #c2b4ff; --mix-band: rgba(185, 168, 255, .32); --mix-band-2: rgba(185, 168, 255, .1);
+  --playhead: var(--accent);
+  /* the ruler is drawn on a canvas: drawRuler() reads these */
+  --ruler-tick: #4a505c; --ruler-text: #a3aab6; --ruler-seam: #6b8fc4; --ruler-beyond: rgba(8, 9, 11, .55);
+  /* shape */
+  --r-xs: 4px; --r-sm: 6px; --r: 8px; --r-lg: 10px; --r-xl: 12px; --r-pill: 999px;
+  /* spacing (4/8 grid) */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+  --gutter: 6px;            /* between panels; the splitters are these gutters */
+  /* sizes */
+  --h-header: 40px; --h-footer: 28px; --h-panel-head: 34px; --h-transport: 40px;
+  --h-ctl: 28px; --h-ctl-sm: 24px; --h-field: 28px;
+  --w-tools: 216px; --w-heads: 140px; --h-ruler: 26px;
+  /* type: system fonts only (the app runs offline) */
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --fs-xs: 11px; --fs-sm: 12px; --fs: 13px; --fs-md: 14px; --fs-lg: 16px; --fs-xl: 18px;
+  /* depth: only floating things (menus, toasts, dialogs) have real shadows */
+  --shadow-card: inset 0 0 0 1px rgba(255, 255, 255, .03);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .45);
+  --ease: .12s ease;
+  /* the layout the user drags (functional: the script sets these on #work) */
   --left: 360px; --top: 58%;
+  color-scheme: dark;
 }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
-  font: 13px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; }
+  font: var(--fs)/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+::selection { background: rgba(79, 140, 255, .35); }
 button, select, input { font: inherit; color: inherit; }
-button { background: var(--panel2); border: 1px solid var(--line2); border-radius: 5px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
-button:hover:not(:disabled) { border-color: #555; background: #2e2e2e; }
-button:disabled { opacity: .4; cursor: default; }
-button.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; font-weight: 600; }
-button.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
-button.on { background: #1d3a5c; border-color: var(--accent); color: #fff; }
-button.danger { color: var(--bad); }
-button.icon { padding: 3px 7px; min-width: 28px; }
-button.icon svg { display: block; width: 16px; height: 16px; margin: 1px auto; }
-button.small { padding: 2px 8px; font-size: 12px; }
-select, input[type=text], input[type=number] { background: #151515; border: 1px solid var(--line2); border-radius: 4px; padding: 3px 6px; }
+
+/* ---- icons: inline SVG (icons.js), 1.5px strokes in currentColor ---------------------------------------- */
+.ic { width: 16px; height: 16px; flex: none; vertical-align: -3px; overflow: visible; pointer-events: none; }
+.ic * { vector-effect: non-scaling-stroke; }
+.ic .f { fill: currentColor; stroke: none; }
+.ic.lead { margin-right: 6px; }
+
+/* ---- scrollbars ------------------------------------------------------------------------------------------ */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: #383d48; border: 2px solid transparent; border-radius: var(--r-pill); background-clip: padding-box; min-height: 28px; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--line-3); }
+::-webkit-scrollbar-thumb:active { background-color: #5a6170; }
+
+/* ---- buttons --------------------------------------------------------------------------------------------- */
+button { display: inline-flex; align-items: center; justify-content: center; gap: 0; min-height: var(--h-ctl); padding: 0 10px;
+  background: var(--raised); color: var(--text); border: 1px solid transparent; border-radius: var(--r-sm);
+  font-size: 12.5px; font-weight: 500; line-height: 1.2; cursor: pointer; white-space: nowrap;
+  transition: background-color var(--ease), color var(--ease), box-shadow var(--ease); }
+button:hover:not(:disabled) { background: var(--hover); }
+button:active:not(:disabled) { background: var(--pressed); }
+button:disabled { opacity: .38; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { background: var(--accent-fill); color: #fff; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
+button.primary:active:not(:disabled) { background: var(--accent-fill-active); }
+button.on { background: var(--accent-soft); color: var(--accent-text); }
+button.on:hover:not(:disabled) { background: var(--accent-soft-2); }
+button.danger { color: var(--bad-text); }
+button.danger:hover:not(:disabled) { background: var(--bad-soft); }
+button.icon { min-width: var(--h-ctl); padding: 0 6px; background: transparent; color: var(--text-2); }
+button.icon:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+button.icon.on { background: var(--accent-soft); color: var(--accent-text); }
+button.icon .ic, button.icon svg { display: block; width: 16px; height: 16px; }
+button.small { min-height: var(--h-ctl-sm); padding: 0 8px; font-size: var(--fs-sm); }
+button.small .ic { width: 15px; height: 15px; }
+
+/* ---- fields ---------------------------------------------------------------------------------------------- */
+select, input[type=text], input[type=number] { min-height: var(--h-field); padding: 0 8px; background-color: var(--field);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm); color: var(--text); font-size: 12.5px;
+  transition: border-color var(--ease), box-shadow var(--ease); }
+select:hover, input[type=text]:hover, input[type=number]:hover { border-color: var(--line-3); }
+select:focus, input[type=text]:focus, input[type=number]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input::placeholder { color: #858c99; }
 input[type=number] { width: 74px; }
-input[type=range] { width: 100%; accent-color: var(--accent); }
-input[type=color] { width: 42px; height: 24px; border: 1px solid var(--line2); border-radius: 4px; background: none; padding: 0 2px; }
-kbd { background: #2a2a2a; border: 1px solid #444; border-radius: 3px; padding: 0 4px; font-size: 11px; }
+select { appearance: none; -webkit-appearance: none; padding-right: 26px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' fill='none' stroke='%23a3aab6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center; background-size: 12px; }
+select option { background: var(--panel); color: var(--text); }
 
-.app { display: grid; grid-template-rows: 38px 1fr 26px; height: 100vh; }
-header { display: flex; align-items: center; gap: 10px; padding: 0 10px; background: #1b1b1b; border-bottom: 1px solid #000; }
-header .logo { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 7px; letter-spacing: .2px; }
+/* sliders: a thin track, a white knob; --p (0-100%, set by the page) fills the part before the knob */
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; margin: 0; background: transparent;
+  cursor: pointer; accent-color: var(--accent); }
+input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px;
+  background: linear-gradient(var(--accent), var(--accent)) 0 0 / var(--p, 0%) 100% no-repeat, #3a3f4b; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border: none; border-radius: 50%;
+  background: #e9ecf1; box-shadow: 0 0 0 1px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .5); transition: box-shadow var(--ease), background-color var(--ease); }
+input[type=range]:hover::-webkit-slider-thumb { background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .45), 0 0 0 5px var(--accent-soft); }
+input[type=range]:active::-webkit-slider-thumb { background: var(--accent-hi); }
+input[type=range]:focus { outline: none; }
+input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+input[type=range]:disabled { opacity: .4; cursor: default; }
+
+input[type=checkbox] { -webkit-appearance: none; appearance: none; flex: none; width: 15px; height: 15px; margin: 0; cursor: pointer;
+  border: 1.5px solid #5a6170; border-radius: var(--r-xs); background: var(--field) center / 11px no-repeat;
+  transition: background-color var(--ease), border-color var(--ease); }
+input[type=checkbox]:hover { border-color: #7a8291; }
+input[type=checkbox]:checked { background-color: var(--accent); border-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+input[type=checkbox]:focus-visible { outline-offset: 2px; }
+
+input[type=color] { width: 36px; height: 22px; padding: 2px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--field); cursor: pointer; }
+input[type=color]:hover { border-color: var(--line-3); }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: none; border-radius: 3px; }
+
+kbd { display: inline-block; min-width: 18px; padding: 0 5px; text-align: center; font: 600 10.5px/16px var(--font);
+  color: var(--text); background: var(--raised); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: var(--r-xs); }
+
+/* ---- frame: header, the four panels, footer -------------------------------------------------------------- */
+.app { display: grid; grid-template-rows: var(--h-header) 1fr var(--h-footer); height: 100vh; }
+header { display: flex; align-items: center; gap: var(--s2); padding: 0 var(--gutter) 0 var(--s3); background: var(--bg); min-width: 0; }
+header .logo { display: flex; align-items: center; gap: var(--s2); margin-right: var(--s1); font-size: var(--fs-md); font-weight: 650; }
 header .logo svg { width: 22px; height: 22px; }
-header .proj { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
-header .proj b { color: var(--text); font-weight: 600; cursor: text; }
+header .logo svg rect { fill: var(--accent); }
+header .logo svg g { stroke: #fff; }
+#newBtn .ic { color: var(--accent-text); }
+header .proj { color: var(--text-3); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw;
+  padding-left: var(--s3); margin-left: var(--s1); border-left: 1px solid var(--line-2); }
+header .proj:empty { border: 0; }
+header .proj b { color: var(--text); font-weight: 600; font-size: var(--fs); cursor: text; padding: 2px 4px; margin-left: -4px; border-radius: var(--r-xs); }
+header .proj b:hover { background: var(--raised); }
 header .grow { flex: 1; }
-header .prep { color: var(--dim); font-size: 12px; }
-.update { background: #1e3a24; border: 1px solid #2f6b3d; color: #bff0cc; border-radius: 5px; padding: 2px 8px; display: none; gap: 8px; align-items: center; }
+header .prep { display: inline-flex; align-items: center; color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
+header .prep:not(:empty) { padding: 3px 10px; border-radius: var(--r-pill); background: var(--panel); }
+header .prep .ic { color: var(--warn); }
+.update { display: none; gap: var(--s2); align-items: center; padding: 2px 3px 2px 10px; border-radius: var(--r-pill); font-size: var(--fs-sm);
+  background: rgba(63, 207, 142, .12); border: 1px solid rgba(63, 207, 142, .35); color: #9ff0c9; }
+.update button { min-height: 22px; border-radius: var(--r-pill); background: var(--good); color: #062014; font-weight: 600; }
+.update button:hover:not(:disabled) { background: #5be0a3; }
+#exportBtn { min-height: 30px; padding: 0 14px 0 12px; font-size: var(--fs); }
 
-.work { display: grid; min-height: 0; grid-template-columns: clamp(240px, var(--left), calc(100% - 420px)) 5px 1fr;
-  grid-template-rows: clamp(200px, var(--top), calc(100% - 150px)) 5px 1fr; }  /* a saved size never hides a panel */
-.split-v { grid-row: 1 / 4; grid-column: 2; cursor: col-resize; background: #0e0e0e; }
-.split-h { grid-row: 2; grid-column: 1 / 4; cursor: row-resize; background: #0e0e0e; z-index: 2; }
-.split-v:hover, .split-h:hover { background: #2a4a6e; }
-.panel { background: var(--panel); display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid #000; }
-.panel-head { display: flex; align-items: center; gap: 2px; background: var(--head); border-bottom: 1px solid #000; height: 30px; padding: 0 6px; flex: none; }
-.panel-head .tab { padding: 5px 10px; color: var(--dim); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
-.panel-head .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+/* the four panels: cards on the page background; the gutters between them are the splitters */
+.work { display: grid; min-height: 0; margin: 0 var(--gutter);
+  grid-template-columns: clamp(240px, var(--left), calc(100% - 420px)) var(--gutter) 1fr;
+  grid-template-rows: clamp(200px, var(--top), calc(100% - 150px)) var(--gutter) 1fr; }  /* a saved size never hides a panel */
+.split-v { grid-row: 1 / 4; grid-column: 2; cursor: col-resize; position: relative; }
+.split-h { grid-row: 2; grid-column: 1 / 4; cursor: row-resize; position: relative; z-index: 2; }
+.split-v::after, .split-h::after { content: ""; position: absolute; border-radius: 2px; background: var(--line-2); opacity: .7; transition: background-color var(--ease), opacity var(--ease); }
+.split-v::after { left: 2px; top: 50%; width: 2px; height: 32px; margin-top: -16px; }
+.split-h::after { top: 2px; left: 50%; height: 2px; width: 32px; margin-left: -16px; }
+.split-v:hover::after, .split-h:hover::after, .split-v:active::after, .split-h:active::after { background: var(--accent); opacity: 1; }
+.panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
+  background: var(--panel); border-radius: var(--r-lg); box-shadow: var(--shadow-card); }
+.panel-head { display: flex; align-items: center; gap: var(--s1); height: var(--h-panel-head); padding: 0 var(--s2) 0 var(--s3); flex: none;
+  background: var(--head); border-bottom: 1px solid var(--line); }
+/* a panel's name: a title; the bin's three names: tabs */
+.panel-head .tab { display: flex; align-items: center; height: 100%; color: var(--text); font-size: var(--fs); font-weight: 600; white-space: nowrap; }
+.panel-head .tab[data-bin] { position: relative; padding: 0 10px; color: var(--text-3); font-weight: 500; cursor: pointer; transition: color var(--ease); }
+.panel-head .tab[data-bin]:first-child { margin-left: -10px; }
+.panel-head .tab[data-bin]:hover { color: var(--text); }
+.panel-head .tab[data-bin].on { color: var(--text); font-weight: 600; }
+.panel-head .tab[data-bin].on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: var(--accent); }
 .panel-head .grow { flex: 1; }
-.panel-head .note { color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel-head .note { color: var(--text-3); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ecNote:not(:empty) { padding: 2px 8px; border-radius: var(--r-pill); background: var(--raised); color: var(--text-2); font-size: var(--fs-xs); }
+#monName:not(:empty) { margin-left: var(--s2); padding-left: var(--s2); border-left: 1px solid var(--line-2); color: var(--text-2); line-height: 14px; }
 .panel-body { flex: 1; min-height: 0; overflow: auto; }
 #controls { grid-row: 1; grid-column: 1; }
 #monitor { grid-row: 1; grid-column: 3; }
 #bin { grid-row: 3; grid-column: 1; }
 #tl { grid-row: 3; grid-column: 3; }
 
-/* effect controls */
-.ec { padding: 6px 10px 20px; }
-.ec h4 { margin: 12px 0 4px; font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: var(--dim); display: flex; align-items: center; gap: 6px; }
-.ec h4::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.ec .title { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; }
-.ec .title input { flex: 1; font-weight: 600; }
-.ec .row { margin: 7px 0; }
-.ec .lab { display: flex; justify-content: space-between; align-items: center; color: var(--dim); font-size: 12px; margin-bottom: 1px; gap: 8px; }
-.ec .lab b { color: #7fb8f5; font-weight: 500; font-variant-numeric: tabular-nums; }
-.ec .pair { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-.ec .pair label { display: flex; flex-direction: column; color: var(--dim); font-size: 11.5px; gap: 1px; }
-.ec .pair input { width: 100%; }
-.ec .note { color: var(--dim); font-size: 12px; margin: 6px 0; }
-.ec .warn { color: var(--warn); font-size: 12px; margin: 6px 0; }
-.ec .btns { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }
-.ec .check { display: flex; gap: 7px; align-items: center; margin: 8px 0; cursor: pointer; }
-.ec .flips { display: flex; gap: 18px; }
-.ec .file { background: #171717; border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font-size: 12px; margin: 6px 0; word-break: break-word; }
-.ec .empty { color: var(--dim); padding: 18px 6px; line-height: 1.6; }
+/* ---- effect controls ------------------------------------------------------------------------------------- */
+.ec { padding: var(--s2) var(--s3) var(--s5); container: ec / inline-size; }
+.ec .title { display: flex; align-items: center; gap: var(--s2); margin: 2px 0 var(--s2); }
+.ec .title > span:first-child { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 30px; height: 30px;
+  border-radius: var(--r); background: var(--raised); color: var(--accent-text); }
+.ec .title > span:first-child .ic { width: 18px; height: 18px; }
+.ec .title input { flex: 1; min-width: 0; min-height: 30px; margin-left: -2px; padding: 0 6px; background: transparent; border-color: transparent;
+  font-size: var(--fs-md); font-weight: 600; }
+.ec .title input:hover { border-color: var(--line-2); background: var(--field); }
+.ec .title input:focus { background: var(--field); }
+.ec .title b { font-size: var(--fs-md); font-weight: 600; }
+/* a group: a sentence-case title over a hairline across the panel */
+.ec h4 { display: flex; align-items: center; gap: var(--s2); margin: var(--s4) calc(-1 * var(--s3)) var(--s2); padding: var(--s3) var(--s3) 0;
+  border-top: 1px solid var(--line); font-size: 12.5px; font-weight: 600; color: var(--text); }
+.ec .row { margin: 6px 0 10px; }
+.ec .lab { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); margin-bottom: 2px; color: var(--text-2); font-size: 12.5px; }
+.ec .lab b { min-width: 28px; text-align: right; color: var(--accent-text); font-weight: 600; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.ec input[type=range] { display: block; }
+.ec .pair { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s2); }
+.ec .pair label { display: flex; flex-direction: column; gap: 3px; color: var(--text-3); font-size: 11.5px; }
+.ec .pair input { width: 100%; font-variant-numeric: tabular-nums; }
+.ec .note { margin: var(--s2) 0; color: var(--text-3); font-size: var(--fs-sm); line-height: 1.5; }
+.ec .warn { margin: var(--s2) 0; color: var(--warn); font-size: var(--fs-sm); line-height: 1.5; }
+.ec .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--s2) 0; }
+.ec .check { display: flex; gap: var(--s2); align-items: center; margin: var(--s2) 0; color: var(--text); font-size: 12.5px; cursor: pointer; }
+.ec .flips { display: flex; gap: var(--s5); }
+.ec .file { margin: 0 0 var(--s2); padding: var(--s2) 10px; background: var(--field); border: 1px solid var(--line); border-radius: var(--r);
+  color: var(--text-2); font-size: var(--fs-sm); line-height: 1.55; word-break: break-word; }
+.ec .file b { color: var(--text); font-weight: 600; }
+.ec .file .ic { width: 15px; height: 15px; vertical-align: -3px; }
+.ec .empty { padding: var(--s3) 2px; color: var(--text-2); font-size: 12.5px; line-height: 1.75; }
+.ec .empty kbd { margin: 0 1px; }
 .ec select { width: 100%; }
+/* a wide panel: label, slider and value on one line (like Resolve's inspector); a narrow one keeps them stacked */
+@container ec (min-width: 296px) {
+  .ec .row:has(> input[type=range]), .ec .row:has(> .lab > input[type=color]) > .lab {
+    display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr) auto; column-gap: 10px; align-items: center; }
+  .ec .row:has(> input[type=range]), .ec .row:has(> .lab > input[type=color]) { margin: 2px 0; min-height: 28px; }
+  .ec .row:has(> input[type=range]) > .lab { display: contents; }
+  .ec .row > .lab > span { grid-column: 1; grid-row: 1; line-height: 1.3; }
+  .ec .row:has(> input[type=range]) > .lab > :is(b, .numv) { grid-column: 3; grid-row: 1; }
+  .ec .row:has(> input[type=range]) > input[type=range] { grid-column: 2; grid-row: 1; }
+  .ec .row > .lab > input[type=color] { grid-column: 2; justify-self: start; }
+  .ec .row:has(> select) { margin: 6px 0 var(--s2); }
+  .ec .check { margin: 6px 0; }
+}
+/* a slider's number, typed in a field (Xoay 3D) */
+.ec .lab input.numv { width: 66px; min-height: 22px; padding: 0 4px; text-align: right; color: var(--accent-text); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.ec .note .ic, .ec .warn .ic { width: 14px; height: 14px; vertical-align: -2px; }
+.ec .note .ic:not(.lead) { margin: 0 1px; }
+.ec .file .ic-warn, .ec .warn .ic { color: var(--warn); }
+.ec .file .ic-wait { color: var(--text-3); }
+.ec .btns .danger .ic, .ec .btns button .ic { width: 15px; height: 15px; }
 
-/* monitor */
-.stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #0b0b0b; }
-/* everything in the picture is the frame's size; only the selected clip's layer (.spill) shows beyond it, under the veil */
+/* ---- monitor --------------------------------------------------------------------------------------------- */
+/* functional: the picture and its layers (positions, masks, stacking). Everything in the picture is the frame's size;
+   only the selected clip's layer (.spill) shows beyond it, under the veil */
+.stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--stage); }
 .screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: #000; overflow: visible; isolation: isolate; }
 .screen > * { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 .screen video, .screen img { display: block; object-fit: fill; }
@@ -90,197 +276,338 @@ header .prep { color: var(--dim); font-size: 12px; }
 .screen .layer.spill { overflow: visible; }
 .screen .layer > * { position: absolute; }
 .screen .trk { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-/* the frame's edge, and a dark veil over the area around it (the pasteboard): what lies there is not in the video */
-.frame { position: absolute; left: 0; top: 0; z-index: 40; display: none; pointer-events: none; transform-origin: 0 0;
-  box-shadow: 0 0 0 1px #ffffff70, 0 0 0 200vmax #0b0b0bbd; }
-.stage.grab, .stage.grab * { cursor: grab !important; }
-.stage.panning, .stage.panning * { cursor: grabbing !important; }
-.stage.grab .xform, .stage.grab .xform *, .stage.grab .x3d { pointer-events: none !important; }  /* a drag on the clip's box moves the picture */
 #exact { display: none; z-index: 50; animation: fadein .15s ease-out; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 #paintCanvas { z-index: 60; display: none; touch-action: none; opacity: .45; }
 #polyCanvas { z-index: 61; display: none; pointer-events: none; }
 #areaCanvas { z-index: 55; display: none; pointer-events: none; }
-.badge { position: absolute; right: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--dim); z-index: 70; pointer-events: none; display: none; }
-.waiting { position: absolute; left: 8px; top: 8px; background: #000b; border: 1px solid #333; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; color: var(--warn); z-index: 70; pointer-events: none; display: none; max-width: 70%; }
+/* the frame's edge, and a dark veil over the area around it (the pasteboard): what lies there is not in the video */
+.frame { position: absolute; left: 0; top: 0; z-index: 40; display: none; pointer-events: none; transform-origin: 0 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .45), 0 0 0 200vmax rgba(14, 15, 17, .74); }
+.stage.grab, .stage.grab * { cursor: grab !important; }
+.stage.panning, .stage.panning * { cursor: grabbing !important; }
+.stage.grab .xform, .stage.grab .xform *, .stage.grab .x3d { pointer-events: none !important; }  /* a drag on the clip's box moves the picture */
+/* labels on the picture */
+.badge, .waiting { position: absolute; top: 10px; z-index: 70; display: none; pointer-events: none; padding: 3px 10px; border-radius: var(--r-pill);
+  background: rgba(10, 11, 13, .78); border: 1px solid rgba(255, 255, 255, .08); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  font-size: 11.5px; line-height: 1.45; }
+.badge { right: 10px; color: var(--text-2); }
+.waiting { left: 10px; color: var(--warn); max-width: 70%; }
 .cursor { position: absolute; border: 1.5px solid #fff; border-radius: 50%; pointer-events: none; mix-blend-mode: difference; display: none; z-index: 80; }
-.xform { position: absolute; z-index: 65; display: none; border: 1px solid #fff; box-shadow: 0 0 0 1px #0009, inset 0 0 0 1px #0006; cursor: move; touch-action: none; }
+/* the selected clip's box: white lines, white handles with a blue rim */
+/* (over the labels on the picture, .badge and .waiting: its handles, its name and "3D" stay in sight) */
+.xform { position: absolute; z-index: 72; display: none; border: 1px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(0, 0, 0, .35);
+  cursor: move; touch-action: none; }
 .xform.off { border-style: dashed; }
-.xform i { position: absolute; width: 11px; height: 11px; background: #fff; border: 1px solid #222; }
+.xform i { position: absolute; width: 11px; height: 11px; background: #fff; border: 1.5px solid var(--accent); border-radius: 3px; box-shadow: 0 1px 3px rgba(0, 0, 0, .55); }
 .xform i[data-h=nw] { left: -6px; top: -6px; cursor: nwse-resize; }
 .xform i[data-h=ne] { right: -6px; top: -6px; cursor: nesw-resize; }
 .xform i[data-h=sw] { left: -6px; bottom: -6px; cursor: nesw-resize; }
 .xform i[data-h=se] { right: -6px; bottom: -6px; cursor: nwse-resize; }
-.xform .xmark { position: absolute; display: none; pointer-events: none; border: 2px dashed #ffd84d; box-shadow: 0 0 0 1px #0008; }
+/* the yellow marks: where a cup's mouth, a candle's wick and its flame's tip go (their labels over the corner handles) */
+.xform .xmark { position: absolute; z-index: 1; display: none; pointer-events: none; border: 2px dashed #ffd84d; box-shadow: 0 0 0 1px #0008; }
 .xform .xmark.dot { border-radius: 50%; }
 .xform .xmark.tip { border-style: dotted; }
 .xform .xmark[data-lab]::after { content: attr(data-lab); position: absolute; left: 100%; top: -8px; margin-left: 5px;
   font-size: 11px; line-height: 14px; color: #ffd84d; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
 .xform .xmark.dot[data-lab]::after { top: 50%; margin-top: -7px; }
-/* turning a file clip: a round knob on a stem above the box (Z), a "3D" handle beside it (tilt) */
-.xform .xrot { position: absolute; left: 50%; top: -27px; width: 13px; height: 13px; margin-left: -7px; border-radius: 50%;
-  background: #fff; border: 1px solid #222; cursor: grab; display: none; }
-.xform .xrot::before { content: ""; position: absolute; left: 5px; top: 12px; width: 1px; height: 14px; background: #fff; box-shadow: 0 0 0 1px #0006; }
+/* the clip's name tag: placed by the script beside the box, clear of the knob and "3D" */
+.xlab { position: absolute; z-index: 72; display: none; padding: 2px 8px; border-radius: var(--r-sm); background: rgba(10, 11, 13, .85);
+  color: #fff; font-size: 11px; line-height: 16px; white-space: nowrap; pointer-events: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06); }
+/* turning a file clip: a round knob on a stem above the box (Z), a "3D" handle beside it (tilt); sizes are functional */
+.xform .xrot { position: absolute; left: 50%; top: -27px; width: 13px; height: 13px; margin-left: -7px; display: none; border-radius: 50%;
+  background: #fff; border: 1.5px solid var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .55); cursor: grab; }
+.xform .xrot::before { content: ""; position: absolute; left: 4.5px; top: 11px; width: 1px; height: 14px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
 .xform .xrot.in::before { display: none; }
+.xform .xrot:hover { background: var(--accent-text); }
 .xform .xrot:active { cursor: grabbing; }
-.xlab { position: absolute; z-index: 65; display: none; font-size: 11px; background: #000c; color: #fff; padding: 1px 6px; white-space: nowrap; pointer-events: none; border-radius: 3px; }
-.x3d { position: absolute; z-index: 66; display: none; width: 34px; height: 22px; margin: -11px 0 0 -17px; border-radius: 11px;
-  background: #000b; border: 1px solid #fff; color: #fff; font: 600 11px/20px "Segoe UI", system-ui, sans-serif; text-align: center;
-  cursor: grab; touch-action: none; user-select: none; box-shadow: 0 0 0 1px #0008; }
-.x3d:hover { background: #1d3a5c; }
-.x3d:active { cursor: grabbing; }
-.ec .lab input.numv { width: 66px; padding: 1px 4px; text-align: right; color: #7fb8f5; font-variant-numeric: tabular-nums; }
+.x3d { position: absolute; z-index: 73; display: none; width: 34px; height: 22px; margin: -11px 0 0 -17px; border-radius: var(--r-pill);
+  background: rgba(10, 11, 13, .78); border: 1.5px solid var(--accent); color: #fff; font: 650 11px/19px var(--font); text-align: center;
+  letter-spacing: .3px; cursor: grab; touch-action: none; user-select: none; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .5); }
+.x3d:hover { background: var(--accent-fill); }
+.x3d:active { cursor: grabbing; background: var(--accent-fill-active); }
 .mon-body { flex: 1; min-height: 0; display: flex; }
 .mon-body .stage { flex: 1; min-width: 0; }
-.tools { width: 214px; flex: none; background: var(--panel); border-left: 1px solid #000; overflow-y: auto; padding: 4px 10px 14px; }
-.tools h5 { margin: 12px 0 5px; font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
-.tools .who { display: flex; gap: 7px; align-items: flex-start; font-weight: 600; line-height: 1.35; margin-top: 8px; }
-.tools .who i { width: 12px; height: 12px; border-radius: 50%; flex: none; margin-top: 3px; }
-.tools .two { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.tools .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
-.tools .big { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 4px; font-size: 12px; }
-.tools .big b { font-size: 18px; font-weight: 400; line-height: 1; }
-.tools .wide { width: 100%; margin-top: 5px; text-align: left; }
-.tools .size { display: flex; align-items: center; gap: 8px; }
-.tools .size span { width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; background: #151515; border: 1px solid var(--line); border-radius: 6px; }
+
+/* the tool column at the right of the picture */
+.tools { width: var(--w-tools); flex: none; overflow-y: auto; padding: var(--s1) var(--s3) var(--s3); background: var(--panel); border-left: 1px solid var(--line); }
+.tools h5 { margin: var(--s4) 0 var(--s2); color: var(--text-3); font-size: 11.5px; font-weight: 600; }
+.tools .who { display: flex; gap: 10px; align-items: center; margin-top: var(--s2); padding: var(--s2) var(--s3); border-radius: var(--r);
+  background: var(--raised); font-size: 12.5px; font-weight: 600; line-height: 1.35; }
+.tools .who i { width: 10px; height: 10px; flex: none; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .08); }
+.tools .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tools .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.tools .three button { padding: 0 4px; }
+.tools .big { flex-direction: column; gap: 4px; min-height: 54px; padding: var(--s2) var(--s1); border-radius: var(--r); color: var(--text-2); font-size: var(--fs-sm); }
+.tools .big b { display: inline-flex; font-size: 18px; font-weight: 400; line-height: 1; }
+.tools .big .ic { width: 20px; height: 20px; }
+.tools .big.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent-ring); }
+.tools .big.on b { color: var(--accent-text); }
+.tools .wide { width: 100%; justify-content: flex-start; gap: var(--s2); min-height: 32px; margin-top: 6px; padding: 0 10px; text-align: left; }
+.tools .wide > span:first-child { font-size: 10px; line-height: 1; }
+.tools .wide.primary, .tools .wide.small { justify-content: center; }
+.tools .wide.small { min-height: var(--h-ctl); }
+.tools .size { display: flex; align-items: center; gap: 10px; }
+.tools .size span { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none;
+  background: var(--field); border: 1px solid var(--line); border-radius: var(--r); }
 .tools .size span i { display: block; border-radius: 50%; border: 1.5px solid #fff; }
 .tools .size input { flex: 1; min-width: 0; }
-.tools .lab { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; }
-.tools .lab b { color: #7fb8f5; font-weight: 500; }
-.tools label.check { display: flex; gap: 7px; align-items: center; margin-top: 10px; cursor: pointer; color: var(--text); }
-.tools .tip { color: var(--dim); font-size: 11.5px; line-height: 1.5; margin-top: 12px; }
-.tools .done { width: 100%; margin-top: 14px; padding: 8px; font-size: 14px; }
-.transport { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: var(--panel); border-top: 1px solid #000; flex: none; }
-.transport .tc { font-variant-numeric: tabular-nums; font-size: 15px; color: #4aa3ff; min-width: 92px; }
-.transport .tc.dur { color: var(--dim); font-size: 13px; text-align: right; }
-.transport .mid { flex: 1; display: flex; justify-content: center; gap: 4px; }
-.transport .mid button { min-width: 34px; }
-.transport select { width: 112px; }
-.drop { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px; text-align: center; color: var(--dim); }
-.drop .box { border: 2px dashed #3a3a3a; border-radius: 12px; padding: 26px 40px; max-width: 560px; line-height: 1.6; }
-.drop .box b { color: var(--text); font-size: 17px; display: block; margin-bottom: 4px; }
-.recent { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 900px; }
-.recent .card { width: 170px; background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; cursor: pointer; text-align: left; }
-.recent .card:hover { border-color: var(--accent); }
-.recent .card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; background: #000; }
-.recent .card div { padding: 5px 8px; font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tools .lab { display: flex; justify-content: space-between; align-items: center; color: var(--text-3); font-size: var(--fs-sm); }
+.tools .lab b { color: var(--accent-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tools label.check { display: flex; gap: var(--s2); align-items: center; margin-top: var(--s3); color: var(--text); font-size: 12.5px; cursor: pointer; }
+.tools .tip { margin-top: var(--s3); color: var(--text-3); font-size: 11.5px; line-height: 1.55; }
+/* "Xong" stays in sight at the bottom of the column, however short the window */
+.tools .done { position: sticky; bottom: 0; z-index: 1; width: 100%; min-height: 34px; margin-top: var(--s4); font-size: var(--fs);
+  box-shadow: 0 0 0 6px var(--panel), 0 14px 0 6px var(--panel), 0 -12px 12px 2px var(--panel); }
+.tools .done:focus-visible { outline-offset: 2px; }
+.tools .two button.small .ic { margin-right: 4px; }
 
-/* bin */
-.bin-tools { display: flex; gap: 6px; padding: 6px 8px; align-items: center; border-bottom: 1px solid var(--line); flex: none; }
+/* transport */
+.transport { display: flex; align-items: center; gap: var(--s1); height: var(--h-transport); padding: 0 var(--s2) 0 var(--s3); flex: none;
+  background: var(--panel); border-top: 1px solid var(--line); }
+.transport .tc { min-width: 92px; color: var(--accent-text); font-size: var(--fs-md); font-weight: 600; letter-spacing: .2px; font-variant-numeric: tabular-nums; }
+.transport .tc.dur { color: var(--text-3); font-size: 12.5px; font-weight: 500; text-align: right; }
+.transport .mid { flex: 1; display: flex; justify-content: center; align-items: center; gap: 2px; }
+.transport .mid button { min-width: var(--h-ctl); }
+.transport select { width: 104px; min-height: 26px; font-size: var(--fs-sm); }
+.transport #zOut, .transport #zIn { min-width: 26px; padding: 0 4px; }
+.transport #tPlay { width: 32px; min-width: 32px; height: 32px; margin: 0 6px; padding: 0; border-radius: 50%; background: var(--accent); color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.transport #tPlay:hover:not(:disabled) { background: var(--accent-hi); }
+.transport #tPlay .ic { width: 14px; height: 14px; }
+.transport #tPlay .ic-play { margin-left: 2px; }
+.transport #tLoop { margin-left: var(--s2); }
+
+/* the start screen (no project) */
+.drop { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: var(--s5);
+  padding: var(--s5); overflow-y: auto; text-align: center; color: var(--text-2); }
+.drop .box { position: relative; flex: none; max-width: 540px; padding: 76px 44px 28px; border: 1.5px dashed #3a404c; border-radius: var(--r-xl);
+  background: rgba(255, 255, 255, .015); font-size: 12.5px; line-height: 1.7; transition: border-color .15s; }
+.drop:hover .box { border-color: var(--line-3); }
+.drop .box::before { content: ""; position: absolute; left: 50%; top: 22px; width: 42px; height: 42px; margin-left: -21px; border-radius: var(--r-xl);
+  background: var(--accent-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%238fb5ff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 12.5V3.5M6.5 7L10 3.5 13.5 7M4 11.5v3.5a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-3.5'/%3E%3C/svg%3E") no-repeat center / 22px; }
+.drop .box b { display: block; margin-bottom: 6px; color: var(--text); font-size: var(--fs-xl); font-weight: 600; }
+.recent { display: flex; flex-wrap: wrap; flex: none; gap: var(--s3); justify-content: center; max-width: 840px; }
+.recent .recent-title { flex-basis: 100%; color: var(--text-3); font-size: var(--fs-sm); font-weight: 600; text-align: center; }
+.recent .card { width: 184px; overflow: hidden; cursor: pointer; text-align: left; background: var(--raised); border-radius: var(--r-lg);
+  box-shadow: 0 0 0 1px var(--line); transition: box-shadow var(--ease), background-color var(--ease); }
+.recent .card:hover { background: var(--hover); box-shadow: 0 0 0 1.5px var(--accent), 0 8px 20px rgba(0, 0, 0, .35); }
+.recent .card img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #000; }
+.recent .card div { padding: var(--s2) 10px; color: var(--text); font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a short monitor (1280x720): the box laid flat, its icon at the left, smaller cards, so the first row of them shows */
+.drop { container: drop / size; }
+@container drop (max-height: 440px) {
+  .drop .box { margin-top: -8px; padding: 18px 28px 18px 84px; text-align: left; }
+  .drop .box::before { left: 22px; top: 50%; margin: -21px 0 0; }
+  .recent { margin: -14px 0 -8px; row-gap: 8px; }
+  .recent .card { width: 152px; }
+  .recent .card div { padding: 6px 10px; }
+}
+
+/* ---- bin: library, built-in effects, projects ------------------------------------------------------------ */
+.bin-tools { display: flex; gap: var(--s2); align-items: center; padding: var(--s2) var(--s2) var(--s1); flex: none; }
 .bin-tools input { flex: 1; min-width: 60px; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; padding: 8px; }
-.tile { background: #171717; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; cursor: grab; position: relative; user-select: none; }
-.tile:hover { border-color: #5a5a5a; }
-.tile.sel { border-color: var(--accent); }
-.tile .pic { aspect-ratio: 16/9; background: #000 center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 34px; }
-.tile .nm { padding: 4px 6px 1px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile .meta { padding: 0 6px 5px; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile .more { position: absolute; right: 3px; top: 3px; background: #000a; border: none; padding: 0 6px; border-radius: 4px; display: none; }
-.tile:hover .more { display: block; }
-.tile .tag { position: absolute; left: 4px; top: 4px; background: #000b; font-size: 10.5px; padding: 0 5px; border-radius: 3px; color: #bbb; }
-.bin-empty { color: var(--dim); padding: 16px; line-height: 1.6; }
-.plist .item { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-bottom: 1px solid #262626; cursor: pointer; }
-.plist .item:hover { background: #252525; }
-.plist .item.cur { background: #1d2c3d; }
-.plist img { width: 72px; aspect-ratio: 16/9; object-fit: cover; background: #000; border-radius: 3px; }
+.bin-tools > span { font-size: var(--fs-sm); }
+#libFilter { padding-left: 28px; background: var(--field) no-repeat 9px center / 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%239ba2b1' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='8.5' cy='8.5' r='5'/%3E%3Cpath d='M12.3 12.3L16.5 16.5'/%3E%3C/svg%3E"); }
+/* "+ Nhập file…", "+ Video mới…": quiet buttons with a blue plus (only "Xuất video" is filled blue) */
+#importBtn, #newBtn2 { background: var(--raised); color: var(--text); font-weight: 500; min-height: var(--h-field); }
+#importBtn:hover:not(:disabled), #newBtn2:hover:not(:disabled) { background: var(--hover); }
+#importBtn .ic, #newBtn2 .ic { color: var(--accent-text); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: var(--s2); padding: var(--s1) var(--s2) var(--s3); }
+.tile { position: relative; overflow: hidden; cursor: grab; user-select: none; background: var(--raised); border-radius: var(--r);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .04); transition: box-shadow var(--ease), background-color var(--ease); }
+.tile:hover { background: var(--hover); box-shadow: 0 0 0 1px var(--line-3); }
+.tile.sel { background: var(--hover); box-shadow: 0 0 0 2px var(--accent); }
+.tile .pic { display: flex; align-items: center; justify-content: center; aspect-ratio: 16/9; background: #000 center/cover no-repeat; font-size: 30px; }
+.tile .nm { padding: 6px var(--s2) 0; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .meta { padding: 1px var(--s2) 7px; color: var(--text-3); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .meta .ic { width: 13px; height: 13px; vertical-align: -2px; margin-right: 3px; color: var(--warn); }
+.tile .meta .ic-wait { color: var(--text-2); }
+.tile .more { position: absolute; right: 6px; top: 6px; display: none; width: 24px; min-width: 24px; min-height: 22px; padding: 0;
+  border-radius: var(--r-sm); background: rgba(10, 11, 13, .72); color: #fff; }
+.tile .more:hover:not(:disabled) { background: rgba(10, 11, 13, .92); }
+.tile:hover .more, .tile .more:focus-visible { display: inline-flex; }
+.tile .tag { position: absolute; left: 6px; top: 6px; padding: 1px 7px; border-radius: var(--r-pill); background: rgba(10, 11, 13, .72);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); color: #dfe3ea; font-size: 10.5px; line-height: 16px; }
+/* the built-in effects: a card in the effect's own colour (the same colour as its clips) */
+.tile[data-kind] .pic { position: relative; aspect-ratio: 2/1; color: #fff;
+  background: radial-gradient(120% 100% at 25% 0%, rgba(255, 255, 255, .16), transparent 60%),
+              linear-gradient(160deg, var(--k), color-mix(in srgb, var(--k) 45%, #0b0c0f)); }
+.tile[data-kind] .pic .ic { width: 28px; height: 28px; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35)); }
+.bin-empty { margin: 0; padding: var(--s3) var(--s4); color: var(--text-3); font-size: 12.5px; line-height: 1.65; }
+.plist { padding: var(--s1) 6px var(--s3); }
+.plist .item { display: flex; gap: 10px; align-items: center; margin: 2px 0; padding: 6px var(--s2); border-radius: var(--r); cursor: pointer; transition: background-color var(--ease); }
+.plist .item:hover { background: var(--raised); }
+.plist .item.cur { background: var(--accent-soft); }
+.plist img { width: 72px; aspect-ratio: 16/9; object-fit: cover; background: #000; border-radius: var(--r-xs); }
 .plist .txt { flex: 1; min-width: 0; }
-.plist .txt div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.plist small { color: var(--dim); }
+.plist .txt div { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plist small { color: var(--text-3); font-size: 11.5px; }
+.plist .item button.danger { background: transparent; color: var(--text-3); }
+.plist .item:hover button.danger { color: var(--bad-text); }
 
-/* timeline */
-.tl-tools { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; }
-.tl-tools .sep { width: 1px; height: 18px; background: var(--line2); margin: 0 4px; }
-.tl-tools .seg { display: flex; }
-.tl-tools .seg button { border-radius: 0; }
-.tl-tools .seg button:first-child { border-radius: 5px 0 0 5px; }
-.tl-tools .seg button:last-child { border-radius: 0 5px 5px 0; border-left: none; }
-.tl-tools input[type=range] { width: 110px; }
-.tl-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 132px 1fr; grid-template-rows: 26px 1fr; position: relative; }
-.tl-corner { background: var(--head); border-right: 1px solid #000; border-bottom: 1px solid #000; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; color: #4aa3ff; font-size: 13px; }
-.tl-ruler { position: relative; background: #1a1a1a; border-bottom: 1px solid #000; cursor: ew-resize; overflow: hidden; }
+/* ---- timeline -------------------------------------------------------------------------------------------- */
+.tl-tools { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; margin-left: var(--s2); overflow: hidden; }
+.tl-tools .sep { width: 1px; height: 16px; flex: none; margin: 0 6px; background: var(--line-2); }
+.tl-tools > span[style] { margin-right: var(--s1); font-size: var(--fs-sm); white-space: nowrap; }
+.tl-tools .seg { display: flex; gap: 2px; padding: 2px; flex: none; border-radius: 7px; background: var(--field); border: 1px solid var(--line); }
+.tl-tools .seg button { min-height: 22px; padding: 0 10px; border-radius: 5px; background: transparent; color: var(--text-2); font-size: var(--fs-sm); }
+.tl-tools .seg button:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+.tl-tools .seg button.on { background: var(--accent-fill); color: #fff; font-weight: 600; }
+.tl-tools .seg button.on:hover:not(:disabled) { background: var(--accent-fill-hover); }
+.tl-tools input[type=range] { width: 100px; flex: none; margin: 0 var(--s1); }
+#addTrack { background: transparent; color: var(--text-2); }
+#addTrack:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+#addTrack .ic { width: 14px; height: 14px; }
+/* functional: the grid of corner / ruler / track heads / lanes (the script draws rows of 44px, clips of 36px) */
+.tl-body { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--w-heads) 1fr; grid-template-rows: var(--h-ruler) 1fr; position: relative; }
+.tl-corner { display: flex; align-items: center; justify-content: center; background: var(--panel); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  color: var(--accent-text); font-size: 12.5px; font-weight: 600; letter-spacing: .2px; font-variant-numeric: tabular-nums; }
+.tl-ruler { position: relative; overflow: hidden; cursor: ew-resize; background: var(--lanes); border-bottom: 1px solid var(--line); }
 .tl-ruler canvas { position: absolute; left: 0; top: 0; }
-.tl-heads { overflow: hidden; background: #1c1c1c; border-right: 1px solid #000; }
-.tl-scroll { overflow: auto; position: relative; background: #191919; }
+.tl-heads { overflow: hidden; background: var(--panel); border-right: 1px solid var(--line); }
+.tl-scroll { position: relative; overflow: auto; background: var(--lanes); }
 .tl-lanes { position: relative; }
-.lane { position: absolute; left: 0; right: 0; border-bottom: 1px solid #262626; }
-.lane.new { background: repeating-linear-gradient(135deg, #1b1b1b 0 8px, #1d1d1d 8px 16px); }
-.head { display: flex; align-items: center; gap: 4px; padding: 0 6px; border-bottom: 1px solid #262626; height: 44px; position: relative; }
-.head.new { height: 24px; color: #666; font-size: 11.5px; justify-content: center; }
-.head .tn { font-weight: 600; width: 28px; text-align: center; background: #2a2a2a; border-radius: 3px; }
-.head.base .tn { background: #24364a; color: #cfe3fa; }
-.head .grow { flex: 1; color: var(--dim); font-size: 11.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.head button { padding: 0 5px; background: none; border: 1px solid transparent; color: var(--dim); }
-.head button:hover { border-color: #555; color: var(--text); }
-.head button.off { color: #555; }
-.beyond { position: absolute; top: 0; bottom: 0; background: #0009; pointer-events: none; border-left: 1px solid #555; }
-.seam { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #ffffff18; pointer-events: none; }
-.join { position: absolute; width: 18px; height: 18px; padding: 0; border-radius: 4px; z-index: 3; font-size: 12px; line-height: 16px;
-  background: #1b1b1b; color: #bbb; border: 1px solid #555; cursor: pointer; }
-.join:hover { color: #fff; border-color: #aaa; }
-.join.on { background: #6a4fd8; color: #fff; border-color: #b9a8ff; }
-.mixband { position: absolute; height: 36px; z-index: 2; pointer-events: none; border-radius: 3px;
-  background: repeating-linear-gradient(135deg, #b9a8ff55 0 6px, #b9a8ff22 6px 12px); outline: 1px solid #b9a8ff; }
-.clip { position: absolute; height: 36px; border-radius: 4px; overflow: hidden; cursor: grab; border: 1px solid #0006; color: #fff; font-size: 12px; user-select: none; }
-.clip.file { background: var(--c-file); }
-.clip.fx { background: var(--c-fx); }
-.clip.base { background: var(--c-base) center/auto 100% repeat-x; cursor: pointer; }
-.clip.base .nm { background: #0008; }
-.clip.sel { outline: 2px solid #fff; outline-offset: -1px; z-index: 2; }
-.clip.off { filter: grayscale(.8) brightness(.6); }
-.clip.bad { outline: 2px solid var(--bad); }
-.clip .nm { position: absolute; left: 6px; top: 2px; right: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; text-shadow: 0 1px 2px #0008; }
-.clip .sub { position: absolute; left: 6px; bottom: 2px; right: 6px; font-size: 10.5px; opacity: .8; white-space: nowrap; overflow: hidden; pointer-events: none; }
+.tl-lanes:has(> .tl-empty) { position: absolute; inset: 0; }  /* the message in the middle of the lanes, not under the ruler */
+.lane { position: absolute; left: 0; right: 0; border-bottom: 1px solid var(--hair); }
+.lane.new { background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(255, 255, 255, .02) 6px 12px); }
+.head { position: relative; display: flex; align-items: center; gap: var(--s1); height: 44px; padding: 0 var(--s1) 0 var(--s2); border-bottom: 1px solid var(--hair); }
+.head.new { height: 24px; justify-content: center; gap: var(--s1); color: var(--text-3); font-size: var(--fs-xs); }
+.head.new .ic { width: 12px; height: 12px; }
+.head .tn { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 20px; border-radius: var(--r-xs);
+  background: var(--raised); color: var(--text-2); font-size: var(--fs-xs); font-weight: 650; }
+.head.base .tn { background: var(--accent-soft); color: var(--accent-text); }
+.head .grow { flex: 1; min-width: 0; color: var(--text-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.head button { width: 24px; min-width: 24px; min-height: 24px; padding: 0; background: transparent; color: var(--text-3); }
+.head button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.head button:disabled { opacity: .3; }
+.head button.off { color: var(--warn); }   /* a hidden track */
+.head button .ic { width: 15px; height: 15px; }
+.beyond { position: absolute; top: 0; bottom: 0; pointer-events: none; background: var(--ruler-beyond); border-left: 1px solid #3a404c; }
+.seam { position: absolute; top: 0; bottom: 0; width: 0; pointer-events: none; border-left: 1px dashed rgba(255, 255, 255, .1); }
+.join { position: absolute; z-index: 3; width: 18px; min-width: 18px; height: 18px; min-height: 18px; padding: 0; border-radius: 5px; font-size: 11px; line-height: 16px;
+  background: #23262e; color: var(--text-2); border: 1px solid var(--line-3); box-shadow: 0 1px 3px rgba(0, 0, 0, .5); cursor: pointer; }
+.join .ic { width: 12px; height: 12px; }
+.join:hover:not(:disabled) { background: #2f3440; color: #fff; border-color: #9aa1ad; }
+.join.on, .join.on:hover:not(:disabled) { background: var(--mix); color: #fff; border-color: var(--mix-line); }
+.mixband { position: absolute; z-index: 2; height: 36px; pointer-events: none; border-radius: var(--r-sm); outline: 1px solid var(--mix-line); outline-offset: -1px;
+  background: repeating-linear-gradient(135deg, var(--mix-band) 0 5px, var(--mix-band-2) 5px 10px); }
+/* clips: the colour of their kind (data-kind on .clip), a light line on top, white names */
+.clip { --k: var(--k-snow); position: absolute; height: 36px; overflow: hidden; cursor: grab; user-select: none; border-radius: var(--r-sm);
+  color: #fff; font-size: var(--fs-sm); background-color: var(--k);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 0 0 1px rgba(255, 255, 255, .08), 0 1px 2px rgba(0, 0, 0, .35); }
+.clip.file { --k: var(--k-file); }
+:is(.clip, .tile)[data-kind=file] { --k: var(--k-file); }
+:is(.clip, .tile)[data-kind=snow] { --k: var(--k-snow); }
+:is(.clip, .tile)[data-kind=rain] { --k: var(--k-rain); }
+:is(.clip, .tile)[data-kind=glass] { --k: var(--k-glass); }
+:is(.clip, .tile)[data-kind=steam] { --k: var(--k-steam); }
+:is(.clip, .tile)[data-kind=candle] { --k: var(--k-candle); }
+:is(.clip, .tile)[data-kind=leaves] { --k: var(--k-leaves); }
+:is(.clip, .tile)[data-kind=glow] { --k: var(--k-glow); }
+.clip:not(.off):not(.sel):hover { filter: brightness(1.1); }
+.clip.base { --k: var(--k-base); background: var(--k-base) center/auto 100% repeat-x; cursor: pointer; border-radius: var(--r-xs); }
+.clip.base .nm { display: inline-flex; align-items: center; gap: 3px; left: 4px; top: 4px; right: auto; max-width: calc(100% - 8px);
+  padding: 0 5px; border-radius: 3px; background: rgba(8, 9, 11, .72); font-size: var(--fs-xs); line-height: 16px; font-weight: 600; }
+.clip.base .nm .ic { width: 11px; height: 11px; margin: 0; opacity: .8; }
+.clip.base .nm .pn { min-width: 0; margin-right: 3px; overflow: hidden; text-overflow: ellipsis; }
+.clip.sel { outline: 2px solid #fff; outline-offset: -1px; z-index: 2; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 2px 8px rgba(0, 0, 0, .45); }
+.clip.off { filter: grayscale(.85) brightness(.55); }
+.clip.bad { outline: 2px solid var(--bad); outline-offset: -1px; }
+.clip .nm { position: absolute; left: var(--s2); top: 3px; right: var(--s2); font-weight: 600; line-height: 16px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; pointer-events: none; text-shadow: 0 1px 1px rgba(0, 0, 0, .35); }
+.clip .nm .ic { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
+.clip .sub { position: absolute; left: var(--s2); bottom: 3px; right: var(--s2); font-size: 10.5px; line-height: 13px; opacity: .82; white-space: nowrap; overflow: hidden; pointer-events: none; }
+.clip.joined .nm, .clip.joined .sub { left: 14px; }
 .clip .fade { position: absolute; top: 0; bottom: 0; pointer-events: none; }
-.clip .fade.in { left: 0; background: linear-gradient(to top left, transparent calc(50% - 1px), #fffc 50%, transparent calc(50% + 1px)), linear-gradient(to top left, transparent 50%, #0005 50%); }
-.clip .fade.out { right: 0; background: linear-gradient(to top right, transparent calc(50% - 1px), #fffc 50%, transparent calc(50% + 1px)), linear-gradient(to top right, transparent 50%, #0005 50%); }
+.clip .fade.in { left: 0; background: linear-gradient(to top left, transparent calc(50% - .75px), rgba(255, 255, 255, .6) 50%, transparent calc(50% + .75px)),
+  linear-gradient(to top left, transparent 50%, rgba(0, 0, 0, .28) 50%); }
+.clip .fade.out { right: 0; background: linear-gradient(to top right, transparent calc(50% - .75px), rgba(255, 255, 255, .6) 50%, transparent calc(50% + .75px)),
+  linear-gradient(to top right, transparent 50%, rgba(0, 0, 0, .28) 50%); }
 .clip .h { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
 .clip .h.l { left: 0; }
 .clip .h.r { right: 0; }
-.clip.sel .h { background: #ffffff30; }
-.ghost { position: absolute; height: 36px; border-radius: 4px; border: 2px dashed #fff; background: #ffffff22; pointer-events: none; display: none; }
-.ghost.bad { border-color: var(--bad); background: #ff6b6b22; }
-.playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--playhead); pointer-events: none; z-index: 5; }
-.razorline { position: absolute; top: 0; bottom: 0; width: 1px; background: #ff5050; pointer-events: none; z-index: 6; display: none; }
+.clip .h:hover { background: rgba(255, 255, 255, .35); }
+.clip.sel .h { background: rgba(255, 255, 255, .3); }
+.ghost { position: absolute; height: 36px; display: none; pointer-events: none; border-radius: var(--r-sm); border: 1.5px dashed var(--accent-hi); background: var(--accent-soft); }
+.ghost.bad { border-color: var(--bad); background: var(--bad-soft); }
+.playhead { position: absolute; top: 0; bottom: 0; width: 1px; z-index: 5; pointer-events: none; background: var(--playhead); box-shadow: 0 0 0 .5px rgba(79, 140, 255, .35); }
+.razorline { position: absolute; top: 0; bottom: 0; width: 1px; z-index: 6; display: none; pointer-events: none; background: #ff5a5a; }
 .tl-scroll.razor .clip { cursor: crosshair; }
-.tl-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim); pointer-events: none; }
+.tl-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 12.5px; pointer-events: none; }
 
-footer { display: flex; align-items: center; gap: 10px; padding: 0 10px; background: #1b1b1b; border-top: 1px solid #000; font-size: 12px; color: var(--dim); }
-footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden; }
-.job { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.job .bar { width: 140px; height: 6px; background: #2a2a2a; border-radius: 3px; overflow: hidden; }
-.job .bar i { display: block; height: 100%; background: var(--accent); width: 0; }
+/* ---- footer: export jobs ----------------------------------------------------------------------------------- */
+footer { display: flex; align-items: center; gap: var(--s2); padding: 0 var(--gutter) 0 var(--s3); background: var(--bg); color: var(--text-3); font-size: var(--fs-sm); min-width: 0; }
+footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s3); min-width: 0; overflow: hidden; }
+.job { display: flex; align-items: center; gap: var(--s2); white-space: nowrap; color: var(--text-2); }
+.job > span:first-child { color: var(--text); font-weight: 500; }
+.job + .job { padding-left: var(--s3); border-left: 1px solid var(--line-2); }
+.job .bar { width: 120px; height: 4px; flex: none; overflow: hidden; border-radius: 2px; background: #2c313b; }
+.job .bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--accent); }
 .job.done .bar i { background: var(--good); }
-.job.error { color: var(--bad); }
-.job button { padding: 0 6px; font-size: 11.5px; }
+.job.done > span:nth-child(3) { color: var(--good); }
+.job.error, .job.error > span:first-child { color: var(--bad-text); }
+.job button { min-height: 20px; padding: 0 8px; font-size: 11.5px; }
+.job button + button { margin-left: -4px; }
+#folderBtn { min-height: 22px; background: transparent; color: var(--text-2); }
+#folderBtn:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+#ver { padding: 2px 6px; border-radius: var(--r-xs); color: var(--text-3); font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+#ver:hover { background: var(--raised); color: var(--text-2); }
+@media (max-width: 1400px) { .job .bar { width: 72px; } }   /* two jobs and their buttons still fit at 1280px */
 
-.toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: #2b2b2b; border: 1px solid #444; border-radius: 7px; padding: 9px 14px; display: none; max-width: 80vw; z-index: 90; box-shadow: 0 8px 30px #0008; }
-.toast.bad { border-color: #7a3434; color: #ffd2d2; }
-.offline { position: fixed; inset: 0; background: #000c; display: none; align-items: center; justify-content: center; z-index: 95; font-size: 17px; text-align: center; padding: 30px; }
-.modal { position: fixed; inset: 0; background: #000b; display: none; align-items: center; justify-content: center; z-index: 85; }
-.modal .box { background: var(--panel); border: 1px solid #444; border-radius: 9px; padding: 14px 16px; max-width: 92vw; min-width: 340px; box-shadow: 0 10px 40px #000; }
-.modal h3 { margin: 0 0 10px; font-size: 15px; }
-.modal table { border-collapse: collapse; margin: 6px 0 12px; }
-.modal td { padding: 3px 12px 3px 0; }
-.modal td:first-child { color: var(--dim); }
-.modal .acts { display: flex; justify-content: flex-end; gap: 8px; }
-.modal video { max-width: 86vw; max-height: 74vh; display: block; background: #000; }
-.menu { position: fixed; z-index: 88; background: #252525; border: 1px solid #444; border-radius: 6px; padding: 4px; min-width: 190px; display: none; box-shadow: 0 8px 26px #000a; }
-.menu div { padding: 5px 10px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; gap: 16px; }
-.menu div:hover { background: #1d3a5c; }
-.menu div small { color: var(--dim); }
-.menu hr { border: none; border-top: 1px solid #3a3a3a; margin: 3px 0; }
+/* ---- floating: toast, dialog, menu ------------------------------------------------------------------------- */
+.toast { position: fixed; left: 50%; bottom: 44px; z-index: 90; display: none; transform: translateX(-50%); max-width: min(640px, 80vw);
+  padding: 10px 16px 10px 12px; border: 1px solid #3a404c; border-radius: var(--r-lg); background: #262a33; color: var(--text);
+  font-size: 12.5px; line-height: 1.45; box-shadow: var(--shadow-pop); }
+.toast::before { content: ""; display: inline-block; width: 18px; height: 18px; margin-right: 10px; vertical-align: -4px; background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='7.25'/%3E%3Cpath d='M10 9v4.5'/%3E%3Ccircle cx='10' cy='6.6' r='.6' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='7.25'/%3E%3Cpath d='M10 9v4.5'/%3E%3Ccircle cx='10' cy='6.6' r='.6' fill='black'/%3E%3C/svg%3E") center / contain no-repeat; }
+.toast.bad { border-color: rgba(255, 107, 107, .45); background: #33242a; color: #ffe1e1; }
+.toast.bad::before { background: var(--bad);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 3.2l7.3 12.8H2.7z'/%3E%3Cpath d='M10 8v3.8'/%3E%3Ccircle cx='10' cy='13.9' r='.6' fill='black'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 3.2l7.3 12.8H2.7z'/%3E%3Cpath d='M10 8v3.8'/%3E%3Ccircle cx='10' cy='13.9' r='.6' fill='black'/%3E%3C/svg%3E"); }
+.offline { position: fixed; inset: 0; z-index: 95; display: none; align-items: center; justify-content: center; padding: 30px; text-align: center;
+  background: rgba(8, 9, 11, .85); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); font-size: var(--fs-lg); line-height: 1.6; }
+.offline small { color: var(--text-2); font-size: var(--fs); }
+.modal { position: fixed; inset: 0; z-index: 85; display: none; align-items: center; justify-content: center;
+  background: rgba(8, 9, 11, .7); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.modal .box { min-width: 400px; max-width: min(640px, 92vw); padding: 20px var(--s5); background: var(--panel); border: 1px solid #343944; border-radius: var(--r-xl);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .6), 0 0 0 1px rgba(0, 0, 0, .5); font-size: 12.5px; }
+.modal .box:has(video) { max-width: 92vw; }
+.modal h3 { margin: 0 0 var(--s3); font-size: var(--fs-lg); font-weight: 600; }
+.modal table { width: 100%; margin: var(--s1) 0 var(--s4); border-collapse: collapse; }
+.modal td { padding: var(--s2) var(--s4) var(--s2) 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.modal tr:last-child td { border-bottom: 0; }
+.modal td:first-child { width: 1%; white-space: nowrap; color: var(--text-3); }
+.modal p { margin: 10px 0; font-size: var(--fs-sm); line-height: 1.55; }
+.modal .acts { display: flex; justify-content: flex-end; align-items: center; gap: var(--s2); margin-top: var(--s4); }
+.modal .acts button { min-height: 32px; min-width: 84px; padding: 0 var(--s4); font-size: var(--fs); }
+.modal video { display: block; max-width: 86vw; max-height: 74vh; background: #000; border-radius: var(--r-sm); }
+.menu { position: fixed; z-index: 88; display: none; min-width: 210px; padding: var(--s1); background: #262a33; border: 1px solid #3a404c;
+  border-radius: var(--r-lg); box-shadow: var(--shadow-pop); font-size: 12.5px; }
+.menu div { display: flex; justify-content: space-between; align-items: center; gap: var(--s5); padding: 6px 10px; border-radius: var(--r-sm); cursor: pointer; }
+.menu div > span { display: inline-flex; align-items: center; }
+.menu div .ic { width: 15px; height: 15px; color: var(--text-2); }
+.menu div:hover { background: var(--hover); }
+.menu div:hover .ic { color: var(--text); }
+.menu div small { color: var(--text-3); font-size: var(--fs-xs); }
+.menu:has(.ic) div > span:not(:has(.ic)) { padding-left: 21px; }   /* labels line up when some items have an icon */
+.menu hr { margin: var(--s1) 6px; border: none; border-top: 1px solid var(--line-2); }
+.menu div.danger, .menu div.danger .ic { color: var(--bad-text); }
+.menu div.danger:hover { background: var(--bad-soft); }
 </style>
 </head>
 <body>
 <div class="app">
   <header>
-    <div class="logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2a3a55"/><g stroke="#cfe6ff" stroke-width="4" stroke-linecap="round"><path d="M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20"/></g></svg>Bokin FX</div>
-    <button id="newBtn" title="Mở một video loop thành dự án mới">+ Video mới…</button>
+    <div class="logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#4f8cff"/><g stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20"/></g></svg>Bokin FX</div>
+    <button id="newBtn" data-icon="plus" title="Mở một video loop thành dự án mới">Video mới…</button>
     <span class="proj" id="projName"></span>
     <div class="grow"></div>
     <span class="prep" id="prep"></span>
     <div class="update" id="update"><span id="updateText"></span><button class="small primary" id="updateBtn">Cập nhật ngay</button></div>
-    <button class="primary" id="exportBtn" disabled title="Xuất video (Ctrl+M)">Xuất video</button>
+    <button class="primary" id="exportBtn" data-icon="export" disabled title="Xuất video (Ctrl+M)">Xuất video</button>
   </header>
   <div class="work" id="work">
     <section class="panel" id="controls">
@@ -319,20 +646,20 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
       </div>
       <div class="transport" id="transport">
         <span class="tc" id="tcNow">00:00:00</span>
-        <button class="icon" id="zOut" title="Thu nhỏ hình (Ctrl −, hoặc − khi chuột ở trên hình). Thu nhỏ hơn Vừa khung để thấy cả phần hiệu ứng nằm ngoài khung hình">−</button>
+        <button class="icon" id="zOut" title="Thu nhỏ hình (Ctrl −, hoặc − khi chuột ở trên hình). Thu nhỏ hơn Vừa khung để thấy cả phần hiệu ứng nằm ngoài khung hình" data-icon="zoomOut"></button>
         <select id="zoomSel">
           <option value="" hidden></option><option value="0.1">10%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="fit">Vừa khung</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option>
         </select>
-        <button class="icon" id="zIn" title="Phóng to hình (Ctrl +, hoặc + khi chuột ở trên hình)">+</button>
-        <button class="icon" id="handBtn" title="Bàn tay (H): kéo để dời cả hình đi, như Premiere. Esc hoặc V: thôi. Giữ H mà kéo: thả H là thôi. Lúc nào cũng dời được: giữ phím cách hoặc chuột phải rồi kéo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V6a1.5 1.5 0 0 1 3 0v5.5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v5.5M17 11.5V9a1.5 1.5 0 0 1 3 0v5.5a7 7 0 0 1-7 7h-1a6.5 6.5 0 0 1-5.2-2.6l-3.3-4.4a1.6 1.6 0 0 1 2.5-2L8 14.5v-2"/></svg></button>
+        <button class="icon" id="zIn" title="Phóng to hình (Ctrl +, hoặc + khi chuột ở trên hình)" data-icon="zoomIn"></button>
+        <button class="icon" id="handBtn" title="Bàn tay (H): kéo để dời cả hình đi, như Premiere. Esc hoặc V: thôi. Giữ H mà kéo: thả H là thôi. Lúc nào cũng dời được: giữ phím cách hoặc chuột phải rồi kéo" data-icon="hand"></button>
         <div class="mid">
-          <button class="icon" id="tStart" title="Về đầu (Home)">⏮</button>
-          <button class="icon" id="tPrev" title="Khung trước (←)">◀|</button>
-          <button class="icon primary" id="tPlay" title="Phát / dừng (Space)">▶</button>
-          <button class="icon" id="tNext" title="Khung sau (→)">|▶</button>
-          <button class="icon" id="tEnd" title="Về cuối (End)">⏭</button>
-          <button class="icon on" id="tLoop" title="Phát lặp lại để xem chỗ nối loop">🔁</button>
-          <button class="icon" id="tExact" title="Khung chính xác: khi dừng hình, xem đúng như video sẽ xuất ra (app dựng mất chút thời gian)">🎯</button>
+          <button class="icon" id="tStart" title="Về đầu (Home)" data-icon="start"></button>
+          <button class="icon" id="tPrev" title="Khung trước (←)" data-icon="prev"></button>
+          <button class="icon primary" id="tPlay" title="Phát / dừng (Space)" data-icon="play"></button>
+          <button class="icon" id="tNext" title="Khung sau (→)" data-icon="next"></button>
+          <button class="icon" id="tEnd" title="Về cuối (End)" data-icon="end"></button>
+          <button class="icon on" id="tLoop" title="Phát lặp lại để xem chỗ nối loop" data-icon="loop"></button>
+          <button class="icon" id="tExact" title="Khung chính xác: khi dừng hình, xem đúng như video sẽ xuất ra (app dựng mất chút thời gian)" data-icon="exact"></button>
         </div>
         <span class="tc dur" id="tcDur"></span>
       </div>
@@ -349,18 +676,18 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
       <div class="panel-head">
         <span class="tab on">Timeline</span>
         <div class="tl-tools" id="tlTools">
-          <button class="icon" id="undoBtn" title="Hoàn tác (Ctrl+Z)" disabled>↶</button>
-          <button class="icon" id="redoBtn" title="Làm lại (Ctrl+Y hoặc Ctrl+Shift+Z)" disabled>↷</button>
+          <button class="icon" id="undoBtn" title="Hoàn tác (Ctrl+Z)" data-icon="undo" disabled></button>
+          <button class="icon" id="redoBtn" title="Làm lại (Ctrl+Y hoặc Ctrl+Shift+Z)" data-icon="redo" disabled></button>
           <span class="sep"></span>
-          <button class="icon on" data-tool="select" title="Chọn, kéo, kéo mép để cắt bớt (V)">➤</button>
-          <button class="icon" data-tool="razor" title="Dao cắt: bấm vào clip để cắt đôi (C)">✂</button>
-          <button class="icon on" id="snapBtn" title="Bám dính vào đầu phát, mép clip, chỗ nối loop (S)">🧲</button>
+          <button class="icon on" data-tool="select" title="Chọn, kéo, kéo mép để cắt bớt (V)" data-icon="select"></button>
+          <button class="icon" data-tool="razor" title="Dao cắt: bấm vào clip để cắt đôi (C)" data-icon="razor"></button>
+          <button class="icon on" id="snapBtn" title="Bám dính vào đầu phát, mép clip, chỗ nối loop (S)" data-icon="magnet"></button>
           <span class="sep"></span>
           <span style="color:var(--dim)">Độ dài video:</span>
           <div class="seg" id="lenSeg"><button data-len="30">30 giây</button><button data-len="60">1 phút</button></div>
           <div class="grow" style="flex:1"></div>
-          <button class="small" id="addTrack" title="Thêm một track ở trên cùng">+ Track</button>
-          <button class="icon" id="tlFit" title="Xem cả timeline (\)">⤢</button>
+          <button class="small" id="addTrack" title="Thêm một track ở trên cùng" data-icon="plus">Track</button>
+          <button class="icon" id="tlFit" title="Xem cả timeline (\)" data-icon="fitWidth"></button>
           <input type="range" id="tlZoom" min="0" max="1000" value="0" title="Phóng to timeline (+ / -)">
         </div>
       </div>
@@ -374,7 +701,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
       </div>
     </section>
   </div>
-  <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn">Mở thư mục video</button><span id="ver" title="Bấm để kiểm tra bản mới" style="cursor:pointer"></span></footer>
+  <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn" data-icon="folder" title="Mở thư mục chứa các video đã xuất">Mở thư mục video</button><span id="ver" title="Bấm để kiểm tra bản mới"></span></footer>
 </div>
 <input type="file" id="fileVideo" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
 <input type="file" id="fileReplace" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
@@ -391,7 +718,73 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const COLORS = {freeze: "#3d8bff", fg: "#ff9a3d", area: "#3ddc84"};
-const KIND_ICON = {snow: "❄", leaves: "🍂", rain: "☔", glow: "✨", glass: "🪟", steam: "☕", candle: "🕯", file: "🎞"};
+// Line icons drawn for this app: a 20x20 grid, 1.5px strokes in the text colour, round ends (class "f": filled).
+// Simple paths written by hand: no icon font, no copied set. icon("plus", "lead"): an icon before a label.
+const ICONS = {
+  // transport
+  play: '<path class="f" d="M6.5 4.6v10.8c0 .6.7 1 1.2.7l8.5-5.4a.8.8 0 0 0 0-1.4L7.7 3.9c-.5-.3-1.2.1-1.2.7z"/>',
+  pause: '<rect class="f" x="5.5" y="4.5" width="3" height="11" rx=".9"/><rect class="f" x="11.5" y="4.5" width="3" height="11" rx=".9"/>',
+  start: '<path d="M4.5 5v10"/><path d="M10.5 6.2v7.6L6 10z"/><path d="M15.5 6.2v7.6L11 10z"/>',
+  end: '<path d="M15.5 5v10"/><path d="M9.5 6.2v7.6L14 10z"/><path d="M4.5 6.2v7.6L9 10z"/>',
+  prev: '<path d="M14.5 5v10"/><path d="M11 6.2v7.6L5.5 10z"/>',
+  next: '<path d="M5.5 5v10"/><path d="M9 6.2v7.6l5.5-3.8z"/>',
+  loop: '<path d="M4 9.5V9a4 4 0 0 1 4-4h7.5"/><path d="M13 2.5L15.5 5 13 7.5"/><path d="M16 10.5v.5a4 4 0 0 1-4 4H4.5"/><path d="M7 12.5L4.5 15 7 17.5"/>',
+  exact: '<path d="M3.5 7V5A1.5 1.5 0 0 1 5 3.5h2M13 3.5h2A1.5 1.5 0 0 1 16.5 5v2M16.5 13v2a1.5 1.5 0 0 1-1.5 1.5h-2M7 16.5H5A1.5 1.5 0 0 1 3.5 15v-2"/><circle cx="10" cy="10" r="2.5"/>',
+  zoomOut: '<circle cx="8.5" cy="8.5" r="5"/><path d="M12.3 12.3l4.2 4.2M6.2 8.5h4.6"/>',
+  zoomIn: '<circle cx="8.5" cy="8.5" r="5"/><path d="M12.3 12.3l4.2 4.2M6.2 8.5h4.6M8.5 6.2v4.6"/>',
+  hand: '<path d="M7 10.5V5a1.25 1.25 0 0 1 2.5 0v4.5M9.5 9V3.8a1.25 1.25 0 0 1 2.5 0V9M12 9.2V5a1.25 1.25 0 0 1 2.5 0v5"/><path d="M14.5 8.5a1.25 1.25 0 0 1 2.5 0v3a6 6 0 0 1-6 6h-.6a5.4 5.4 0 0 1-4.3-2.2L3.4 12a1.4 1.4 0 0 1 2.2-1.7L7 12"/>',
+  // timeline tools
+  undo: '<path d="M7.5 4.5L4 8l3.5 3.5"/><path d="M4 8h7.5a4.5 4.5 0 0 1 0 9H8.5"/>',
+  redo: '<path d="M12.5 4.5L16 8l-3.5 3.5"/><path d="M16 8H8.5a4.5 4.5 0 0 0 0 9h3"/>',
+  select: '<path d="M5.5 3.5v12.2l3.4-3.3 2.3 4.9 2.1-1-2.3-4.8h4.7z"/>',
+  razor: '<circle cx="5.5" cy="5.5" r="2.3"/><circle cx="5.5" cy="14.5" r="2.3"/><path d="M7.4 6.8l9.1 8.2M7.4 13.2l9.1-8.2"/>',
+  magnet: '<path d="M4.5 3.5H8v6.2a2 2 0 0 0 4 0V3.5h3.5v6.2a5.5 5.5 0 0 1-11 0z"/><path d="M4.5 7H8M12 7h3.5"/>',
+  fitWidth: '<path d="M3.5 4.5v11M16.5 4.5v11M6.5 10h7M8.5 8L6.5 10l2 2M11.5 8l2 2-2 2"/>',
+  plus: '<path d="M10 4.5v11M4.5 10h11"/>',
+  minus: '<path d="M4.5 10h11"/>',
+  eye: '<path d="M2.5 10S5.2 5 10 5s7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5z"/><circle cx="10" cy="10" r="2.3"/>',
+  eyeOff: '<path d="M2.5 10S5.2 5 10 5s7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5z"/><circle cx="10" cy="10" r="2.3"/><path d="M3.5 3.5l13 13"/>',
+  trash: '<path d="M4 6h12M8 6V4.3h4V6M5.8 6l.8 10h6.8l.8-10M8.6 8.8v4.6M11.4 8.8v4.6"/>',
+  mix: '<circle cx="7.5" cy="10" r="4.5"/><circle cx="12.5" cy="10" r="4.5"/>',
+  more: '<circle class="f" cx="5" cy="10" r="1.3"/><circle class="f" cx="10" cy="10" r="1.3"/><circle class="f" cx="15" cy="10" r="1.3"/>',
+  // states
+  warn: '<path d="M10 3.2l7.3 12.8H2.7z"/><path d="M10 8v3.6"/><circle class="f" cx="10" cy="13.8" r=".9"/>',
+  wait: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.5V10l2.5 1.6"/>',
+  info: '<circle cx="10" cy="10" r="7.25"/><path d="M10 9v4.5"/><circle class="f" cx="10" cy="6.6" r=".9"/>',
+  // actions
+  pencil: '<path d="M13.6 3.6l2.8 2.8-8.7 8.7-3.7.9.9-3.7z"/><path d="M12 5.2L14.8 8"/>',
+  copy: '<rect x="7" y="7" width="9.5" height="9.5" rx="1.8"/><path d="M13 7V5.3A1.8 1.8 0 0 0 11.2 3.5H5.3A1.8 1.8 0 0 0 3.5 5.3v5.9A1.8 1.8 0 0 0 5.3 13H7"/>',
+  brush: '<path d="M16.5 3.5l-6.2 7"/><path d="M9.2 9.6l1.8 1.6"/><path d="M8.6 11.2c-1.9-.4-3.6.9-3.7 2.8-.1 1.1-.6 1.8-1.4 2.4 2.6.6 5.3.1 6.3-1.6.6-1.1.2-2.6-1.2-3.6z"/>',
+  poly: '<path d="M10 3.5l6.2 4.5-2.4 7.5H6.2L3.8 8z"/><circle class="f" cx="10" cy="3.5" r="1.3"/><circle class="f" cx="16.2" cy="8" r="1.3"/><circle class="f" cx="13.8" cy="15.5" r="1.3"/><circle class="f" cx="6.2" cy="15.5" r="1.3"/><circle class="f" cx="3.8" cy="8" r="1.3"/>',
+  dice: '<rect x="3.5" y="3.5" width="13" height="13" rx="3"/><circle class="f" cx="7.2" cy="7.2" r="1.1"/><circle class="f" cx="10" cy="10" r="1.1"/><circle class="f" cx="12.8" cy="12.8" r="1.1"/>',
+  video: '<rect x="2.5" y="5.5" width="10.5" height="9" rx="2"/><path d="M13 9l4.5-2.5v7L13 11"/>',
+  repeat: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M15.5 3.5v3.2h-3.2"/>',
+  export: '<path d="M10 12.5V3.5M6.5 7L10 3.5 13.5 7"/><path d="M4 11.5v3.5a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-3.5"/>',
+  folder: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3.2l1.8 2h6A1.5 1.5 0 0 1 17 8.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z"/>',
+  // the kinds of clip (KIND_ICON)
+  snow: '<g><path d="M10 2.5v15"/><path d="M8 4.2l2 1.6 2-1.6M8 15.8l2-1.6 2 1.6"/></g>' +
+    '<g transform="rotate(60 10 10)"><path d="M10 2.5v15"/><path d="M8 4.2l2 1.6 2-1.6M8 15.8l2-1.6 2 1.6"/></g>' +
+    '<g transform="rotate(120 10 10)"><path d="M10 2.5v15"/><path d="M8 4.2l2 1.6 2-1.6M8 15.8l2-1.6 2 1.6"/></g>',
+  rain: '<path d="M6 11.5h8.2a3.2 3.2 0 0 0 .4-6.4 4.6 4.6 0 0 0-8.8 1.2A2.6 2.6 0 0 0 6 11.5z"/><path d="M7.2 14l-1 2.6M10.7 14l-1 2.6M14.2 14l-1 2.6"/>',
+  glass: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M8 6.5c-1.1 1.4-1.7 2.3-1.7 3a1.7 1.7 0 0 0 3.4 0c0-.7-.6-1.6-1.7-3z"/><path d="M13 11c-.7.9-1.1 1.5-1.1 2a1.1 1.1 0 0 0 2.2 0c0-.5-.4-1.1-1.1-2z"/>',
+  steam: '<path d="M4 9.5h10v2.5a4.5 4.5 0 0 1-4.5 4.5h-1A4.5 4.5 0 0 1 4 12z"/><path d="M14 10.5h1a2 2 0 0 1 0 4h-1.4"/><path d="M7.5 3c-.9 1 .9 2.2 0 3.6M11 3c-.9 1 .9 2.2 0 3.6"/>',
+  candle: '<rect x="7.3" y="10" width="5.4" height="7.5" rx="1"/><path d="M10 10V8.7"/><path d="M10 2.5c1.7 1.9 2.2 3.1 2.2 4a2.2 2.2 0 0 1-4.4 0c0-.9.5-2.1 2.2-4z"/>',
+  leaves: '<path d="M4.5 15.5C4.5 8 9 4 16 4c0 7-4.2 11.5-11.5 11.5z"/><path d="M4.5 15.5l7-7"/>',
+  glow: '<path d="M8.5 3c.5 3.3 1.8 4.7 5 5.3-3.2.6-4.5 2-5 5.2-.5-3.2-1.8-4.6-5-5.2 3.2-.6 4.5-2 5-5.3z"/><path d="M15 12c.2 1.4.8 2 2 2.2-1.2.2-1.8.8-2 2.3-.2-1.5-.8-2.1-2-2.3 1.2-.2 1.8-.8 2-2.2z"/>',
+  film: '<rect x="3" y="4" width="14" height="12" rx="1.8"/><path d="M6.5 4v12M13.5 4v12M3 8h3.5M3 12h3.5M13.5 8H17M13.5 12H17"/>',
+};
+function icon(name, cls = "") {
+  return `<svg class="ic ic-${name}${cls ? " " + cls : ""}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" ` +
+    `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name] || ""}</svg>`;
+}
+const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", candle: "candle", file: "film"};
+function kindIcon(kind, cls) { return icon(KIND_ICON[kind] || "glow", cls); }  // (an effect with no drawing of its own: a sparkle)
+// the buttons of the page's own markup: data-icon names their icon (before their label, if they have one)
+for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.dataset.icon, el.textContent.trim() ? "lead" : ""));
+// a slider's track is filled up to its knob: --p (a percentage) set where it is drawn, and again when it moves
+function rangeP(v, min, max) { const k = (+v - min) / ((max - min) || 1); return `--p:${(100 * (k > 0 ? Math.min(k, 1) : 0)).toFixed(1)}%`; }
+function fillRange(r) { const a = +r.min || 0, b = r.max === "" ? 100 : +r.max; r.style.setProperty("--p", rangeP(r.value, a, b).slice(4)); }
+document.addEventListener("input", e => { if (e.target.type === "range") fillRange(e.target); }, true);
 const FX_KINDS = ["snow", "rain", "glass", "steam", "candle", "leaves", "glow"];  // the Tạo sẵn tab, in this order
 const BLEND_CSS = {normal: "normal", screen: "screen", add: "plus-lighter", multiply: "multiply"};
 const COLOUR_KEYS = ["bright", "contrast", "sat", "hue", "temp", "tint_amt", "tint"], TONE_POINTS = 33, LUMA = [0.2126, 0.7152, 0.0722];
@@ -696,7 +1089,7 @@ function rememberArea(name, before) {  // a painting session changed this mask: 
   const m = S.masks[name]; if (!S.project || !m || !before) return;
   pushHist({tl: snapshot(), paint: {name, before, after: mctx(m).getImageData(0, 0, m.canvas.width, m.canvas.height)}});
 }
-function undoState() {  // the ↶ ↷ buttons
+function undoState() {  // the undo and redo buttons
   const u = $("#undoBtn"), r = $("#redoBtn"); if (!u || !r) return;
   u.disabled = !S.project || (!S.paint && S.histAt <= 0);
   r.disabled = !S.project || (!S.paint && S.histAt >= S.hist.length - 1);
@@ -1350,7 +1743,7 @@ function blurField() {  // a press on the picture: a field of the panel lets go 
 }
 function showParam(key, v) {  // a setting changed on the picture: its slider (and number) in the panel follow
   const input = $(`#ec input[type=range][data-param="${key}"]`), lab = $("#v-" + key);
-  if (input) input.value = v;
+  if (input) { input.value = v; fillRange(input); }
   if (lab) { if (lab.tagName === "INPUT") lab.value = num(v); else lab.textContent = num(v); }
 }
 xform.addEventListener("pointerdown", e => {
@@ -1537,7 +1930,7 @@ function play() {
   // the project's video is the clock: the other videos follow it, so what is on screen is the time shown
   S.baseClock = baseUsable();
   if (S.baseClock) { baseVid.playbackRate = 1; baseVid.currentTime = lastBase + 0.25 / fps(); baseShown = null; watchBase(); }
-  $("#tPlay").textContent = "⏸";
+  $("#tPlay").innerHTML = icon("pause");
   invalidateExact(); showXform();
   const step = now => {
     if (!S.playing) return;
@@ -1570,7 +1963,7 @@ function pause() {
   S.playing = false; cancelAnimationFrame(rafId);
   const clock = S.baseClock && baseUsable(), seq = ++pauseSeq;
   S.baseClock = false; S.held = null;
-  $("#tPlay").textContent = "▶";
+  $("#tPlay").innerHTML = icon("play");
   if (!clock) { S.time = curFrame() / fps(); S.held = S.time; applyTime(true); refreshExact(); showXform(); return; }
   // stop on the frame that is on screen, not where the clock had got to: the video stops first (it may still put
   // up a frame while stopping), then, once the screen has settled, the frame it shows is the time
@@ -1625,7 +2018,7 @@ function updateClock() {
   $("#tcNow").textContent = label; $("#tlTime").textContent = label;
 }
 
-// the exact frame from the renderer, shown when the picture stands still: when asked for (🎯), or when the live
+// the exact frame from the renderer, shown when the picture stands still: when asked for (#tExact), or when the live
 // preview cannot show everything yet (its light copies are being made). Otherwise a pause keeps what is on screen.
 let exactTimer = 0, exactSeq = 0;
 try { S.exactOn = localStorage.getItem("fx.exact") === "1"; } catch (e) { /* storage blocked */ }
@@ -1677,7 +2070,8 @@ function updateWaiting() {
     wait.length || failed.length ? "Dừng hình để xem khung chính xác." : ""].filter(Boolean).join(" ");
   el.textContent = text;
   el.style.display = text ? "block" : "none";
-  $("#prep").textContent = wait.length ? "⏳ Đang chuẩn bị xem nhanh…" : "";
+  const prep = $("#prep"), busy = wait.length ? "1" : "";
+  if (prep.dataset.busy !== busy) { prep.dataset.busy = busy; prep.innerHTML = busy ? icon("wait", "lead") + "Đang chuẩn bị xem nhanh…" : ""; }
 }
 
 // built-in effects: their preview clips, made by the app when their settings change
@@ -1773,22 +2167,22 @@ function renderTools() {  // the tool column at the right of the monitor: painti
     const d = Math.max(3, Math.min(40, br.size / 6));
     el.innerHTML = `<div class="who"><i style="background:${COLORS[maskKind(S.paint)]}"></i><span>Đang vẽ ${esc(paintName(S.paint))}</span></div>
       <h5>Công cụ</h5>
-      <div class="two"><button class="big ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ: kéo chuột để tô (B)"><b>🖌</b>Cọ</button>
-        <button class="big ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh: bấm từng điểm, bấm lại điểm đầu để khép (L)"><b>⬠</b>Khoanh</button></div>
+      <div class="two"><button class="big ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ: kéo chuột để tô (B)"><b>${icon("brush")}</b>Cọ</button>
+        <button class="big ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh: bấm từng điểm, bấm lại điểm đầu để khép (L)"><b>${icon("poly")}</b>Khoanh</button></div>
       <h5>Chế độ</h5>
-      <div class="two"><button class="big ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X để đổi)"><b>＋</b>Thêm</button>
-        <button class="big ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X để đổi)"><b>－</b>Bớt</button></div>
+      <div class="two"><button class="big ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X để đổi)"><b>${icon("plus")}</b>Thêm</button>
+        <button class="big ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X để đổi)"><b>${icon("minus")}</b>Bớt</button></div>
       <h5>Cỡ cọ</h5>
-      <div class="size"><span><i id="sizeDot" style="width:${d}px;height:${d}px"></i></span><input type="range" id="brushSize" min="2" max="400" value="${br.size}" title="Phím [ và ] để đổi nhanh"></div>
+      <div class="size"><span><i id="sizeDot" style="width:${d}px;height:${d}px"></i></span><input type="range" id="brushSize" min="2" max="400" value="${br.size}" style="${rangeP(br.size, 2, 400)}" title="Phím [ và ] để đổi nhanh"></div>
       <div class="lab" style="margin-top:3px"><span>điểm ảnh</span><b id="brushSizeVal">${br.size}</b></div>
       <h5>Cả vùng</h5>
       <div class="three"><button class="small" data-fill="all" title="Tô kín cả khung hình">Tô hết</button><button class="small" data-fill="none" title="Xoá cả vùng">Xoá hết</button><button class="small" data-fill="invert" title="Đổi chỗ tô và chỗ trống">Đảo</button></div>
       <h5>Mép mềm</h5>
       <div class="lab"><span>độ mềm (điểm ảnh)</span><b id="paintFeatherVal">${featherOf(S.paint)}</b></div>
-      <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}">
+      <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}" style="${rangeP(featherOf(S.paint), 0, 200)}">
       ${br.tool === "poly" ? `<p class="tip">Bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (vòng sáng), bấm đúp, hoặc Enter. Backspace: bỏ điểm cuối.</p>
         ${S.poly.length >= 3 ? '<button class="small primary wide" data-pclose="1" title="Khép vùng (Enter)">Khép vùng</button>' : ""}` : ""}
-      <div class="two" style="margin-top:12px"><button class="small" data-pundo="1" title="Hoàn tác (Ctrl+Z)">↶ Hoàn tác</button><button class="small" data-predo="1" title="Làm lại (Ctrl+Y)">↷ Làm lại</button></div>
+      <div class="two" style="margin-top:12px"><button class="small" data-pundo="1" title="Hoàn tác (Ctrl+Z)">${icon("undo", "lead")}Hoàn tác</button><button class="small" data-predo="1" title="Làm lại (Ctrl+Y)">${icon("redo", "lead")}Làm lại</button></div>
       <label class="check"><input type="checkbox" id="onlyBase" ${S.onlyBase ? "checked" : ""}> Chỉ xem video gốc</label>
       <button class="primary done" data-done="1" title="Xong (Esc)">Xong</button>
       <p class="tip">Lăn chuột trên hình: phóng to. Giữ chuột phải: kéo hình. Esc: xong.</p>`;
@@ -1854,7 +2248,7 @@ $("#tools").addEventListener("input", e => {
     else { const c = clipById(S.paint); if (c) c.feather = v; }
     styleAll(); invalidateExact(); scheduleSave();
     const mirror = $(`#ec [data-base="${S.paint}"], #ec [data-for="${S.paint}"] [data-clipnum="feather"]`);
-    if (mirror) mirror.value = v;
+    if (mirror) { mirror.value = v; fillRange(mirror); }
   }
 });
 $("#tools").addEventListener("change", e => { if (e.target.id === "paintFeather") remember(); });
@@ -1940,17 +2334,17 @@ function keepWhole(m) {  // a first stroke that missed the picture: the area sta
   const g = mctx(m); g.fillStyle = "#fff"; g.fillRect(0, 0, m.canvas.width, m.canvas.height);
   m.full = true; m.empty = false; m.undo.pop(); retint();
 }
-function warnTakingAway() {  // "－ Bớt" on an area with nothing in it yet does nothing: say so
+function warnTakingAway() {  // "Bớt" on an area with nothing in it yet does nothing: say so
   const m = S.masks[S.paint];
   if (S.brush.mode !== "sub" || !m || !m.empty) return false;
-  toast('Đang ở chế độ "－ Bớt" (xoá vùng), mà vùng còn trống. Muốn tô hoặc khoanh vùng mới, bấm "＋ Thêm" (phím X).', true, 7000);
+  toast('Đang ở chế độ "Bớt" (xoá vùng), mà vùng còn trống. Muốn tô hoặc khoanh vùng mới, bấm "Thêm" (phím X).', true, 7000);
   return true;
 }
 function closePoly() {
   const m = S.masks[S.paint];
   if (!m || S.poly.length < 3) { S.poly = []; drawPoly(); renderTools(); return; }
-  if (S.brush.mode === "sub" && m.empty) {  // kept: after "＋ Thêm", Enter (or the first point) makes it the area
-    toast('Vòng này đang ở chế độ "－ Bớt" nên không thêm gì. Bấm "＋ Thêm", rồi bấm Enter để dùng vòng vừa khoanh.', true, 8000);
+  if (S.brush.mode === "sub" && m.empty) {  // kept: after "Thêm", Enter (or the first point) makes it the area
+    toast('Vòng này đang ở chế độ "Bớt" nên không thêm gì. Bấm "Thêm", rồi bấm Enter để dùng vòng vừa khoanh.', true, 8000);
     return;
   }
   rememberPaint(m); startArea(m);
@@ -2116,7 +2510,7 @@ function setPps(pps, anchorSec) {
   S.pps = clamp(pps, min, max);
   S.fitTl = S.pps <= min + 1e-6;
   const z = $("#tlZoom");
-  z.value = Math.round(1000 * Math.log(S.pps / min) / Math.log(max / min));
+  z.value = Math.round(1000 * Math.log(S.pps / min) / Math.log(max / min)); fillRange(z);
   if (anchorSec !== undefined) {
     const x = anchorSec * old - tlScroll.scrollLeft;
     renderTimeline();
@@ -2135,13 +2529,13 @@ function renderTimeline() {
   const head = [], lane = [];
   for (const r of rs) {
     if (r.type === "new") {
-      head.push(`<div class="head new" style="height:${r.h}px" title="Kéo clip hoặc hiệu ứng vào hàng này để tạo track mới">+ track mới</div>`);
+      head.push(`<div class="head new" style="height:${r.h}px" title="Kéo clip hoặc hiệu ứng vào hàng này để tạo track mới">${icon("plus")}track mới</div>`);
       lane.push(`<div class="lane new" data-row="new" style="top:${r.y}px;height:${r.h}px"></div>`);
     } else if (r.type === "track") {
       const t = r.track, n = p.layers.filter(c => c.track === t.id).length;
       head.push(`<div class="head" style="height:${r.h}px"><span class="tn">${trackName(r.index)}</span><span class="grow">${n ? n + " clip" : "trống"}</span>
-        <button class="${t.on ? "" : "off"}" data-eye="${t.id}" title="${t.on ? "Ẩn" : "Hiện"} track này">${t.on ? "👁" : "◌"}</button>
-        <button data-deltrack="${t.id}" title="Xoá track (khi trống)" ${n ? "disabled" : ""}>✕</button></div>`);
+        <button class="${t.on ? "" : "off"}" data-eye="${t.id}" title="${t.on ? "Ẩn" : "Hiện"} track này">${icon(t.on ? "eye" : "eyeOff")}</button>
+        <button data-deltrack="${t.id}" title="Xoá track (khi trống)" ${n ? "disabled" : ""}>${icon("trash")}</button></div>`);
       lane.push(`<div class="lane" data-row="${t.id}" style="top:${r.y}px;height:${r.h}px"></div>`);
     } else {
       head.push(`<div class="head base" style="height:${r.h}px"><span class="tn">V1</span><span class="grow">Video gốc</span></div>`);
@@ -2152,7 +2546,7 @@ function renderTimeline() {
   const baseRow = rs[rs.length - 1], P = loopFrames(), loops = N / P;
   for (let k = 0; k < loops; k++) {
     const x = k * P / f * pps, w = P / f * pps;
-    lane.push(`<div class="clip base${S.sel === "base" ? " sel" : ""}" data-base="1" style="left:${x}px;width:${Math.max(1, w - 1)}px;top:${baseRow.y + 4}px;background-image:url(/api/thumb?id=${p.id})"><span class="nm">${k === 0 ? esc(p.name) : ""} ↻${k + 1}</span></div>`);
+    lane.push(`<div class="clip base${S.sel === "base" ? " sel" : ""}" data-base="1" style="left:${x}px;width:${Math.max(1, w - 1)}px;top:${baseRow.y + 4}px;background-image:url(/api/thumb?id=${p.id})"><span class="nm" title="Vòng loop thứ ${k + 1}">${k === 0 ? `<span class="pn">${esc(p.name)}</span>` : ""}${icon("repeat")}${k + 1}</span></div>`);
   }
   for (let k = 1; k < loops; k++) lane.push(`<div class="seam" style="left:${k * P / f * pps}px"></div>`);
   for (const c of p.layers) {
@@ -2164,7 +2558,7 @@ function renderTimeline() {
     const x = b.start / f * pps, m = b.mix > 0 ? Math.min(b.mix, mixMost(b)) : 0, mw = m * pps;
     if (m) lane.push(`<div class="mixband" style="left:${x - mw / 2}px;width:${mw}px;top:${r.y + 4}px"></div>`);
     lane.push(`<button class="join${m ? " on" : ""}" data-join="${b.id}" style="left:${x - 9}px;top:${r.y + (ROW_H - 18) / 2}px"
-      title="${m ? `Mix ${num(m)} giây: bấm để chỉnh` : "Thêm hiệu ứng nối Mix (hoà trộn hai clip)"}">⧓</button>`);
+      title="${m ? `Mix ${num(m)} giây: bấm để chỉnh` : "Thêm hiệu ứng nối Mix (hoà trộn hai clip)"}">${icon("mix")}</button>`);
   }
   lane.push(`<div class="beyond" style="left:${N / f * pps}px;width:${Math.max(0, W - N / f * pps)}px"></div>`);
   lane.push(`<div class="ghost" id="ghost"></div><div class="razorline" id="razorLine"></div><div class="playhead" id="tlPlayheadEl" style="left:${S.time * pps}px"></div>`);
@@ -2180,15 +2574,22 @@ function renderTimeline() {
 function clipHTML(c, r) {
   const f = fps(), pps = S.pps, sp = span(c, false);
   const x = c.start / f * pps, w = Math.max(3, (c.end - c.start) / f * pps);
-  const cls = ["clip", c.kind === "file" ? "file" : "fx", S.sel === c.id ? "sel" : "", c.on === false ? "off" : ""].join(" ");
+  const cls = ["clip", c.kind === "file" ? "file" : "fx", S.sel === c.id ? "sel" : "", c.on === false ? "off" : "",
+    clipBefore(c) ? "joined" : ""].join(" ");  // (joined: its name clear of the Mix button where they meet)
   const fin = Math.min(w, sp.fin / f * pps), fout = Math.min(w, sp.fout / f * pps);
   const mk = S.masks[c.id], mask = (mk ? !mk.full : S.project.masks.includes(c.id)) ? " · có vùng" : "";
   const sub = (sp.full ? "suốt video" : secLabel((c.end - c.start) / f)) + mask + (c.behind ? " · sau tiền cảnh" : "");
-  return `<div class="${cls}" data-clip="${c.id}" style="left:${x}px;width:${w}px;top:${r.y + 4}px">
+  return `<div class="${cls}" data-clip="${c.id}" data-kind="${esc(c.kind)}" style="left:${x}px;width:${w}px;top:${r.y + 4}px">
     ${fin > 0 ? `<div class="fade in" style="width:${fin}px"></div>` : ""}${fout > 0 ? `<div class="fade out" style="width:${fout}px"></div>` : ""}
-    <span class="nm">${KIND_ICON[c.kind]} ${esc(c.name)}</span><span class="sub">${esc(sub)}</span>
+    <span class="nm">${kindIcon(c.kind)}${esc(c.name)}</span><span class="sub">${esc(sub)}</span>
     <i class="h l"></i><i class="h r"></i></div>`;
 }
+// the ruler is drawn on a canvas, in the colours of the page's theme (CSS tokens, read once)
+const RULER = (() => {
+  const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
+  return {beyond: v("--ruler-beyond") || "#0006", tick: v("--ruler-tick") || "#555", text: v("--ruler-text") || "#9a9a9a",
+    seam: v("--ruler-seam") || "#3b6fa8", head: v("--playhead") || "#4f8cff", font: "11px " + (v("--font") || "system-ui, sans-serif")};
+})();
 function drawRuler() {
   const w = ruler.clientWidth, h = ruler.clientHeight, dpr = devicePixelRatio;
   if (rulerCanvas.width !== Math.round(w * dpr) || rulerCanvas.height !== Math.round(h * dpr)) {
@@ -2205,8 +2606,8 @@ function drawRuler() {
   let major = steps.find(s => s * pps >= 70) || 60;
   if (major < 1 && Math.round(major * f) !== major * f) major = 1;
   const minor = major / 5;
-  g.fillStyle = "#0006"; g.fillRect(Math.max(0, dur * pps - sl), 0, w, h);
-  g.strokeStyle = "#555"; g.fillStyle = "#9a9a9a"; g.font = "11px Segoe UI, system-ui, sans-serif"; g.lineWidth = 1;
+  g.fillStyle = RULER.beyond; g.fillRect(Math.max(0, dur * pps - sl), 0, w, h);
+  g.strokeStyle = RULER.tick; g.fillStyle = RULER.text; g.font = RULER.font; g.lineWidth = 1;
   const first = Math.floor(sl / pps / minor) * minor;
   g.beginPath();
   for (let s = first; s * pps - sl < w; s += minor) {
@@ -2218,11 +2619,11 @@ function drawRuler() {
   g.stroke();
   // the loop seams
   const P = loopFrames() / f;
-  g.fillStyle = "#3b6fa8";
+  g.fillStyle = RULER.seam;
   for (let s = P; s < dur - 1e-6; s += P) { const x = s * pps - sl; if (x > -4 && x < w + 4) { g.beginPath(); g.moveTo(x - 4, h); g.lineTo(x + 4, h); g.lineTo(x, h - 6); g.fill(); } }
   // the playhead
   const x = S.time * pps - sl;
-  g.fillStyle = "#2d8ceb";
+  g.fillStyle = RULER.head;
   g.beginPath(); g.moveTo(x - 6, 0); g.lineTo(x + 6, 0); g.lineTo(x + 6, 10); g.lineTo(x, 16); g.lineTo(x - 6, 10); g.closePath(); g.fill();
   g.fillRect(Math.round(x), 16, 1, h - 16);
 }
@@ -2525,14 +2926,14 @@ tlLanes.addEventListener("contextmenu", e => {
   select(c.id);
   const fr = snapFrame(frameAtX(e.clientX), c.id);
   showMenu(e.clientX, e.clientY, [
-    ["✂ Cắt đôi tại đây", () => splitClip(c, fr), "C"],
-    ["⧉ Nhân đôi", () => duplicate(c), "Alt+kéo"],
-    [c.on === false ? "Bật clip" : "Tắt clip", () => { c.on = c.on === false; edited(); }],
-    ...(clipBefore(c) ? [[c.mix > 0 ? "Bỏ Mix với clip trước" : "⧓ Mix với clip trước", () => setMix(c, c.mix > 0 ? 0 : 0.5)]] : []),
-    ...(clipAfter(c) ? [[clipAfter(c).mix > 0 ? "Bỏ Mix với clip sau" : "⧓ Mix với clip sau", () => { const b = clipAfter(c); setMix(b, b.mix > 0 ? 0 : 0.5); }]] : []),
-    ["Kéo dài suốt video", () => { if (overlaps(c.track, 0, total(), c.id)) toast("Track này còn clip khác: hãy chuyển clip sang track trống.", true); else { c.start = 0; c.end = total(); c.skip = 0; edited(); } }],
+    ["Cắt đôi tại đây", () => splitClip(c, fr), "C", "razor"],
+    ["Nhân đôi", () => duplicate(c), "Alt+kéo", "copy"],
+    [c.on === false ? "Bật clip" : "Tắt clip", () => { c.on = c.on === false; edited(); }, "", c.on === false ? "eye" : "eyeOff"],
+    ...(clipBefore(c) ? [[c.mix > 0 ? "Bỏ Mix với clip trước" : "Mix với clip trước", () => setMix(c, c.mix > 0 ? 0 : 0.5), "", "mix"]] : []),
+    ...(clipAfter(c) ? [[clipAfter(c).mix > 0 ? "Bỏ Mix với clip sau" : "Mix với clip sau", () => { const b = clipAfter(c); setMix(b, b.mix > 0 ? 0 : 0.5); }, "", "mix"]] : []),
+    ["Kéo dài suốt video", () => { if (overlaps(c.track, 0, total(), c.id)) toast("Track này còn clip khác: hãy chuyển clip sang track trống.", true); else { c.start = 0; c.end = total(); c.skip = 0; edited(); } }, "", "fitWidth"],
     null,
-    ["Xoá clip", () => deleteClip(c), "Delete"]]);
+    ["Xoá clip", () => deleteClip(c), "Delete", "trash", true]]);
 });
 function duplicate(c) {
   if (!roomFor(1)) return;
@@ -2546,9 +2947,10 @@ function duplicate(c) {
   }
   S.project.layers.push(copy); S.sel = copy.id; joinFades(copy); edited();
 }
-function showMenu(x, y, items) {
+function showMenu(x, y, items) {  // items: [label, action, key shown on the right, icon, true for a delete] or null (a line)
   const m = $("#menu");
-  m.innerHTML = items.map((it, i) => it ? `<div data-i="${i}"><span>${esc(it[0])}</span>${it[2] ? `<small>${esc(it[2])}</small>` : ""}</div>` : "<hr>").join("");
+  m.innerHTML = items.map((it, i) => it ? `<div data-i="${i}"${it[4] ? ' class="danger"' : ""}><span>${it[3] ? icon(it[3], "lead") : ""}${esc(it[0])}</span>` +
+    `${it[2] ? `<small>${esc(it[2])}</small>` : ""}</div>` : "<hr>").join("");
   m.style.display = "block";
   m.style.left = Math.min(x, innerWidth - m.offsetWidth - 6) + "px"; m.style.top = Math.min(y, innerHeight - m.offsetHeight - 6) + "px";
   m.onclick = e => { const d = e.target.closest("[data-i]"); if (!d) return; m.style.display = "none"; items[+d.dataset.i][1](); };
@@ -2679,12 +3081,12 @@ function addClip(item, trackId, s, en) {
 // --- effect controls -----------------------------------------------------------------------------------
 function slider(key, label, value, min, max, step, extra = "") {
   return `<div class="row"><div class="lab"><span>${esc(label)}</span><b id="v-${key}">${value}</b></div>
-    <input type="range" data-param="${key}" min="${min}" max="${max}" step="${step || 1}" value="${value}" ${extra}></div>`;
+    <input type="range" data-param="${key}" min="${min}" max="${max}" step="${step || 1}" value="${value}" style="${rangeP(value, min, max)}" ${extra}></div>`;
 }
 function numSlider(d, value) {  // a slider with a field to type its number in
   const step = d.step || 1;
   return `<div class="row"><div class="lab"><span>${esc(d.label)}</span><input type="number" class="numv" id="v-${d.key}" data-num="${d.key}" min="${d.min}" max="${d.max}" step="${step}" value="${num(value)}"></div>
-    <input type="range" data-param="${d.key}" min="${d.min}" max="${d.max}" step="${step}" value="${value}"></div>`;
+    <input type="range" data-param="${d.key}" min="${d.min}" max="${d.max}" step="${step}" value="${value}" style="${rangeP(value, d.min, d.max)}"></div>`;
 }
 function renderControls() {
   const el = $("#ec"), p = S.project;
@@ -2719,12 +3121,12 @@ function renderControls() {
   let source = "";
   if (c.kind === "file") {
     const fi = c.file && c.file.info, it = libItem(c.file ? c.file.lib : c.lib);
-    source = `<div class="file">${fi ? `<b>${esc(c.file.name)}</b><br>${fi.image ? "Ảnh" : "Video"} ${fi.w}×${fi.h}${fi.image ? "" : `, ${fi.seconds} giây, ${fi.fps} khung/giây, ${esc(codecName(fi))}`}${fi.alpha ? ", nền trong suốt" : ""}${alphaNote(c, fi)}${it && !it.proxy ? (S.failed && S.failed[it.id] ? "<br>⚠ Không làm được bản xem nhanh. Dừng hình để xem khung chính xác." : "<br>⏳ Đang chuẩn bị xem nhanh…") : ""}${!it && c.file && c.file.lib ? "<br>⚠ File đã bị xoá khỏi thư viện." : ""}` : c.file && c.file.lib && !it ? `<b>${esc(c.file.name)}</b><br>⚠ File đã bị xoá khỏi thư viện: clip này không hiện gì. Hãy xoá clip.` : "Chưa có file."}</div>`;
+    source = `<div class="file">${fi ? `<b>${esc(c.file.name)}</b><br>${fi.image ? "Ảnh" : "Video"} ${fi.w}×${fi.h}${fi.image ? "" : `, ${fi.seconds} giây, ${fi.fps} khung/giây, ${esc(codecName(fi))}`}${fi.alpha ? ", nền trong suốt" : ""}${alphaNote(c, fi)}${it && !it.proxy ? (S.failed && S.failed[it.id] ? `<br>${icon("warn", "lead")}Không làm được bản xem nhanh. Dừng hình để xem khung chính xác.` : `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh…`) : ""}${!it && c.file && c.file.lib ? `<br>${icon("warn", "lead")}File đã bị xoá khỏi thư viện.` : ""}` : c.file && c.file.lib && !it ? `<b>${esc(c.file.name)}</b><br>${icon("warn", "lead")}File đã bị xoá khỏi thư viện: clip này không hiện gì. Hãy xoá clip.` : "Chưa có file."}</div>`;
   } else {
     const fx = S.fx[c.id];
-    source = `<div class="file"><b>${KIND_ICON[c.kind]} ${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? "<br>⏳ Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác." : ""}${S.schema.lens[c.kind] ? "<br>Lúc phát chỉ xem gần đúng; dừng hình để thấy đúng như video xuất ra." : ""}</div>
+    source = `<div class="file"><b>${kindIcon(c.kind, "lead")}${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác.` : ""}${S.schema.lens[c.kind] ? "<br>Lúc phát chỉ xem gần đúng; dừng hình để thấy đúng như video xuất ra." : ""}</div>
       ${sch.note ? `<p class="note">${esc(sch.note)}</p>` : ""}
-      <div class="btns"><button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">🎲 Đổi kiểu ngẫu nhiên</button></div>`;
+      <div class="btns"><button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">${icon("dice", "lead")}Đổi kiểu ngẫu nhiên</button></div>`;
   }
   const params = sch.params.map(d => {
     const v = c.params[d.key];
@@ -2754,24 +3156,24 @@ function renderControls() {
     const most = mixMost(b), v = Math.min(b.mix || 0, most);
     return `<label class="check"><input type="checkbox" data-mix="${b.id}" ${b.mix > 0 ? "checked" : ""}> ${label}</label>
       ${b.mix > 0 ? `<div class="row"><div class="lab"><span>Dài (giây)</span><b id="v-mix-${b.id}">${num(v)}</b></div>
-        <input type="range" data-mixlen="${b.id}" min="0.1" max="${most}" step="0.1" value="${v}"></div>` : ""}`;
+        <input type="range" data-mixlen="${b.id}" min="0.1" max="${most}" step="0.1" value="${v}" style="${rangeP(v, 0.1, most)}"></div>` : ""}`;
   };
   const before = clipBefore(c), after = clipAfter(c);
   const transition = before || after ? `<h4>Chuyển cảnh</h4>${before ? mixRow(c, "Mix (hoà trộn) với clip trước") : ""}${after ? mixRow(after, "Mix (hoà trộn) với clip sau") : ""}
-    <p class="note">Mix: hai clip nối nhau hoà dần vào nhau, mỗi bên chỗ nối một nửa thời gian. Bấm nút ⧓ ở chỗ nối trên timeline cũng được.</p>` : "";
-  el.innerHTML = `<div data-for="${c.id}"><div class="title"><span style="font-size:18px">${KIND_ICON[c.kind]}</span><input type="text" id="clipName" value="${esc(c.name)}" maxlength="60"></div>
+    <p class="note">Mix: hai clip nối nhau hoà dần vào nhau, mỗi bên chỗ nối một nửa thời gian. Bấm nút ${icon("mix")} ở chỗ nối trên timeline cũng được.</p>` : "";
+  el.innerHTML = `<div data-for="${c.id}"><div class="title"><span>${kindIcon(c.kind)}</span><input type="text" id="clipName" value="${esc(c.name)}" maxlength="60" title="Tên clip: bấm để đổi"></div>
     ${source}${timing}${transition}${fileParams}
     <h4>Vùng</h4>
     <div class="row"><div class="lab"><span>Hiệu ứng hiện ở</span><b>${hasArea ? "vùng đã vẽ" : "cả khung hình"}</b></div></div>
-    <div class="btns"><button class="small ${S.paint === c.id ? "on" : ""}" id="paintArea">✎ Vẽ vùng</button>${hasArea ? '<button class="small" id="clearArea">Cả khung hình</button>' : ""}</div>
+    <div class="btns"><button class="small ${S.paint === c.id ? "on" : ""}" id="paintArea">${icon("pencil", "lead")}Vẽ vùng</button>${hasArea ? '<button class="small" id="clearArea">Cả khung hình</button>' : ""}</div>
     ${slider("feather", "Độ mềm mép vùng (điểm ảnh)", c.feather || 0, 0, 200, 1, 'data-clipnum="feather"')}
     <label class="check"><input type="checkbox" id="behind" ${c.behind ? "checked" : ""}> Bay ra sau tiền cảnh (bị tiền cảnh che)</label>
     <h4>Clip</h4>
     <div class="btns">
-      <button class="small" id="splitBtn" title="Cắt clip tại đầu phát (Ctrl+K)">✂ Cắt tại đầu phát</button>
-      <button class="small" id="dupBtn">⧉ Nhân đôi</button>
+      <button class="small" id="splitBtn" title="Cắt clip tại đầu phát (Ctrl+K)">${icon("razor", "lead")}Cắt tại đầu phát</button>
+      <button class="small" id="dupBtn">${icon("copy", "lead")}Nhân đôi</button>
       <button class="small" id="onBtn">${c.on === false ? "Bật clip" : "Tắt clip"}</button>
-      <button class="small danger" id="delBtn">Xoá clip</button>
+      <button class="small danger" id="delBtn">${icon("trash", "lead")}Xoá clip</button>
     </div></div>`;
 }
 const CODECS = {h264: "H.264", hevc: "HEVC (H.265)", prores: "ProRes", qtrle: "Animation", png: "PNG", vp9: "VP9", vp8: "VP8",
@@ -2781,9 +3183,9 @@ function alphaNote(c, fi) {  // a file meant to be see-through whose transparenc
   if (fi.image || fi.alpha) return "";
   const redo = "Muốn hiệu ứng hiện rõ trên nền sáng, hãy xuất lại file thành MOV ProRes 4444 có kênh alpha (hoặc WebM VP9 có alpha) rồi nhập lại.";
   if (fi.codec === "hevc" && /alpha|trong.?su[ốo]t|transparen/i.test(c.file.name))
-    return `<br>⚠ File HEVC có nền trong suốt: app chưa đọc được phần trong suốt của loại này, nên đang coi là nền đen (Screen). ${redo}`;
+    return `<br>${icon("warn", "lead")}File HEVC có nền trong suốt: app chưa đọc được phần trong suốt của loại này, nên đang coi là nền đen (Screen). ${redo}`;
   if (/alpha|trong.?su[ốo]t|transparen/i.test(c.file.name))
-    return `<br>⚠ Tên file nói có nền trong suốt, nhưng app không thấy lớp trong suốt trong file, nên đang coi là nền đen (Screen). ${redo}`;
+    return `<br>${icon("warn", "lead")}Tên file nói có nền trong suốt, nhưng app không thấy lớp trong suốt trong file, nên đang coi là nền đen (Screen). ${redo}`;
   return "";
 }
 function startSlider(c) {  // where the file starts playing: within the file (half a second before its end at most)
@@ -2806,22 +3208,22 @@ function ownerClip(el) {  // the clip a control of the Effect Controls panel was
 function renderBaseControls(el) {
   const p = S.project, st = p.still || {source: "frame", frame: 0}, v = info();
   $("#ecNote").textContent = "Video gốc (V1)";
-  el.innerHTML = `<div class="title"><span style="font-size:18px">🎬</span><b>${esc(p.name)}</b></div>
+  el.innerHTML = `<div class="title"><span>${icon("video")}</span><b>${esc(p.name)}</b></div>
     <div class="file">${p.source_name ? `<b>${esc(p.source_name)}</b><br>` : ""}${v.w}×${v.h}, ${v.fps} khung/giây, loop ${v.seconds} giây (${v.frames} khung).<br>Video xuất ra: ${secLabel(duration())} = ${total() / loopFrames()} vòng loop.</div>
     <div class="btns"><button class="small" id="replaceBtn" title="Hoặc kéo file video thả vào hàng V1 trên timeline">Đổi video gốc…</button></div>
     <p class="note">Đổi video gốc thì timeline, các clip và vùng đã vẽ được giữ nguyên.</p>
     <h4>Vùng đứng yên</h4>
     <p class="note">Tô những chỗ phải đứng yên tuyệt đối (tường, đồ vật bị rung…). Ở đó hình lấy y nguyên từ ảnh gốc, hoặc từ một khung của video.</p>
-    <div class="btns"><button class="small ${S.paint === "freeze" ? "on" : ""}" id="paintFreeze">✎ Vẽ vùng đứng yên</button>${S.masks.freeze && !S.masks.freeze.empty ? '<button class="small" id="clearFreeze">Xoá vùng</button>' : ""}</div>
+    <div class="btns"><button class="small ${S.paint === "freeze" ? "on" : ""}" id="paintFreeze">${icon("pencil", "lead")}Vẽ vùng đứng yên</button>${S.masks.freeze && !S.masks.freeze.empty ? '<button class="small" id="clearFreeze">Xoá vùng</button>' : ""}</div>
     <div class="row"><div class="lab"><span>Lấy hình đứng yên từ</span></div>
       <select id="stillSource"><option value="frame" ${st.source === "image" ? "" : "selected"}>Một khung của video</option><option value="image" ${st.source === "image" ? "selected" : ""} ${p.has_still_image ? "" : "disabled"}>Ảnh gốc${st.image_name ? ": " + esc(st.image_name) : " (chưa có)"}</option></select></div>
     ${st.source === "image" ? "" : `<div class="row"><div class="lab"><span>Khung số</span><b>${st.frame + 1}</b></div><button class="small" id="useFrame">Dùng khung đang xem (<span id="useFrameN">${(curFrame() % loopFrames()) + 1}</span>)</button></div>`}
     <div class="btns"><button class="small" id="pickStill">Chọn ảnh gốc…</button></div>
-    ${st.warning && st.source === "image" ? `<p class="warn">⚠ ${esc(st.warning)}</p>` : ""}
+    ${st.warning && st.source === "image" ? `<p class="warn">${icon("warn", "lead")}${esc(st.warning)}</p>` : ""}
     ${slider("feather", "Độ mềm mép (điểm ảnh)", p.freeze.feather, 0, 200, 1, 'data-base="freeze"')}
     <h4>Tiền cảnh</h4>
     <p class="note">Tô những vật ở gần (khung cửa sổ, cây, mái nhà…). Clip nào bật "Bay ra sau tiền cảnh" sẽ bị chúng che.</p>
-    <div class="btns"><button class="small ${S.paint === "fg" ? "on" : ""}" id="paintFg">✎ Vẽ tiền cảnh</button>${S.masks.fg && !S.masks.fg.empty ? '<button class="small" id="clearFg">Xoá vùng</button>' : ""}</div>
+    <div class="btns"><button class="small ${S.paint === "fg" ? "on" : ""}" id="paintFg">${icon("pencil", "lead")}Vẽ tiền cảnh</button>${S.masks.fg && !S.masks.fg.empty ? '<button class="small" id="clearFg">Xoá vùng</button>' : ""}</div>
     ${slider("featherFg", "Độ mềm mép (điểm ảnh)", p.fg.feather, 0, 200, 1, 'data-base="fg"')}`;
 }
 // a press in the panel (a slider, a button…): the panel is not drawn again under it, or its click would be lost.
@@ -2835,7 +3237,7 @@ $("#ec").addEventListener("click", e => {
   const id = t.id;
   if (id === "paintFreeze") return S.paint === "freeze" ? exitPaint() : (enterPaint("freeze"), renderControls());
   if (id === "paintFg") return S.paint === "fg" ? exitPaint() : (enterPaint("fg"), renderControls());
-  // cleared while painting it: Ctrl+Z (or ↶) brings it back
+  // cleared while painting it: Ctrl+Z (or the undo button) brings it back
   const clear = (name, how) => { if (S.paint !== name) enterPaint(name); fillMask(name, how); renderControls(); toast("Đã xoá vùng. Bấm Ctrl+Z để lấy lại.", false, 3000); };
   if (id === "clearFreeze") return clear("freeze", "none");
   if (id === "clearFg") return clear("fg", "none");
@@ -2893,7 +3295,7 @@ $("#ec").addEventListener("input", e => {
     const key = t.dataset.num, raw = String(t.value).trim(), v = Number(raw);
     if (raw === "" || !Number.isFinite(v)) return;  // (put right when the field is left)
     c.params[key] = placeParam(c, key, v);
-    const sl = $(`#ec input[type=range][data-param="${key}"]`); if (sl) sl.value = c.params[key];
+    const sl = $(`#ec input[type=range][data-param="${key}"]`); if (sl) { sl.value = c.params[key]; fillRange(sl); }
     if (S.els[c.id]) styleLayer(c, S.els[c.id]);
     applyTime(); invalidateExact(); scheduleSave(); showXform(); return;
   }
@@ -2905,7 +3307,7 @@ $("#ec").addEventListener("input", e => {
     c.params[key] = v;
     if (key === "scale" && S.schema.kinds[c.kind].anchor && placeable(c)) {  // the wick stays put: x, y follow
       keepAnchor(c, was);
-      for (const k of ["x", "y"]) { const i = $(`#ec [data-param="${k}"]`), l = $("#v-" + k); if (i) i.value = c.params[k]; if (l) l.textContent = num(c.params[k]); }
+      for (const k of ["x", "y"]) { const i = $(`#ec [data-param="${k}"]`), l = $("#v-" + k); if (i) { i.value = c.params[k]; fillRange(i); } if (l) l.textContent = num(c.params[k]); }
     }
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
     if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
@@ -2945,7 +3347,7 @@ function renderBin() {
   if (S.bin === "lib") {
     tools.style.display = "flex";
     // the search box is made once: drawn again it would lose the focus, the caret and a word being typed (IME)
-    if (!$("#libFilter")) tools.innerHTML = `<button class="small primary" id="importBtn">+ Nhập file…</button><input type="text" id="libFilter" placeholder="Tìm…" value="${esc(S.filter)}">`;
+    if (!$("#libFilter")) tools.innerHTML = `<button class="small" id="importBtn" title="Thêm video hoặc ảnh hiệu ứng vào thư viện">${icon("plus", "lead")}Nhập file…</button><input type="text" id="libFilter" placeholder="Tìm…" value="${esc(S.filter)}">`;
     const items = S.lib.filter(i => !S.filter || i.name.toLowerCase().includes(S.filter.toLowerCase()));
     body.innerHTML = items.length ? `<div class="tiles">${items.map(i => {
       const inf = i.info;
@@ -2953,17 +3355,17 @@ function renderBin() {
       return `<div class="tile${S.binSel === i.id ? " sel" : ""}" draggable="true" data-lib="${i.id}" title="Kéo xuống timeline. Bấm đúp: thêm tại đầu phát.">
         <div class="pic" style="background-image:url(/media/lib?id=${i.id}&what=thumb)"></div>
         ${inf.alpha ? '<span class="tag">trong suốt</span>' : '<span class="tag">nền đen</span>'}
-        <button class="more" data-more="${i.id}">⋯</button>
-        <div class="nm">${esc(i.name)}</div><div class="meta">${i.proxy ? "" : S.failed && S.failed[i.id] ? "⚠ " : "⏳ "}${esc(meta)}</div></div>`;
+        <button class="more" data-more="${i.id}" title="Thêm, đổi tên, xoá">${icon("more")}</button>
+        <div class="nm">${esc(i.name)}</div><div class="meta">${i.proxy ? "" : icon(S.failed && S.failed[i.id] ? "warn" : "wait")}${esc(meta)}</div></div>`;
     }).join("")}</div>` : `<div class="bin-empty">${S.lib.length ? "Không có hiệu ứng nào khớp." : `<b style="color:var(--text)">Thư viện hiệu ứng còn trống.</b><br>Bấm <b>+ Nhập file…</b> hoặc kéo file vào đây: video hiệu ứng trên nền đen (tuyết, mưa, bụi, ánh sáng…), video nền trong suốt (MOV, WebM) hoặc ảnh PNG.<br>Thư viện dùng chung cho mọi dự án.<br><br>Chỉ dùng file công ty sở hữu hoặc có giấy phép.`}</div>`;
   } else if (S.bin === "fx") {
     tools.style.display = "none";
     body.innerHTML = `<div class="tiles">${FX_KINDS.map(k => `<div class="tile" draggable="true" data-kind="${k}" title="Kéo xuống timeline. Bấm đúp: thêm tại đầu phát.">
-        <div class="pic" style="background:#111">${KIND_ICON[k]}</div><div class="nm">${esc(kindLabel(k))}</div><div class="meta">app tự vẽ</div></div>`).join("")}</div>
+        <div class="pic">${kindIcon(k)}</div><div class="nm">${esc(kindLabel(k))}</div><div class="meta">app tự vẽ</div></div>`).join("")}</div>
       <p class="bin-empty" style="padding-top:0">Hiệu ứng app tự vẽ: chỉnh mật độ, cỡ, tốc độ, gió… và luôn lặp lại liền mạch.</p>`;
   } else {
     tools.style.display = "flex";
-    tools.innerHTML = `<button class="small primary" id="newBtn2">+ Video mới…</button><span style="color:var(--dim)">Các dự án đã mở</span>`;
+    tools.innerHTML = `<button class="small" id="newBtn2" title="Mở một video loop thành dự án mới">${icon("plus", "lead")}Video mới…</button><span style="color:var(--dim)">Các dự án đã mở</span>`;
     const list = (S.state && S.state.projects) || [];
     body.innerHTML = `<div class="plist">${list.map(p => `<div class="item${S.project && S.project.id === p.id ? " cur" : ""}" data-open="${p.id}"><img src="/api/thumb?id=${p.id}" alt="">
       <div class="txt"><div>${esc(p.name)}</div><small>${p.w}×${p.h} · loop ${p.seconds} giây · xuất ${p.length === 60 ? "1 phút" : "30 giây"}</small></div>
@@ -2980,11 +3382,11 @@ $("#bin").addEventListener("click", async e => {
     const it = libItem(b.dataset.more); if (!it) return;
     const r = b.getBoundingClientRect();
     showMenu(r.left, r.bottom + 2, [
-      ["Thêm tại đầu phát", () => addHere({lib: it.id})],
-      ["Thêm suốt video (tự lặp lại)", () => S.project ? addClip({lib: it.id}, null, 0, total()) : toast("Mở một video trước.", true)],
-      ["Đổi tên…", async () => { const n = prompt("Tên mới:", it.name); if (n) { try { await post("/api/library/rename", {id: it.id, name: n}); poll(); } catch (err) { fail(err); } } }],
+      ["Thêm tại đầu phát", () => addHere({lib: it.id}), "", "plus"],
+      ["Thêm suốt video (tự lặp lại)", () => S.project ? addClip({lib: it.id}, null, 0, total()) : toast("Mở một video trước.", true), "", "repeat"],
+      ["Đổi tên…", async () => { const n = prompt("Tên mới:", it.name); if (n) { try { await post("/api/library/rename", {id: it.id, name: n}); poll(); } catch (err) { fail(err); } } }, "", "pencil"],
       null,
-      ["Xoá khỏi thư viện", async () => { if (!confirm(`Xoá "${it.name}" khỏi thư viện?`)) return; try { await post("/api/library/delete", {id: it.id}); poll(); } catch (err) { fail(err); } }]]);
+      ["Xoá khỏi thư viện", async () => { if (!confirm(`Xoá "${it.name}" khỏi thư viện?`)) return; try { await post("/api/library/delete", {id: it.id}); poll(); } catch (err) { fail(err); } }, "", "trash", true]]);
     return;
   }
   if (b && b.dataset.del) {
@@ -3056,7 +3458,7 @@ function renderAll() {
   const p = S.project, has = !!p;
   $("#drop").style.display = has ? "none" : "flex";
   screenEl.style.display = frameEl.style.display = has ? "block" : "none";
-  $("#transport").style.visibility = has ? "visible" : "hidden";
+  $("#transport").style.display = has ? "" : "none";  // no empty bar under the start screen
   $("#exportBtn").disabled = !has;
   $("#projName").innerHTML = has ? `<b id="projTitle" title="Bấm đúp để đổi tên">${esc(p.name)}</b> · ${p.video.w}×${p.video.h} · loop ${p.video.seconds} giây` : "";
   $("#monName").textContent = has ? p.name : "";
@@ -3074,7 +3476,8 @@ $("#projName").addEventListener("dblclick", e => {
 });
 function renderRecent() {
   const list = ((S.state && S.state.projects) || []).slice(0, 8);
-  $("#recent").innerHTML = list.map(p => `<div class="card" data-open="${p.id}"><img src="/api/thumb?id=${p.id}" alt=""><div>${esc(p.name)}</div></div>`).join("");
+  $("#recent").innerHTML = list.length ? `<div class="recent-title">Mở lại dự án gần đây</div>` +
+    list.map(p => `<div class="card" data-open="${p.id}" title="Mở dự án này"><img src="/api/thumb?id=${p.id}" alt=""><div>${esc(p.name)}</div></div>`).join("") : "";
 }
 $("#recent").addEventListener("click", e => { const c = e.target.closest("[data-open]"); if (c) openProject(c.dataset.open); });
 
@@ -3093,7 +3496,7 @@ function exportDialog() {
     <tr><td>Kích thước</td><td>${v.w}×${v.h}, ${v.fps} khung/giây, như video gốc</td></tr>
     <tr><td>Định dạng</td><td>MP4 (H.264), không âm thanh, loop liền mạch</td></tr>
     <tr><td>Lưu vào</td><td>${esc((S.state && S.state.out_dir) || "Videos\\Bokin FX")}</td></tr></table>
-    ${outside ? `<p style="color:var(--warn)">⚠ ${outside} clip nằm ngoài độ dài video, sẽ không có trong video.</p>` : ""}
+    ${outside ? `<p style="color:var(--warn)">${icon("warn", "lead")}${outside} clip nằm ngoài độ dài video, sẽ không có trong video.</p>` : ""}
     <p style="color:var(--dim);margin-top:0">Đổi độ dài ở thanh Timeline (30 giây / 1 phút). Trong lúc xuất vẫn làm việc khác được.</p>
     <div class="acts"><button id="mCancel">Huỷ</button><button class="primary" id="mGo">Xuất</button></div>`;
   $("#modal").style.display = "flex";
@@ -3378,7 +3781,7 @@ $("#fileStill").onchange = async e => {
     const p = await upload(`/api/upload?kind=still&id=${pid}&name=${encodeURIComponent(f.name)}`, f, "Đang gửi ảnh gốc");
     if (!S.project || S.project.id !== pid) { toast("Đã dùng ảnh gốc cho vùng đứng yên."); return; }
     S.project.still = p.still; S.project.has_still_image = p.has_still_image; S.project.rev = p.rev;
-    toast(p.still.warning ? "⚠ " + p.still.warning : "Đã dùng ảnh gốc cho vùng đứng yên.", !!p.still.warning, 8000);
+    toast(p.still.warning || "Đã dùng ảnh gốc cho vùng đứng yên.", !!p.still.warning, 8000);  // (a warning: the red toast, its own sign)
     renderControls(); styleBase(); refreshExact(); requestAllFx();
   } catch (err) { fail(err); }
 };

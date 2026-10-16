@@ -6,8 +6,8 @@ Premiere Pro:
 - **Thư viện hiệu ứng**: nhập video hiệu ứng có sẵn (nền đen hoặc nền trong suốt) và ảnh PNG. Thư viện dùng chung cho
   mọi dự án.
 - **Timeline**: kéo hiệu ứng xuống track, đặt trong một đoạn thời gian, kéo, cắt bớt, cắt đôi, mờ dần vào/ra.
-- **Xem nhanh**: bấm phát là thấy ngay kết quả. Bật nút **🎯** để khi dừng hình, app hiện khung chính xác như video sẽ
-  xuất ra.
+- **Xem nhanh**: bấm phát là thấy ngay kết quả. Bật nút **Khung chính xác** (hình ô ngắm, cạnh nút lặp lại) để khi dừng
+  hình, app hiện khung chính xác như video sẽ xuất ra.
 - **Vùng đứng yên**: tô chỗ nào trong hình phải đứng yên tuyệt đối. Ở đó app lấy hình từ ảnh gốc, hoặc từ một khung
   của video.
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
@@ -23,9 +23,9 @@ Premiere Pro:
     mờ trắng xoá, lấp lánh, quầng sáng, màu bông ở gần và ở xa.
   - **Nước trên kính**: kính mờ hơi nước làm nhoè cảnh bên ngoài, giọt nước đọng, giọt chảy xuống để lại vệt trong,
     giọt mưa mới bám vào kính; trong mỗi giọt thấy cảnh lộn ngược như thật. Thường dùng cho ô cửa kính: thêm hiệu ứng,
-    rồi **✎ Vẽ vùng** khoanh đúng ô kính (khung cửa thì để ngoài). Muốn mưa rơi bên ngoài: thêm **Mưa** ở track dưới,
-    cũng khoanh vùng ô kính. Lúc phát chỉ xem gần đúng; độ nhoè và cảnh trong giọt nước thấy khi dừng hình và trong
-    video xuất ra.
+    rồi **Vẽ vùng** (nút có hình bút chì) khoanh đúng ô kính (khung cửa thì để ngoài). Muốn mưa rơi bên ngoài: thêm
+    **Mưa** ở track dưới, cũng khoanh vùng ô kính. Lúc phát chỉ xem gần đúng; độ nhoè và cảnh trong giọt nước thấy khi
+    dừng hình và trong video xuất ra.
   - **Khói cốc cà phê** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói cốc cà phê, lửa nến** bên dưới).
 
 ## Cài đặt
@@ -42,7 +42,7 @@ dưới. Khi có bản mới, góc trên có nút **Cập nhật ngay**. Nếu k
 | Vùng | Dùng để |
 |---|---|
 | Trên bên trái: **Bảng chỉnh hiệu ứng** | Chỉnh clip đang chọn: thời gian, mờ dần, hoà trộn, vị trí, cỡ, xoay 3D, vùng |
-| Trên bên phải: **Chương trình** | Xem video. Nút phát, khung trước/sau, phóng to / thu nhỏ hình, **✋ Bàn tay** để dời hình. Cột **Công cụ** bên phải: vẽ vùng, vị trí và cỡ |
+| Trên bên phải: **Chương trình** | Xem video. Nút phát, khung trước/sau, phóng to / thu nhỏ hình, **Bàn tay** (nút hình bàn tay) để dời hình. Cột **Công cụ** bên phải: vẽ vùng, vị trí và cỡ |
 | Dưới bên trái: **Thư viện / Tạo sẵn / Dự án** | Các hiệu ứng để kéo xuống timeline. Các dự án đã mở |
 | Dưới bên phải: **Timeline** | V1 là video gốc (lặp lại thành 30 giây hoặc 1 phút). V2, V3… là các track hiệu ứng |
 
@@ -59,10 +59,11 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
      hết file (file loop) thì chỗ nối không mờ dần, nên hai bản nối vào nhau liền mạch. Hai clip khác nhau nối liền
      thì vẫn mờ dần ở chỗ nối; muốn chuyển mượt thì dùng Mix (bên dưới).
    - Muốn hiệu ứng chạy suốt video và tự lặp liền mạch: bấm **Suốt video** trong Bảng chỉnh hiệu ứng.
-   - **Hiệu ứng nối Mix** (như CapCut): ở chỗ hai clip nối nhau trên cùng một track có nút **⧓**. Bấm vào là hai clip
-     hoà dần vào nhau (mặc định 0,5 giây, mỗi bên chỗ nối một nửa). Chỉnh độ dài hoặc bỏ Mix ở mục **Chuyển cảnh**
-     trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip. Nhấn giữ trên nút **⧓** rồi kéo sang trái/phải thì
-     kéo đầu/cuối clip ở bên đó như bình thường. Xoá hay kéo một clip ra chỗ khác thì Mix ở chỗ nối đó cũng bỏ.
+   - **Hiệu ứng nối Mix** (như CapCut): ở chỗ hai clip nối nhau trên cùng một track có nút **Mix** (hai vòng tròn
+     chồng nhau). Bấm vào là hai clip hoà dần vào nhau (mặc định 0,5 giây, mỗi bên chỗ nối một nửa). Chỉnh độ dài hoặc
+     bỏ Mix ở mục **Chuyển cảnh** trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip. Nhấn giữ trên nút **Mix**
+     rồi kéo sang trái/phải thì kéo đầu/cuối clip ở bên đó như bình thường. Xoá hay kéo một clip ra chỗ khác thì Mix ở
+     chỗ nối đó cũng bỏ.
 5. **Chỉnh clip**: bấm vào clip trên timeline, rồi chỉnh ở **Bảng chỉnh hiệu ứng**:
    - **Thời gian**: bắt đầu, kết thúc, mờ dần vào/ra. Gõ số giây (`2.5` hay `2,5` đều được), rồi bấm Enter.
    - **Hoà trộn**: video hiệu ứng trên nền đen dùng **Screen**. File nền trong suốt dùng **Bình thường**. App tự chọn
@@ -81,14 +82,15 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
      hình (lăn chuột xuống, hoặc chọn **25%**) để thấy vùng tối quanh khung. Chọn clip (bấm nó trên timeline, hoặc bấm
      phần của nó trong khung hình): phần ngoài khung của nó hiện mờ ở vùng tối, kéo khung trắng hoặc kéo góc của nó như
      bình thường (xem [Phóng to, thu nhỏ, dời hình](#phóng-to-thu-nhỏ-dời-hình)).
-   - **Vùng**: bấm **✎ Vẽ vùng** để tô chỗ hiệu ứng được hiện.
-6. **Vùng đứng yên và tiền cảnh**: bấm vào **V1 Video gốc** trên timeline, rồi bấm **✎ Vẽ vùng đứng yên** hoặc
-   **✎ Vẽ tiền cảnh**.
+   - **Vùng**: bấm **Vẽ vùng** để tô chỗ hiệu ứng được hiện.
+6. **Vùng đứng yên và tiền cảnh**: bấm vào **V1 Video gốc** trên timeline, rồi bấm **Vẽ vùng đứng yên** hoặc
+   **Vẽ tiền cảnh**.
    - **Đổi video gốc**: bấm vào **V1 Video gốc** rồi **Đổi video gốc…**, hoặc kéo file video thả vào hàng V1.
      Timeline, các clip và vùng đã vẽ được giữ nguyên (thời gian clip giữ theo giây). Clip nằm sau cuối video mới
      được dời lên trước. Ảnh gốc của vùng đứng yên được khớp lại theo cỡ video mới.
-7. **Xem**: bấm **▶** (hoặc phím cách). Dừng thì hình đứng yên đúng khung đang thấy. Muốn xem đúng như video sẽ
-   xuất ra, bật **🎯 Khung chính xác** rồi dừng hình (app dựng khung đó, mất chút thời gian).
+7. **Xem**: bấm nút phát (nút tròn màu xanh dưới hình) hoặc phím cách. Dừng thì hình đứng yên đúng khung đang thấy.
+   Muốn xem đúng như video sẽ xuất ra, bật nút **Khung chính xác** (hình ô ngắm) rồi dừng hình (app dựng khung đó, mất
+   chút thời gian).
 8. **Xuất video**: bấm **Xuất video** ở góc trên bên phải. Video nằm trong thư mục **Videos\Bokin FX**.
 
 ### Timeline
@@ -97,13 +99,13 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 |---|---|
 | Di chuyển clip | Kéo clip. Kéo lên hàng **+ track mới** để tạo track mới |
 | Cắt bớt đầu / cuối | Kéo mép trái / phải của clip |
-| Cắt đôi | Chọn dao cắt ✂ (phím `C`) rồi bấm vào clip. Hoặc `Ctrl+K`: cắt clip đang chọn tại đầu phát (không chọn clip nào thì cắt mọi clip ở đầu phát). Không cắt ở chỗ clip đang mờ dần |
+| Cắt đôi | Chọn dao cắt (hình cái kéo, phím `C`) rồi bấm vào clip. Hoặc `Ctrl+K`: cắt clip đang chọn tại đầu phát (không chọn clip nào thì cắt mọi clip ở đầu phát). Không cắt ở chỗ clip đang mờ dần |
 | Nhân đôi (nhân bản) | Nút **Nhân đôi** trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip: bản sao nối ngay sau. Giữ `Alt` rồi kéo clip: bản sao đặt ở chỗ thả |
 | Xoá clip | Chọn clip rồi bấm `Delete` |
-| Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` (hoặc `Ctrl+Shift+Z`), hoặc nút **↶ ↷** ở đầu thanh timeline. Hoàn tác được cả vùng đã vẽ (cả lần vẽ là một bước) |
-| Ẩn một track | Bấm 👁 ở đầu track |
+| Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` (hoặc `Ctrl+Shift+Z`), hoặc hai nút mũi tên cong ở đầu thanh timeline. Hoàn tác được cả vùng đã vẽ (cả lần vẽ là một bước) |
+| Ẩn một track | Bấm hình con mắt ở đầu track (bấm lại để hiện) |
 | Phóng to timeline | Kéo thanh trượt ở góc phải, phím `+` `-` khi chuột ở trên timeline, hoặc `Ctrl` + lăn chuột. Phím `\` để xem cả timeline |
-| Bám dính | Nút 🧲 (phím `S`): clip bám vào đầu phát, mép clip khác và chỗ nối loop |
+| Bám dính | Nút hình nam châm (phím `S`): clip bám vào đầu phát, mép clip khác và chỗ nối loop |
 
 Clip chạy suốt video tự nối liền mạch ở chỗ video lặp lại. Clip ngắn hơn luôn mờ dần ở đầu và cuối video, để chỗ
 nối không bị giật.
@@ -115,11 +117,11 @@ hiện trong cột đó, hình không bị thu nhỏ.
 
 | Thao tác | Cách làm |
 |---|---|
-| Tô | Chọn **🖌 Cọ** rồi kéo chuột. Chỉnh **Cỡ**, hoặc bấm phím `[` `]` |
-| Khoanh vùng | Chọn **⬠ Khoanh**, bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (nó sáng vòng vàng khi chuột tới gần), bấm đúp, bấm **Khép vùng** hoặc Enter. Bấm **Xong** khi chưa khép thì vùng cũng được khép. `Backspace` bỏ điểm cuối |
-| Thêm / bớt | **＋ Thêm**, **－ Bớt** (phím `X` để đổi). Ở chế độ Bớt, nét và đường khoanh có màu đỏ |
+| Tô | Chọn **Cọ** rồi kéo chuột. Chỉnh **Cỡ**, hoặc bấm phím `[` `]` |
+| Khoanh vùng | Chọn **Khoanh**, bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (nó sáng vòng vàng khi chuột tới gần), bấm đúp, bấm **Khép vùng** hoặc Enter. Bấm **Xong** khi chưa khép thì vùng cũng được khép. `Backspace` bỏ điểm cuối |
+| Thêm / bớt | **Thêm** (dấu +), **Bớt** (dấu −) (phím `X` để đổi). Ở chế độ Bớt, nét và đường khoanh có màu đỏ |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` |
-| Phóng to, kéo hình | Lăn chuột trên hình để phóng to / thu nhỏ. Bấm **✋** (phím `H`) rồi kéo, rồi `Esc` (hoặc chọn **Cọ** / **Khoanh**) để tô tiếp. Hoặc giữ chuột phải (hoặc phím cách) rồi kéo. Vẫn tô đúng chỗ chuột |
+| Phóng to, kéo hình | Lăn chuột trên hình để phóng to / thu nhỏ. Bấm nút **Bàn tay** (phím `H`) rồi kéo, rồi `Esc` (hoặc chọn **Cọ** / **Khoanh**) để tô tiếp. Hoặc giữ chuột phải (hoặc phím cách) rồi kéo. Vẫn tô đúng chỗ chuột |
 | Xoá cả vùng | **Xoá vùng** (vùng đứng yên, tiền cảnh) hoặc **Cả khung hình** (vùng của clip). Bấm `Ctrl+Z` để lấy lại |
 | Xong | Bấm **Xong** hoặc `Esc`. Vùng của clip vẫn hiện bằng viền xanh để bạn kéo clip vào đúng chỗ (tắt bằng ô **Hiện vùng của clip**) |
 
@@ -139,8 +141,8 @@ viền khung là đường kẻ mảnh: cái gì nằm ở vùng tối thì khô
 
 | Thao tác | Cách làm |
 |---|---|
-| Phóng to / thu nhỏ | Lăn chuột trên hình: phóng quanh chỗ chuột. Phím `+` `-` (khi chuột ở trên hình) và `Ctrl` `+` / `Ctrl` `-` cũng phóng quanh chỗ chuột. Nút **−** **+** và ô cỡ hình (10%, 25%, 50%, Vừa khung, 100%, 200%, 400%): phóng quanh giữa |
-| Dời hình | Bấm nút **✋ Bàn tay** cạnh ô cỡ hình (phím `H`) rồi kéo. Bấm `Esc` hoặc `V` để thôi. Giữ `H` mà kéo thì thả `H` là thôi. Lúc nào cũng dời được: giữ chuột phải, nút giữa (bánh xe) hoặc phím cách rồi kéo (bấm phím cách rồi thả mà không kéo: phát / dừng như cũ) |
+| Phóng to / thu nhỏ | Lăn chuột trên hình: phóng quanh chỗ chuột. Phím `+` `-` (khi chuột ở trên hình) và `Ctrl` `+` / `Ctrl` `-` cũng phóng quanh chỗ chuột. Hai nút kính lúp (−, +) và ô cỡ hình (10%, 25%, 50%, Vừa khung, 100%, 200%, 400%): phóng quanh giữa |
+| Dời hình | Bấm nút **Bàn tay** (hình bàn tay) cạnh ô cỡ hình (phím `H`) rồi kéo. Bấm `Esc` hoặc `V` để thôi. Giữ `H` mà kéo thì thả `H` là thôi. Lúc nào cũng dời được: giữ chuột phải, nút giữa (bánh xe) hoặc phím cách rồi kéo (bấm phím cách rồi thả mà không kéo: phát / dừng như cũ) |
 | Dời ngang bằng chuột | `Shift` + lăn chuột |
 | Bàn di chuột (laptop) | Trượt hai ngón: dời hình. Chụm / mở hai ngón: thu nhỏ / phóng to |
 | Về vừa khung, ở giữa | `Ctrl` `0`, phím `\` khi chuột ở trên hình, chọn **Vừa khung**, hoặc bấm đúp vào vùng tối quanh hình |
@@ -158,7 +160,7 @@ dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong 
 
 **Khói cốc cà phê**
 
-1. Bấm **Tạo sẵn** → **☕ Khói cốc cà phê**, kéo xuống một track trống (hàng ghi **trống**).
+1. Bấm **Tạo sẵn** → **Khói cốc cà phê**, kéo xuống một track trống (hàng ghi **trống**).
 2. Kéo khung trắng lên cốc: **vạch vàng** ở đáy khung nằm ngang miệng cốc. Kéo góc cho vạch dài bằng miệng cốc.
 3. Chọn **Kiểu**: hơi nóng nhẹ, khói đậm, khói lượn dài, khói bay nghiêng theo gió. Chỉnh thêm lượng khói, độ cao,
    độ loe, uốn lượn, gió, màu khói.
@@ -166,9 +168,9 @@ dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong 
 
 **Lửa nến** (sửa ngọn nến bị lỗi trong video gốc)
 
-1. Nếu lửa trong video giật, méo hay biến mất ở chỗ loop: bấm **V1 Video gốc**, rồi **✎ Vẽ vùng đứng yên**, tô lên
+1. Nếu lửa trong video giật, méo hay biến mất ở chỗ loop: bấm **V1 Video gốc**, rồi **Vẽ vùng đứng yên**, tô lên
    ngọn lửa. Dời đầu phát tới khung có lửa đẹp, bấm **Dùng khung đang xem**. Lửa lúc này đứng yên, không còn lỗi.
-2. Bấm **Tạo sẵn** → **🕯 Lửa nến**, kéo xuống một track trống (hàng ghi **trống**).
+2. Bấm **Tạo sẵn** → **Lửa nến**, kéo xuống một track trống (hàng ghi **trống**).
 3. Kéo khung trắng cho **vạch vàng dưới** (ghi "đầu bấc") nằm ở chân ngọn lửa. Rồi kéo góc khung cho **vạch vàng
    trên** (ghi "đỉnh lửa") chạm đỉnh ngọn lửa: khi kéo góc, vạch dưới đứng yên. Phần trống phía trên là chỗ cho quầng
    sáng.
@@ -199,7 +201,7 @@ khi cần đặt mưa, ánh sáng… nằm đúng một ô cửa kính nhìn t�
    - **Độ sâu phối cảnh**: 0 là phẳng (không có xa gần). Số càng lớn thì phần ở gần càng to, phần ở xa càng nhỏ, như
      khi nhìn ô cửa từ chỗ đứng gần.
    - **Đặt lại xoay**: bỏ hết nghiêng và xoay, clip thẳng lại như lúc đầu.
-6. Muốn hiệu ứng chỉ hiện trong ô kính: **✎ Vẽ vùng** khoanh đúng ô kính như bình thường.
+6. Muốn hiệu ứng chỉ hiện trong ô kính: **Vẽ vùng** khoanh đúng ô kính như bình thường.
 
 Lúc xem nhanh và trong video xuất ra, clip nằm đúng cùng một chỗ. `Ctrl+Z` hoàn tác được mọi lần xoay. Khói cốc cà
 phê và lửa nến không xoay 3D.
