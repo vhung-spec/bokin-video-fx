@@ -86,8 +86,10 @@ class Params(unittest.TestCase):
         self.assertEqual(p["wind"], -100)
         self.assertEqual(p["color"], "#ffffff")
         self.assertNotIn("junk", p)
-        p = effects.clean_params("leaves", {"style": "../../etc"})
-        self.assertEqual(p["style"], "autumn")
+        p = effects.clean_params("leaves", {"shape": "../../etc", "season": None, "red": "x"})
+        self.assertEqual((p["shape"], p["season"], p["red"]), ("maple", "mixed", 40))
+        p = effects.clean_params("leaves", {"style": "../../etc"})  # (an old clip's: its leaves, in autumn colours)
+        self.assertEqual((p["shape"], p["season"]), ("mixed", "redgold"))
         p = effects.clean_params("file", {"fade": "1.26", "start": float("nan")})
         self.assertEqual((p["fade"], p["start"]), (1.3, 0))
 

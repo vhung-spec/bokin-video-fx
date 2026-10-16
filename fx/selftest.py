@@ -78,7 +78,10 @@ def periodic_checks():
     yy, xx = np.mgrid[0:360, 0:640]
     scene = np.dstack([0.2 + 0.5 * (((xx // 16) + (yy // 16)) % 2), 0.3 + 0.4 * xx / 640, 0.25 + 0.5 * yy / 360])
     for kind in effects.KINDS:
-        for extra in ({}, {"wind": -80, "speed": 100}, {"style": "dust"} if kind == "glow" else {"wind": 60}):
+        third = {"style": "dust"} if kind == "glow" else {"wind": 60}
+        if kind == "leaves":  # every way a leaf falls, and both kinds of leaf
+            third = {"wind": 60, "gust": 80, "spin": 100, "shape": "mixed"}
+        for extra in ({}, {"wind": -80, "speed": 100}, third):
             fx = effects.make(kind, extra, 5, P, FPS, 640, 360)
             canvas = effects.Canvas(640, 360)
             frames = []
