@@ -108,7 +108,7 @@ header .prep { color: var(--dim); font-size: 12px; }
 .xform .xmark[data-lab]::after { content: attr(data-lab); position: absolute; left: 100%; top: -8px; margin-left: 5px;
   font-size: 11px; line-height: 14px; color: #ffd84d; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
 .xform .xmark.dot[data-lab]::after { top: 50%; margin-top: -7px; }
-/* turning a file clip: a round knob on a stem above the box (Z), a "3D" handle in its middle (tilt) */
+/* turning a file clip: a round knob on a stem above the box (Z), a "3D" handle beside it (tilt) */
 .xform .xrot { position: absolute; left: 50%; top: -27px; width: 13px; height: 13px; margin-left: -7px; border-radius: 50%;
   background: #fff; border: 1px solid #222; cursor: grab; display: none; }
 .xform .xrot::before { content: ""; position: absolute; left: 5px; top: 12px; width: 1px; height: 14px; background: #fff; box-shadow: 0 0 0 1px #0006; }
@@ -1198,25 +1198,48 @@ function showXform() {  // the box of the selected file clip, over the picture
   xform.classList.toggle("off", !now);
   xform.style.pointerEvents = now ? "" : "none";  // not at this time: an outline only, clicks go to what is shown
   const q = turn ? quad(c) : [[r.x, r.y], [r.x + r.w, r.y + r.h]], xs = q.map(p => ox + p[0] * kx), ys = q.map(p => oy + p[1] * ky);
-  xformLab.textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}` +
-    (turn ? ` · xoay ${num(c.params.rot_x)}°, ${num(c.params.rot_y)}°, ${num(c.params.rot_z)}°` : "");
-  Object.assign(xformLab.style, {display: "block", left: Math.min(...xs) + "px", top: Math.min(...ys) - 20 + "px"});
   const spin = c.kind === "file";  // only a file clip turns (a built-in effect at one place does not)
   xformRot.style.display = spin ? "block" : "none";
+  const keep = [];  // what the name tag must not cover: the knob and "3D" (stage pixels)
   if (spin) {  // the knob above the top edge; with no room there (a clip bigger than the picture), the first place
     // down the box's middle line that can be seen
-    const {m} = homography(flat, r, W, H), seen = v => {
-      const [px, py, pw] = project(m, r.w / 2, v), sx = ox + px * kx, sy = oy + py * ky;
-      return pw > 0 && sx > 10 && sx < st.width - 10 && sy > 10 && sy < st.height - 10;
-    };
+    const {m} = homography(flat, r, W, H), on = (u, v) => { const [px, py, pw] = project(m, u, v); return [ox + px * kx, oy + py * ky, pw]; };
+    const seen = v => { const [sx, sy, pw] = on(r.w / 2, v); return pw > 0 && sx > 10 && sx < st.width - 10 && sy > 10 && sy < st.height - 10; };
     const steps = [-20.5 / ky, ...Array.from({length: 40}, (_, i) => (20.5 + i * Math.max(0, bh - 41) / 39) / ky)];
-    const at = steps.find(seen);
+    const at = steps.find(seen), v = at === undefined ? steps[1] : at;
     xformRot.classList.toggle("in", at !== steps[0]);
-    xformRot.style.top = ((at === undefined ? steps[1] : at) * ky - 7) + "px";
-  }
-  // "3D" in the middle of the picture (where it turns about), when there is room around it for the box to be dragged
-  const room = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) >= 60;
-  Object.assign(xform3d.style, {display: spin && now && room ? "block" : "none", left: ox + (r.x + r.w / 2) * kx + "px", top: oy + (r.y + r.h / 2) * ky + "px"});
+    xformRot.style.top = (v * ky - 7) + "px";
+    const [kcx, kcy] = on(r.w / 2, v), [tx, ty] = at === steps[0] ? on(r.w / 2, 0) : [kcx, kcy];  // (and its stem)
+    keep.push([Math.min(kcx, tx) - 8, Math.min(kcy, ty) - 8, Math.max(kcx, tx) + 8, Math.max(kcy, ty) + 8]);
+    // "3D" just beside the knob, along the top edge (never on the clip's middle, where a press moves it); left
+    // where it is while it is dragged (it does not run off under the pointer)
+    const tilting = S.xdrag && S.xdrag.h === "tilt";
+    if (!tilting) {
+      const [ex, ey] = on(r.w / 2 + 1 / kx, v);
+      let dx = ex - kcx, dy = ey - kcy; const n = Math.hypot(dx, dy);
+      if (n > 1e-6) { dx /= n; dy /= n; } else { dx = 1; dy = 0; }
+      const far = 7 + 6 + 17 * Math.abs(dx) + 11 * Math.abs(dy);  // from the knob's middle to the handle's
+      const fits = (x, y) => x > 21 && x < st.width - 21 && y > 15 && y < st.height - 15;
+      let hx = kcx + dx * far, hy = kcy + dy * far;
+      if (!fits(hx, hy) && fits(kcx - dx * far, kcy - dy * far)) { hx = kcx - dx * far; hy = kcy - dy * far; }
+      Object.assign(xform3d.style, {left: clamp(hx, 21, st.width - 21) + "px", top: clamp(hy, 15, st.height - 15) + "px"});
+    }
+    xform3d.style.display = now || tilting ? "block" : "none";
+    if (xform3d.style.display === "block") {
+      const hx = parseFloat(xform3d.style.left), hy = parseFloat(xform3d.style.top);
+      keep.push([hx - 18, hy - 12, hx + 18, hy + 12]);
+    }
+  } else xform3d.style.display = "none";
+  // the name tag above the box's top left corner; if the knob or "3D" is there, below the box, else above them
+  xformLab.textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}` +
+    (turn ? ` · xoay ${num(c.params.rot_x)}°, ${num(c.params.rot_y)}°, ${num(c.params.rot_z)}°` : "");
+  xformLab.style.display = "block";
+  const lw = xformLab.offsetWidth, lh = xformLab.offsetHeight, x0 = Math.min(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const tops = [y0 - lh - 3, y1 + 4, Math.min(y0, ...keep.map(k => k[1])) - lh - 3];
+  const spots = tops.map(t => [clamp(x0, 0, Math.max(0, st.width - lw)), clamp(t, 0, Math.max(0, st.height - lh))]);
+  const free = ([x, y]) => keep.every(k => x + lw <= k[0] || x >= k[2] || y + lh <= k[1] || y >= k[3]);
+  const [lx, ly] = spots.find(free) || spots[0];
+  Object.assign(xformLab.style, {left: lx + "px", top: ly + "px"});
   // where the thing it belongs to goes: a cup's mouth (a flat ellipse on the bottom edge), a candle's wick (a line)
   const sch = S.schema.kinds[c.kind], mk = $("#xformMark"), tip = $("#xformTip");
   const line = (el, at, w, hint, lab) => {  // a level line at `at` (fractions of the box)
@@ -1239,14 +1262,15 @@ function placeParam(c, key, v) {  // on the parameter's own step (a twentieth of
   const d = S.schema.kinds[c.kind].params.find(x => x.key === key), step = d.step || 1;
   return clamp(+(Math.round(v / step) * step).toFixed(3), d.min, d.max);
 }
-function startXdrag(e, el = xform) {  // a press on the selected clip's box, on its picture, or on "3D" (el)
+function startXdrag(e, el = xform) {  // a press on the selected clip's box, on its picture, on its knob or on "3D" (el)
   const c = clipById(S.sel); if (!c || xform.style.display !== "block") return;
   e.preventDefault();
+  blurField();  // (no default focus change: a number field left with the focus would take Ctrl+Z and the arrows)
   el.setPointerCapture(e.pointerId);
   const sc = screenEl.getBoundingClientRect(), xr = xform.getBoundingClientRect(), r0 = placed(c);
   // the clip's middle on the screen: a turned clip turns about it (and its box's outline is no longer the clip's)
   const cx = sc.left + (r0.x + r0.w / 2) / info().w * sc.width, cy = sc.top + (r0.y + r0.h / 2) / info().h * sc.height;
-  const h = el === xform3d ? "tilt" : e.target.dataset.h || "";  // a corner: nw, ne, sw, se; "rot": the round knob
+  const h = el === xform3d ? "tilt" : el === xformRot ? "rot" : e.target.dataset.h || "";  // a corner: nw, ne, sw, se
   const ox = h.includes("w") ? xr.right : xr.left, oy = h.includes("n") ? xr.bottom : xr.top;  // the corner opposite
   S.xdrag = {c, scale: h.length === 2, h, x0: e.clientX, y0: e.clientY, p0: Object.assign({}, c.params), r0, sc, cx, cy, ox, oy,
     d0: Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy)), a0: Math.atan2(e.clientY - cy, e.clientX - cx)};
@@ -1254,6 +1278,10 @@ function startXdrag(e, el = xform) {  // a press on the selected clip's box, on 
   if (S.schema.under[c.kind]) applyTime();  // its preview clip hides while it moves
 }
 const XFORM_KEYS = ["x", "y", "scale", ...ROT_KEYS];
+function blurField() {  // a press on the picture: a field of the panel lets go (Ctrl+Z, the arrows, Space are the app's again)
+  const a = document.activeElement;
+  if (a && a !== document.body && a.matches("input, select, textarea")) a.blur();
+}
 function showParam(key, v) {  // a setting changed on the picture: its slider (and number) in the panel follow
   const input = $(`#ec input[type=range][data-param="${key}"]`), lab = $("#v-" + key);
   if (input) input.value = v;
@@ -1262,8 +1290,10 @@ function showParam(key, v) {  // a setting changed on the picture: its slider (a
 xform.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;
   e.stopPropagation();
-  S.xdowns = [(S.xdowns || [])[1], {id: S.sel, t: e.timeStamp}];  // the last two presses: a double-click is on one clip
-  startXdrag(e);
+  // the last two presses: a double-click is on one clip (on its box, or both on its knob)
+  const knob = e.target === xformRot;
+  S.xdowns = [(S.xdowns || [])[1], {id: S.sel, t: e.timeStamp, knob}];
+  startXdrag(e, knob ? xformRot : xform);  // the knob keeps the pointer itself: its clicks are its own
 });
 xform3d.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;
@@ -1313,7 +1343,7 @@ function endXdrag() {
     invalidateExact();  // the exact frame is asked for once the save is in (sendSave)
   } else refreshExact();
 }
-for (const el of [xform, xform3d]) {
+for (const el of [xform, xform3d]) {  // (the knob's own events come up through the box)
   el.addEventListener("pointermove", moveXdrag);
   el.addEventListener("pointerup", endXdrag);
   el.addEventListener("pointercancel", endXdrag);
@@ -1325,7 +1355,10 @@ xform3d.addEventListener("dblclick", e => {  // upright again (its turn in the p
 xform.addEventListener("dblclick", e => {  // back to the middle, at its size
   const c = clipById(S.sel), [a, b] = S.xdowns || [];
   e.stopPropagation();
-  if (c && e.target === xformRot) { if (+c.params.rot_z) { c.params.rot_z = 0; edited(); } return; }  // the knob: 0°
+  if (e.target === xformRot || (a && a.knob) || (b && b.knob)) {  // the knob: its turn in the plane back to 0°
+    if (c && e.target === xformRot && +c.params.rot_z) { c.params.rot_z = 0; edited(); }
+    return;
+  }
   // both clicks on this clip's box: not the click that selected it on the picture, then one on the box
   if (!c || !a || !b || a.id !== c.id || b.id !== c.id || a.picked || b.t - a.t > 800) return;
   c.params.x = 0; c.params.y = 0; edited();
@@ -1697,7 +1730,7 @@ function renderTools() {  // the tool column at the right of the monitor: painti
       ${c.kind === "file" ? `<h5>Xoay 3D</h5>
       <div class="lab" title="Nghiêng trước / sau, xoay trái / phải, xoay phẳng"><span>Góc</span><b>${num(c.params.rot_x || 0)}°, ${num(c.params.rot_y || 0)}°, ${num(c.params.rot_z || 0)}°</b></div>
       <button class="small wide" data-rotreset="1" ${turned(c) ? "" : "disabled"} title="Thẳng lại như lúc đầu">Đặt lại xoay</button>
-      <p class="tip">Kéo nút tròn trên khung để xoay phẳng (giữ Shift: từng nấc 15°). Kéo nút 3D giữa khung để nghiêng, ví dụ cho mưa nằm đúng ô cửa nhìn chéo.</p>` : ""}` : "";
+      <p class="tip">Kéo nút tròn trên khung để xoay phẳng (giữ Shift: từng nấc 15°). Kéo nút 3D cạnh nút tròn để nghiêng, ví dụ cho mưa nằm đúng ô cửa nhìn chéo.</p>` : ""}` : "";
   el.innerHTML = `<h5>Vẽ vùng</h5>
     <button class="wide" data-paint="freeze" title="Chỗ phải đứng yên tuyệt đối"><span style="color:${COLORS.freeze}">●</span> Vùng đứng yên</button>
     <button class="wide" data-paint="fg" title="Vật ở gần: che các clip bay ra sau tiền cảnh"><span style="color:${COLORS.fg}">●</span> Tiền cảnh</button>
@@ -1865,6 +1898,7 @@ function closePoly() {
 let panning = null, lastPt = null, painting = false;
 stage.addEventListener("pointerdown", e => {
   if (!S.project) return;
+  blurField();
   if (e.button === 1 || e.button === 2 || (e.button === 0 && S.space)) {
     if (S.zoom === "fit") { S.zoom = String(S.scale * fitSize().w * devicePixelRatio / info().w); $("#zoomSel").value = ""; }
     panning = {x: e.clientX, y: e.clientY, px: S.panX, py: S.panY}; stage.setPointerCapture(e.pointerId); e.preventDefault(); return;
@@ -2591,7 +2625,7 @@ function renderControls() {
       <h4>Vị trí và cỡ</h4>${by.fit}${by.scale}${by.x}${by.y}<div class="flips">${by.flip_h}${by.flip_v}</div>
       <h4>Xoay 3D</h4>${turn}
       <div class="btns"><button class="small" id="rotReset" title="Thẳng lại như lúc đầu: không nghiêng, không xoay">Đặt lại xoay</button></div>
-      <p class="note">Trên hình: kéo nút tròn phía trên khung để xoay phẳng, kéo nút <b>3D</b> giữa khung để nghiêng (sang ngang: xoay trái / phải, lên xuống: nghiêng trước / sau). Độ sâu phối cảnh: 0 là phẳng, càng lớn thì phần ở gần càng to, như nhìn ô cửa từ một góc.</p>
+      <p class="note">Trên hình: kéo nút tròn phía trên khung để xoay phẳng, kéo nút <b>3D</b> cạnh nút tròn để nghiêng (sang ngang: xoay trái / phải, lên xuống: nghiêng trước / sau). Độ sâu phối cảnh: 0 là phẳng, càng lớn thì phần ở gần càng to, như nhìn ô cửa từ một góc.</p>
       ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}${by.reverse}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}
       <h4>Màu sắc</h4>${by.bright}${by.contrast}${by.sat}${by.hue}${by.temp}${by.tint_amt}${by.tint}
       <div class="btns"><button class="small" id="colourReset" ${colourOps(c.params) ? "" : "disabled"}>Đặt lại màu như file gốc</button></div>
@@ -2781,6 +2815,7 @@ $("#ec").addEventListener("change", e => {
   }
   remember();
   if (t.dataset.param && t.tagName === "SELECT") renderControls();
+  else if (t.dataset.param && XFORM_KEYS.includes(t.dataset.param) && !S.paint) renderTools();  // its numbers, "Đặt lại xoay"
 });
 
 // --- library, built-in effects and projects (the bin) --------------------------------------------------
@@ -3100,6 +3135,11 @@ document.addEventListener("keydown", e => {
     e.preventDefault();
     if (zk === "0") zoomPicture("fit"); else if (zk === "1") zoomPicture("100"); else zoomPicture(zk === "-" || zk === "_" ? 1 / 1.25 : 1.25);
     return;
+  }
+  if (e.target.matches("input[data-num]")) {  // a number typed next to its slider (applied as it is typed)
+    if (e.key === "Enter") { e.preventDefault(); e.target.blur(); return; }  // kept: the keys are the app's again
+    // undo is the app's (the field's own text undo would turn the clip as it goes): the number is kept, then undone
+    if (ctrlKey && ["z", "y"].includes(zk.toLowerCase())) { e.preventDefault(); e.target.blur(); undo(zk.toLowerCase() === "y" || e.shiftKey); return; }
   }
   if (e.target.matches("input[type=text], input[type=number], textarea")) return;
   if (e.target.matches("select") && !ctrlKey) return;  // (its own keys pick an option; Ctrl+Z still undoes)

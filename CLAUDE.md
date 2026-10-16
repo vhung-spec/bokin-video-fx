@@ -76,8 +76,11 @@ hiệu ứng. Cách dùng: `README.md`.
   `quad`, `turnCSS`) dùng cùng một ma trận, đúng như CSS `perspective(d) rotateX rotateY rotateZ scale(lật)` quanh tâm
   clip (y hướng xuống; `d` theo đường chéo khung, lùi ra khi một góc tới quá gần mắt: `NEAR`). Renderer nắn hình bằng
   Pillow `PERSPECTIVE` (bicubic), chỉ đọc phần nguồn đang hiện trong khung, mép mềm `coverage()`. Ba góc bằng 0: đường
-  cũ, giống hệt từng byte. `#xform` xoay theo clip (bỏ lật), nút tròn `#xformRot` xoay phẳng, nút `#xform3d` nghiêng;
-  chọn clip trên hình theo tứ giác (`hitsClip`). Hiệu ứng tạo sẵn đặt một chỗ không xoay. CI so góc trang với Python.
+  cũ, giống hệt từng byte. Phần nguồn đọc ở cỡ phép nắn cần (`jacobians()`: một điểm ảnh của phần đọc không lớn hơn
+  một điểm ảnh khung chỗ hình to nhất, không mịn hơn file gốc), mép lặp ra đủ xa cho phía xa của mặt nghiêng
+  (`_pad_for`). `#xform` xoay theo clip (bỏ lật), nút tròn `#xformRot` xoay phẳng (giữ con trỏ riêng: bấm đúp là
+  của nó), nút `#xform3d` nằm cạnh nút tròn (không ở giữa: giữa khung là để dời) và nghiêng; nhãn tên tránh hai
+  nút. Chọn clip trên hình theo tứ giác (`hitsClip`). Hiệu ứng tạo sẵn đặt một chỗ không xoay. CI so góc trang với Python.
 - Màu của clip file: `overlay.colour_ops` (đường cong tông giữ đen là đen, rồi ma trận màu) và trang dựng đúng các số
   đó thành bộ lọc SVG (`colourOps`, `colourFilter`, `feComponentTransfer` bảng + `feColorMatrix`, sRGB).
 - Hoàn tác: `S.hist` giữ timeline và cả lần vẽ vùng (mặt nạ trước/sau, chỉ 8 lần gần nhất). Phóng to hình:

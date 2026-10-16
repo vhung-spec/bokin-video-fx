@@ -73,7 +73,7 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
    - **Vị trí và cỡ**, **Độ đậm**. Với video/ảnh ngoài, chọn clip là trên màn hình hiện một khung trắng: kéo bên trong
      khung để di chuyển, kéo một góc để phóng to/thu nhỏ (góc đối diện đứng yên, như Premiere; giữ `Alt` để đổi cỡ
      quanh tâm), bấm đúp để đưa về giữa. Giữ `Shift` để đi thẳng. **Lật ngang**, **Lật dọc**: ô đánh dấu bên dưới.
-     **Xoay 3D**: nút tròn trên khung để xoay, nút **3D** giữa khung để nghiêng (xem mục **Xoay 3D** bên dưới).
+     **Xoay 3D**: nút tròn trên khung để xoay, nút **3D** cạnh nút tròn để nghiêng (xem mục **Xoay 3D** bên dưới).
      **Phát ngược** (tua ngược, chỉ với video): ô trong mục **Phát file**; lần đầu app làm sẵn một bản phát ngược của
      file (vài giây đến vài phút), clip hiện lại khi xong. Bấm vào
      hình của một clip trên màn hình để chọn clip đó; bấm rồi kéo luôn để di chuyển nó. Phóng to màn hình để đặt
@@ -167,14 +167,15 @@ khi phát chỉ thấy video gốc ở chỗ ngọn nến.
 Video hoặc ảnh nhập từ ngoài xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng
 khi cần đặt mưa, ánh sáng… nằm đúng một ô cửa kính nhìn từ một góc.
 
-1. Chọn clip (video / ảnh ngoài). Trên hình có khung trắng, một **nút tròn** phía trên khung và nút **3D** ở giữa.
+1. Chọn clip (video / ảnh ngoài). Trên hình có khung trắng, một **nút tròn** phía trên khung và nút **3D** ngay cạnh
+   nút tròn.
 2. **Xoay phẳng**: kéo nút tròn vòng quanh khung. Giữ `Shift` để xoay từng nấc 15°. Bấm đúp nút tròn: về 0°.
 3. **Nghiêng**: nhấn giữ nút **3D** rồi kéo. Kéo sang trái / phải: clip xoay trái / phải. Kéo lên / xuống: clip nghiêng
    trước / sau. Giữ `Shift` để chỉ đi một hướng. Bấm đúp nút **3D**: thẳng lại (vẫn giữ góc xoay phẳng).
-4. Kéo bên trong khung để dời clip, kéo một góc để đổi cỡ (khi đã xoay, cỡ đổi quanh tâm). Kéo cho bốn góc của clip
-   nằm đúng bốn góc ô cửa.
+4. Kéo bên trong khung (cả ở giữa) để dời clip, kéo một góc để đổi cỡ (khi đã xoay, cỡ đổi quanh tâm). Kéo cho bốn góc
+   của clip nằm đúng bốn góc ô cửa.
 5. Chỉnh cho thật đúng ở mục **Xoay 3D** trong Bảng chỉnh hiệu ứng: kéo thanh trượt, hoặc gõ số độ vào ô bên phải rồi
-   bấm Enter.
+   bấm Enter. Đang gõ mà bấm `Ctrl+Z` thì hoàn tác như bình thường.
    - **Độ sâu phối cảnh**: 0 là phẳng (không có xa gần). Số càng lớn thì phần ở gần càng to, phần ở xa càng nhỏ, như
      khi nhìn ô cửa từ chỗ đứng gần.
    - **Đặt lại xoay**: bỏ hết nghiêng và xoay, clip thẳng lại như lúc đầu.

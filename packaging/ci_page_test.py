@@ -443,6 +443,61 @@ def run(page, folder, edge):
     page.wait_for_timeout(200)
     check("3D: undo takes the tilt back", page.evaluate(f"(p => [p.rot_y, p.rot_z])(clipById('{rid}').params)") == [0, z])
 
+    # a double-click on the knob turns it back to 0 degrees in the plane; the clip stays where it is
+    turn(dict(rot_z=30, x=10, y=5))
+    page.evaluate(f"select('{rid}')")
+    page.wait_for_timeout(200)
+    kb = page.locator("#xformRot").bounding_box()
+    page.mouse.dblclick(kb["x"] + kb["width"] / 2, kb["y"] + kb["height"] / 2)
+    page.wait_for_timeout(300)
+    got = page.evaluate(f"(p => [p.x, p.y, p.rot_z])(clipById('{rid}').params)")
+    check("3D: a double-click on the round knob: back to 0°, the clip stays put", got == [10, 5, 0], str(got))
+
+    # the name tag covers neither the knob (with its stem) nor "3D", small or turned
+    hit = """(() => { const t = xformLab.getBoundingClientRect(), k = xformRot.getBoundingClientRect(), h = xform3d.getBoundingClientRect();
+        const on = (p, q) => Math.min(p.right, q.right) > Math.max(p.left, q.left) && Math.min(p.bottom, q.bottom) > Math.max(p.top, q.top);
+        return [on(t, k), on(t, h), on(k, h)]; })()"""
+    covered = []
+    for case in (dict(rot_z=0, x=0, y=0, scale=20), dict(scale=30), dict(rot_z=20, scale=60), dict(rot_z=180, scale=30)):
+        turn(case)
+        page.evaluate(f"select('{rid}')")
+        covered.append(page.evaluate(hit))
+    check("3D: the name tag hides neither the knob nor \"3D\"", all(c == [False, False, False] for c in covered), str(covered))
+
+    # "3D" is not on the clip's middle: a click there selects the clip, a drag from the same point moves it
+    turn(dict(rot_x=0, rot_y=0, rot_z=0, x=0, y=0, scale=60))
+    page.evaluate("(() => { S.sel = null; renderControls(); showXform(); })()")
+    mid = screen_point(f"(q => [q.x + q.w / 2, q.y + q.h / 2])(placed(clipById('{rid}')))")
+    page.mouse.click(*mid)
+    page.wait_for_timeout(300)
+    picked = page.evaluate("S.sel")
+    drag(mid[0], mid[1], mid[0] + 80, mid[1])
+    moved = page.evaluate(f"(p => [p.x, p.rot_x, p.rot_y])(clipById('{rid}').params)")
+    check("3D: dragging from the clip's middle moves it (no tilt)", picked == rid and moved[0] > 5 and moved[1:] == [0, 0],
+          f"{picked}, {moved}")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+
+    # "3D" stays on the picture while a small clip is tilted to edge-on, and after it
+    turn(dict(scale=30))
+    page.evaluate(f"select('{rid}')")
+    hb = page.locator("#xform3d").bounding_box()
+    hx, hy = hb["x"] + hb["width"] / 2, hb["y"] + hb["height"] / 2
+    page.mouse.move(hx, hy)
+    page.mouse.down()
+    shown = []
+    for k in range(1, 9):
+        page.mouse.move(hx + 40 * k, hy)
+        shown.append(page.evaluate("xform3d.style.display"))
+    page.mouse.up()
+    page.wait_for_timeout(300)
+    after = page.evaluate(f"[clipById('{rid}').params.rot_y, xform3d.style.display]")
+    check("3D: \"3D\" stays on the picture when tilted edge-on", set(shown) == {"block"} and after == [80, "block"],
+          f"{shown}, {after}")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    turn(dict(scale=60))
+
     # turned, its picture is picked where it is now, not where it was upright
     turn(dict(rot_z=45))
     page.evaluate("(() => { S.sel = null; renderControls(); showXform(); })()")
@@ -466,6 +521,18 @@ def run(page, folder, edge):
     typed = page.evaluate(f"[clipById('{rid}').params.rot_x, +$('#ec input[type=range][data-param=\"rot_x\"]').value, "
                           f"S.els['{rid}'].media.style.transform]")
     check("3D: a number typed in the panel", typed[:2] == [12.5, 12.5] and "rotateX(12.5deg)" in typed[2], str(typed))
+    kept = page.evaluate("document.activeElement === $('#ec input[data-num=\"rot_x\"]')")
+    page.click('#ec input[data-num="rot_x"]')
+    page.keyboard.press("Control+a")
+    page.keyboard.type("40")  # key by key: the field's own undo would take back the "0" alone (a turn of 4 degrees)
+    page.wait_for_timeout(100)
+    typing = page.evaluate(f"clipById('{rid}').params.rot_x")
+    page.keyboard.press("Control+z")  # in the field: the app's undo, not the field's own text undo
+    page.wait_for_timeout(300)
+    back = page.evaluate(f"[clipById('{rid}').params.rot_x, $('#ec input[data-num=\"rot_x\"]').value, "
+                         "document.activeElement.tagName]")
+    check("3D: Enter leaves the number field, Ctrl+Z in it is the app's undo", not kept and typing == 40 and
+          back == [12.5, "12.5", "BODY"], f"{kept}, {typing}, {back}")
     page.evaluate("document.activeElement.blur()")
 
     # the picture itself: the live preview and the exact frame agree inside the turned clip
@@ -494,7 +561,15 @@ def run(page, folder, edge):
     flat = page.evaluate(f"[clipById('{rid}').params.rot_x, clipById('{rid}').params.rot_y, clipById('{rid}').params.rot_z, "
                          f"S.els['{rid}'].media.style.transform]")
     check("3D: \"Đặt lại xoay\" sets it straight", flat == [0, 0, 0, ""], str(flat))
-    page.keyboard.press("Control+z")  # turned again, for the export
+    page.focus('#ec input[type=range][data-param="rot_y"]')
+    for _ in range(5):
+        page.keyboard.press("ArrowRight")
+    page.wait_for_timeout(200)
+    tools = page.evaluate("[$('#tools [data-rotreset]').disabled, [...$$('#tools .lab')].map(e => e.textContent).join(' | ')]")
+    check("3D: the tools column follows the panel's sliders", tools[0] is False and "0°, 0.5°, 0°" in tools[1], str(tools))
+    page.keyboard.press("Control+z")  # the slider, then "Đặt lại xoay": turned again, for the export
+    page.wait_for_timeout(200)
+    page.keyboard.press("Control+z")
     page.wait_for_timeout(200)
     check("3D: undo turns it again", page.evaluate(f"turned(clipById('{rid}'))") is True)
 

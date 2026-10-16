@@ -267,19 +267,19 @@ class Turned(unittest.TestCase):
 
     def test_z_90_is_a_quarter_turn(self):
         """Turned 90 degrees in the plane, the picture is the upright one turned a quarter clockwise (its middle on a
-        pixel corner: every pixel lands on a pixel)."""
+        pixel corner, at the file's own size: every pixel lands on a pixel)."""
         info = overlay.probe_file(self.noise)
-        p = self.params(scale=50)
+        p = self.params(scale=40)  # 160 x 120 in 400 x 300: pixel for pixel
         plain = np.asarray(overlay.Overlay(self.noise, info, p, 1, 24, 400, 300).picture(0))
         o = overlay.Overlay(self.noise, info, dict(p, rot_z=90), 1, 24, 400, 300)
         got = np.asarray(o.picture(0))
-        self.assertEqual(o.box, (125, 50, 275, 250))
+        self.assertEqual(o.box, (140, 70, 260, 230))
         want = np.rot90(plain, k=-1)
         self.assertEqual(got.shape[:2], want.shape[:2])
         self.assertLessEqual(int(np.abs(got[..., :3].astype(int) - want[..., :3]).max()), 1)
         self.assertEqual(int(got[..., 3].min()), 255)  # the outline on pixel edges: nothing half covered
         o = overlay.Overlay(self.noise, info, dict(p, rot_z=-90), 1, 24, 400, 300)
-        self.assertEqual(o.box, (125, 50, 275, 250))
+        self.assertEqual(o.box, (140, 70, 260, 230))
         self.assertLessEqual(int(np.abs(np.asarray(o.picture(0))[..., :3].astype(int) -
                                         np.rot90(plain, k=1)[..., :3]).max()), 1)
 
@@ -324,6 +324,58 @@ class Turned(unittest.TestCase):
         self.assertGreaterEqual(int(g.min()), 127)
         self.assertGreater(int(((g > 135) & (g < 245)).sum()), 100)  # the soft outline
         self.assertGreater(int((g == 255).sum()), 2000)
+
+    def test_no_dark_line_on_a_steep_far_edge(self):
+        """An opaque video turned steeply: on the far side a frame pixel spans many of the file's, and the soft
+        outline there still never darkens what is under it (the edge is repeated far enough out)."""
+        from PIL import Image
+        clip = os.path.join(helpers.ROOT, "turn-white.mp4")
+        enc = video.Encoder(clip, 320, 180, "24", crf=18, preset="ultrafast")
+        for _ in range(2):
+            enc.write(np.full((180, 320, 3), 255, np.uint8))
+        enc.close()
+        info = overlay.probe_file(clip)
+        for turn in (dict(rot_y=80), dict(rot_x=80, scale=300), dict(rot_y=-80, rot_x=30, scale=200)):
+            for blend in ("normal", "multiply"):
+                p = self.params(fit="cover", persp=100, blend=blend, **turn)
+                o = overlay.Overlay(clip, info, p, 2, 24, 320, 180)
+                try:
+                    got = np.asarray(o.draw(0, Image.new("RGB", (320, 180), (128, 128, 128))))[..., 0]
+                finally:
+                    o.close()
+                self.assertGreaterEqual(int(got.min()), 127, (turn, blend))
+                self.assertGreater(int((got == 255).sum() if blend == "normal" else (got == 128).sum()), 500)
+
+    def test_a_big_steep_clip_reads_no_more_than_its_file(self):
+        """Made three times as big and tilted far back on a 4K frame: the part read is never more pixels than the
+        file has there (not the clip's placed size, many times that), so it stays quick and small."""
+        import time
+        from PIL import Image
+        clip = os.path.join(helpers.ROOT, "turn-tall.mp4")
+        rng = np.random.default_rng(3)
+        enc = video.Encoder(clip, 180, 320, "24", crf=24, preset="ultrafast")
+        for _ in range(3):
+            enc.write((rng.random((320, 180, 3)) * 255).astype(np.uint8))
+        enc.close()
+        pic = os.path.join(helpers.ROOT, "turn-tall.png")
+        Image.fromarray((rng.random((320, 180, 3)) * 255).astype(np.uint8)).save(pic)
+        base = Image.new("RGB", (3840, 2160), (20, 20, 20))
+        for path in (clip, pic):
+            info = overlay.probe_file(path)
+            for p in (self.params(fit="cover", scale=300, rot_x=80, persp=100, blend="screen"),
+                      self.params(fit="cover", scale=200, rot_x=70, rot_y=20, persp=100, blend="screen")):
+                start = time.perf_counter()
+                o = overlay.Overlay(path, info, p, 3, 24, 3840, 2160)
+                try:
+                    self.assertFalse(o.empty)
+                    self.assertLessEqual(o.read[0] * o.read[1], info["w"] * info["h"], (path, p))
+                    if o.cursors:
+                        x0, y0, x1, y1 = o.cursors.src
+                        self.assertLessEqual(o.read[0] * o.read[1], (x1 - x0) * (y1 - y0))
+                    o.draw(1, base.copy())
+                finally:
+                    o.close()
+                self.assertLess(time.perf_counter() - start, 6.0, (path, p))
 
     def test_see_through_stays_see_through(self):
         _, got = self.draw(self.holes, self.params(rot_z=45, rot_y=30, persp=50), bg=(10, 20, 30))

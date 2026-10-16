@@ -65,7 +65,8 @@ TONE_POINTS = 33  # the tone curve's points (an SVG feComponentTransfer table: s
 ROTATIONS = ("rot_x", "rot_y", "rot_z")
 PERSPECTIVE = 0.6  # the viewer's distance at "Độ sâu phối cảnh" 100, in frame diagonals (at 50: twice as far)
 NEAR = 1.25  # the viewer stays at least this many times as far as the nearest corner: none at or behind the eye
-PAD = 4  # pixels of its edge repeated around a turned picture, so its soft outline is not darkened
+PAD = 4  # least pixels of its edge repeated around a turned picture (its soft outline is never darkened)
+PAD_MOST = 160  # (a steep plane's far side needs more: _pad_for; every turn up to 80 degrees needs fewer)
 
 
 def placement(p, info, w, h):
@@ -111,6 +112,16 @@ def corners(hm, sw, sh):
     """The picture's corners (top left, top right, bottom right, bottom left) through H, in frame pixels."""
     pts = hm @ np.array([[0, sw, sw, 0], [0, 0, sh, sh], [1.0, 1, 1, 1]])
     return [(float(pts[0, i] / pts[2, i]), float(pts[1, i] / pts[2, i])) for i in range(4)]
+
+
+def jacobians(hm, us, vs):
+    """At the points (us, vs) of the placed picture: H's local scale, [[dX/du, dX/dv], [dY/du, dY/dv]] (frame pixels
+    per placed pixel), one 2 x 2 matrix per point."""
+    w = hm[2, 0] * us + hm[2, 1] * vs + hm[2, 2]
+    fx = (hm[0, 0] * us + hm[0, 1] * vs + hm[0, 2]) / w
+    fy = (hm[1, 0] * us + hm[1, 1] * vs + hm[1, 2]) / w
+    return np.stack([np.stack([(hm[0, 0] - hm[2, 0] * fx) / w, (hm[0, 1] - hm[2, 1] * fx) / w], -1),
+                     np.stack([(hm[1, 0] - hm[2, 0] * fy) / w, (hm[1, 1] - hm[2, 1] * fy) / w], -1)], -2)
 
 
 def quad(p, info, w, h):
@@ -390,10 +401,11 @@ class Overlay:
 
     def _setup_turned(self, path, info, params, w, h, weight):
         """A turned clip: its picture is warped onto the quad homography() gives. Only the source pixels under the
-        part of the quad inside the frame are read, scaled to about the placed size (so the warp is near 1:1),
+        part of the quad inside the frame are read, at the size the warp needs there (at most the file's own),
         then laid by the inverse homography (bicubic) into the box around that part, see-through outside the
         quad with a soft outline (coverage())."""
         self.still, self.cursors, self.colours = None, None, colour_ops(params)
+        self.read = None  # (the size of the part of the file read, in pixels)
         rect = placement(params, info, w, h)
         sw, sh = rect[2], rect[3]
         hm, _ = homography(params, rect, w, h)
@@ -410,45 +422,70 @@ class Overlay:
         if self.empty:
             return
         inv = np.linalg.inv(hm)
-        back = inv @ np.array([[q[0] for q in seen], [q[1] for q in seen], [1.0] * len(seen)])
+        # what shows, back on the placed picture: the corners of the part inside the frame and the middles of its
+        # edges (a projective map grows and shrinks a pixel most there, near enough)
+        ring = seen + [((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in zip(seen, seen[1:] + seen[:1])]
+        back = inv @ np.array([[q[0] for q in ring], [q[1] for q in ring], [1.0] * len(ring)])
         us, vs = back[0] / back[2], back[1] / back[2]
-        m = 3.0  # placed pixels around what shows: the bicubic's reach
-        u0, v0 = max(0.0, float(us.min()) - m), max(0.0, float(vs.min()) - m)
-        u1, v1 = min(sw, float(us.max()) + m), min(sh, float(vs.max()) + m)
+        jac = jacobians(hm, us, vs)
+        kx, ky = sw / info["w"], sh / info["h"]  # placed pixels per pixel of the file
+        # the part is read at what the warp needs: a pixel of it spans at most a frame pixel where the picture shows
+        # largest, but is never finer than the file's own pixels (the bicubic warp magnifies as well as a scaler).
+        # So a big or steep clip reads few pixels, and one shrunk far away is averaged down by the reader first.
+        su = max(kx, 1 / max(float(np.hypot(jac[:, 0, 0], jac[:, 1, 0]).max()), 1e-9))
+        sv = max(ky, 1 / max(float(np.hypot(jac[:, 0, 1], jac[:, 1, 1]).max()), 1e-9))
+        # (3 pixels of the part around what shows: the bicubic's reach)
+        u0, v0 = max(0.0, float(us.min()) - 3 * su), max(0.0, float(vs.min()) - 3 * sv)
+        u1, v1 = min(sw, float(us.max()) + 3 * su), min(sh, float(vs.max()) + 3 * sv)
         if u1 - u0 < 1e-6 or v1 - v0 < 1e-6:
             self.empty = True
             return
-        kx, ky = sw / info["w"], sh / info["h"]
         self.cover = coverage(pts, self.box)
-        if info.get("image"):  # only the part that shows is made, at the placed size
+        if info.get("image"):  # only the part that shows is made
             with open_picture(path) as im:
                 im = ImageOps.exif_transpose(im).convert("RGBA")
                 kx, ky = sw / im.width, sh / im.height
-                size = (max(1, round(u1 - u0)), max(1, round(v1 - v0)))
+                size = (max(1, round((u1 - u0) / su)), max(1, round((v1 - v0) / sv)))
                 part = im.resize(size, Image.Resampling.LANCZOS, box=(u0 / kx, v0 / ky, u1 / kx, v1 / ky))
-            self._lay(hm, (u0, v0, (u1 - u0) / size[0], (v1 - v0) / size[1]))
+            self.read = size
+            self._lay(hm, (u0, v0, (u1 - u0) / size[0], (v1 - v0) / size[1]), jac)
             self.still = self._warp(part)
         else:  # ffmpeg cuts the source pixels under that part (on even pixels, as above), then scales only them
             sx0, sy0 = math.floor(u0 / kx) // 2 * 2, math.floor(v0 / ky) // 2 * 2
             sx1 = min(info["w"], -(-math.ceil(u1 / kx) // 2) * 2)
             sy1 = min(info["h"], -(-math.ceil(v1 / ky) // 2) * 2)
-            size = (max(1, round((sx1 - sx0) * kx)), max(1, round((sy1 - sy0) * ky)))
-            self._lay(hm, (sx0 * kx, sy0 * ky, (sx1 - sx0) * kx / size[0], (sy1 - sy0) * ky / size[1]))
+            size = (max(1, round((sx1 - sx0) * kx / su)), max(1, round((sy1 - sy0) * ky / sv)))
+            self.read = size
+            self._lay(hm, (sx0 * kx, sy0 * ky, (sx1 - sx0) * kx / size[0], (sy1 - sy0) * ky / size[1]), jac)
             self.cursors = Cursors(path, info, size, bool(info.get("alpha")), (sx0, sy0, sx1, sy1))
 
-    def _lay(self, hm, part):
+    def _lay(self, hm, part, jac):
         """The warp's coefficients: from a pixel of the box to the padded part read (whose pixel i lies at
-        u = u0 + i * step in the placed picture), as Pillow's PERSPECTIVE wants them (output -> input)."""
+        u = u0 + i * step in the placed picture), as Pillow's PERSPECTIVE wants them (output -> input). And how
+        much of the part's edge to repeat around it: the soft outline's pixels lie up to about a frame pixel
+        outside the quad, which on a steep plane's far side is many pixels of the part (jac: H's local scale)."""
         u0, v0, su, sv = part
-        to_part = np.array([[1 / su, 0, PAD - u0 / su], [0, 1 / sv, PAD - v0 / sv], [0, 0, 1.0]])
+        pad = self._pad_for(jac * (su, sv))
+        to_part = np.array([[1 / su, 0, pad - u0 / su], [0, 1 / sv, pad - v0 / sv], [0, 0, 1.0]])
         g = to_part @ np.linalg.inv(hm) @ np.array([[1, 0, self.box[0]], [0, 1, self.box[1]], [0, 0, 1.0]])
         g = g / g[2, 2]
         self.warp = tuple(float(v) for v in g.flatten()[:8])
 
+    def _pad_for(self, jac):
+        """PAD, or more: how many pixels of the part a frame pixel reaches across where it is shrunk most (jac: frame
+        pixels per pixel of the part, at the points of _setup_turned's ring), plus the bicubic's reach. Kept in
+        self.pad."""
+        a, b, c, d = jac[:, 0, 0], jac[:, 0, 1], jac[:, 1, 0], jac[:, 1, 1]
+        with np.errstate(divide="ignore", invalid="ignore"):  # (edge-on there: as far as it goes)
+            reach = np.maximum(np.hypot(d, b), np.hypot(c, a)) / np.abs(a * d - b * c)  # the inverse's rows
+        most = float(np.nan_to_num(reach, nan=np.inf).max())
+        self.pad = int(min(PAD_MOST, max(PAD, math.ceil(most) + 3))) if math.isfinite(most) else PAD_MOST
+        return self.pad
+
     def _warp(self, im):
         """The part read (RGB or RGBA) laid onto the quad: an RGBA image of the box."""
         a = np.asarray(im)
-        a = np.pad(a, ((PAD, PAD), (PAD, PAD), (0, 0)), mode="edge")
+        a = np.pad(a, ((self.pad, self.pad), (self.pad, self.pad), (0, 0)), mode="edge")
         size = (self.box[2] - self.box[0], self.box[3] - self.box[1])
         out = Image.fromarray(a).transform(size, Image.Transform.PERSPECTIVE, self.warp,
                                          Image.Resampling.BICUBIC)
