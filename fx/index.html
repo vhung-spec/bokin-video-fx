@@ -1012,8 +1012,8 @@ function styleLayer(c, el) {
   const mi = masks.length ? masks.join(", ") : "none";
   w.style.maskImage = w.style.webkitMaskImage = mi;
   w.style.maskComposite = "intersect"; w.style.webkitMaskComposite = "source-in";
-  if (c.kind === "file") {
-    const r = placed(c, el.m.info), W = info().w, H = info().h;
+  if (placeable(c)) {  // a file, or a built-in effect at one place (its preview clip is its box alone)
+    const r = placed(c, c.kind === "file" ? el.m.info : null), W = info().w, H = info().h;
     Object.assign(media.style, {left: (100 * r.x / W) + "%", top: (100 * r.y / H) + "%", width: (100 * r.w / W) + "%", height: (100 * r.h / H) + "%",
       transform: c.params.flip_h || c.params.flip_v ? `scale(${c.params.flip_h ? -1 : 1}, ${c.params.flip_v ? -1 : 1})` : ""});
   } else Object.assign(media.style, {left: 0, top: 0, width: "100%", height: "100%"});
@@ -1023,17 +1023,20 @@ function onlyBase() { return !!S.paint && S.onlyBase; }
 
 // --- moving and sizing a clip on the monitor, as with Premiere's Motion box ---------------------------------
 const xform = $("#xform");
-function placed(c, inf) {  // where a file clip lies in the video, in its pixels (as overlay.Overlay places it)
-  inf = inf || (c.file && c.file.info);
+function placeable(c) { return c.kind === "file" || !!S.schema.placed[c.kind]; }  // has a box on the picture
+function placed(c, inf) {  // where a file clip (or a placed effect's box) lies in the video, in its pixels
+  // (as overlay.Overlay places a file, and effects.Effect.box a placed effect: fit "contain")
+  const box = S.schema.placed[c.kind];
+  inf = inf || (box ? {w: box[0], h: box[1]} : c.file && c.file.info);
   if (!inf) return null;
   const pr = c.params, W = info().w, H = info().h;
-  const k = (pr.fit === "cover" ? Math.max : Math.min)(W / inf.w, H / inf.h) * pr.scale / 100;
+  const k = (pr.fit === "cover" && !box ? Math.max : Math.min)(W / inf.w, H / inf.h) * pr.scale / 100;
   const w = inf.w * k, h = inf.h * k;
   return {x: (W - w) / 2 + pr.x / 100 * W, y: (H - h) / 2 + pr.y / 100 * H, w, h};
 }
 function showXform() {  // the box of the selected file clip, over the picture
   const c = S.project && clipById(S.sel);
-  const r = c && c.kind === "file" && !S.paint && !S.playing ? placed(c) : null;
+  const r = c && placeable(c) && !S.paint && !S.playing ? placed(c) : null;
   // nothing to move when the clip is not shown at all (its track hidden, the clip turned off)
   if (!r || !clipOrder().includes(c)) { xform.style.display = "none"; return; }
   const st = stage.getBoundingClientRect(), sc = screenEl.getBoundingClientRect();
@@ -1046,8 +1049,8 @@ function showXform() {  // the box of the selected file clip, over the picture
   $("#xformLab").textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}`;
 }
 function num(v) { return String(+(+v).toFixed(2)); }
-function fileParam(key, v) {  // on the parameter's own step (a twentieth of a percent: about a pixel)
-  const d = S.schema.kinds.file.params.find(x => x.key === key), step = d.step || 1;
+function placeParam(c, key, v) {  // on the parameter's own step (a twentieth of a percent: about a pixel)
+  const d = S.schema.kinds[c.kind].params.find(x => x.key === key), step = d.step || 1;
   return clamp(+(Math.round(v / step) * step).toFixed(3), d.min, d.max);
 }
 function startXdrag(e) {  // a press on the selected clip's box, or on its picture
@@ -1072,20 +1075,20 @@ xform.addEventListener("pointermove", e => {
   const d = S.xdrag; if (!d) return;
   const c = d.c, pr = c.params;
   if (d.scale && e.altKey) {  // around the middle
-    pr.scale = fileParam("scale", d.p0.scale * Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.d0);
+    pr.scale = placeParam(c, "scale", d.p0.scale * Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.d0);
     pr.x = d.p0.x; pr.y = d.p0.y;
   } else if (d.scale) {  // the opposite corner stays where it is, as in Premiere
     const vx = d.x0 - d.ox, vy = d.y0 - d.oy, n = vx * vx + vy * vy || 1;
     const k = Math.max(0.01, ((e.clientX - d.ox) * vx + (e.clientY - d.oy) * vy) / n);  // along the diagonal
-    pr.scale = fileParam("scale", d.p0.scale * k);
+    pr.scale = placeParam(c, "scale", d.p0.scale * k);
     const W = info().w, H = info().h, r = d.r0, f = pr.scale / d.p0.scale, w = r.w * f, hh = r.h * f;
     const left = d.h.includes("w") ? r.x + r.w - w : r.x, top = d.h.includes("n") ? r.y + r.h - hh : r.y;
-    pr.x = fileParam("x", (left - (W - w) / 2) / W * 100); pr.y = fileParam("y", (top - (H - hh) / 2) / H * 100);
+    pr.x = placeParam(c, "x", (left - (W - w) / 2) / W * 100); pr.y = placeParam(c, "y", (top - (H - hh) / 2) / H * 100);
   } else {
     let x = d.p0.x + (e.clientX - d.x0) / d.sc.width * 100, y = d.p0.y + (e.clientY - d.y0) / d.sc.height * 100;
     if (e.shiftKey) { if (Math.abs(e.clientX - d.x0) > Math.abs(e.clientY - d.y0)) y = d.p0.y; else x = d.p0.x; }  // straight
     if (!e.altKey) { if (Math.abs(x) < 1.5) x = 0; if (Math.abs(y) < 1.5) y = 0; }  // the middle catches it
-    pr.x = fileParam("x", x); pr.y = fileParam("y", y);
+    pr.x = placeParam(c, "x", x); pr.y = placeParam(c, "y", y);
   }
   if (S.els[c.id]) styleLayer(c, S.els[c.id]);
   showXform();
@@ -1464,9 +1467,9 @@ function renderTools() {  // the tool column at the right of the monitor: painti
     return;
   }
   const c = clipById(S.sel);
-  const pos = c && c.kind === "file" ? `<h5>Vị trí và cỡ</h5>
+  const pos = c && placeable(c) ? `<h5>Vị trí và cỡ</h5>
       <div class="lab"><span>Cỡ</span><b>${c.params.scale}%</b></div><div class="lab"><span>Ngang, dọc</span><b>${c.params.x}, ${c.params.y}</b></div>
-      <div class="two" style="margin-top:6px"><button class="small" data-center="1" title="Đưa clip về giữa khung">Về giữa</button><button class="small" data-scale100="1" title="Cỡ 100%">Cỡ 100%</button></div>
+      <div class="two" style="margin-top:6px"><button class="small" data-center="1" title="Đưa clip về giữa khung">Về giữa</button><button class="small" data-scale100="1" title="${c.kind === "file" ? "Cỡ 100%" : "Cỡ lúc mới thêm"}">${c.kind === "file" ? "Cỡ 100%" : "Cỡ ban đầu"}</button></div>
       <p class="tip">Kéo khung trắng trên hình để di chuyển, kéo góc để đổi cỡ.</p>` : "";
   el.innerHTML = `<h5>Vẽ vùng</h5>
     <button class="wide" data-paint="freeze" title="Chỗ phải đứng yên tuyệt đối"><span style="color:${COLORS.freeze}">●</span> Vùng đứng yên</button>
@@ -1485,7 +1488,8 @@ $("#tools").addEventListener("click", e => {
   }
   if (b.dataset.center || b.dataset.scale100) {
     const c = clipById(S.sel); if (!c) return;
-    if (b.dataset.center) { c.params.x = 0; c.params.y = 0; } else c.params.scale = 100;
+    if (b.dataset.center) { c.params.x = 0; c.params.y = 0; }
+    else c.params.scale = c.kind === "file" ? 100 : S.schema.kinds[c.kind].params.find(d => d.key === "scale").value;
     edited(); renderTools(); return;
   }
   if (!S.paint) return;
@@ -1640,7 +1644,7 @@ stage.addEventListener("pointerdown", e => {
   if (!S.paint && e.button === 0) {  // a click on a clip's picture selects it (the top one there)
     const sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
     const vx = (e.clientX - sc.left) / sc.width * W, vy = (e.clientY - sc.top) / sc.height * H, t = curFrame();
-    const hit = clipOrder().reverse().find(c => c.kind === "file" && weight(span(c), t) > 0 &&
+    const hit = clipOrder().reverse().find(c => placeable(c) && weight(span(c), t) > 0 &&
       (r => r && vx >= r.x && vx <= r.x + r.w && vy >= r.y && vy <= r.y + r.h)(placed(c)));
     if (hit) {
       if (hit.id !== S.sel) { select(hit.id); S.xdowns = null; }

@@ -38,6 +38,14 @@ def _toggle(key, label, value=False, **extra):
     return {"key": key, "label": label, "type": "toggle", "value": value, **extra}
 
 
+def _place(scale=20, x=0, y=0, group="Vị trí và cỡ"):
+    """The settings that place a placed effect (Effect.BOX): as a file clip's, so the box on the page's picture
+    moves and sizes it."""
+    return [_num("scale", "Cỡ (%)", scale, 1, 300, step=0.1, group=group),
+            _num("x", "Dịch ngang (%)", x, -100, 100, step=0.05, group=group),
+            _num("y", "Dịch dọc (%)", y, -100, 100, step=0.05, group=group)]
+
+
 SCHEMA = {
     "leaves": {"label": "Lá rơi", "params": [
         _choice("style", "Kiểu", "autumn", [("autumn", "Lá thu"), ("green", "Lá xanh"),
@@ -196,6 +204,11 @@ class Effect:
     # lens: the effect also changes the picture under it (blur, refraction), in apply(); draw() is then only what
     # it lays over the picture, which is all the page's live preview shows
     lens = False
+    # placed: an effect at one place (a candle flame, steam over a cup), drawn inside its box (box()). BOX is the
+    # box's shape (w, h); the settings x, y, scale (_place) place it as a file clip with fit "contain" is placed.
+    # Inside the box every size is relative to the box, so the preview clip is the box alone (rendered with x, y 0
+    # and scale 100 on a canvas of the box's shape) and the page lays it where the box is.
+    BOX = None
 
     def __init__(self, params, seed, frames, fps, w, h):
         self.p, self.seed = params, int(seed)
@@ -204,6 +217,13 @@ class Effect:
         self.loop_s = self.P / self.fps
         self.px = self.h / 1080.0  # sizes below are given in pixels of a 1080-line frame
         self.rng = np.random.default_rng([self.seed, 1103])
+
+    def box(self):
+        """(x0, y0, w, h): where a placed effect's box lies in the frame, in pixels (floats)."""
+        bw, bh = self.BOX
+        k = min(self.w / bw, self.h / bh) * self.p["scale"] / 100
+        w, h = bw * k, bh * k
+        return (self.w - w) / 2 + self.p["x"] / 100 * self.w, (self.h - h) / 2 + self.p["y"] / 100 * self.h, w, h
 
     def cycles(self, rate_hz):
         """The whole number of cycles per loop nearest to `rate_hz` cycles a second (at least 1)."""
@@ -419,10 +439,12 @@ class Glow(Effect):
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)
 
 
-from . import glass, rain, snow  # (here: they build on the classes above)
+from . import candle, glass, rain, snow, steam  # (here: they build on the classes above)
 
-SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, **SCHEMA}
-KINDS = {"snow": snow.Snow, "leaves": Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass}
+SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "steam": steam.SCHEMA,
+          "candle": candle.SCHEMA, **SCHEMA}
+KINDS = {"snow": snow.Snow, "leaves": Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
+         "steam": steam.Steam, "candle": candle.Candle}
 
 
 def make(kind, params, seed, frames, fps, w, h):

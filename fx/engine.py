@@ -471,12 +471,32 @@ def fx_clip_size(info):
     return w, max(2, round(info["h"] * w / info["w"] / 2) * 2)
 
 
+PLACED = ("x", "y", "scale")  # a placed effect's place: not in its preview clip (the page lays the box)
+
+
+def fx_clip_frame(info, kind):
+    """The size of a built-in effect's preview clip: the video's, small; for a placed effect, its box's shape."""
+    box = effects.KINDS[kind].BOX
+    if not box:
+        return fx_clip_size(info)
+    h = min(FX_CLIP_WIDTH, max(64, info["h"]))
+    return max(2, round(h * box[0] / box[1] / 2) * 2), h
+
+
+def fx_clip_params(kind, params):
+    """The settings its preview clip is made with: a placed effect fills the clip (its own place left out)."""
+    if not effects.KINDS[kind].BOX:
+        return params
+    return dict({k: v for k, v in (params or {}).items() if k not in PLACED}, x=0, y=0, scale=100)
+
+
 def fx_clip_name(project, layer):
     """The file name of a built-in effect's preview clip: a key of everything that changes its picture (not its
     place on the timeline: the effect is drawn over the whole length), so the two halves of a cut clip share it."""
     info = project["video"]
-    key = json.dumps([layer["kind"], layer.get("params"), layer.get("seed", 1), project_frames(project), info["fps"],
-                      fx_clip_size(info)] + [effects.KINDS[layer["kind"]].VERSION] * (
+    key = json.dumps([layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1),
+                      project_frames(project), info["fps"],
+                      fx_clip_frame(info, layer["kind"])] + [effects.KINDS[layer["kind"]].VERSION] * (
                           effects.KINDS[layer["kind"]].VERSION > 1), sort_keys=True)  # (version 1: as before)
     alpha = effects.KINDS[layer["kind"]].blend != "screen"
     return f"fx-{hashlib.sha1(key.encode()).hexdigest()[:12]}" + (".webm" if alpha else ".mp4")
@@ -515,9 +535,9 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
 def fx_part(project, layer, total, start, end, path):
     """Frames start..end-1 of a built-in effect's preview clip, written to `path`. False if stopped."""
     info = project["video"]
-    w, h = fx_clip_size(info)
-    fx = effects.make(layer["kind"], layer.get("params"), layer.get("seed", 1), total, video.fps_value(info["fps"]),
-                      w, h)
+    w, h = fx_clip_frame(info, layer["kind"])
+    fx = effects.make(layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1), total,
+                      video.fps_value(info["fps"]), w, h)
     alpha = fx.blend != "screen"
     writer = video.ClipWriter(path, w, h, info["fps"], alpha)
     canvas = effects.Canvas(w, h)

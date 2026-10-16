@@ -99,3 +99,37 @@ class Params(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Placed(unittest.TestCase):
+    def test_box_and_its_preview_clip(self):
+        """A placed effect lies in its box as a file clip with fit "contain" is placed; its preview clip is the box
+        alone, the same wherever the box is."""
+        from fx import engine
+
+        class Dot(effects.Effect):
+            BOX = (1, 2)
+
+            def draw(self, t, canvas, mask):
+                x0, y0, w, h = self.box()
+                canvas.over(round(x0), round(y0), np.ones((round(h), round(w)), np.float32), np.ones(3, np.float32),
+                            1.0, mask)
+        effects.KINDS["dottest"] = Dot
+        effects.SCHEMA["dottest"] = {"label": "test", "params": effects._place(10)}
+        try:
+            fx = effects.make("dottest", {"scale": 10, "x": 20, "y": -10}, 1, 48, 24, 1920, 1080)
+            x0, y0, w, h = fx.box()
+            self.assertAlmostEqual(h, 108)
+            self.assertAlmostEqual(w, 54)
+            self.assertAlmostEqual(x0, (1920 - 54) / 2 + 384)
+            self.assertAlmostEqual(y0, (1080 - 108) / 2 - 108)
+            info = {"w": 1920, "h": 1080, "fps": "24", "frames": 48, "seconds": 2.0}
+            self.assertEqual(engine.fx_clip_frame(info, "dottest"), (320, 640))
+            project = {"video": info, "length": 30}
+            a = {"kind": "dottest", "params": {"scale": 10, "x": 20, "y": -10}}
+            b = {"kind": "dottest", "params": {"scale": 30, "x": -5, "y": 0}}
+            self.assertEqual(engine.fx_clip_name(project, a), engine.fx_clip_name(project, b))
+            whole = effects.make("dottest", engine.fx_clip_params("dottest", a["params"]), 1, 48, 24, 320, 640)
+            self.assertEqual(tuple(round(v) for v in whole.box()), (0, 0, 320, 640))  # the clip is the box
+        finally:
+            del effects.KINDS["dottest"], effects.SCHEMA["dottest"]
