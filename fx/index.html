@@ -360,7 +360,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const COLORS = {freeze: "#3d8bff", fg: "#ff9a3d", area: "#3ddc84"};
-const KIND_ICON = {snow: "❄", leaves: "🍂", rain: "☔", glow: "✨", glass: "🪟", file: "🎞"};
+const KIND_ICON = {snow: "❄", leaves: "🍂", rain: "☔", glow: "✨", glass: "🪟", steam: "☕", candle: "🕯", file: "🎞"};
 const FX_KINDS = ["snow", "rain", "glass", "leaves", "glow"];  // the Tạo sẵn tab, in this order
 const BLEND_CSS = {normal: "normal", screen: "screen", add: "plus-lighter", multiply: "multiply"};
 const COLOUR_KEYS = ["bright", "contrast", "sat", "hue", "temp", "tint_amt", "tint"], TONE_POINTS = 33, LUMA = [0.2126, 0.7152, 0.0722];
@@ -2416,7 +2416,8 @@ function renderControls() {
     source = `<div class="file">${fi ? `<b>${esc(c.file.name)}</b><br>${fi.image ? "Ảnh" : "Video"} ${fi.w}×${fi.h}${fi.image ? "" : `, ${fi.seconds} giây, ${fi.fps} khung/giây, ${esc(codecName(fi))}`}${fi.alpha ? ", nền trong suốt" : ""}${alphaNote(c, fi)}${it && !it.proxy ? (S.failed && S.failed[it.id] ? "<br>⚠ Không làm được bản xem nhanh. Dừng hình để xem khung chính xác." : "<br>⏳ Đang chuẩn bị xem nhanh…") : ""}${!it && c.file && c.file.lib ? "<br>⚠ File đã bị xoá khỏi thư viện." : ""}` : c.file && c.file.lib && !it ? `<b>${esc(c.file.name)}</b><br>⚠ File đã bị xoá khỏi thư viện: clip này không hiện gì. Hãy xoá clip.` : "Chưa có file."}</div>`;
   } else {
     const fx = S.fx[c.id];
-    source = `<div class="file"><b>${KIND_ICON[c.kind]} ${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? "<br>⏳ Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác." : ""}${S.schema.lens[c.kind] ? "<br>Lúc phát chỉ xem gần đúng. Độ nhoè và cảnh nhìn qua giọt nước chỉ thấy khi dừng hình (khung chính xác) và trong video xuất ra." : ""}</div>
+    source = `<div class="file"><b>${KIND_ICON[c.kind]} ${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? "<br>⏳ Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác." : ""}${S.schema.lens[c.kind] ? "<br>Lúc phát chỉ xem gần đúng; dừng hình để thấy đúng như video xuất ra." : ""}</div>
+      ${sch.note ? `<p class="note">${esc(sch.note)}</p>` : ""}
       <div class="btns"><button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">🎲 Đổi kiểu ngẫu nhiên</button></div>`;
   }
   const params = sch.params.map(d => {
