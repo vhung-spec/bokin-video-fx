@@ -108,7 +108,19 @@ header .prep { color: var(--dim); font-size: 12px; }
 .xform .xmark[data-lab]::after { content: attr(data-lab); position: absolute; left: 100%; top: -8px; margin-left: 5px;
   font-size: 11px; line-height: 14px; color: #ffd84d; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
 .xform .xmark.dot[data-lab]::after { top: 50%; margin-top: -7px; }
-.xform .lab { position: absolute; left: -1px; top: -21px; font-size: 11px; background: #000c; color: #fff; padding: 1px 6px; white-space: nowrap; pointer-events: none; border-radius: 3px; }
+/* turning a file clip: a round knob on a stem above the box (Z), a "3D" handle in its middle (tilt) */
+.xform .xrot { position: absolute; left: 50%; top: -27px; width: 13px; height: 13px; margin-left: -7px; border-radius: 50%;
+  background: #fff; border: 1px solid #222; cursor: grab; display: none; }
+.xform .xrot::before { content: ""; position: absolute; left: 5px; top: 12px; width: 1px; height: 14px; background: #fff; box-shadow: 0 0 0 1px #0006; }
+.xform .xrot.in::before { display: none; }
+.xform .xrot:active { cursor: grabbing; }
+.xlab { position: absolute; z-index: 65; display: none; font-size: 11px; background: #000c; color: #fff; padding: 1px 6px; white-space: nowrap; pointer-events: none; border-radius: 3px; }
+.x3d { position: absolute; z-index: 66; display: none; width: 34px; height: 22px; margin: -11px 0 0 -17px; border-radius: 11px;
+  background: #000b; border: 1px solid #fff; color: #fff; font: 600 11px/20px "Segoe UI", system-ui, sans-serif; text-align: center;
+  cursor: grab; touch-action: none; user-select: none; box-shadow: 0 0 0 1px #0008; }
+.x3d:hover { background: #1d3a5c; }
+.x3d:active { cursor: grabbing; }
+.ec .lab input.numv { width: 66px; padding: 1px 4px; text-align: right; color: #7fb8f5; font-variant-numeric: tabular-nums; }
 .mon-body { flex: 1; min-height: 0; display: flex; }
 .mon-body .stage { flex: 1; min-width: 0; }
 .tools { width: 214px; flex: none; background: var(--panel); border-left: 1px solid #000; overflow-y: auto; padding: 4px 10px 14px; }
@@ -282,7 +294,9 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
           <canvas id="paintCanvas"></canvas>
           <canvas id="polyCanvas"></canvas>
         </div>
-        <div class="xform" id="xform" title="Kéo để di chuyển, kéo góc để đổi cỡ: góc đối diện đứng yên (Alt: đổi cỡ quanh tâm). Shift: đi thẳng, Alt: không bám giữa"><span class="lab" id="xformLab"></span><span class="xmark" id="xformMark"></span><span class="xmark tip" id="xformTip"></span><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div>
+        <div class="xform" id="xform" title="Kéo để di chuyển, kéo góc để đổi cỡ: góc đối diện đứng yên (Alt: đổi cỡ quanh tâm). Shift: đi thẳng, Alt: không bám giữa"><span class="xmark" id="xformMark"></span><span class="xmark tip" id="xformTip"></span><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i><b class="xrot" id="xformRot" data-h="rot" title="Kéo để xoay phẳng (Shift: từng nấc 15°). Bấm đúp: về 0°"></b></div>
+        <span class="xlab" id="xformLab"></span>
+        <div class="x3d" id="xform3d" title="Kéo để nghiêng 3D: kéo sang trái / phải là xoay trái / phải, kéo lên / xuống là nghiêng trước / sau (Shift: một hướng). Bấm đúp: thẳng lại">3D</div>
         <div class="cursor" id="cursor"></div>
         <div class="badge" id="badge"></div>
         <div class="waiting" id="waiting"></div>
@@ -995,6 +1009,8 @@ function layoutScreen() {
   screenEl.style.width = f.w + "px"; screenEl.style.height = f.h + "px";
   const x = (f.sw - f.w * S.scale) / 2 + S.panX, y = (f.sh - f.h * S.scale) / 2 + S.panY;
   screenEl.style.transform = `translate(${x}px, ${y}px) scale(${S.scale})`;
+  // a turned clip's perspective is in pixels of the picture's own size (a zoom scales it with the picture)
+  if (S.layoutW !== f.w) { S.layoutW = f.w; for (const c of S.project.layers) if (S.els[c.id] && turned(c)) styleLayer(c, S.els[c.id]); }
   drawPoly(); showXform(); drawArea();
   // a stroke goes on where the mouse is, though the picture moved or was zoomed under it
   if (S.paintRect) { S.paintRect = paintCanvas.getBoundingClientRect(); S.stageRect = stage.getBoundingClientRect(); }
@@ -1100,8 +1116,9 @@ function styleLayer(c, el) {
   w.style.maskComposite = "intersect"; w.style.webkitMaskComposite = "source-in";
   if (placeable(c)) {  // a file, or a built-in effect at one place (its preview clip is its box alone)
     const r = placed(c, c.kind === "file" ? el.m.info : null), W = info().w, H = info().h;
+    const flips = c.params.flip_h || c.params.flip_v ? `scale(${c.params.flip_h ? -1 : 1}, ${c.params.flip_v ? -1 : 1})` : "";
     Object.assign(media.style, {left: (100 * r.x / W) + "%", top: (100 * r.y / H) + "%", width: (100 * r.w / W) + "%", height: (100 * r.h / H) + "%",
-      transform: c.params.flip_h || c.params.flip_v ? `scale(${c.params.flip_h ? -1 : 1}, ${c.params.flip_v ? -1 : 1})` : ""});
+      transform: turned(c) ? turnCSS(c.params, r, (parseFloat(screenEl.style.width) || fitSize().w) / W) + (flips ? " " + flips : "") : flips});
   } else Object.assign(media.style, {left: 0, top: 0, width: "100%", height: "100%"});
   colourFilter(c, media);
   el.opacity = c.kind === "file" ? c.params.opacity / 100 : 1;
@@ -1121,21 +1138,87 @@ function placed(c, inf) {  // where a file clip (or a placed effect's box) lies 
   const w = inf.w * k, h = inf.h * k;
   return {x: (W - w) / 2 + pr.x / 100 * W, y: (H - h) / 2 + pr.y / 100 * H, w, h};
 }
+// a file clip turned in 3D about its middle: the same numbers as overlay.homography, laid with the CSS
+// "perspective(d) rotateX rotateY rotateZ scale(flips)" that this matrix is (the renderer warps the file with it)
+const ROT_KEYS = ["rot_x", "rot_y", "rot_z"], PERSPECTIVE = 0.6, NEAR = 1.25;
+function turned(c) { return c.kind === "file" && ROT_KEYS.some(k => +c.params[k]); }
+function mul3(A, B) { return A.map(row => [0, 1, 2].map(j => row[0] * B[0][j] + row[1] * B[1][j] + row[2] * B[2][j])); }
+function homography(pr, r, W, H) {  // {m: (u, v, 1) of the placed picture (before flips) -> the video, d: the viewer's distance or null}
+  const rad = k => (+pr[k] || 0) * Math.PI / 180, a = rad("rot_x"), b = rad("rot_y"), z = rad("rot_z");
+  const R = mul3(mul3([[1, 0, 0], [0, Math.cos(a), -Math.sin(a)], [0, Math.sin(a), Math.cos(a)]],
+                      [[Math.cos(b), 0, Math.sin(b)], [0, 1, 0], [-Math.sin(b), 0, Math.cos(b)]]),
+                 [[Math.cos(z), -Math.sin(z), 0], [Math.sin(z), Math.cos(z), 0], [0, 0, 1]]);
+  const fx = pr.flip_h ? -1 : 1, fy = pr.flip_v ? -1 : 1;
+  const turn = R.map(row => [row[0] * fx, row[1] * fy, -(row[0] * fx * r.w + row[1] * fy * r.h) / 2]);
+  let d = null;
+  if (+pr.persp > 0) {  // no corner as near as the eye: the viewer steps back (overlay.NEAR)
+    const near = Math.max(...[[0, 0], [r.w, 0], [r.w, r.h], [0, r.h]].map(([u, v]) => turn[2][0] * u + turn[2][1] * v + turn[2][2]));
+    d = Math.max(Math.hypot(W, H) * PERSPECTIVE * 100 / pr.persp, NEAR * near);
+  }
+  const q = d ? 1 / d : 0, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  const m = mul3([[1, 0, -cx * q], [0, 1, -cy * q], [0, 0, -q]], turn);
+  m[0][2] += cx; m[1][2] += cy; m[2][2] += 1;
+  return {m, d};
+}
+function project(m, u, v) { const w = m[2][0] * u + m[2][1] * v + m[2][2]; return [(m[0][0] * u + m[0][1] * v + m[0][2]) / w, (m[1][0] * u + m[1][1] * v + m[1][2]) / w, w]; }
+function quad(c, inf) {  // as overlay.quad: where the corners of a clip's picture are (top left, top right, bottom right, bottom left)
+  const r = placed(c, inf); if (!r) return null;
+  const {m} = homography(c.params, r, info().w, info().h);
+  return [[0, 0], [r.w, 0], [r.w, r.h], [0, r.h]].map(([u, v]) => project(m, u, v).slice(0, 2));
+}
+function turnCSS(pr, r, k) {  // k: CSS pixels per video pixel where it is laid (flips are added after it)
+  const {d} = homography(pr, r, info().w, info().h);
+  return `${d ? `perspective(${d * k}px) ` : ""}rotateX(${+pr.rot_x || 0}deg) rotateY(${+pr.rot_y || 0}deg) rotateZ(${+pr.rot_z || 0}deg)`;
+}
+function hitsClip(c, vx, vy) {  // is this point of the video (its pixels) on the clip's picture?
+  if (!turned(c)) { const r = placed(c); return !!r && vx >= r.x && vx <= r.x + r.w && vy >= r.y && vy <= r.y + r.h; }
+  const q = quad(c); if (!q) return false;
+  let pos = 0, neg = 0;  // inside a convex quad: on the same side of every edge
+  for (let i = 0; i < 4; i++) {
+    const [ax, ay] = q[i], [bx, by] = q[(i + 1) % 4], s = (bx - ax) * (vy - ay) - (by - ay) * (vx - ax);
+    if (s > 0) pos++; else if (s < 0) neg++;
+  }
+  return !(pos && neg);
+}
+const xform3d = $("#xform3d"), xformRot = $("#xformRot"), xformLab = $("#xformLab");
+const TILT_DEG = 0.3;  // degrees of tilt per pixel the "3D" handle is dragged
 function showXform() {  // the box of the selected file clip, over the picture
   const c = S.project && clipById(S.sel);
   const r = c && placeable(c) && !S.paint && !S.playing ? placed(c) : null;
   // nothing to move when the clip is not shown at all (its track hidden, the clip turned off)
-  if (!r || !clipOrder().includes(c)) { xform.style.display = "none"; return; }
-  const st = stage.getBoundingClientRect(), sc = screenEl.getBoundingClientRect();
-  const kx = sc.width / info().w, ky = sc.height / info().h;
-  Object.assign(xform.style, {display: "block", left: (sc.left - st.left + r.x * kx) + "px", top: (sc.top - st.top + r.y * ky) + "px",
-    width: Math.max(4, r.w * kx) + "px", height: Math.max(4, r.h * ky) + "px"});
+  if (!r || !clipOrder().includes(c)) { xform.style.display = xformLab.style.display = xform3d.style.display = "none"; return; }
+  const st = stage.getBoundingClientRect(), sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
+  const kx = sc.width / W, ky = sc.height / H, ox = sc.left - st.left, oy = sc.top - st.top;
+  const bw = Math.max(4, r.w * kx), bh = Math.max(4, r.h * ky), turn = turned(c);
+  // turned: the box turns with the clip (its flips left out: the same four corners), in pixels of the stage
+  const flat = Object.assign({}, c.params, {flip_h: false, flip_v: false});
+  Object.assign(xform.style, {display: "block", left: (ox + r.x * kx) + "px", top: (oy + r.y * ky) + "px",
+    width: bw + "px", height: bh + "px", transform: turn ? turnCSS(flat, r, kx) : ""});
   const now = weight(span(c), curFrame()) > 0;
   xform.classList.toggle("off", !now);
   xform.style.pointerEvents = now ? "" : "none";  // not at this time: an outline only, clicks go to what is shown
-  $("#xformLab").textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}`;
+  const q = turn ? quad(c) : [[r.x, r.y], [r.x + r.w, r.y + r.h]], xs = q.map(p => ox + p[0] * kx), ys = q.map(p => oy + p[1] * ky);
+  xformLab.textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}` +
+    (turn ? ` · xoay ${num(c.params.rot_x)}°, ${num(c.params.rot_y)}°, ${num(c.params.rot_z)}°` : "");
+  Object.assign(xformLab.style, {display: "block", left: Math.min(...xs) + "px", top: Math.min(...ys) - 20 + "px"});
+  const spin = c.kind === "file";  // only a file clip turns (a built-in effect at one place does not)
+  xformRot.style.display = spin ? "block" : "none";
+  if (spin) {  // the knob above the top edge; with no room there (a clip bigger than the picture), the first place
+    // down the box's middle line that can be seen
+    const {m} = homography(flat, r, W, H), seen = v => {
+      const [px, py, pw] = project(m, r.w / 2, v), sx = ox + px * kx, sy = oy + py * ky;
+      return pw > 0 && sx > 10 && sx < st.width - 10 && sy > 10 && sy < st.height - 10;
+    };
+    const steps = [-20.5 / ky, ...Array.from({length: 40}, (_, i) => (20.5 + i * Math.max(0, bh - 41) / 39) / ky)];
+    const at = steps.find(seen);
+    xformRot.classList.toggle("in", at !== steps[0]);
+    xformRot.style.top = ((at === undefined ? steps[1] : at) * ky - 7) + "px";
+  }
+  // "3D" in the middle of the picture (where it turns about), when there is room around it for the box to be dragged
+  const room = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) >= 60;
+  Object.assign(xform3d.style, {display: spin && now && room ? "block" : "none", left: ox + (r.x + r.w / 2) * kx + "px", top: oy + (r.y + r.h / 2) * ky + "px"});
   // where the thing it belongs to goes: a cup's mouth (a flat ellipse on the bottom edge), a candle's wick (a line)
-  const sch = S.schema.kinds[c.kind], mk = $("#xformMark"), tip = $("#xformTip"), bw = Math.max(4, r.w * kx), bh = Math.max(4, r.h * ky);
+  const sch = S.schema.kinds[c.kind], mk = $("#xformMark"), tip = $("#xformTip");
   const line = (el, at, w, hint, lab) => {  // a level line at `at` (fractions of the box)
     Object.assign(el.style, {display: "block", left: at[0] * bw - w / 2 - 1 + "px", width: w + "px", height: "0px", top: at[1] * bh - 1 + "px", bottom: ""});
     el.title = hint || ""; if (lab) el.dataset.lab = lab; else delete el.dataset.lab;
@@ -1156,18 +1239,25 @@ function placeParam(c, key, v) {  // on the parameter's own step (a twentieth of
   const d = S.schema.kinds[c.kind].params.find(x => x.key === key), step = d.step || 1;
   return clamp(+(Math.round(v / step) * step).toFixed(3), d.min, d.max);
 }
-function startXdrag(e) {  // a press on the selected clip's box, or on its picture
+function startXdrag(e, el = xform) {  // a press on the selected clip's box, on its picture, or on "3D" (el)
   const c = clipById(S.sel); if (!c || xform.style.display !== "block") return;
   e.preventDefault();
-  xform.setPointerCapture(e.pointerId);
-  const sc = screenEl.getBoundingClientRect(), xr = xform.getBoundingClientRect();
-  const cx = xr.left + xr.width / 2, cy = xr.top + xr.height / 2;
-  const h = e.target.dataset.h || "";  // a corner: nw, ne, sw, se
+  el.setPointerCapture(e.pointerId);
+  const sc = screenEl.getBoundingClientRect(), xr = xform.getBoundingClientRect(), r0 = placed(c);
+  // the clip's middle on the screen: a turned clip turns about it (and its box's outline is no longer the clip's)
+  const cx = sc.left + (r0.x + r0.w / 2) / info().w * sc.width, cy = sc.top + (r0.y + r0.h / 2) / info().h * sc.height;
+  const h = el === xform3d ? "tilt" : e.target.dataset.h || "";  // a corner: nw, ne, sw, se; "rot": the round knob
   const ox = h.includes("w") ? xr.right : xr.left, oy = h.includes("n") ? xr.bottom : xr.top;  // the corner opposite
-  S.xdrag = {c, scale: !!h, h, x0: e.clientX, y0: e.clientY, p0: Object.assign({}, c.params), r0: placed(c), sc, cx, cy, ox, oy,
-    d0: Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy))};
+  S.xdrag = {c, scale: h.length === 2, h, x0: e.clientX, y0: e.clientY, p0: Object.assign({}, c.params), r0, sc, cx, cy, ox, oy,
+    d0: Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy)), a0: Math.atan2(e.clientY - cy, e.clientX - cx)};
   invalidateExact();
   if (S.schema.under[c.kind]) applyTime();  // its preview clip hides while it moves
+}
+const XFORM_KEYS = ["x", "y", "scale", ...ROT_KEYS];
+function showParam(key, v) {  // a setting changed on the picture: its slider (and number) in the panel follow
+  const input = $(`#ec input[type=range][data-param="${key}"]`), lab = $("#v-" + key);
+  if (input) input.value = v;
+  if (lab) { if (lab.tagName === "INPUT") lab.value = num(v); else lab.textContent = num(v); }
 }
 xform.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;
@@ -1175,10 +1265,25 @@ xform.addEventListener("pointerdown", e => {
   S.xdowns = [(S.xdowns || [])[1], {id: S.sel, t: e.timeStamp}];  // the last two presses: a double-click is on one clip
   startXdrag(e);
 });
-xform.addEventListener("pointermove", e => {
+xform3d.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  e.stopPropagation(); S.xdowns = null;
+  startXdrag(e, xform3d);
+});
+function moveXdrag(e) {
   const d = S.xdrag; if (!d) return;
   const c = d.c, pr = c.params;
-  if (d.scale && e.altKey) {  // around the middle
+  if (d.h === "rot") {  // the knob: the clip turns about its middle as the pointer goes round it
+    let z = (+d.p0.rot_z || 0) + (Math.atan2(e.clientY - d.cy, e.clientX - d.cx) - d.a0) * 180 / Math.PI;
+    z = ((z + 180) % 360 + 360) % 360 - 180;
+    if (e.shiftKey) z = Math.round(z / 15) * 15;
+    pr.rot_z = placeParam(c, "rot_z", z);
+  } else if (d.h === "tilt") {  // "3D": sideways turns it left / right, up and down tilts it back / forward
+    let dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+    if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+    pr.rot_y = placeParam(c, "rot_y", (+d.p0.rot_y || 0) + dx * TILT_DEG);
+    pr.rot_x = placeParam(c, "rot_x", (+d.p0.rot_x || 0) - dy * TILT_DEG);
+  } else if (d.scale && (e.altKey || turned(c))) {  // around the middle (a turned clip: always)
     pr.scale = placeParam(c, "scale", d.p0.scale * Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.d0);
     pr.x = d.p0.x; pr.y = d.p0.y;
   } else if (d.scale) {  // the opposite corner stays where it is, as in Premiere
@@ -1196,25 +1301,31 @@ xform.addEventListener("pointermove", e => {
   }
   if (S.els[c.id]) styleLayer(c, S.els[c.id]);
   showXform();
-  for (const key of ["x", "y", "scale"]) {  // the sliders follow
-    const input = $(`#ec [data-param="${key}"]`), lab = $("#v-" + key);
-    if (input) input.value = pr[key];
-    if (lab) lab.textContent = num(pr[key]);
-  }
-});
-xform.addEventListener("pointerup", () => {
+  for (const key of XFORM_KEYS) if (key in pr) showParam(key, pr[key]);  // the sliders follow
+}
+function endXdrag() {
   const d = S.xdrag; if (!d) return;
   S.xdrag = null;
   if (S.schema.under[d.c.kind]) applyTime();  // (back if it did not move)
-  if (["x", "y", "scale"].some(k => d.c.params[k] !== d.p0[k])) {
+  if (XFORM_KEYS.some(k => d.c.params[k] !== d.p0[k])) {
     if (S.els[d.c.id]) styleLayer(d.c, S.els[d.c.id]);
     showXform(); scheduleSave(); remember(); renderControls(); renderTools();
     invalidateExact();  // the exact frame is asked for once the save is in (sendSave)
   } else refreshExact();
+}
+for (const el of [xform, xform3d]) {
+  el.addEventListener("pointermove", moveXdrag);
+  el.addEventListener("pointerup", endXdrag);
+  el.addEventListener("pointercancel", endXdrag);
+}
+xform3d.addEventListener("dblclick", e => {  // upright again (its turn in the plane stays)
+  const c = clipById(S.sel); e.stopPropagation();
+  if (c && turned(c)) { c.params.rot_x = 0; c.params.rot_y = 0; edited(); }
 });
 xform.addEventListener("dblclick", e => {  // back to the middle, at its size
   const c = clipById(S.sel), [a, b] = S.xdowns || [];
   e.stopPropagation();
+  if (c && e.target === xformRot) { if (+c.params.rot_z) { c.params.rot_z = 0; edited(); } return; }  // the knob: 0°
   // both clicks on this clip's box: not the click that selected it on the picture, then one on the box
   if (!c || !a || !b || a.id !== c.id || b.id !== c.id || a.picked || b.t - a.t > 800) return;
   c.params.x = 0; c.params.y = 0; edited();
@@ -1582,7 +1693,11 @@ function renderTools() {  // the tool column at the right of the monitor: painti
   const pos = c && placeable(c) ? `<h5>Vị trí và cỡ</h5>
       <div class="lab"><span>Cỡ</span><b>${c.params.scale}%</b></div><div class="lab"><span>Ngang, dọc</span><b>${c.params.x}, ${c.params.y}</b></div>
       <div class="two" style="margin-top:6px"><button class="small" data-center="1" title="Đưa clip về giữa khung">Về giữa</button><button class="small" data-scale100="1" title="${c.kind === "file" ? "Cỡ 100%" : "Cỡ lúc mới thêm"}">${c.kind === "file" ? "Cỡ 100%" : "Cỡ ban đầu"}</button></div>
-      <p class="tip">Kéo khung trắng trên hình để di chuyển, kéo góc để đổi cỡ.</p>` : "";
+      <p class="tip">Kéo khung trắng trên hình để di chuyển, kéo góc để đổi cỡ.</p>
+      ${c.kind === "file" ? `<h5>Xoay 3D</h5>
+      <div class="lab" title="Nghiêng trước / sau, xoay trái / phải, xoay phẳng"><span>Góc</span><b>${num(c.params.rot_x || 0)}°, ${num(c.params.rot_y || 0)}°, ${num(c.params.rot_z || 0)}°</b></div>
+      <button class="small wide" data-rotreset="1" ${turned(c) ? "" : "disabled"} title="Thẳng lại như lúc đầu">Đặt lại xoay</button>
+      <p class="tip">Kéo nút tròn trên khung để xoay phẳng (giữ Shift: từng nấc 15°). Kéo nút 3D giữa khung để nghiêng, ví dụ cho mưa nằm đúng ô cửa nhìn chéo.</p>` : ""}` : "";
   el.innerHTML = `<h5>Vẽ vùng</h5>
     <button class="wide" data-paint="freeze" title="Chỗ phải đứng yên tuyệt đối"><span style="color:${COLORS.freeze}">●</span> Vùng đứng yên</button>
     <button class="wide" data-paint="fg" title="Vật ở gần: che các clip bay ra sau tiền cảnh"><span style="color:${COLORS.fg}">●</span> Tiền cảnh</button>
@@ -1598,9 +1713,10 @@ $("#tools").addEventListener("click", e => {
     if (name === "freeze" || name === "fg") S.sel = "base";
     enterPaint(name); renderTimeline(); renderControls(); return;
   }
-  if (b.dataset.center || b.dataset.scale100) {
+  if (b.dataset.center || b.dataset.scale100 || b.dataset.rotreset) {
     const c = clipById(S.sel); if (!c) return;
-    if (b.dataset.center) { c.params.x = 0; c.params.y = 0; }
+    if (b.dataset.rotreset) { for (const k of ROT_KEYS) c.params[k] = 0; }
+    else if (b.dataset.center) { c.params.x = 0; c.params.y = 0; }
     else c.params.scale = c.kind === "file" ? 100 : S.schema.kinds[c.kind].params.find(d => d.key === "scale").value;
     edited(); renderTools(); return;
   }
@@ -1756,8 +1872,7 @@ stage.addEventListener("pointerdown", e => {
   if (!S.paint && e.button === 0) {  // a click on a clip's picture selects it (the top one there)
     const sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
     const vx = (e.clientX - sc.left) / sc.width * W, vy = (e.clientY - sc.top) / sc.height * H, t = curFrame();
-    const hit = clipOrder().reverse().find(c => placeable(c) && weight(span(c), t) > 0 &&
-      (r => r && vx >= r.x && vx <= r.x + r.w && vy >= r.y && vy <= r.y + r.h)(placed(c)));
+    const hit = clipOrder().reverse().find(c => placeable(c) && weight(span(c), t) > 0 && hitsClip(c, vx, vy));
     if (hit) {
       if (hit.id !== S.sel) { select(hit.id); S.xdowns = null; }
       S.xdowns = [(S.xdowns || [])[1], {id: hit.id, t: e.timeStamp, picked: true}];
@@ -2417,6 +2532,11 @@ function slider(key, label, value, min, max, step, extra = "") {
   return `<div class="row"><div class="lab"><span>${esc(label)}</span><b id="v-${key}">${value}</b></div>
     <input type="range" data-param="${key}" min="${min}" max="${max}" step="${step || 1}" value="${value}" ${extra}></div>`;
 }
+function numSlider(d, value) {  // a slider with a field to type its number in
+  const step = d.step || 1;
+  return `<div class="row"><div class="lab"><span>${esc(d.label)}</span><input type="number" class="numv" id="v-${d.key}" data-num="${d.key}" min="${d.min}" max="${d.max}" step="${step}" value="${num(value)}"></div>
+    <input type="range" data-param="${d.key}" min="${d.min}" max="${d.max}" step="${step}" value="${value}"></div>`;
+}
 function renderControls() {
   const el = $("#ec"), p = S.project;
   if (!p) { el.innerHTML = `<div class="empty">Mở một video để bắt đầu.</div>`; $("#ecNote").textContent = ""; return; }
@@ -2466,8 +2586,12 @@ function renderControls() {
   });
   const fileParams = c.kind === "file" ? (() => {
     const by = Object.fromEntries(sch.params.map((d, i) => [d.key, params[i]]));
+    const turn = sch.params.filter(d => d.group === "Xoay 3D").map(d => numSlider(d, c.params[d.key])).join("");
     return `<h4>Hoà trộn</h4>${by.blend}${by.opacity}<p class="note">Hiệu ứng trên nền đen: Screen. File nền trong suốt (MOV, WebM, PNG): Bình thường.</p>
       <h4>Vị trí và cỡ</h4>${by.fit}${by.scale}${by.x}${by.y}<div class="flips">${by.flip_h}${by.flip_v}</div>
+      <h4>Xoay 3D</h4>${turn}
+      <div class="btns"><button class="small" id="rotReset" title="Thẳng lại như lúc đầu: không nghiêng, không xoay">Đặt lại xoay</button></div>
+      <p class="note">Trên hình: kéo nút tròn phía trên khung để xoay phẳng, kéo nút <b>3D</b> giữa khung để nghiêng (sang ngang: xoay trái / phải, lên xuống: nghiêng trước / sau). Độ sâu phối cảnh: 0 là phẳng, càng lớn thì phần ở gần càng to, như nhìn ô cửa từ một góc.</p>
       ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}${by.reverse}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}
       <h4>Màu sắc</h4>${by.bright}${by.contrast}${by.sat}${by.hue}${by.temp}${by.tint_amt}${by.tint}
       <div class="btns"><button class="small" id="colourReset" ${colourOps(c.params) ? "" : "disabled"}>Đặt lại màu như file gốc</button></div>
@@ -2577,6 +2701,11 @@ $("#ec").addEventListener("click", e => {
     for (const d of S.schema.kinds.file.params) if (COLOUR_KEYS.includes(d.key)) c.params[d.key] = d.value;
     edited(); return;
   }
+  if (id === "rotReset") {  // upright and straight again (the perspective setting stays)
+    if (!turned(c)) return;
+    for (const k of ROT_KEYS) c.params[k] = 0;
+    edited(); return;
+  }
   if (id === "fullBtn") {
     if (overlaps(c.track, 0, total(), c.id)) return toast("Track này còn clip khác: hãy kéo clip sang một track trống trước.", true);
     moveClip(c, 0, total()); c.skip = 0; edited(); return;
@@ -2611,10 +2740,18 @@ $("#ec").addEventListener("input", e => {
     edited({controls: false, remember: false});
     return;
   }
+  if (t.dataset.num) {  // a number typed next to its slider: on the slider's step, within its ends
+    const key = t.dataset.num, raw = String(t.value).trim(), v = Number(raw);
+    if (raw === "" || !Number.isFinite(v)) return;  // (put right when the field is left)
+    c.params[key] = placeParam(c, key, v);
+    const sl = $(`#ec input[type=range][data-param="${key}"]`); if (sl) sl.value = c.params[key];
+    if (S.els[c.id]) styleLayer(c, S.els[c.id]);
+    applyTime(); invalidateExact(); scheduleSave(); showXform(); return;
+  }
   if (t.dataset.param) {
     const key = t.dataset.param, def = S.schema.kinds[c.kind].params.find(d => d.key === key);
     let v = t.type === "range" ? +t.value : t.type === "checkbox" ? t.checked : t.value;
-    const lab = $("#v-" + key); if (lab) lab.textContent = v;
+    const lab = $("#v-" + key); if (lab) { if (lab.tagName === "INPUT") lab.value = num(v); else lab.textContent = v; }
     c.params[key] = v;
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
     if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
@@ -2629,6 +2766,7 @@ $("#ec").addEventListener("change", e => {
   if (!c) { remember(); return; }
   if (t.dataset.mix) { const b = clipById(t.dataset.mix); if (b) setMix(b, t.checked ? 0.5 : 0); return; }
   if (t.id === "behind") { c.behind = t.checked; edited(); return; }
+  if (t.dataset.num) { t.value = num(c.params[t.dataset.num]); remember(); renderTools(); return; }  // as it is kept
   if (t.dataset.time) {
     const raw = t.value.trim().replace(",", "."), sec = raw === "" ? NaN : Number(raw);  // "2,5" as well as "2.5"
     if (!Number.isFinite(sec) || sec < 0) { S.controlsDue = true; return; }  // empty or not a number: put back when left

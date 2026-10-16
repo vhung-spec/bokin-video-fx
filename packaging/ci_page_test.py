@@ -81,7 +81,57 @@ def media():
     im = Image.new("RGBA", (400, 200), (0, 0, 0, 0))
     ImageDraw.Draw(im).ellipse([20, 20, 380, 180], fill=(255, 200, 0, 160))
     im.save(os.path.join(folder, "logo.png"))
+    im = Image.new("RGB", (480, 320), (30, 30, 30))  # a test pattern to turn in 3D: coloured squares, a white rim
+    d = ImageDraw.Draw(im)
+    colours = [(230, 80, 60), (60, 200, 90), (70, 110, 240), (240, 220, 70), (220, 90, 220), (80, 220, 230)]
+    for j in range(8):
+        for i in range(12):
+            d.rectangle([i * 40, j * 40, i * 40 + 39, j * 40 + 39], fill=colours[(i + 2 * j) % 6])
+    d.rectangle([0, 0, 479, 319], outline=(255, 255, 255), width=6)
+    d.ellipse([170, 90, 310, 230], fill=(250, 250, 250))
+    im.save(os.path.join(folder, "pattern.png"))
     return folder
+
+
+# the media element's own corners on the screen, in video pixels: a twin of it with the same style and a mark at
+# each corner (a <video> or <img> holds no marks), so the browser itself says where its transform lays them
+CORNERS = """(id) => {
+    const e = S.els[id], m = e.media, twin = document.createElement('div');
+    for (const k of ['left', 'top', 'width', 'height', 'transform']) twin.style[k] = m.style[k];
+    twin.style.position = 'absolute';
+    twin.innerHTML = ['left:0;top:0', 'left:100%;top:0', 'left:100%;top:100%', 'left:0;top:100%']
+      .map(s => `<i style="position:absolute;${s};width:0;height:0"></i>`).join('');
+    e.wrap.appendChild(twin);
+    const sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
+    const out = [...twin.children].map(i => { const r = i.getBoundingClientRect();
+        return [(r.left - sc.left) / sc.width * W, (r.top - sc.top) / sc.height * H]; });
+    twin.remove();
+    return out;
+}"""
+
+
+def picture_parity(page, cid, info_w, info_h, lib_info, live, exact):
+    """How far the live preview's picture of a clip is from the exact frame's, inside its quad (2 px in from the
+    outline): mean difference of the colours, and of the brightness softened by 1.5 px (the exact frame is a
+    JPEG, its colour at half size: hard colour edges differ a lot without saying anything about the geometry)."""
+    from PIL import ImageFilter
+    from fx import effects as fx_effects, overlay as fx_overlay
+    live = np.asarray(Image.open(io.BytesIO(live)).convert("RGB"), np.float32)
+    exact = np.asarray(Image.open(io.BytesIO(exact)).convert("RGB"), np.float32)
+    sh, sw = live.shape[:2]
+    params = fx_effects.clean_params("file", page.evaluate(f"clipById('{cid}').params"))
+    q = [(x * sw / info_w, y * sh / info_h) for x, y in fx_overlay.quad(params, lib_info, info_w, info_h)]
+    core = Image.fromarray(np.where(np.asarray(fx_overlay.coverage(q, (0, 0, sw, sh))) == 255, 255, 0).astype(np.uint8))
+    inner = np.asarray(core.filter(ImageFilter.MinFilter(5))) > 0
+
+    def luma(a):
+        return np.asarray(Image.fromarray(np.clip(a @ np.array(fx_overlay.LUMA), 0, 255).astype(np.uint8))
+                          .filter(ImageFilter.GaussianBlur(1.5)), np.float32)
+    rgb = np.abs(live - exact).mean(axis=2)[inner]
+    soft = np.abs(luma(live) - luma(exact))[inner]
+    return {"rgb mean": round(float(rgb.mean()), 2), "rgb p99": round(float(np.percentile(rgb, 99)), 1),
+            "rgb max": round(float(rgb.max()), 1), "soft luma mean": round(float(soft.mean()), 2),
+            "soft luma max": round(float(soft.max()), 1), "pixels": int(inner.sum())}
 
 
 def disc(png):
@@ -326,6 +376,128 @@ def run(page, folder, edge):
     page.click('#ec input[data-param="reverse"]')
     page.wait_for_timeout(500)
 
+    # an outside file turned in 3D (rain or light laid on a window seen at an angle): the live preview lays it with
+    # CSS perspective / rotateX / rotateY / rotateZ on exactly the corners the renderer warps it to
+    page.set_input_files("#fileLib", upload(folder, "pattern.png", "Ô kính.png", "image/png"))
+    page.wait_for_function("S.lib.length === 3 && S.lib.every(i => i.proxy)", timeout=60000)
+    rid = page.evaluate("""(() => {
+        const t = {id: newId("t"), on: true}; S.project.tracks.push(t);  // the top track: nothing over it
+        const it = S.lib.find(i => i.info.image && i.info.w === 480);
+        addClip({lib: it.id}, t.id, 24, 168); const c = clipById(S.sel);
+        Object.assign(c.params, {blend: 'normal', scale: 60}); edited(); seek(3); return c.id; })()""")
+    page.wait_for_function(f"S.els['{rid}'] && S.els['{rid}'].media.complete", timeout=30000)
+    vw, vh = page.evaluate("[info().w, info().h]")
+    rinfo = page.evaluate(f"clipById('{rid}').file.info")
+    ui = page.evaluate("[$('#xformRot').style.display, $('#xform3d').style.display, "
+                       "!!$('#ec input[data-num=\"rot_x\"]'), !!$('#ec input[type=range][data-param=\"rot_z\"]'), !!$('#rotReset')]")
+    check("3D: a file clip has the round knob, the 3D handle and the Xoay 3D settings", ui == ["block", "block", True, True, True],
+          str(ui))
+
+    def turn(params):
+        page.evaluate(f"(() => {{ const c = clipById('{rid}'); Object.assign(c.params, {json.dumps(params)}); edited(); }})()")
+
+    def screen_point(js_point):  # a point of the video (an expression giving [x, y]) on the screen
+        return page.evaluate(f"(() => {{ const p = {js_point}, sc = screenEl.getBoundingClientRect(); "
+                             "return [sc.left + p[0] / info().w * sc.width, sc.top + p[1] / info().h * sc.height]; })()")
+    worst = [0.0, 0.0, 0.0]
+    for case in (dict(rot_x=30, rot_y=-25, rot_z=10, persp=50),
+                 dict(rot_x=-55, rot_y=40, rot_z=-120, persp=100, flip_h=True),
+                 dict(rot_x=20, rot_y=65, rot_z=0, persp=0, x=20, y=-10, scale=140, flip_h=False)):
+        turn(case)
+        want = fx_overlay.quad(fx_effects.clean_params("file", page.evaluate(f"clipById('{rid}').params")), rinfo, vw, vh)
+        shown, js = page.evaluate(CORNERS, rid), page.evaluate(f"quad(clipById('{rid}'))")
+        box = page.evaluate("(() => { const r = xform.getBoundingClientRect(), sc = screenEl.getBoundingClientRect(), "
+                            "kx = info().w / sc.width, ky = info().h / sc.height; return [(r.left - sc.left) * kx, "
+                            "(r.top - sc.top) * ky, (r.right - sc.left) * kx, (r.bottom - sc.top) * ky]; })()")
+        around = [min(x for x, _ in want), min(y for _, y in want), max(x for x, _ in want), max(y for _, y in want)]
+        worst = [max(worst[0], max(math.dist(a, b) for a, b in zip(shown, want))),
+                 max(worst[1], max(math.dist(a, b) for a, b in zip(js, want))),
+                 max(worst[2], max(abs(a - b) for a, b in zip(box, around)))]
+    check("3D: the live preview's corners are the renderer's (within half a pixel)", worst[0] < 0.5 and worst[1] < 1e-6,
+          f"browser vs renderer {worst[0]:.3f} px, page's quad() vs renderer {worst[1]:.1e} px")
+    check("3D: the box on the picture turns with the clip", worst[2] < 1.0, f"{worst[2]:.3f} px")
+
+    turn(dict(rot_x=0, rot_y=0, rot_z=0, persp=50, x=0, y=0, scale=60))
+    page.evaluate(f"select('{rid}')")
+    kb = page.locator("#xformRot").bounding_box()
+    mid = screen_point(f"(q => [q.x + q.w / 2, q.y + q.h / 2])(placed(clipById('{rid}')))")
+    kx, ky = kb["x"] + kb["width"] / 2, kb["y"] + kb["height"] / 2
+    page.mouse.move(kx, ky)
+    page.mouse.down()
+    for k in range(1, 7):  # round the middle, 30 degrees clockwise
+        a = math.radians(30) * k / 6
+        page.mouse.move(mid[0] + (kx - mid[0]) * math.cos(a) - (ky - mid[1]) * math.sin(a),
+                        mid[1] + (kx - mid[0]) * math.sin(a) + (ky - mid[1]) * math.cos(a))
+    page.mouse.up()
+    page.wait_for_timeout(200)
+    z = page.evaluate(f"clipById('{rid}').params.rot_z")
+    check("3D: the round knob turns the clip in the plane", abs(z - 30) < 1.5 and
+          "rotateZ(" in page.evaluate(f"S.els['{rid}'].media.style.transform"), str(z))
+    hb = page.locator("#xform3d").bounding_box()
+    hx, hy = hb["x"] + hb["width"] / 2, hb["y"] + hb["height"] / 2
+    drag(hx, hy, hx + 100, hy)
+    tilt = page.evaluate(f"(p => [p.rot_x, p.rot_y, p.rot_z])(clipById('{rid}').params)")
+    check("3D: dragging \"3D\" sideways turns it left / right", abs(tilt[1] - 30) < 1 and tilt[0] == 0 and tilt[2] == z,
+          str(tilt))
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    check("3D: undo takes the tilt back", page.evaluate(f"(p => [p.rot_y, p.rot_z])(clipById('{rid}').params)") == [0, z])
+
+    # turned, its picture is picked where it is now, not where it was upright
+    turn(dict(rot_z=45))
+    page.evaluate("(() => { S.sel = null; renderControls(); showXform(); })()")
+    on = screen_point(f"(q => {{ const c = q.reduce((a, p) => [a[0] + p[0] / 4, a[1] + p[1] / 4], [0, 0]), "
+                      "t = q.reduce((a, p) => p[1] < a[1] ? p : a); return [c[0] + 0.85 * (t[0] - c[0]), "
+                      f"c[1] + 0.85 * (t[1] - c[1])]; }})(quad(clipById('{rid}')))")
+    # near the upright box's corner: off the picture turned 45 degrees
+    off = screen_point(f"(q => [q.x + 0.03 * q.w, q.y + 0.03 * q.h])(placed(clipById('{rid}')))")
+    check("3D: (that point is off the turned picture)", page.evaluate(
+        f"(() => {{ const r = placed(clipById('{rid}')); return !hitsClip(clipById('{rid}'), r.x + 0.03 * r.w, r.y + 0.03 * r.h); }})()"))
+    page.mouse.click(*off)
+    page.wait_for_timeout(200)
+    missed = page.evaluate("S.sel")
+    page.mouse.dblclick(*on)
+    page.wait_for_timeout(300)
+    check("3D: a click picks a turned clip by its turned picture", missed is None and page.evaluate("S.sel") == rid and
+          page.evaluate(f"[clipById('{rid}').params.x, clipById('{rid}').params.y]") == [0, 0], f"{missed}, {page.evaluate('S.sel')}")
+    page.fill('#ec input[data-num="rot_x"]', "12.5")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(200)
+    typed = page.evaluate(f"[clipById('{rid}').params.rot_x, +$('#ec input[type=range][data-param=\"rot_x\"]').value, "
+                          f"S.els['{rid}'].media.style.transform]")
+    check("3D: a number typed in the panel", typed[:2] == [12.5, 12.5] and "rotateX(12.5deg)" in typed[2], str(typed))
+    page.evaluate("document.activeElement.blur()")
+
+    # the picture itself: the live preview and the exact frame agree inside the turned clip
+    turn(dict(rot_x=30, rot_y=-25, rot_z=10, persp=50))
+    page.evaluate("(async () => { S.sel = null; renderControls(); showXform(); await saveNow(); })()")
+    page.wait_for_timeout(500)
+    page.evaluate("exact.style.visibility = 'hidden'")  # the live preview alone
+    page.wait_for_timeout(300)
+    live_png = page.locator("#screen").screenshot()
+    page.evaluate("(() => { if (!S.exactOn) $('#tExact').click(); invalidateExact(); refreshExact(); })()")
+    page.wait_for_function("exact.style.display === 'block' && exact.complete && exact.src.includes('rev=' + S.project.rev)",
+                           timeout=60000)
+    page.evaluate("exact.style.visibility = ''")
+    page.wait_for_timeout(300)
+    exact_png = page.locator("#screen").screenshot()
+    with open(os.path.join(SHOTS, "05a-turned-live.png"), "wb") as f:
+        f.write(live_png)
+    with open(os.path.join(SHOTS, "05a-turned-exact.png"), "wb") as f:
+        f.write(exact_png)
+    parity = picture_parity(page, rid, vw, vh, rinfo, live_png, exact_png)
+    check("3D: the live preview's picture is the exact frame's", parity["soft luma mean"] < 4 and parity["rgb mean"] < 14,
+          str(parity))
+    page.evaluate(f"select('{rid}')")
+    page.click("#rotReset")
+    page.wait_for_timeout(200)
+    flat = page.evaluate(f"[clipById('{rid}').params.rot_x, clipById('{rid}').params.rot_y, clipById('{rid}').params.rot_z, "
+                         f"S.els['{rid}'].media.style.transform]")
+    check("3D: \"Đặt lại xoay\" sets it straight", flat == [0, 0, 0, ""], str(flat))
+    page.keyboard.press("Control+z")  # turned again, for the export
+    page.wait_for_timeout(200)
+    check("3D: undo turns it again", page.evaluate(f"turned(clipById('{rid}'))") is True)
+
     # a Mix where two clips meet: the button on the join adds it; the page and the renderer weigh it alike
     ids = page.evaluate("""(() => {
         const t = {id: newId("t"), on: true}; S.project.tracks.push(t);
@@ -390,6 +562,9 @@ def run(page, folder, edge):
         tip = "block" if kind == "candle" else "none"  # (the candle: the wick, and the flame's tip)
         check(f"{kind}: its box on the picture, with the yellow marks", mk[:4] == ["block", "block", mark, tip]
               and bool(mk[4]), str(mk))
+        spin = page.evaluate("[$('#xformRot').style.display, $('#xform3d').style.display, !!$('#ec [data-num=\"rot_x\"]')]")
+        check(f"{kind}: not turned in 3D (no knob, no 3D handle, no settings for it)", spin == ["none", "none", False],
+              str(spin))
         page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.els['{cid}']", timeout=300000)
         laid = f"""(() => {{ const c = clipById('{cid}'), e = S.els['{cid}'], q = placed(c);
             return [e.media.getAttribute('src'), e.wrap.style.mixBlendMode,

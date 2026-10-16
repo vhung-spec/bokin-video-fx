@@ -175,10 +175,12 @@ def run():
                   {"id": "rain01", "kind": "rain", "behind": True, "params": {"amount": 25}, "seed": 3,
                    "track": tracks[2], "start": 0, "end": 30},
                   {"id": "glow01", "kind": "glow", "params": {}, "seed": 4, "track": tracks[2], "start": 30},
-                  {"id": "file01", "kind": "file", "lib": effect["id"], "params": {"blend": "normal"}, "seed": 6,
-                   "track": tracks[0] + "x"},
-                  {"id": "file02", "kind": "file", "lib": picture["id"], "params": {"scale": 30, "blend": "normal"},
-                   "seed": 7, "track": tracks[1] + "x", "start": 20, "end": 70, "fade_in": 0.5, "fade_out": 0.5}]
+                  # the outside files turned in 3D (warped onto their quads)
+                  {"id": "file01", "kind": "file", "lib": effect["id"], "seed": 6, "track": tracks[0] + "x",
+                   "params": {"blend": "normal", "rot_y": 15, "rot_z": 5}},
+                  {"id": "file02", "kind": "file", "lib": picture["id"], "seed": 7, "track": tracks[1] + "x",
+                   "params": {"scale": 30, "blend": "normal", "rot_x": 25, "rot_y": -30, "rot_z": 12},
+                   "start": 20, "end": 70, "fade_in": 0.5, "fade_out": 0.5}]
         project = projects.apply(project, {"tracks": project["tracks"] + [{"id": tracks[0] + "x"},
                                                                           {"id": tracks[1] + "x"}],
                                            "layers": layers})
