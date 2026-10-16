@@ -16,6 +16,7 @@ what it should and leaves every particle where it was.
 import math
 
 import numpy as np
+from PIL import Image
 
 from . import overlay, sprites
 
@@ -101,6 +102,102 @@ def _rgb(hex_colour):
 
 def _lerp(a, b, t):
     return a + (b - a) * t
+
+
+# --- the light of a scene (for effects lit by it) ------------------------------------------------------------------
+
+LIGHT_H = 135  # rows of a scene's light map (an eighth of 1080); its sizes below are in its own pixels
+_TO_LINEAR = np.where(np.arange(256) <= 10, np.arange(256) / 255.0 / 12.92,
+                      ((np.arange(256) / 255.0 + 0.055) / 1.055) ** 2.4).astype(np.float32)
+LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
+GLINT = 10.0  # how bright drops near a light source get (light map: times the light's colour, before blurring)
+
+
+def linear(c):
+    """sRGB (0..1) as linear light."""
+    c = np.asarray(c, np.float32)
+    return np.where(c <= 0.04045, c / 12.92, ((np.maximum(c, 0.04045) + 0.055) / 1.055) ** 2.4).astype(np.float32)
+
+
+def srgb(c):
+    """Linear light as sRGB (0..1; brighter than white: white)."""
+    c = np.clip(np.asarray(c, np.float32), 0.0, 1.0)
+    return np.where(c <= 0.0031308, c * 12.92, 1.055 * np.power(np.maximum(c, 0.0031308), 1 / 2.4) - 0.055).astype(
+        np.float32)
+
+
+def blur(a, sigma):
+    """A Gaussian blur (sigma in pixels) of a float array (h, w) or (h, w, c); past the edges the edge goes on."""
+    out = np.asarray(a, np.float32)
+    r = max(1, int(math.ceil(3 * sigma)))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2).astype(np.float32)
+    k /= k.sum()
+    for axis in (0, 1):
+        n = out.shape[axis]
+        pad = [(0, 0)] * out.ndim
+        pad[axis] = (r, r)
+        p = np.pad(out, pad, mode="edge")
+        acc = np.zeros_like(out)
+        for i, kv in enumerate(k):
+            acc += kv * np.take(p, np.arange(i, i + n), axis=axis)
+        out = acc
+    return out
+
+
+def _smoothstep(e0, e1, x):
+    t = np.clip((x - e0) / (e1 - e0), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def _box(a, lw, lh):
+    """A float picture (h, w, c) made lw x lh by averaging (each channel)."""
+    return np.stack([np.asarray(Image.fromarray(np.ascontiguousarray(a[..., c]), "F").resize(
+        (lw, lh), Image.Resampling.BOX)) for c in range(a.shape[2])], 2)
+
+
+def light_map(frames):
+    """The light of a scene, for what moves in it, from some of its frames (uint8 RGB, any size; spread over the
+    loop: the map is the loop's average light): linear light, LIGHT_H rows, the frames' shape, six channels. The
+    first three (light()): the light around each place: the frames' light blurred wide (about 50 px and 160 px of a
+    1080-line frame, and a share of the whole), plus glints round small light sources. A raindrop is a tiny
+    wide-angle lens: what it shows is the light around it, not the pixel behind it. A light source is a clipped
+    highlight (its brightest channel at white: a lamp, a neon tube) far brighter than what is around it, in a dark
+    scene: it stands for light far brighter than white, so drops near it flash. White paint, a white shirt, a bright
+    sky between leaves are not clipped, or are big, or lie in daylight: no glints there. Where the picture is
+    clipped (the sun, a lamp), the light is at least that: nothing drawn in it shows darker than the light. The last
+    three: the light at each place itself (the frames at the map's size), to tell what lies before something darker
+    than the light around it."""
+    acc = clipped = None
+    n = 0
+    for f in frames:
+        lin = _TO_LINEAR[np.asarray(f)[..., :3]]
+        hot = _smoothstep(0.8, 0.97, lin.max(axis=2))[..., None] * lin  # (each frame: a light on now and then counts)
+        acc, clipped = (lin, hot) if acc is None else (acc + lin, clipped + hot)
+        n += 1
+    if acc is None:
+        return None
+    acc /= n
+    clipped /= n
+    h, w = acc.shape[:2]
+    lw = max(2, round(LIGHT_H * w / h))
+    small, clipped = _box(acc, lw, LIGHT_H), _box(clipped, lw, LIGHT_H)
+    del acc
+    lum = small @ LUMA
+    e = 0.45 * blur(small, 6.0) + 0.35 * blur(small, 20.0) + 0.2 * small.mean(axis=(0, 1))
+    night = float(_smoothstep(0.16, 0.08, float(lum.mean())))  # (in daylight a clipped spot is sky or paint)
+    if night > 0:
+        spot = np.clip(lum - 1.5 * blur(lum, 8.0) - 0.05, 0.0, None)  # far brighter than what is around it
+        clum = np.maximum(clipped @ LUMA, 1e-6)  # (how much of it is clipped: a small lamp is mostly its glow)
+        hot = (np.minimum(spot / 0.3, 1.0) * np.minimum(1.0, 3.0 * clum / np.maximum(lum, 1e-4)) / clum)[..., None]
+        hot = hot * clipped
+        e += (GLINT * night) * (0.5 * blur(hot, 4.0) + 0.5 * blur(hot, 14.0))
+    np.maximum(e, clipped, out=e)
+    return np.ascontiguousarray(np.concatenate([e, small], 2), np.float32)
+
+
+def light(lights):
+    """The light around each place, of a scene's light (light_map(): its first three channels)."""
+    return lights[..., :3]
 
 
 class Canvas:
@@ -219,6 +316,10 @@ class Effect:
     # turns: placed and turned in 3D as a file clip is (sheet.Sheet): a full-frame effect on a sheet of the frame's
     # shape, a placed one in its box. A candle's flame does not turn (it always rises straight up).
     TURNS = True
+    # lit: drawn in the light of the scene it falls in (rain: a drop shows the light around it). Made with light=
+    # the scene's light map over its own frame (light_map(), from the video: engine.scene_light), it stays an effect
+    # drawn over the picture, so its preview clip carries it; light=None: drawn in its own colour
+    LIT = False
 
     def __init__(self, params, seed, frames, fps, w, h, aspect=None):
         self.p, self.seed = params, int(seed)
@@ -413,6 +514,8 @@ def quad(kind, params, w, h):
     return overlay.corners(overlay.homography(p, rect, w, h)[0], rect[2], rect[3])
 
 
-def make(kind, params, seed, frames, fps, w, h):
-    """The effect of one layer, for a loop of `frames` frames at `fps`, drawn at w x h."""
-    return KINDS[kind](clean_params(kind, params), seed, frames, fps, w, h)
+def make(kind, params, seed, frames, fps, w, h, light=None):
+    """The effect of one layer, for a loop of `frames` frames at `fps`, drawn at w x h (`light`: the scene's light
+    map, for an effect lit by it: Effect.LIT)."""
+    cls = KINDS[kind]
+    return cls(clean_params(kind, params), seed, frames, fps, w, h, **({"light": light} if cls.LIT else {}))

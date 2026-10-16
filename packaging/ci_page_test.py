@@ -1143,6 +1143,16 @@ def run(page, folder, edge):
         deleteClip(c); p.tracks = p.tracks.filter(x => x !== t); setLength(was); return [saved, kept]; })()""")
     check("60 s -> 30 s -> 60 s keeps a clip that only reached the 30 s end", r == [True, [0, 720]], str(r))
     page.wait_for_timeout(200)
+    # rain lit by the scene, moved or turned: its preview clip has the light of where it stood, so a pause shows the
+    # exact frame (as for a lens)
+    r = page.evaluate("""(() => {
+        const t = {id: newId("t"), on: true}; S.project.tracks.push(t);
+        addClip({kind: 'rain'}, t.id, 0, 240); const c = clipById(S.sel), pr = c.params, at = [litMoved(c)];
+        pr.x = -20; at.push(litMoved(c)); pr.lit = 0; at.push(litMoved(c));
+        pr.x = 0; pr.lit = 70; pr.rot_y = 20; at.push(litMoved(c));
+        deleteClip(c); S.project.tracks = S.project.tracks.filter(x => x !== t); edited(); return at; })()""")
+    check("lit rain moved or turned: the live preview is only close, a pause shows the exact frame",
+          r == [False, True, False, True], str(r))
 
     # a cup's steam and a candle's flame sit in a box on the picture, with a yellow mark where the cup's mouth or the
     # wick goes. Steam's preview clip is its box alone (moving the box keeps it); the candle's is made from the picture

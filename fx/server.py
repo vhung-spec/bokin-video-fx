@@ -212,6 +212,7 @@ class Handler(BaseHTTPRequestHandler):
                                    "max_mix": timeline.MAX_MIX,
                                    "blend": {k: c.blend for k, c in effects.KINDS.items()},
                                    "lens": {k: c.lens for k, c in effects.KINDS.items()},
+                                   "lit": {k: True for k, c in effects.KINDS.items() if c.LIT},
                                    "placed": {k: list(c.BOX) for k, c in effects.KINDS.items() if c.BOX},
                                    "under": {k: True for k, c in effects.KINDS.items() if c.UNDER},
                                    # turned in 3D like a file clip; on a sheet of the frame's shape (not a box)
