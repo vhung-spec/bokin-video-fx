@@ -14,7 +14,8 @@ and the masks painted on the page (masks/<name>.png: white = selected). A mask i
   video, so nothing moves. Where the mask is fully white the pixels are exactly the picture's.
 - Clips: built-in effects (effects.py) and outside files (overlay.py, kept in the library). A clip's area mask
   limits where it shows (no mask: the whole frame); a clip set "behind" is hidden by the foreground mask ("fg"),
-  as if it passed behind those things.
+  as if it passed behind those things. A built-in effect placed or turned in 3D is drawn on its own sheet, then
+  laid as a file clip is (sheet.py).
 """
 import collections
 import concurrent.futures
@@ -32,7 +33,7 @@ import threading
 import numpy as np
 from PIL import Image, ImageChops, ImageFilter
 
-from . import effects, library, overlay, paths, timeline, video
+from . import effects, library, overlay, paths, sheet, timeline, video
 
 LOOK_WIDTH = 1280
 FX_CLIP_WIDTH = 640
@@ -161,6 +162,7 @@ class Scene:
         self.layers = []  # (drawer, area as float or None (built-in effects), timeline.Span)
         self.missing = []  # file clips left out, their file not there (yet: a played-backwards copy being made)
         ids = []
+        scratch = sheet.Scratch()  # (the memory the effects placed or turned share)
         try:
             shown = clip_order(project)
             pairs = timeline.mix_pairs(shown, self.frames, fps)
@@ -190,6 +192,11 @@ class Scene:
                     drawer = overlay.Overlay(path, source, params, self.frames, fps, self.w, self.h, area, span)
                     self.layers.append((drawer, None, span))
                     ids.append(layer["id"])
+                elif effects.on_sheet(layer["kind"], layer.get("params")):  # placed or turned: laid as a file clip
+                    drawer = sheet.Sheet(layer["kind"], layer.get("params"), layer.get("seed", 1), self.frames, fps,
+                                         self.w, self.h, area, info["w"] / info["h"], scratch)
+                    self.layers.append((drawer, None, span))
+                    ids.append(layer["id"])
                 else:
                     drawer = effects.make(layer["kind"], layer.get("params"), layer.get("seed", 1), self.frames, fps,
                                           self.w, self.h)
@@ -202,8 +209,14 @@ class Scene:
         # layer i and the next one crossfade (a Mix): on a track, by start, so drawn one right after the other
         pairs = {(a, b) for a, b, _ in pairs}
         self.mixed = [(ids[i], ids[i + 1]) in pairs for i in range(len(ids) - 1)] + [False]
-        self.canvas = effects.Canvas(self.w, self.h) if any(
-            not isinstance(d, overlay.Overlay) for d, _, _ in self.layers) else None
+        upright = any(not isinstance(d, overlay.Laid) for d, _, _ in self.layers)
+        sheets = [d.scratch_size() for d, _, _ in self.layers if isinstance(d, sheet.Sheet)]
+        if sheets:  # one canvas for them and the upright effects, as big as the biggest, made once
+            scratch.floats("canvas", max([n for n, _ in sheets] + [self.w * self.h * 4 if upright else 0]))
+            scratch.floats("lens", max(n for _, n in sheets))
+        self.canvas = None
+        if upright:
+            self.canvas = scratch.canvas(self.w, self.h) if sheets else effects.Canvas(self.w, self.h)
 
     def image(self, t, base):
         """Frame t as an RGB image: `base` (uint8 RGB array, the video's frame at this size) with the still areas
@@ -222,13 +235,13 @@ class Scene:
                 img = self._crossfade(t, img, i, *both)
                 i += 2
                 continue
-            if isinstance(layers[i][0], overlay.Overlay):
+            if isinstance(layers[i][0], overlay.Laid):  # a file, or an effect placed or turned: on the 8-bit picture
                 drawer, _, span = layers[i]
                 img = drawer.draw(t, img, span.weight(t))
                 i += 1
                 continue
             j = i + 1  # a run of built-in effects, drawn on a float copy of the picture
-            while j < len(layers) and not isinstance(layers[j][0], overlay.Overlay) and not self._mix_at(j, t):
+            while j < len(layers) and not isinstance(layers[j][0], overlay.Laid) and not self._mix_at(j, t):
                 j += 1
             run = [(d, area, span.weight(t)) for d, area, span in layers[i:j]]
             i = j
@@ -278,7 +291,7 @@ class Scene:
     def _alone(self, k, t, img):
         """A copy of `img` with layer k laid over it at full strength."""
         drawer, area, _ = self.layers[k]
-        if isinstance(drawer, overlay.Overlay):
+        if isinstance(drawer, overlay.Laid):
             return drawer.draw(t, img.copy())
         picture = np.asarray(img, np.float32) * (1 / 255.0)
         if drawer.lens:
@@ -295,7 +308,7 @@ class Scene:
 
     def close(self):
         for drawer, _, _ in self.layers:
-            if isinstance(drawer, overlay.Overlay):
+            if isinstance(drawer, overlay.Laid):
                 drawer.close()
 
 
@@ -347,8 +360,9 @@ def render_part(folder, project, size, period, crf, preset, threads, start, end,
 
 def workers(encoder_threads=True, pixels=0):
     """Worker processes for a render: half the logical CPUs when the encoders need the rest, else all but one;
-    1 to 8, and at most 4 for frames bigger than 1440p (each worker holds a few full frames, more with water on
-    glass: about 0.6 GB at 4K)."""
+    1 to 8, and at most 4 for frames bigger than 1440p (each worker holds a few full frames and each effect's own
+    buffers: at 4K about 0.9 GB with five snow clips, upright or turned (turned ones share one canvas:
+    sheet.Scratch), 1.4 GB at 200%, more with water on glass: 2 to 3 GB with five)."""
     cpus = os.cpu_count() or 2
     most = 4 if pixels > 2560 * 1440 else 8
     return max(1, min(most, cpus // 2 if encoder_threads else cpus - 1))
@@ -472,9 +486,6 @@ def fx_clip_size(info):
     return w, max(2, round(info["h"] * w / info["w"] / 2) * 2)
 
 
-PLACED = ("x", "y", "scale")  # a placed effect's place: not in its preview clip (the page lays the box)
-
-
 def fx_clip_frame(info, kind, layer=None):
     """The size of a built-in effect's preview clip: the video's, small; for a placed effect, its box's shape (one
     made from the picture under it no bigger than the box is in the video)."""
@@ -545,10 +556,11 @@ def _under_key(project, layer):
 
 
 def fx_clip_params(kind, params):
-    """The settings its preview clip is made with: a placed effect fills the clip (its own place left out)."""
-    if not effects.KINDS[kind].BOX:
-        return params
-    return dict({k: v for k, v in (params or {}).items() if k not in PLACED}, x=0, y=0, scale=100)
+    """The settings its preview clip is made with: not its place or turn (the page lays the clip there, turned, so
+    turning is instant and the clip's name stays), and a placed effect fills the clip (effects.sheet_params)."""
+    if not effects.KINDS[kind].BOX and not any(k in effects.SHEET_KEYS for k in params or {}):
+        return params  # (a clip saved before effects were placed: exactly as before)
+    return effects.sheet_params(kind, params)
 
 
 def fx_clip_name(project, layer):

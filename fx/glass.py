@@ -862,9 +862,11 @@ class Glass(Effect):
             a *= self.opacity
         canvas.over_rgba(box[0], box[1], rgb, a, mask)
 
-    def apply(self, t, picture, mask, gain):
+    def apply(self, t, picture, mask, gain, kept=None):
         """The whole effect on `picture` (float32 RGB 0..1, changed in place) where `mask` (0..1, None: everywhere)
-        says, `gain` (0..1, a fade) times as strongly."""
+        says, `gain` (0..1, a fade) times as strongly. Every pixel becomes kept * itself + what the glass adds (the
+        blurred scene, the veil, what a drop sees); `kept` (None, or a float32 array of the picture's size, all 1)
+        is given that share (sheet.Sheet lays a turned glass with it)."""
         k = gain * self.opacity
         box = self._box(mask)
         if k <= 0 or box is None:
@@ -914,6 +916,7 @@ class Glass(Effect):
             lo, hi = blurred(0.35 * self.blur_r, 0), blurred(self.blur_r, 0.25)
         base = pic[yy, xx]
         glass, veil_at = base.copy(), np.zeros(len(yy), np.float32)  # the fogged glass under each drop pixel
+        wgt_at = np.zeros(len(yy), np.float32) if kept is not None else None  # (how blurred it is there)
         # the glass: picture * (1 - q2 - q3) + blurred * q2 + colour * q3 (the veil), in bands of rows
         band = max(8, (1 << 18) // bw)
         starts = np.searchsorted(yy, np.arange(0, bh + band, band))
@@ -946,6 +949,9 @@ class Glass(Effect):
                 q2 *= -kk  # kk * wgt * (1 - veil)
                 keep = 1 - q2
                 keep -= q3
+                if kept is not None:
+                    kept[y0 + r0:y0 + r1, x0:x1] = keep
+                    wgt_at[d0:d1] = wgt[ry, rx]
                 for c in range(3):  # (channel by channel: much faster than broadcasting over 3)
                     bc = b[..., c]
                     d = b2[..., c]
@@ -960,6 +966,8 @@ class Glass(Effect):
                     pc += bc
                     pc += q3 * self.colour[c]
             else:
+                if kept is not None:
+                    kept[y0 + r0:y0 + r1, x0:x1] = 1 - q3
                 for c in range(3):
                     pc = p[..., c]
                     pc *= 1 - q3
@@ -978,3 +986,7 @@ class Glass(Effect):
         out += veil_at[:, None] * (self.colour - out)
         kd = k if mask is None else k * mask[y0 + yy, x0 + xx][:, None]
         pic[yy, xx] = base + kd * (out - base)
+        if kept is not None:  # a drop keeps of its pixel what its glass, its cover, rim, glint and veil leave of it
+            own = (1 - wgt_at) * (1 - f[A]) * (1 - f[RIM]) * (1 - veil_at)
+            own = own[:, None] * (1 - hl)
+            kept[y0 + yy, x0 + xx] = (1 - kd * (1 - own))[:, 0]

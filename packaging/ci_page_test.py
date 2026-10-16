@@ -111,17 +111,25 @@ CORNERS = """(id) => {
 }"""
 
 
+def clip_quad(page, cid, info_w, info_h, lib_info=None):
+    """Where the renderer lays a clip's corners (a file's picture, or an effect's sheet), in video pixels."""
+    from fx import effects as fx_effects, overlay as fx_overlay
+    c = page.evaluate(f"(c => ({{kind: c.kind, params: c.params}}))(clipById('{cid}'))")
+    if c["kind"] == "file":
+        return fx_overlay.quad(fx_effects.clean_params("file", c["params"]), lib_info, info_w, info_h)
+    return fx_effects.quad(c["kind"], c["params"], info_w, info_h)
+
+
 def picture_parity(page, cid, info_w, info_h, lib_info, live, exact):
     """How far the live preview's picture of a clip is from the exact frame's, inside its quad (2 px in from the
     outline): mean difference of the colours, and of the brightness softened by 1.5 px (the exact frame is a
     JPEG, its colour at half size: hard colour edges differ a lot without saying anything about the geometry)."""
     from PIL import ImageFilter
-    from fx import effects as fx_effects, overlay as fx_overlay
+    from fx import overlay as fx_overlay
     live = np.asarray(Image.open(io.BytesIO(live)).convert("RGB"), np.float32)
     exact = np.asarray(Image.open(io.BytesIO(exact)).convert("RGB"), np.float32)
     sh, sw = live.shape[:2]
-    params = fx_effects.clean_params("file", page.evaluate(f"clipById('{cid}').params"))
-    q = [(x * sw / info_w, y * sh / info_h) for x, y in fx_overlay.quad(params, lib_info, info_w, info_h)]
+    q = [(x * sw / info_w, y * sh / info_h) for x, y in clip_quad(page, cid, info_w, info_h, lib_info)]
     core = Image.fromarray(np.where(np.asarray(fx_overlay.coverage(q, (0, 0, sw, sh))) == 255, 255, 0).astype(np.uint8))
     inner = np.asarray(core.filter(ImageFilter.MinFilter(5))) > 0
 
@@ -133,6 +141,243 @@ def picture_parity(page, cid, info_w, info_h, lib_info, live, exact):
     return {"rgb mean": round(float(rgb.mean()), 2), "rgb p99": round(float(np.percentile(rgb, 99)), 1),
             "rgb max": round(float(rgb.max()), 1), "soft luma mean": round(float(soft.mean()), 2),
             "soft luma max": round(float(soft.max()), 1), "pixels": int(inner.sum())}
+
+
+BOX = ("(() => { const r = xform.getBoundingClientRect(), sc = screenEl.getBoundingClientRect(), "
+       "kx = info().w / sc.width, ky = info().h / sc.height; return [(r.left - sc.left) * kx, "
+       "(r.top - sc.top) * ky, (r.right - sc.left) * kx, (r.bottom - sc.top) * ky]; })()")  # the white box, video px
+
+
+def live_and_exact(page, name):
+    """Screenshots of the picture: the live preview alone, then the exact frame for the project as saved now
+    (kept as <name>-live.png, <name>-exact.png)."""
+    page.evaluate("(async () => { S.sel = null; renderControls(); showXform(); await saveNow(); })()")
+    page.wait_for_timeout(500)
+    page.evaluate("exact.style.visibility = 'hidden'")  # the live preview alone
+    page.wait_for_timeout(400)
+    live = page.locator("#screen").screenshot()
+    page.evaluate("(() => { if (!S.exactOn) $('#tExact').click(); invalidateExact(); refreshExact(); })()")
+    page.wait_for_function("exact.style.display === 'block' && exact.complete && exact.src.includes('rev=' + S.project.rev)",
+                           timeout=60000)
+    page.evaluate("exact.style.visibility = ''")
+    page.wait_for_timeout(300)
+    exact = page.locator("#screen").screenshot()
+    for tag, png in (("live", live), ("exact", exact)):
+        with open(os.path.join(SHOTS, f"{name}-{tag}.png"), "wb") as f:
+            f.write(png)
+    return live, exact
+
+
+def as_close(upright, turned):
+    """The live picture of a turned effect is about as close to the exact frame as upright (soft luma / rgb means,
+    measured in Chromium: snow 0.43 / 0.93 upright, 0.47 / 1.12 turned; leaves 0.60 / 1.85 upright, 0.47 / 1.80
+    turned. One leaf more on the sheet than in the preview clip moved all the smaller ones: 2.2 / 4.9, not close)."""
+    return (turned["soft luma mean"] < max(1.5, 2 * upright["soft luma mean"] + 0.5) and
+            turned["rgb mean"] < max(4.0, 2 * upright["rgb mean"] + 1.0))
+
+
+def effects_turned(page, drag):
+    """Built-in effects placed and turned in 3D as a file clip is: snow on a sheet of the frame's shape, with the
+    white box around the frame, the round knob and "3D"; the live preview lays the same preview clip (its name does
+    not change: turning is instant) on the renderer's corners, and its picture is the exact frame's (snow, leaves);
+    light on black (H.264, Screen) and a transparent WebM turned in a Mix; "Đặt lại xoay", the tools column, undo;
+    a corner grabbed outside the frame."""
+    vw, vh = page.evaluate("[info().w, info().h]")
+    sid = page.evaluate("S.project.layers.find(l => l.kind === 'snow').id")
+    others = page.evaluate(f"S.project.layers.filter(c => c.id !== '{sid}' && c.on !== false).map(c => c.id)")
+    kept = page.evaluate(f"S.project.layers.filter(c => c.id !== '{sid}').map(c => [c.id, JSON.stringify(c.params)])")
+
+    page.evaluate(f"(() => {{ for (const id of {json.dumps(others)}) clipById(id).on = false; edited(); seek(2); "
+                  f"select('{sid}'); }})()")  # the snow alone, at 2 s
+    page.wait_for_function(f"S.fx['{sid}'] && S.fx['{sid}'].ready && S.els['{sid}'] && "
+                           f"S.els['{sid}'].media.readyState >= 2", timeout=180000)
+    page.wait_for_timeout(500)
+    ui = page.evaluate("[$('#xform').style.display, $('#xformRot').style.display, $('#xform3d').style.display, "
+                       "!!$('#ec input[data-num=\"rot_x\"]'), !!$('#rotReset'), "
+                       "!!$('#ec input[type=range][data-param=\"scale\"]'), !!$('#tools [data-rotreset]')]")
+    box = page.evaluate(BOX)
+    ui.append("ô cửa nhìn chéo" in page.evaluate("$('#ec').textContent"))  # (the window example in its turn note)
+    check("3D effects: snow has the white box around the frame, the round knob, \"3D\" and its place and turn "
+          "settings", ui == ["block"] * 3 + [True] * 5 and all(abs(a - b) < 1.0 for a, b in zip(box, [0, 0, vw, vh])),
+          str([ui, box]))
+    name0 = page.evaluate(f"S.fx['{sid}'].shown")
+    live, exact = live_and_exact(page, "05e-snow-upright")
+    upright = picture_parity(page, sid, vw, vh, None, live, exact)
+
+    def turn(cid, params):
+        page.evaluate(f"(() => {{ const c = clipById('{cid}'); Object.assign(c.params, {json.dumps(params)}); "
+                      "edited(); })()")
+
+    worst = [0.0, 0.0, 0.0]
+    for case in (dict(rot_x=-50, rot_y=35, rot_z=-120, persp=100, scale=120, x=-10, y=6),
+                 dict(rot_x=15, rot_y=60, rot_z=0, persp=0, scale=45, x=20, y=-15),
+                 dict(rot_x=25, rot_y=-30, rot_z=10, persp=60, scale=70, x=8, y=-5)):
+        turn(sid, case)
+        page.evaluate(f"select('{sid}')")
+        want = clip_quad(page, sid, vw, vh)
+        shown, js = page.evaluate(CORNERS, sid), page.evaluate(f"quad(clipById('{sid}'))")
+        box = page.evaluate(BOX)
+        around = [min(x for x, _ in want), min(y for _, y in want), max(x for x, _ in want), max(y for _, y in want)]
+        worst = [max(worst[0], max(math.dist(a, b) for a, b in zip(shown, want))),
+                 max(worst[1], max(math.dist(a, b) for a, b in zip(js, want))),
+                 max(worst[2], max(abs(a - b) for a, b in zip(box, around)))]
+    check("3D effects: the turned snow's preview clip lies on the renderer's corners (within half a pixel), its "
+          "box with it", worst[0] < 0.5 and worst[1] < 1e-6 and worst[2] < 1.0,
+          f"browser vs renderer {worst[0]:.3f} px, page's quad() vs renderer {worst[1]:.1e} px, box {worst[2]:.3f} px")
+    page.evaluate("saveNow()")
+    asked = page.evaluate(f"""(async () => {{ const r = await post('/api/fxclip', {{id: S.project.id, layer: '{sid}'}});
+        return [r.name, r.ready, S.fx['{sid}'].shown]; }})()""")
+    check("3D effects: turning keeps the preview clip (the same file, nothing made again)",
+          asked == [name0, True, name0], str([name0, asked]))
+    live, exact = live_and_exact(page, "05e-snow-turned")
+    turned = picture_parity(page, sid, vw, vh, None, live, exact)
+    check("3D effects: the live picture of the turned snow is the exact frame's (as close as upright)",
+          as_close(upright, turned), str({"upright": upright, "turned": turned}))
+
+    # the tools column, "Đặt lại xoay" and undo; the knob and "3D" turn it
+    page.evaluate(f"select('{sid}')")
+    page.wait_for_timeout(200)
+    tools = page.evaluate("[$('#tools [data-rotreset]').disabled, [...$$('#tools .lab')].map(e => e.textContent).join(' | ')]")
+    check("3D effects: the tools column shows the turn", tools[0] is False and "25°, -30°, 10°" in tools[1], str(tools))
+    page.click("#rotReset")
+    page.wait_for_timeout(200)
+    flat = page.evaluate(f"(c => [c.params.rot_x, c.params.rot_y, c.params.rot_z, c.params.scale, "
+                         f"S.els[c.id].media.style.transform])(clipById('{sid}'))")
+    check("3D effects: \"Đặt lại xoay\" sets the snow straight (its place and size stay)", flat == [0, 0, 0, 70, ""],
+          str(flat))
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    check("3D effects: undo turns it again", page.evaluate(f"turned(clipById('{sid}'))") is True)
+    hb = page.locator("#xform3d").bounding_box()
+    hx, hy = hb["x"] + hb["width"] / 2, hb["y"] + hb["height"] / 2
+    drag(hx, hy, hx + 50, hy)
+    tilt = page.evaluate(f"(p => [p.rot_x, p.rot_y, p.rot_z])(clipById('{sid}').params)")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    kb = page.locator("#xformRot").bounding_box()
+    mid = page.evaluate(f"""(() => {{ const q = quad(clipById('{sid}')), sc = screenEl.getBoundingClientRect();
+        const r = placed(clipById('{sid}')), c = [r.x + r.w / 2, r.y + r.h / 2];
+        return [sc.left + c[0] / info().w * sc.width, sc.top + c[1] / info().h * sc.height]; }})()""")
+    kx, ky = kb["x"] + kb["width"] / 2, kb["y"] + kb["height"] / 2
+    page.mouse.move(kx, ky)
+    page.mouse.down()
+    for k in range(1, 7):  # round the middle, 30 degrees clockwise
+        a = math.radians(30) * k / 6
+        page.mouse.move(mid[0] + (kx - mid[0]) * math.cos(a) - (ky - mid[1]) * math.sin(a),
+                        mid[1] + (kx - mid[0]) * math.sin(a) + (ky - mid[1]) * math.cos(a))
+    page.mouse.up()
+    page.wait_for_timeout(200)
+    spun = page.evaluate(f"clipById('{sid}').params.rot_z")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    check("3D effects: \"3D\" tilts the snow, the round knob turns it in the plane",
+          abs(tilt[1] - (-30 + 15)) < 1 and tilt[0] == 25 and abs(spun - 40) < 1.5 and
+          page.evaluate(f"clipById('{sid}').params.rot_z") == 10, str([tilt, spun]))
+
+    # the picture zoomed out: the snow's box is the frame, a corner grabbed on the area around it sizes it there
+    turn(sid, dict(rot_x=0, rot_y=0, rot_z=0, scale=100, x=0, y=0))
+    page.select_option("#zoomSel", "0.5")
+    page.evaluate(f"select('{sid}')")
+    page.wait_for_timeout(300)
+    hb = page.locator("#xform i[data-h=se]").bounding_box()
+    hx, hy = hb["x"] + hb["width"] / 2, hb["y"] + hb["height"] / 2
+    drag(hx, hy, hx + 60, hy + 34)
+    grown = page.evaluate(f"(r => [clipById('{sid}').params.scale, r.x, r.y])(placed(clipById('{sid}')))")
+    check("3D effects: zoomed out, a corner of the snow's box grabbed outside the frame sizes it (the opposite corner "
+          "stays)", grown[0] > 110 and abs(grown[1]) < 1.5 and abs(grown[2]) < 1.5, str(grown))
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    page.keyboard.press("Control+0")
+
+    # the snow over the whole frame, selected: a drag in its box moves it, whatever lies under it (a small picture,
+    # a file over the whole frame) or over it (light over the whole frame); a click (no drag) on the small picture
+    # under it picks that picture, a click where only clips over the whole frame are keeps the snow
+    fid, gid = page.evaluate(f"""(() => {{ const ti = S.project.tracks.findIndex(t => t.id === clipById('{sid}').track);
+        const below = {{id: newId("t"), on: true}}; S.project.tracks.splice(ti, 0, below);
+        addClip({{lib: S.lib.find(i => i.info.image).id}}, below.id, 0, total()); const f = clipById(S.sel);
+        Object.assign(f.params, {{blend: 'normal', fit: 'contain', scale: 30}});
+        const above = {{id: newId("t"), on: true}}; S.project.tracks.push(above);
+        addClip({{kind: 'glow'}}, above.id, 0, total()); const g = clipById(S.sel);
+        edited(); seek(2); select('{sid}'); return [f.id, g.id]; }})()""")
+    page.wait_for_timeout(300)
+    sc = page.evaluate("(r => [r.left + r.width / 2, r.top + r.height / 2])(screenEl.getBoundingClientRect())")
+    xs = f"[S.sel, clipById('{sid}').params.x, clipById('{fid}').params.x, clipById('{gid}').params.x]"
+    under = page.evaluate(f"[pickAt({{clientX: {sc[0]}, clientY: {sc[1]}}}) && pickAt({{clientX: {sc[0]}, "
+                          f"clientY: {sc[1]}}}).id, coversFrame(clipById('{sid}')), coversFrame(clipById('{gid}'))]")
+    drag(sc[0], sc[1], sc[0] + 120, sc[1] + 40)
+    dragged = page.evaluate(xs)
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    page.mouse.click(sc[0], sc[1])
+    page.wait_for_timeout(300)
+    clicked = page.evaluate(xs)
+    page.evaluate(f"(() => {{ Object.assign(clipById('{fid}').params, {{fit: 'cover', scale: 100}}); edited(); "
+                  f"select('{sid}'); }})()")  # the picture now over the whole frame
+    page.wait_for_timeout(200)
+    drag(sc[0], sc[1], sc[0] + 120, sc[1] + 40)
+    dragged2 = page.evaluate(xs)
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    page.mouse.click(sc[0], sc[1])
+    page.wait_for_timeout(300)
+    clicked2 = page.evaluate(xs)
+    check("3D effects: dragging the box of the selected snow over the whole frame moves the snow (a small picture "
+          "under it, a file over the whole frame under it, light over the whole frame over it); a click picks the "
+          "small picture, not a clip over the whole frame",
+          under == [fid, True, True] and dragged[0] == sid and dragged[1] > 5 and dragged[2:] == [0, 0] and
+          clicked == [fid, 0, 0, 0] and dragged2[0] == sid and dragged2[1] > 5 and dragged2[2:] == [0, 0] and
+          clicked2 == [sid, 0, 0, 0], str([under, dragged, clicked, dragged2, clicked2]))
+    page.evaluate(f"""(() => {{ for (const id of ['{fid}', '{gid}']) {{ const t = clipById(id).track;
+        deleteClip(clipById(id)); S.project.tracks = S.project.tracks.filter(x => x.id !== t); }}
+        edited(); select('{sid}'); }})()""")
+    page.wait_for_timeout(200)
+    turn(sid, dict(rot_x=25, rot_y=-30, rot_z=10, persp=60, scale=70, x=8, y=-5))
+
+    # leaves turned: the live picture is the exact frame's
+    lv = page.evaluate(f"""(() => {{ const t = {{id: newId("t"), on: true}}; S.project.tracks.push(t);
+        addClip({{kind: 'leaves'}}, t.id, 0, total()); const c = clipById(S.sel); clipById('{sid}').on = false;
+        Object.assign(c.params, {{amount: 80}}); edited(); seek(2); return c.id; }})()""")
+    page.wait_for_function(f"S.fx['{lv}'] && S.fx['{lv}'].ready && S.els['{lv}'] && "
+                           f"S.els['{lv}'].media.readyState >= 2", timeout=300000)
+    page.wait_for_timeout(500)
+    live, exact = live_and_exact(page, "05f-leaves-upright")
+    upright = picture_parity(page, lv, vw, vh, None, live, exact)
+    turn(lv, dict(rot_x=20, rot_y=35, rot_z=-8, persp=70, scale=80, x=-6, y=4))
+    live, exact = live_and_exact(page, "05f-leaves-turned")
+    turned = picture_parity(page, lv, vw, vh, None, live, exact)
+    check("3D effects: the live picture of turned leaves is the exact frame's (as close as upright)",
+          as_close(upright, turned), str({"upright": upright, "turned": turned}))
+
+    # light on black (H.264, laid with Screen) and a transparent WebM, turned, in a Mix: in their track's box, on
+    # the renderer's corners
+    for kind, blend in (("glow", "screen"), ("rain", "normal")):
+        a, b = page.evaluate(f"""(() => {{ const t = {{id: newId("t"), on: true}}; S.project.tracks.push(t);
+            addClip({{kind: '{kind}'}}, t.id, 0, 240); const a = clipById(S.sel);
+            addClip({{kind: '{kind}'}}, t.id, 240, 480); const b = clipById(S.sel); b.seed = a.seed;
+            Object.assign(a.params, {{rot_x: 20, rot_y: -30, rot_z: 6, scale: 75, x: -8}});
+            Object.assign(b.params, {{rot_x: -15, rot_y: 25, rot_z: -10, scale: 85, x: 6}});
+            edited(); setMix(b, 1); seek(10); return [a.id, b.id]; }})()""")
+        page.wait_for_function(f"S.els['{a}'] && S.els['{b}']", timeout=300000)
+        page.evaluate("applyTime()")
+        page.wait_for_timeout(300)
+        roles = page.evaluate(f"(() => {{ const b = clipById('{b}'), box = S.trackEls[b.track]; return [S.mixRole['{a}'], "
+                              f"S.mixRole['{b}'], box.style.isolation, box.style.mixBlendMode, "
+                              f"S.els['{a}'].media.parentNode.parentNode === box, "
+                              f"S.els['{a}'].wrap.style.display, S.els['{b}'].wrap.style.display]; }})()")
+        off = max(math.dist(p, q) for cid in (a, b)
+                  for p, q in zip(page.evaluate(CORNERS, cid), clip_quad(page, cid, vw, vh)))
+        check(f"3D effects: {kind} ({'H.264 on black, Screen' if kind == 'glow' else 'WebM'}) turned in a Mix: in its "
+              "track's box, on the renderer's corners", roles == ["normal", "plus-lighter", "isolate", blend, True, "", ""]
+              and off < 0.5, f"{roles}, {off:.3f} px")
+        page.evaluate(f"(() => {{ const t = clipById('{a}').track; for (const id of ['{a}', '{b}']) deleteClip(clipById(id)); "
+                      "S.project.tracks = S.project.tracks.filter(x => x.id !== t); edited(); })()")
+    page.evaluate(f"""(() => {{ const t = clipById('{lv}').track; deleteClip(clipById('{lv}'));
+        S.project.tracks = S.project.tracks.filter(x => x.id !== t);
+        for (const id of {json.dumps(others + [sid])}) clipById(id).on = true; edited(); seek(3); }})()""")
+    page.wait_for_timeout(300)
+    now = dict(page.evaluate(f"S.project.layers.filter(c => c.id !== '{sid}').map(c => [c.id, JSON.stringify(c.params)])"))
+    check("3D effects: every other clip is as it was", all(now.get(i) == p for i, p in kept),
+          str([(i, p, now.get(i)) for i, p in kept if now.get(i) != p]))
 
 
 def disc(png):
@@ -787,7 +1032,8 @@ def run(page, folder, edge):
     missed = page.evaluate("S.sel")
     page.mouse.dblclick(*on)
     page.wait_for_timeout(300)
-    check("3D: a click picks a turned clip by its turned picture", missed is None and page.evaluate("S.sel") == rid and
+    # (the snow over the whole video may be picked there: an effect's sheet covers the frame; never the turned clip)
+    check("3D: a click picks a turned clip by its turned picture", missed != rid and page.evaluate("S.sel") == rid and
           page.evaluate(f"[clipById('{rid}').params.x, clipById('{rid}').params.y]") == [0, 0], f"{missed}, {page.evaluate('S.sel')}")
     page.fill('#ec input[data-num="rot_x"]', "12.5")
     page.keyboard.press("Enter")
@@ -846,6 +1092,8 @@ def run(page, folder, edge):
     page.keyboard.press("Control+z")
     page.wait_for_timeout(200)
     check("3D: undo turns it again", page.evaluate(f"turned(clipById('{rid}'))") is True)
+    effects_turned(page, drag)
+    shot("05g-effects-turned")
 
     # a Mix where two clips meet: the button on the join adds it; the page and the renderer weigh it alike
     ids = page.evaluate("""(() => {
@@ -912,9 +1160,22 @@ def run(page, folder, edge):
         check(f"{kind}: its box on the picture, with the yellow marks", mk[:4] == ["block", "block", mark, tip]
               and bool(mk[4]), str(mk))
         spin = page.evaluate("[$('#xformRot').style.display, $('#xform3d').style.display, !!$('#ec [data-num=\"rot_x\"]')]")
-        check(f"{kind}: not turned in 3D (no knob, no 3D handle, no settings for it)", spin == ["none", "none", False],
-              str(spin))
+        if kind == "steam":  # turned as a file clip, its box the sheet; a flame always rises straight up
+            window = "ô cửa nhìn chéo" in page.evaluate("$('#ec').textContent")  # (an example for full-frame effects)
+            check("steam: turned in 3D (the knob, the 3D handle, its settings; no window example in its note)",
+                  spin == ["block", "block", True] and not window, str([spin, window]))
+        else:
+            check("candle: not turned in 3D (no knob, no 3D handle, no settings for it)", spin == ["none", "none", False]
+                  and "không xoay 3D" in page.evaluate("$('#ec').textContent"), str(spin))
         page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.els['{cid}']", timeout=300000)
+        if kind == "steam":  # turned, its preview clip (the box) lies on the renderer's corners
+            vw, vh = page.evaluate("[info().w, info().h]")
+            page.evaluate(f"(() => {{ Object.assign(clipById('{cid}').params, {{rot_x: 20, rot_y: 35, rot_z: 8}}); "
+                          "edited(); })()")
+            off = max(math.dist(p, q) for p, q in zip(page.evaluate(CORNERS, cid), clip_quad(page, cid, vw, vh)))
+            check("steam: turned, its box on the renderer's corners", off < 0.5, f"{off:.3f} px")
+            page.evaluate(f"(() => {{ Object.assign(clipById('{cid}').params, {{rot_x: 0, rot_y: 0, rot_z: 0}}); "
+                          "edited(); })()")
         laid = f"""(() => {{ const c = clipById('{cid}'), e = S.els['{cid}'], q = placed(c);
             return [e.media.getAttribute('src'), e.wrap.style.mixBlendMode,
                     Math.abs(parseFloat(e.media.style.left) - 100 * q.x / info().w) < 0.01]; }})()"""
