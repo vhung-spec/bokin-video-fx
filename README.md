@@ -29,13 +29,17 @@ Premiere Pro:
   - **Tuyết**: **Kiểu tuyết** (tuyết nhẹ, vừa, dày, bão tuyết, lấp lánh, bông to bay chậm) và **Hình bông tuyết** (tròn
     mềm, tinh thể sáu cánh, tự nhiên). Chỉnh thêm: đung đưa, xoáy nhẹ, gió giật, bông to sát ống kính (nhoè), màn tuyết
     mờ trắng xoá, lấp lánh, quầng sáng, màu bông ở gần và ở xa.
-  - **Lá rơi**: chọn nhanh ở **Kiểu lá rơi** (lác đác, vừa, dày, gió thu cuốn lá, lá to bay chậm), **Loại lá** (lá
-    phong, lá phong lẫn lá thường, lá thường, cánh hoa anh đào) và **Màu theo mùa** (thu đỏ rực, thu vàng, thu đỏ vàng,
-    đỏ vàng xanh, đầu thu nhiều lá xanh, lá xanh). Ba thanh **Lá đỏ**, **Lá vàng**, **Lá xanh** chỉnh mỗi màu nhiều
-    hay ít (khi đã có lá đỏ hay vàng, vài lá xanh ngả vàng ở mép; mùa hè chỉ toàn lá xanh). **Lá to nhất** và **Lá nhỏ
-    nhất**: lá to lá nhỏ bay cùng lúc (nhiều lá nhỏ ở xa, vài lá to ở gần). Chỉnh thêm: tốc độ rơi (rơi chậm thì chao
-    cũng chậm), chao qua lại, xoay lật mặt (kéo về 0: lá không xoay), gió và gió giật, nhoè lá ở gần, lá ở xa mờ nhạt,
-    nhoè khi bay nhanh. Cánh hoa luôn màu hồng.
+  - **Lá rơi**: chọn nhanh ở **Loại lá** (rừng phong, phong Nhật đỏ rực, lá bàng mùa đông, bạch quả vàng, rừng sồi,
+    bạch dương vàng, lá liễu, lá hình tim, hoa anh đào, rừng thu nhiều loại lá) và **Kiểu lá rơi** (lác đác, vừa, dày,
+    gió thu cuốn lá, lá to bay chậm). Muốn tự trộn: tích các ô ở **Kiểu dáng lá** (lá phong 5 thuỳ, lá phong Nhật, lá
+    bạch quả, lá sồi, lá bàng, lá bạch dương, lá liễu, lá hình tim, cánh hoa anh đào). Tích nhiều ô thì các loại rơi
+    cùng lúc; không tích ô nào thì là lá phong. Mỗi loại có màu tự nhiên của nó (bạch quả vàng cam chứ không đỏ, sồi đỏ
+    nâu, bàng từ đỏ thẫm, đỏ gạch, cam tới nâu, gân sáng) và to nhỏ đúng tỉ lệ (lá bàng, lá phong to; bạch dương, liễu
+    nhỏ). "Lá bàng mùa đông" có cả lá đỏ, lá cam vàng và vài lá xanh. **Màu theo mùa** và
+    ba thanh **Lá đỏ**, **Lá vàng**, **Lá xanh** chỉnh mỗi màu nhiều hay ít. **Nắng chiếu xuyên lá**: lá quay về phía
+    nắng thì rực sáng, thấy gân lá. **Lá to nhất** và **Lá nhỏ nhất**: lá to lá nhỏ bay cùng lúc (nhiều lá nhỏ ở xa,
+    vài lá to ở gần). Chỉnh thêm: tốc độ rơi, chao qua lại, xoay lật mặt (kéo về 0: lá không xoay), gió và gió giật,
+    nhoè lá ở gần, lá ở xa mờ nhạt, nhoè khi bay nhanh. Cánh hoa luôn màu hồng.
   - **Nước trên kính**: kính mờ hơi nước làm nhoè cảnh bên ngoài, giọt nước đọng, giọt chảy xuống để lại vệt trong,
     giọt mưa mới bám vào kính; trong mỗi giọt thấy cảnh lộn ngược như thật. Thường dùng cho ô cửa kính: thêm hiệu ứng,
     rồi **Vẽ vùng** (nút có hình bút chì) khoanh đúng ô kính (khung cửa thì để ngoài). Muốn mưa rơi bên ngoài: thêm

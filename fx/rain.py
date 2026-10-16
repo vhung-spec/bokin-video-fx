@@ -323,7 +323,7 @@ class Rain(Falling):
     CAP = 16000
     VERSION = 4
     LIT = True
-    PREVIEW_W = 1280  # its preview clip's width (engine.fx_clip_frame): thin streaks need the pixels
+    PREVIEW = 1280  # its preview clip: as many pixels as 1280 x 720 (engine.sharper_size): thin streaks need them
     # and its quality: 42 keeps 94% of medium rain's streaks (34: 97%) in two thirds the size; fine drizzle needs 34
     # (88%; 42: 80%), and its clip is small anyway (set per rain in __init__)
     PREVIEW_CRF = 42

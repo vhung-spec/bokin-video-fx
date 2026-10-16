@@ -1,681 +1,35 @@
-"""Falling leaves: maple leaves in red, yellow and green, big and small; ordinary leaves; cherry petals (see
-effects.py for how every effect loops).
+"""Falling leaves: maple, Japanese maple, ginkgo, oak, bàng (Indian almond), birch, willow and heart-shaped leaves,
+and cherry petals, in red, yellow and green, big and small (see effects.py for how every effect loops).
 
-The leaves are drawn by code, once per design, as premultiplied RGBA pictures (front and back) at a few sizes. A
-maple leaf is the union of its lobes: five main lobes with pointed tips and two small ones by the stem (or seven long
-narrow ones, cut deep, like a Japanese maple's), each a tapering blade along a slightly bent axis with fine teeth
-along its sides (some with pointed side lobes, planned once for both halves so the leaf is whole), joined to the palm
-with rounded sinuses (a smooth minimum of their distance fields). Veins run from the stem to every lobe tip, with thin
-side veins out to the teeth. The colour varies across the leaf (scarlet to crimson with deeper edges, golden yellow
-with green-tinged parts and a few brown freckles, green with yellow-green veins, or green turning yellow or red at
-its edges early in autumn), with a faint texture and shading from a leaf that is cupped, curled and a little sunk
-along its veins. The back is duller and lighter, its veins standing out (a leaf turned over shows it mirrored); a
-petal's back is as pink as its front.
+The leaves' pictures are drawn by code (leafshapes.py): each shape in its own natural colours, front, back and lit
+from behind. The shapes are ticked one by one ("Kiểu dáng lá": several at once fall together, in equal shares;
+none ticked: maple leaves); "Loại lá" ticks a well-known set at once and colours it (a bàng tree in winter, golden
+ginkgo...). Each shape keeps its true size beside the others (a bàng leaf or a maple's is big, a birch's or a
+willow's small), all between "Lá nhỏ nhất" and "Lá to nhất".
 
 Every leaf falls like a real one: most glide from side to side like a pendulum, falling fastest in the middle of a
 swing and slowing at its ends, tilting into each swing; some tumble end over end, showing their back half the time;
 some spiral down. The swing keeps pace with the fall (a slow fall swings slowly and never rocks in place), big
 leaves swing slower and wider. The wind leans their path, and gusts come and go (never against the wind), pushing
 near leaves more than far ones. Sizes spread from "Lá nhỏ nhất" to "Lá to nhất": many small far away, a few big
-near; far leaves are slower and a little hazy, near ones a little out of focus; fast ones smear as a camera's
-shutter would. The leaves come down in lanes spread evenly across the frame, and each time a leaf comes down again
-(k times a loop) it is another leaf: a little aside, another design, another swing.
+near; far leaves are slower, softer and a little hazy, near ones a little out of focus; fast ones smear as a
+camera's shutter would. The leaves come down in lanes spread evenly across the frame, and each time a leaf comes
+down again (k times a loop) it is another leaf: a little aside, another design, another swing.
+
+Light: a leaf is lit from the upper left, in front: brighter as it turns its face to the light, darker turned away,
+its glossy top glinting now and then. The sun is also behind the leaves, a little to the right ("Nắng chiếu xuyên
+lá"): a leaf facing it from in front of it glows (its picture lit from behind), warmer and brighter, its veins dark.
 """
 import math
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageFilter
 
-from .effects import Falling, _choice, _lerp, _num
+from . import leafshapes
+from .effects import Falling, _choice, _lerp, _num, _toggle
+from .leafshapes import _SPRITES, FAMILIES, MIPS, PALETTES, SHAPES, SHARE, VARIANTS, sprite, sprite_bytes  # noqa: F401
+# (the pictures kept, and the colours the sliders count: as the tests and the page know them)
 from .snow import GUST_LEAD, gust_push
-
-# --- the leaves' pictures -------------------------------------------------------------------------------------
-
-MIPS = (288, 144, 72, 36, 18)  # px across a leaf's pictures: it is drawn at one of the first three (as large as
-# the leaves will be seen), the smaller ones made from that
-FAMILIES = ("red", "yellow", "green")  # the colours the sliders count
-PALETTES = FAMILIES + ("turning",)  # how a leaf is painted: "turning" is a green leaf going yellow or red at its
-# edges (only when some leaves are already red or yellow: not in summer)
-VARIANTS = {"maple": 10, "oval": 6, "petal": 8}  # designs of each kind of leaf, per colour
-SS = 2  # supersampling of the veins and stems
-
-
-def _smoothstep(e0, e1, x):
-    t = np.clip((x - e0) / (e1 - e0), 0.0, 1.0)
-    return t * t * (3 - 2 * t)
-
-
-def _smin(a, b, k):
-    """A smooth minimum of two distance fields: their union with rounded inside corners (k: how round)."""
-    if k <= 0:
-        return np.minimum(a, b)
-    h = np.clip(0.5 + 0.5 * (b - a) / k, 0.0, 1.0)
-    return b + (a - b) * h - k * h * (1 - h)
-
-
-def _noise(rng, shape, cells):
-    """Smooth value noise, -1..1 (about), `cells` blobs across the longer side."""
-    h, w = shape
-    n = max(2, int(cells))
-    small = rng.random((max(2, round(n * h / max(h, w))) + 3, max(2, round(n * w / max(h, w))) + 3))
-    img = Image.fromarray(small.astype(np.float32), "F")
-    big = img.resize((w, h), Image.Resampling.BICUBIC, box=(1.5, 1.5, small.shape[1] - 1.5, small.shape[0] - 1.5))
-    return (np.asarray(big, np.float32) - 0.5) * 2
-
-
-class Lobe:
-    """A tapering blade along an axis from (ox, oy) at `angle` (radians from straight up, positive to the right),
-    `length` long and `width` at its widest (half-widths), the axis bent sideways by `bend` (at the tip, in lengths),
-    with teeth along its sides (amp, period: leaf units)."""
-
-    def __init__(self, ox, oy, angle, length, width, bend=0.0, amp=0.0, period=0.05, double=0.0, phase=(0.0, 0.0),
-                 widest=0.35, tip=1.0, base=0.3, teeth_from=0.22, kind="lobe"):
-        self.ox, self.oy, self.a, self.L, self.W = ox, oy, angle, length, width
-        self.bend, self.amp, self.period, self.double, self.phase = bend, amp, period, double, phase
-        self.tip, self.base, self.teeth_from, self.kind = tip, base, teeth_from, kind
-        # the profile (1 - t)^tip (base + t)^b, widest at t = widest
-        self.b = max(0.05, tip * (widest + base) / max(1e-6, 1 - widest))
-        self.norm = (1 - widest) ** tip * (base + widest) ** self.b
-
-    def axis(self, s):
-        """Points (x, y) of the bent axis at distances s along it."""
-        ca, sa = math.cos(self.a), math.sin(self.a)
-        off = self.bend * self.L * (np.asarray(s) / self.L) ** 2
-        return self.ox + s * sa + off * ca, self.oy + s * ca - off * sa
-
-    def profile(self, t):
-        """Half-width (in widths) and its slope (per length) at t = 0..1 along the lobe."""
-        t = np.clip(t, 0.0, 1.0)
-        one = np.maximum(1 - t, 1e-6)
-        f = one ** self.tip * (self.base + t) ** self.b / self.norm
-        slope = f * (self.b / (self.base + t) - self.tip / one)
-        return f, slope
-
-    def teeth(self, s, side):
-        """How far the teeth stand out (leaf units) at s along the lobe, and their slope; each tooth leans to the
-        tip: the margin goes out slowly, then back in steeply."""
-        if self.amp <= 0:
-            return 0.0, 0.0
-        t = s / self.L
-        env = _smoothstep(self.teeth_from, self.teeth_from + 0.18, t) * (1 - _smoothstep(0.9, 1.0, t))
-        r = 0.78
-        out, slope = 0.0, 0.0
-        for share, freq, extra in ((1 - self.double, 1.0, 0.0), (self.double, 2.0, 0.37)):
-            if share <= 0:
-                continue
-            u = np.mod(s * freq / self.period + np.where(side, self.phase[0], self.phase[1]) + extra, 1.0)
-            up = u < r
-            out = out + share * np.where(up, u / r, (1 - u) / (1 - r))
-            slope = slope + share * np.where(up, 1 / r, -1 / (1 - r)) * freq / self.period
-        return self.amp * env * (out - 0.45), self.amp * env * slope
-
-    def field(self, x, y):
-        """A distance-like field (negative inside, leaf units) at points x, y, and the position along the lobe
-        (0 at its base, 1 at its tip)."""
-        ca, sa = math.cos(self.a), math.sin(self.a)
-        dx, dy = x - self.ox, y - self.oy
-        s = dx * sa + dy * ca
-        q = dx * ca - dy * sa
-        q = q - self.bend * self.L * np.clip(s / self.L, 0, None) ** 2  # across from the bent axis
-        t = s / self.L
-        f, fs = self.profile(t)
-        hw = self.W * f
-        slope = self.W * fs / self.L
-        d = (np.abs(q) - hw) / np.sqrt(1 + slope * slope)
-        if self.amp > 0:  # the teeth move the margin only: they fade out within a few of their sizes of it
-            at = np.abs(d) < 7 * self.amp
-            ds = d[at]
-            tw, ts = self.teeth(s[at], q[at] > 0)
-            near = np.exp(-(ds / (2.5 * self.amp)) ** 2)
-            d[at] = (ds - tw * near) / np.sqrt(1 + (ts * near) ** 2)
-        return np.maximum(np.maximum(d, s - self.L), -s), t
-
-    def bounds(self):
-        pts = [self.axis(s) for s in np.linspace(0, self.L, 9)]
-        reach = self.W * 1.1 + self.amp
-        xs = [float(p[0]) for p in pts]
-        ys = [float(p[1]) for p in pts]
-        return min(xs) - reach, min(ys) - reach, max(xs) + reach, max(ys) + reach
-
-
-# --- leaf designs: the shapes ---------------------------------------------------------------------------------
-
-def maple_design(rng):
-    """A maple leaf's lobes, palm, stem and how the leaf is cupped and curled. Three kinds blend: broad lobes with
-    pointed side lobes (sugar maple), shallower lobes with doubly toothed edges (red maple), deeply cut narrow lobes
-    with sharp teeth, five or seven of them (Japanese maple). The two sides mirror each other, each a little
-    different (a real leaf is never quite symmetric)."""
-    kind = rng.choice(["broad", "toothed", "cut"], p=[0.38, 0.27, 0.35])
-    lobes = []
-    jit = lambda v, j=0.03: v * rng.uniform(1 - j, 1 + j)  # noqa: E731 (one side a little unlike the other)
-    if kind == "cut":  # Japanese maple: long narrow lobes, pointed, cut deep (about two thirds of the way in)
-        seven = rng.random() < 0.5
-        palm, k = rng.uniform(0.14, 0.2), rng.uniform(0.025, 0.035)
-        if seven:
-            spread = rng.uniform(0.5, 0.56)  # radians between lobes
-            lengths = (1.0, rng.uniform(0.92, 0.98), rng.uniform(0.74, 0.84), rng.uniform(0.44, 0.56))
-        else:
-            spread = rng.uniform(0.7, 0.78)
-            lengths = (1.0, rng.uniform(0.88, 0.96), rng.uniform(0.58, 0.7))
-        width = rng.uniform(0.11, 0.13) if seven else rng.uniform(0.13, 0.16)
-        amp, period, double = rng.uniform(0.014, 0.02), rng.uniform(0.04, 0.052), rng.uniform(0.4, 0.6)
-        widest, tip = rng.uniform(0.55, 0.62), rng.uniform(1.2, 1.45)  # (narrow where the lobes part)
-        for i, ln in enumerate(lengths):
-            bend = rng.uniform(0.0, 0.07)
-            w = width * (0.85 if i == 3 else 1.0)
-            for side in ((0,) if i == 0 else (-1, 1)):
-                a = side * (i * spread + rng.uniform(-0.012, 0.012)) if i else rng.uniform(-0.01, 0.01)
-                lobes.append(Lobe(0, 0, a, jit(ln, 0.02), jit(w, 0.02), bend=side * jit(bend, 0.2) if i else rng.normal(0, 0.01),
-                                  amp=amp, period=period, double=double, phase=tuple(rng.random(2)),
-                                  widest=jit(widest, 0.02), tip=jit(tip, 0.02), base=0.1, teeth_from=0.36))
-        stem = rng.uniform(0.35, 0.5)
-    else:
-        broad = kind == "broad"
-        palm = rng.uniform(0.3, 0.36) if broad else rng.uniform(0.34, 0.42)
-        k = rng.uniform(0.07, 0.1) if broad else rng.uniform(0.05, 0.07)
-        up = rng.uniform(0.85, 1.0) if broad else rng.uniform(0.72, 0.85)  # angle of the upper side lobes
-        low = up + rng.uniform(0.8, 0.95)
-        lengths = (1.0, rng.uniform(0.9, 1.0), rng.uniform(0.52, 0.68), rng.uniform(0.14, 0.24))
-        widths = (rng.uniform(0.25, 0.3), rng.uniform(0.23, 0.28), rng.uniform(0.17, 0.21), 0.09) if broad else \
-            (rng.uniform(0.3, 0.36), rng.uniform(0.27, 0.32), rng.uniform(0.18, 0.22), 0.1)
-        if broad:
-            amp, period, double = rng.uniform(0.0, 0.008), rng.uniform(0.07, 0.1), 0.0
-        else:
-            amp, period, double = rng.uniform(0.018, 0.028), rng.uniform(0.055, 0.075), rng.uniform(0.35, 0.55)
-        basal = rng.random() < 0.8
-        angles = (0.0, up, low, low + rng.uniform(0.5, 0.65))
-        for i, (ln, w, a0) in enumerate(zip(lengths, widths, angles)):
-            if i == 3 and not basal:
-                continue
-            bend = rng.uniform(-0.02, 0.06)
-            widest, tip = rng.uniform(0.3, 0.42), rng.uniform(0.9, 1.2)
-            # pointed side lobes on the main lobes (big ones on a sugar maple's, small on a red maple's): planned
-            # once for both of a pair, so the two sides match
-            plan = []
-            if i < 3:
-                pairs = (1 if i == 2 else int(rng.integers(1, 3))) if broad else int(i < 2 and rng.random() < 0.6)
-                for j in range(pairs):
-                    t0 = (rng.uniform(0.5, 0.62) if j == 0 else rng.uniform(0.3, 0.4)) - (0.06 if i == 2 else 0)
-                    size = (0.3 if broad else 0.16) * (1 - 0.35 * j) * rng.uniform(0.8, 1.15)
-                    inner = i == 0 or j == 0 or rng.random() < 0.5  # (the small inner ones are often missing)
-                    plan.append((t0, size, rng.uniform(0.75, 1.0), rng.uniform(0.32, 0.42), inner))
-            for side in ((0,) if i == 0 else (-1, 1)):
-                a = side * (a0 + rng.uniform(-0.02, 0.02)) + (rng.uniform(-0.012, 0.012) if i == 0 else 0)
-                L, W = jit(ln, 0.02), jit(w)
-                lobe = Lobe(0, 0, a, L, W, bend=(side * jit(bend, 0.2) if i else rng.normal(0, 0.01)),
-                            amp=amp, period=period, double=double, phase=tuple(rng.random(2)),
-                            widest=jit(widest), tip=jit(tip), base=0.35, teeth_from=0.35 if broad else 0.25)
-                lobes.append(lobe)
-                for t0, size, dev, thin, inner in plan:
-                    for s2 in (-1, 1):
-                        if i > 0 and s2 == -side and not inner:  # (towards the middle lobe)
-                            continue
-                        bx, by = lobe.axis(jit(t0, 0.03) * L)
-                        sz = jit(size, 0.06) * L
-                        lobes.append(Lobe(float(bx), float(by), lobe.a + s2 * jit(dev, 0.03), sz + W * 0.6,
-                                          sz * thin, amp=amp * 0.6, period=period, phase=tuple(rng.random(2)),
-                                          widest=0.32, tip=1.35, base=0.45, teeth_from=0.5, kind="side"))
-        stem = rng.uniform(0.4, 0.62)
-    return {"kind": "maple", "lobes": lobes, "palm": palm, "k": k, "stem": stem,
-            "stem_bend": rng.normal(0, 0.12), "stem_w": rng.uniform(0.022, 0.03),
-            "cup": rng.uniform(-0.25, 0.45), "curl": rng.uniform(-0.3, 0.4), "fold": rng.uniform(0.02, 0.05),
-            "wave": rng.uniform(0.01, 0.04), "pinnate": False}  # (fold: how deep the blade sinks along the veins)
-
-
-def oval_design(rng):
-    """An ordinary leaf: an oval blade with a pointed tip, a midrib with curved side veins, fine teeth or none."""
-    shape = rng.choice(["ovate", "elliptic", "lance"], p=[0.4, 0.4, 0.2])
-    width = {"ovate": rng.uniform(0.3, 0.36), "elliptic": rng.uniform(0.26, 0.32), "lance": rng.uniform(0.16, 0.2)}
-    widest = {"ovate": 0.35, "elliptic": 0.45, "lance": 0.4}[shape]
-    toothed = rng.random() < 0.6
-    lobe = Lobe(0, 0, rng.normal(0, 0.03), 1.0, width[shape], bend=rng.normal(0, 0.05),
-                amp=rng.uniform(0.008, 0.014) if toothed else 0.0, period=rng.uniform(0.035, 0.05),
-                double=rng.uniform(0.0, 0.3), phase=tuple(rng.random(2)), widest=widest + rng.normal(0, 0.03),
-                tip=rng.uniform(1.5, 1.9), base=0.06, teeth_from=0.12)
-    return {"kind": "oval", "lobes": [lobe], "palm": 0.0, "k": 0.0, "stem": rng.uniform(0.12, 0.2),
-            "stem_bend": rng.normal(0, 0.15), "stem_w": rng.uniform(0.018, 0.024),
-            "cup": rng.uniform(-0.2, 0.5), "curl": rng.uniform(-0.3, 0.4), "fold": rng.uniform(0.03, 0.07),
-            "wave": rng.uniform(0.01, 0.03), "pinnate": True}
-
-
-def petal_design(rng):
-    """A cherry petal: a rounded blade, narrow at its base, with a small notch at its tip."""
-    return {"kind": "petal", "w": rng.uniform(0.34, 0.42), "notch": rng.uniform(0.06, 0.12),
-            "tilt": rng.normal(0, 0.06), "cup": rng.uniform(0.2, 0.6), "curl": rng.uniform(-0.2, 0.3),
-            "fold": 0.0, "wave": rng.uniform(0.01, 0.03)}
-
-
-DESIGNS = {"maple": maple_design, "oval": oval_design, "petal": petal_design}
-
-
-# --- leaf designs: drawn ----------------------------------------------------------------------------------------
-
-def _petal_field(design, x, y):
-    """A cherry petal (base at the origin, tip at y = 1): a distance-like field, and the position along it."""
-    w, notch, tilt = design["w"], design["notch"], design["tilt"]
-    x = x * math.cos(tilt) - y * math.sin(tilt)
-    t = np.clip(y, 0.0, 1.0)
-    # narrow at the base (the claw), widening evenly to about two thirds up, rounded at the tip
-    top = 0.68
-    hw = w * np.where(t < top, 0.1 + 0.9 * np.sin(0.5 * math.pi * t / top) ** 0.9,
-                      np.sqrt(np.clip(1 - ((t - top) / (1 - top)) ** 2, 0, 1)))
-    d = (np.abs(x) - hw) * 0.8
-    d = np.maximum(d, np.maximum(-y, y - 1.0))
-    # the notch: a small V cut into the middle of the tip
-    v = (notch - (1.0 - y)) - np.abs(x) * 1.6
-    return np.maximum(d, v), t
-
-
-SOFT = 0.025  # how softly the lobes' positions along them blend where lobes meet (leaf units)
-
-
-def _blade(design, x, y, k_side=0.4):
-    """The blade's distance-like field (negative inside, leaf units) at x, y, and how far along its lobe a point is
-    (0 at the palm .. 1 at a tip; blended smoothly where lobes meet)."""
-    if design["kind"] == "petal":
-        return _petal_field(design, x, y)
-    palm, k = design["palm"], design["k"]
-    if palm > 0:  # the palm, cut straight across at the bottom: the base of the leaf is the lobes by the stem
-        d = np.maximum(np.hypot(x, y - 0.4 * palm) - palm, -(y + 0.25 * palm))
-    else:
-        d = np.full(x.shape, 10.0, np.float32)
-    weight = np.exp(-np.clip(d, -0.5, 1.0) / SOFT)  # (the palm: along 0)
-    along = np.zeros(x.shape)
-    xs, ys = x[0, :], y[:, 0]
-    for lobe in design["lobes"]:
-        x0, y0, x1, y1 = lobe.bounds()
-        grow = k + 0.2
-        cols = np.flatnonzero((xs >= x0 - grow) & (xs <= x1 + grow))
-        rows = np.flatnonzero((ys >= y0 - grow) & (ys <= y1 + grow))
-        if not len(cols) or not len(rows):
-            continue
-        sl = (slice(rows.min(), rows.max() + 1), slice(cols.min(), cols.max() + 1))
-        dl, t = lobe.field(x[sl], y[sl])
-        d[sl] = _smin(d[sl], dl, k * (k_side if lobe.kind == "side" else 1.0))
-        w = np.exp(-np.clip(dl, -0.5, 1.0) / SOFT)
-        weight[sl] += w
-        along[sl] += w * np.clip(t, 0, 1)
-    return d, along / weight
-
-
-def _veins(design):
-    """The veins as polylines of (x, y, width) points, leaf units: the main veins from the stem to the lobe tips
-    (and the side lobes' tips), and the thin side veins from them out towards the margin."""
-    main, side_veins = [], []
-    rng = np.random.default_rng(design["seed"])
-    if design["kind"] == "petal":
-        for a in np.linspace(-0.55, 0.55, 9):
-            a = a + rng.normal(0, 0.04)
-            side_veins.append([(float(a * s * design["w"] * 1.25 * (1.2 - 0.2 * s)), float(s), 0.0045 * (1 - 0.5 * s))
-                               for s in np.linspace(0.04, 0.82, 8)])
-        return main, side_veins
-    pinnate = design["pinnate"]
-    for lobe in design["lobes"]:
-        side = lobe.kind == "side"
-        n = 10
-        ss = np.linspace(0, lobe.L * (0.88 if side else 0.96), n)
-        xs, ys = lobe.axis(ss)
-        w0 = 0.008 if side else (0.02 if pinnate else 0.015) * min(1.0, lobe.L ** 0.5)
-        main.append([(float(xs[j]), float(ys[j]), w0 * (1 - 0.7 * j / (n - 1))) for j in range(n)])
-        if side:
-            continue
-        # side veins every `step` along the lobe (not in the palm), leaning to its tip, curving out to the margin
-        step = 0.085 if pinnate else max(0.065, 0.13 * lobe.L)
-        lean = 0.8 if pinnate else 0.95
-        s0 = step * 0.9 if pinnate else max(step, 0.9 * design["palm"])
-        while s0 < lobe.L * 0.86:
-            f, _ = lobe.profile(s0 / lobe.L + 0.1)
-            reach = lobe.W * f * rng.uniform(0.8, 0.95)
-            for sgn in (-1, 1):
-                at = s0 + rng.normal(0, 0.12) * step
-                bx, by = lobe.axis(at)
-                ang = lobe.a + sgn * (lean + rng.normal(0, 0.08))
-                curve = (0.45 if pinnate else 0.25) * rng.uniform(0.7, 1.2)
-                pts = []
-                for j in range(7):
-                    r = reach * j / 6 / math.sin(lean)
-                    a = ang - sgn * curve * (j / 6) ** 2  # curving towards the tip
-                    pts.append((float(bx + r * math.sin(a)), float(by + r * math.cos(a)), 0.006 * (1 - 0.6 * j / 6)))
-                side_veins.append(pts)
-            s0 += step * rng.uniform(0.85, 1.15)
-    return main, side_veins
-
-
-def _poly_stroke(draw, pts, scale, ox, oy, fill):
-    """A stroke along `pts` (x, y, width in leaf units) on a Pillow image (y up in leaf units, down in the image)."""
-    left, right = [], []
-    for j, (x, y, w) in enumerate(pts):
-        xa, ya = pts[max(j - 1, 0)][:2]
-        xb, yb = pts[min(j + 1, len(pts) - 1)][:2]
-        tx, ty = xb - xa, yb - ya
-        ln = math.hypot(tx, ty) or 1.0
-        nx, ny = -ty / ln, tx / ln
-        left.append(((x + nx * w / 2 - ox) * scale, (oy - (y + ny * w / 2)) * scale))
-        right.append(((x - nx * w / 2 - ox) * scale, (oy - (y - ny * w / 2)) * scale))
-    draw.polygon(left + right[::-1], fill=fill)
-    for (x, y, w) in (pts[0], pts[-1]):
-        r = w / 2 * scale
-        cx, cy = (x - ox) * scale, (oy - y) * scale
-        draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=fill)
-
-
-def _stem_points(design):
-    if design["kind"] == "petal":
-        return []
-    n, ln, bend, w = 8, design["stem"], design["stem_bend"], design["stem_w"]
-    pts = []
-    for j in range(n + 1):
-        s = j / n
-        pts.append((bend * ln * s * s, 0.02 - ln * s, w * (1.0 - 0.25 * s + 0.35 * max(0.0, s - 0.85) / 0.15)))
-    return pts
-
-
-def _bounds(design):
-    if design["kind"] == "petal":
-        return -design["w"] - 0.05, -0.05, design["w"] + 0.05, 1.05
-    bx = [design["palm"], -design["palm"]]
-    by = [design["palm"], -design["palm"]]
-    for lobe in design["lobes"]:
-        x0, y0, x1, y1 = lobe.bounds()
-        bx += [x0, x1]
-        by += [y0, y1]
-    for x, y, w in _stem_points(design):
-        bx += [x - w, x + w]
-        by += [y - w, y + w]
-    return min(bx), min(by), max(bx), max(by)
-
-
-# --- leaf designs: coloured -------------------------------------------------------------------------------------
-
-def _mix(a, b, f):
-    """a (H, W, 3) towards colour b by f (H, W) or a number."""
-    f = np.asarray(f, np.float32)
-    if f.ndim:
-        f = f[..., None]
-    return a + (np.asarray(b, np.float32) - a) * f
-
-
-def _blur(a, radius):
-    """A Gaussian blur (standard deviation `radius` px) of a float array, edges repeated."""
-    a = np.asarray(a, np.float32)
-    if radius < 0.3:
-        return a
-    if radius > 4:  # a wide blur: worked out smaller, then made full size again
-        f = int(radius / 2)
-        h, w = a.shape
-        small = Image.fromarray(a, "F").resize((math.ceil(w / f), math.ceil(h / f)), Image.Resampling.BOX)
-        small = Image.fromarray(_blur(np.asarray(small, np.float32), radius / f), "F")
-        return np.asarray(small.resize((w, h), Image.Resampling.BICUBIC, box=(0, 0, w / f, h / f)), np.float32)
-    reach = int(math.ceil(3 * radius))
-    k = np.exp(-0.5 * (np.arange(-reach, reach + 1) / radius) ** 2).astype(np.float32)
-    k /= k.sum()
-    for axis in (0, 1):
-        pad = [(0, 0), (0, 0)]
-        pad[axis] = (reach, reach)
-        p = np.pad(a, pad, mode="edge")
-        n = a.shape[axis]
-        out = np.zeros_like(a)
-        for i, w in enumerate(k):
-            out += w * (p[i:i + n] if axis == 0 else p[:, i:i + n])
-        a = out
-    return a
-
-
-def _ramp(stops, v):
-    """A colour from `stops` [(position, (r, g, b)), ...] at v (0..1)."""
-    for (p0, c0), (p1, c1) in zip(stops, stops[1:]):
-        if v <= p1:
-            f = (v - p0) / (p1 - p0)
-            return np.array(c0, np.float32) + (np.array(c1, np.float32) - np.array(c0, np.float32)) * f
-    return np.array(stops[-1][1], np.float32)
-
-
-RED = [(0.0, (0.40, 0.03, 0.08)), (0.3, (0.60, 0.04, 0.09)), (0.65, (0.76, 0.07, 0.07)), (1.0, (0.86, 0.17, 0.06))]
-# (burgundy, crimson, red, scarlet)
-YELLOW = [(0.0, (0.93, 0.83, 0.26)), (0.5, (0.96, 0.73, 0.14)), (1.0, (0.92, 0.57, 0.09))]
-GREEN = [(0.0, (0.17, 0.38, 0.09)), (0.5, (0.27, 0.49, 0.12)), (1.0, (0.42, 0.6, 0.15))]
-PINK = [(0.0, (0.99, 0.84, 0.89)), (0.5, (0.98, 0.77, 0.85)), (1.0, (0.96, 0.68, 0.79))]
-
-
-def _paint(design, family, rng, f):
-    """Front and back colours (H, W, 3, 0..1) of a leaf from its fields `f`, and its stem's colour."""
-    shape = f["alpha"].shape
-    e, r, along, halo = f["inside"], f["r"], f["along"], f["halo"]
-    main, side = f["main"], f["side"]
-    tips = _smoothstep(0.45, 1.0, along)
-    big, mid = f["big"], _noise(rng, shape, 11)
-    grain = _blur(np.random.default_rng([design["seed"], 7]).normal(0.0, 1.0, shape).astype(np.float32),
-                  0.6 * shape[0] / MIPS[0])  # (the same at any size of the picture)
-    edge = np.exp(-e / 0.06)
-    heart = np.maximum(halo, np.exp(-r / 0.3))  # near the main veins and the middle
-    tone = rng.random()
-    petal = design["kind"] == "petal"
-    if petal:
-        base = _ramp(PINK, tone)
-        col = np.broadcast_to(base, shape + (3,)).astype(np.float32)
-        col = _mix(col, (0.93, 0.5, 0.64), 0.55 * (1 - _smoothstep(0.0, 0.45, along)) ** 2)  # deep pink at the base
-        col = _mix(col, (1.0, 0.95, 0.97), 0.35 * edge * _smoothstep(0.4, 1.0, along))  # paler at the edge
-        veins = (0.92, 0.6, 0.72)
-        stem = np.array((0.8, 0.55, 0.5), np.float32)
-    elif family == "red":
-        base = _ramp(RED, tone)
-        col = np.broadcast_to(base, shape + (3,)).astype(np.float32)
-        col = _mix(col, (0.84, 0.15, 0.06), np.clip(0.35 * big + 0.1 * mid, 0, 1) * rng.uniform(0.2, 0.5))  # scarlet
-        col = _mix(col, base * 0.6 + np.array((0.08, 0.0, 0.03), np.float32),
-                   np.clip(edge * rng.uniform(0.5, 0.9) + 0.35 * tips, 0, 1))  # deeper crimson at edges and tips
-        if rng.random() < 0.35:  # a little orange-yellow left by the main veins
-            col = _mix(col, (0.93, 0.42, 0.09), np.clip(f["halo"] * rng.uniform(0.15, 0.4) * (1 - edge), 0, 1))
-        if rng.random() < 0.12:  # still turning: an orange patch left in the middle
-            col = _mix(col, (0.9, 0.36, 0.08), np.clip(0.9 * big + 0.2 * mid, 0, 0.5) * (1 - tips) * (1 - edge))
-        veins = (0.95, 0.48, 0.3)
-        stem = np.array((0.58, 0.12, 0.08), np.float32)
-    elif family == "yellow":
-        base = _ramp(YELLOW, tone)
-        col = np.broadcast_to(base, shape + (3,)).astype(np.float32)
-        col = _mix(col, (0.62, 0.68, 0.17), np.clip(heart * rng.uniform(0.25, 0.7) + np.clip(big - 0.25, 0, 1)
-                                                      * rng.uniform(0.2, 0.8), 0, 1))  # green-tinged parts
-        col = _mix(col, (0.9, 0.48, 0.08), np.clip(edge * rng.uniform(0.0, 0.6) + 0.3 * tips * rng.random(), 0, 1))
-        if rng.random() < 0.45:  # dry brown tips
-            col = _mix(col, (0.5, 0.31, 0.11), np.clip(_smoothstep(0.8, 1.0, along) * edge * 1.5, 0, 0.85))
-        elif rng.random() < 0.4:  # a blush of red at the tips
-            col = _mix(col, (0.86, 0.3, 0.08), np.clip(tips * edge * 1.4 + 0.25 * tips, 0, 0.7))
-        veins = (0.99, 0.93, 0.58)
-        stem = np.array((0.72, 0.58, 0.2), np.float32)
-    else:
-        base = _ramp(GREEN, tone)
-        col = np.broadcast_to(base, shape + (3,)).astype(np.float32)
-        col = _mix(col, base * 1.25 + np.array((0.06, 0.05, 0.0), np.float32), np.clip(halo * 0.5, 0, 1))
-        col = _mix(col, base * 0.8, np.clip(edge * 0.5, 0, 1))
-        if family == "turning":  # early autumn: tips and edges going yellow (or red), a yellow-green patch or two
-            warm = (0.86, 0.66, 0.14) if rng.random() < 0.7 else (0.74, 0.2, 0.07)
-            col = _mix(col, (0.62, 0.66, 0.16), np.clip(0.6 * big + 0.15 * mid, 0, 0.6) * rng.uniform(0.3, 1.0))
-            col = _mix(col, warm, np.clip((0.7 * tips + 0.5 * edge) * rng.uniform(0.5, 1.0) + 0.3 * big, 0, 0.95))
-        veins = (0.7, 0.8, 0.32)
-        stem = np.array((0.48, 0.58, 0.22), np.float32)
-    # texture: blotches and a fine grain
-    col = col * (1 + (0.07 * mid + 0.03 * grain)[..., None] * (0.3 if petal else 1.0))
-    if family == "yellow" and not petal:
-        col = _freckles(col, f, rng, (0.42, 0.25, 0.09), int(rng.integers(3, 13)))
-    elif family == "red" and not petal and rng.random() < 0.3:
-        col = _freckles(col, f, rng, (0.3, 0.04, 0.05), int(rng.integers(2, 7)))
-    front = _mix(col, veins, np.clip(0.2 * side if petal else 0.55 * main + 0.2 * side, 0, 1))
-    # the back: duller and lighter, the veins standing out (a petal's: about the same as its front)
-    grey = col.mean(axis=2, keepdims=True)
-    if petal:
-        back = col * 1.02
-    else:
-        back = np.clip((col + (grey - col) * 0.28) * 1.04 + 0.04, 0, 1)
-    back = _mix(back, np.clip(np.array(veins) * 0.6 + 0.38, 0, 1),
-                np.clip(0.5 * main + 0.25 * side + 0.1 * f["vein_wide"], 0, 1) * (0.4 if petal else 1.0))
-    return np.clip(front, 0, 1), back, stem
-
-
-def _freckles(col, f, rng, colour, n):
-    """A few small spots, soft-edged (as many random draws at any size of the picture)."""
-    h, w = f["alpha"].shape
-    at = rng.random((64, 2))
-    sizes = rng.uniform(0.006, 0.025, 64)
-    strength = rng.uniform(0.5, 0.95, 64)
-    rows, cols = (at[:, 0] * h).astype(int), (at[:, 1] * w).astype(int)
-    for j in np.flatnonzero(f["inside"][rows, cols] > 0.05)[:n]:
-        cy, cx = rows[j], cols[j]
-        rad = max(sizes[j] * f["ppu"], 0.6)
-        reach = int(math.ceil(3 * rad)) + 1
-        y0, y1, x0, x1 = max(cy - reach, 0), min(cy + reach + 1, h), max(cx - reach, 0), min(cx + reach + 1, w)
-        yy, xx = np.mgrid[y0:y1, x0:x1]
-        d2 = ((xx - cx) ** 2 + (yy - cy) ** 2) / max(rad * rad, 1e-6)
-        col[y0:y1, x0:x1] = _mix(col[y0:y1, x0:x1], colour, np.exp(-d2 * 1.5) * strength[j])
-    return col
-
-
-def _shade(design, f, back):
-    """Light and shade (H, W) from how the leaf is cupped, curled and folded along its veins."""
-    r, along = f["r"], f["along"]
-    h = design["cup"] * 0.35 * r * r
-    h = h + design["curl"] * 0.25 * _smoothstep(0.3, 1.0, along) ** 2
-    h = h - design["fold"] * f["valley"]  # the blade a little sunk along the main veins
-    h = h + design["wave"] * f["big"]
-    if back:
-        h = -h
-    gy, gx = np.gradient(_blur(h, 0.012 * f["ppu"]), 1.0 / f["ppu"])
-    gy = -gy  # rows run down, y up
-    n = np.dstack([-gx, -gy, np.ones_like(gx)])
-    n /= np.linalg.norm(n, axis=2, keepdims=True)
-    light = np.array([-0.45, 0.55, 0.7])
-    light /= np.linalg.norm(light)
-    lam = n @ light
-    shade = np.clip(1 + 0.75 * (lam - light[2]), 0.55, 1.3)
-    if not back:  # a faint waxy sheen on the top
-        half = light + np.array([0.0, 0.0, 1.0])
-        half /= np.linalg.norm(half)
-        shade = shade + 0.18 * np.clip(n @ half, 0, 1) ** 40
-    return _blur(shade.astype(np.float32), 0.004 * f["ppu"])
-
-
-class Sprite:
-    """One leaf design in one colour: front and back as premultiplied RGBA pictures (Pillow "RGBa") at the MIPS
-    sizes up to `size`, both the same way round (the leaf turning over mirrors the back); `extent`: the leaf's
-    longest side and `reach`: how far it reaches from the picture's middle, in the largest picture (px); `rgb`: its
-    mean colour."""
-
-    def __init__(self, front, back, size, extent, reach, rgb):
-        self.front, self.back, self.size = front, back, size
-        self.extent, self.reach, self.rgb = extent, reach, rgb
-        self.bytes = sum(img.size[0] * img.size[1] * 4 for img in front + back)
-
-    def image(self, back, size):
-        """The smallest of the ready pictures in which the leaf is still at least `size` px long."""
-        mips = self.back if back else self.front
-        for img in reversed(mips):
-            if self.extent * img.size[0] / self.size >= size:
-                return img
-        return mips[0]
-
-
-def _grid(n, cx, cy, ppu):
-    xs = (cx + (np.arange(n) + 0.5 - n / 2) / ppu).astype(np.float32)
-    ys = (cy - (np.arange(n) + 0.5 - n / 2) / ppu).astype(np.float32)
-    return np.broadcast_to(xs[None, :], (n, n)), np.broadcast_to(ys[:, None], (n, n))
-
-
-def make_sprite(kind, family, variant, size=MIPS[0]):
-    """The pictures of leaf design `variant` of `kind` (maple, oval, petal) in colour `family`, the largest `size`
-    px across (one of MIPS: the same leaf at any of them)."""
-    rng = np.random.default_rng([("maple", "oval", "petal").index(kind), PALETTES.index(family), variant, 4111])
-    design = DESIGNS[kind](rng)
-    design["seed"] = int(rng.integers(1 << 30))
-    x0, y0, x1, y1 = _bounds(design)
-    # where its weight is (the leaf turns about it): worked out roughly first
-    n0 = 64
-    ppu0 = (n0 - 4) / max(x1 - x0, y1 - y0)
-    gx, gy = _grid(n0, (x0 + x1) / 2, (y0 + y1) / 2, ppu0)
-    a0 = np.clip(0.5 - _blade(design, gx, gy)[0] * ppu0, 0, 1)
-    total = float(a0.sum()) or 1.0
-    cx, cy = float((a0 * gx).sum()) / total, float((a0 * gy).sum()) / total
-    n = size
-    half = max(cx - x0, x1 - cx, cy - y0, y1 - cy) + 0.02
-    ppu = (n / 2 - 2) / half
-    gx, gy = _grid(n, cx, cy, ppu)
-    d, along = _blade(design, gx, gy)
-    alpha = np.clip(0.5 - d * ppu, 0, 1).astype(np.float32)
-    # the stem and the veins: drawn larger, then made smaller
-    big = n * SS
-    ox, oy = cx - n / 2 / ppu, cy + n / 2 / ppu  # the leaf point at the image's top-left corner
-    pts = _stem_points(design)
-    stem = np.zeros_like(alpha)
-    if pts:
-        img = Image.new("L", (big, big), 0)
-        _poly_stroke(ImageDraw.Draw(img), pts, ppu * SS, ox, oy, 255)
-        stem = np.asarray(img.resize((n, n), Image.Resampling.BOX), np.float32) / 255.0
-    veins = []
-    for lines in _veins(design):
-        img = Image.new("L", (big, big), 0)
-        draw = ImageDraw.Draw(img)
-        for line in lines:
-            # no stroke thinner than a pixel of the drawing: a fainter one instead, with as much ink
-            thin = 1.0 / (ppu * SS)
-            mean = sum(w for _, _, w in line) / len(line)
-            _poly_stroke(draw, [(x, y, max(w, thin)) for x, y, w in line], ppu * SS, ox, oy,
-                         int(255 * min(1.0, mean / thin)))
-        veins.append(np.asarray(img.resize((n, n), Image.Resampling.BOX), np.float32) / 255.0 * alpha)
-    main, side = veins
-    inside = np.maximum(-d, 0.0).astype(np.float32)
-    fields = {"alpha": alpha, "inside": inside, "r": np.hypot(gx, gy).astype(np.float32), "along": along,
-              "valley": np.clip(_blur(main, 0.035 * ppu) * 2.5, 0, 1), "main": main, "side": side, "ppu": ppu,
-              "halo": np.clip(_blur(main, 0.05 * ppu) * 3.0, 0, 1),
-              "vein_wide": np.clip(_blur(np.maximum(main, side), 0.012 * ppu) * 1.5, 0, 1),
-              "big": _noise(rng, alpha.shape, 3)}
-    front, back, stem_rgb = _paint(design, family, rng, fields)
-    if design["kind"] == "petal":  # a petal's shade: a deeper pink, never grey
-        for side, col in enumerate((front, back)):
-            s = _shade(design, fields, bool(side))
-            s = np.clip(s * (alpha.sum() / max(float((s * alpha).sum()), 1e-6)), 0.88, 1.08)[..., None]  # (mean 1)
-            col[:] = _mix(col, (0.85, 0.55, 0.65), np.clip((1 - s[..., 0]) / 0.12, 0, 1) * 0.5) * np.maximum(s, 1)
-    else:
-        front = front * _shade(design, fields, False)[..., None]
-        back = back * _shade(design, fields, True)[..., None]
-        rim = np.exp(-inside / 0.008)[..., None]  # the margin a shade darker
-        front = front * (1 - 0.18 * rim)
-        back = back * (1 - 0.08 * rim)
-    # the stem, over the blade where they meet
-    a = np.maximum(alpha, stem)
-    over = (np.clip(stem - 0.6 * alpha, 0, 1) / np.maximum(a, 1e-6))[..., None]
-    stem_col = stem_rgb * (0.85 + 0.15 * _noise(rng, alpha.shape, 6)[..., None])
-    front = front * (1 - over) + stem_col * over
-    back = back * (1 - over) + stem_col * 0.9 * over
-    if design["kind"] == "petal":
-        a = a * 0.93  # a petal lets a little light through
-    ys, xs = np.nonzero(a > 0.02)
-    extent = float(max(xs.max() - xs.min(), ys.max() - ys.min()) + 1)
-    reach = float(np.hypot(xs + 0.5 - n / 2, ys + 0.5 - n / 2).max()) + 1.5
-    rgb = (front * a[..., None]).reshape(-1, 3).sum(axis=0) / max(float(a.sum()), 1e-6)
-    return Sprite(_mips(front, a), _mips(back, a), n, extent, reach, rgb)
-
-
-def _mips(rgb, alpha):
-    a = alpha[..., None]
-    out = [Image.fromarray((np.dstack([np.clip(rgb, 0, 1) * a, a]) * 255 + 0.5).astype(np.uint8), "RGBa")]
-    for size in MIPS:  # each from the one before: half its size
-        if size < out[-1].size[0]:
-            out.append(out[-1].resize((size, size), Image.Resampling.LANCZOS))
-    return out
-
-
-_SPRITES = {}
-MAX_BYTES = 80 << 20  # the pictures kept take at most this much memory (every design at the largest size: ~60 MB)
-
-
-def sprite(kind, family, variant, size=MIPS[0]):
-    """make_sprite(), kept (petals are pink whatever the colour)."""
-    key = (kind, "pink" if kind == "petal" else family, variant, size)
-    item = _SPRITES.get(key)
-    if item is None:
-        item = make_sprite(kind, FAMILIES[0] if kind == "petal" else family, variant, size)
-        while _SPRITES and sum(s.bytes for s in _SPRITES.values()) + item.bytes > MAX_BYTES:
-            _SPRITES.pop(next(iter(_SPRITES)))  # (the oldest first)
-        _SPRITES[key] = item
-    return item
-
 
 # --- the settings -----------------------------------------------------------------------------------------------
 
@@ -692,7 +46,19 @@ def size_slider(px):
     return 100 * math.log(max(px, 1e-6) / SIZE_PX[0]) / math.log(SIZE_PX[1] / SIZE_PX[0])
 
 
-LOOKS = {  # the "Kiểu lá rơi" presets: every setting but the kind of leaves and their colours (medium: the defaults)
+# how big each shape's leaves are beside the others (the longest side of the blade): the biggest ticked reaches "Lá
+# to nhất", the others as much smaller as they really are (a petal: much smaller than a maple leaf)
+REL = {"almond": 1.0, "maple": 0.88, "oak": 0.84, "japanese": 0.72, "heart": 0.68, "ginkgo": 0.64, "willow": 0.62,
+       "birch": 0.52, "petal": 0.53}
+SHAPE_LABELS = {"maple": "Lá phong 5 thuỳ", "japanese": "Lá phong Nhật (7 thuỳ mảnh)",
+                "ginkgo": "Lá bạch quả (hình quạt)", "oak": "Lá sồi (thuỳ tròn)", "almond": "Lá bàng (to, đỏ cam)",
+                "birch": "Lá bạch dương (nhỏ, răng cưa)", "willow": "Lá liễu (dài, mảnh)", "heart": "Lá hình tim",
+                "petal": "Cánh hoa anh đào"}
+DEFAULT_SHAPES = ("maple", "japanese")
+SHAPES_GROUP = "Kiểu dáng lá (tích nhiều ô để trộn)"
+COLOURS_GROUP = "Màu lá (cánh hoa luôn màu hồng)"
+
+LOOKS = {  # the "Kiểu lá rơi" presets: how the leaves fall, how many, how big, how deep (medium: the defaults)
     "few": {"amount": 12, "big": 88, "small": 34, "speed": 30, "sway": 60, "spin": 45, "wind": 8, "gust": 15,
             "depth": 55, "blur": 20, "haze": 20, "motion": 30, "opacity": 100},
     "many": {"amount": 75, "big": 82, "small": 16, "speed": 40, "sway": 50, "spin": 55, "wind": 20, "gust": 35,
@@ -706,25 +72,43 @@ SEASONS = {  # the "Màu theo mùa" presets: how many leaves are red, yellow and
     "red": {"red": 80, "yellow": 15, "green": 5},
     "gold": {"red": 8, "yellow": 85, "green": 7},
     "redgold": {"red": 50, "yellow": 50, "green": 0},
+    "winter": {"red": 55, "yellow": 35, "green": 10},
     "mixed": {"red": 40, "yellow": 35, "green": 25},
     "early": {"red": 12, "yellow": 23, "green": 65},
     "summer": {"red": 0, "yellow": 0, "green": 100},
 }
+# the "Loại lá" presets: which shapes, in which season's colours (cherry petals: the colours left as they are)
+SCENE_LIST = [("maple", "Rừng phong (phong 5 thuỳ và phong Nhật)", DEFAULT_SHAPES, "mixed"),
+              ("japanese", "Phong Nhật đỏ rực", ("japanese",), "red"),
+              ("almond", "Lá bàng mùa đông", ("almond",), "winter"),
+              ("ginkgo", "Bạch quả vàng", ("ginkgo",), "gold"),
+              ("oak", "Rừng sồi", ("oak",), "redgold"),
+              ("birch", "Bạch dương vàng", ("birch",), "gold"),
+              ("willow", "Lá liễu", ("willow",), "early"),
+              ("heart", "Lá hình tim", ("heart",), "gold"),
+              ("petal", "Hoa anh đào", ("petal",), None),
+              ("forest", "Rừng thu nhiều loại lá", ("maple", "oak", "birch", "heart"), "mixed")]
+SCENES = {name: {**{s: s in shapes for s in SHAPES}, **({"season": season, **SEASONS[season]} if season else {})}
+          for name, _, shapes, season in SCENE_LIST}
+CUSTOM = "custom"  # (the shapes ticked by hand: no preset)
 
 SCHEMA = {"label": "Lá rơi", "params": [
+    _choice("scene", "Loại lá (chọn nhanh)", "maple",
+            [(name, label) for name, label, _, _ in SCENE_LIST] + [(CUSTOM, "Tự chọn (tích ô bên dưới)")],
+            presets=SCENES, match=list(SHAPES), group="Kiểu"),
     _choice("look", "Kiểu lá rơi", "medium",
             [("few", "Lác đác vài lá"), ("medium", "Lá rơi vừa"), ("many", "Lá rơi dày"),
              ("windy", "Gió thu cuốn lá"), ("dreamy", "Lá to bay chậm")], presets=LOOKS, group="Kiểu"),
-    _choice("shape", "Loại lá", "maple",
-            [("maple", "Lá phong"), ("mixed", "Lá phong lẫn lá thường"), ("oval", "Lá thường (hình bầu dục)"),
-             ("petal", "Cánh hoa anh đào")], group="Kiểu"),
+    *[_toggle(s, SHAPE_LABELS[s], s in DEFAULT_SHAPES, group=SHAPES_GROUP) for s in SHAPES],
     _choice("season", "Màu theo mùa", "mixed",
-            [("red", "Thu đỏ rực"), ("gold", "Thu vàng"), ("redgold", "Thu đỏ vàng"), ("mixed", "Đỏ vàng xanh"),
+            [("red", "Thu đỏ rực"), ("gold", "Thu vàng"), ("redgold", "Thu đỏ vàng"),
+             ("winter", "Đỏ cam, vàng, ít lá xanh"), ("mixed", "Đỏ vàng xanh"),
              ("early", "Đầu thu (nhiều lá xanh)"), ("summer", "Lá xanh (mùa hè)")], presets=SEASONS,
-            group="Màu lá (cánh hoa luôn màu hồng)"),
-    _num("red", "Lá đỏ (nhiều hay ít)", 40, group="Màu lá (cánh hoa luôn màu hồng)"),
-    _num("yellow", "Lá vàng (nhiều hay ít)", 35, group="Màu lá (cánh hoa luôn màu hồng)"),
-    _num("green", "Lá xanh (nhiều hay ít)", 25, group="Màu lá (cánh hoa luôn màu hồng)"),
+            group=COLOURS_GROUP),
+    _num("red", "Lá đỏ (nhiều hay ít)", 40, group=COLOURS_GROUP),
+    _num("yellow", "Lá vàng (nhiều hay ít)", 35, group=COLOURS_GROUP),
+    _num("green", "Lá xanh (nhiều hay ít)", 25, group=COLOURS_GROUP),
+    _num("glow", "Nắng chiếu xuyên lá (lá rực sáng)", 40, group="Ánh sáng"),
     _num("big", "Lá to nhất", 82, group="Cỡ lá"), _num("small", "Lá nhỏ nhất", 22, group="Cỡ lá"),
     _num("amount", "Số lá", 35, group="Số lá"), _num("opacity", "Độ đậm", 100, group="Số lá"),
     _num("speed", "Tốc độ rơi", 35, group="Chuyển động"),
@@ -740,34 +124,62 @@ LOOKS["medium"] = {p["key"]: p["value"] for p in SCHEMA["params"] if p["key"] in
 
 OLD_STYLES = {"autumn": ("mixed", "redgold"), "green": ("oval", "summer"), "petal": ("petal", "mixed")}
 OLD_FULL = 45  # leaves in the frame at a time at the top of the first leaves' "Số lá" (its 60 counted its margins)
+# the kinds of leaf of the remake before the shapes ("Loại lá": maple leaves, both kinds of maple; mixed with
+# ordinary oval leaves; ordinary leaves alone; petals), as shapes
+OLD_SHAPES = {"maple": DEFAULT_SHAPES, "mixed": DEFAULT_SHAPES + ("birch",), "oval": ("birch",), "petal": ("petal",)}
+
+
+def scene_of(p):
+    """The "Loại lá" whose shapes are those ticked in `p` (custom when none is)."""
+    return next((name for name, preset in SCENES.items() if all(p.get(s) == preset[s] for s in SHAPES)), CUSTOM)
 
 
 def upgrade(raw):
-    """The settings a clip of the first leaves effect saved (style, size; no kind of leaf), as this one's."""
-    if not isinstance(raw, dict) or "shape" in raw or not ({"style", "size"} & set(raw)):
+    """Settings saved by an older leaves effect, as this one's: the first one's (style, size; no kind of leaf),
+    and the remake's single kind of leaf ("shape"), as the shapes ticked."""
+    if not isinstance(raw, dict) or any(s in raw for s in SHAPES):
         return raw
     out = dict(raw)
-    shape, season = OLD_STYLES.get(raw.get("style"), OLD_STYLES["autumn"])
-    out.update(shape=shape, season=season, **SEASONS[season])
-    try:
-        size = min(max(float(raw.get("size", 45)), 0.0), 100.0)
-    except (TypeError, ValueError, OverflowError):
-        size = 45.0
-    length = _lerp(22, 80, size / 100) if size == size else 51.0  # its leaves were about this long, 0.6 to 1.8 times
-    out["big"], out["small"] = round(size_slider(1.8 * length)), round(size_slider(0.7 * length))
-    try:
-        out["amount"] = round(min(max(float(raw.get("amount", 30)), 0.0), 100.0) * OLD_FULL / Leaves.FULL)
-    except (TypeError, ValueError, OverflowError):
-        pass
+    if "shape" not in raw and {"style", "size"} & set(raw):  # the first leaves effect
+        shape, season = OLD_STYLES.get(raw.get("style"), OLD_STYLES["autumn"])
+        out.update(shape=shape, season=season, **SEASONS[season])
+        try:
+            size = min(max(float(raw.get("size", 45)), 0.0), 100.0)
+        except (TypeError, ValueError, OverflowError):
+            size = 45.0
+        length = _lerp(22, 80, size / 100) if size == size else 51.0  # its leaves were about this long, 0.6 to 1.8
+        out["big"], out["small"] = round(size_slider(1.8 * length)), round(size_slider(0.7 * length))
+        try:
+            out["amount"] = round(min(max(float(raw.get("amount", 30)), 0.0), 100.0) * OLD_FULL / Leaves.FULL)
+        except (TypeError, ValueError, OverflowError):
+            pass
+    if "shape" in out:
+        old = out.pop("shape")
+        names = OLD_SHAPES.get(old, DEFAULT_SHAPES) if isinstance(old, str) else DEFAULT_SHAPES
+        out.update({s: s in names for s in SHAPES})
+        out["scene"] = scene_of(out)
     return out
 
 
 # --- the effect -------------------------------------------------------------------------------------------------
 
 GLIDE, TUMBLE, SPIRAL = 0, 1, 2  # how a leaf falls
-PETAL = 0.6  # a cherry petal's size, as a share of a leaf's at the same place on the size sliders
 SQUASHED = 0.75  # seen at more of a slant than this (its width / its length), a leaf is drawn in two steps
 PASS = (0.6180339887, 0.7548776662)  # steps of two sequences that spread evenly (lanes; a lane's shift each pass)
+DESIGNS_MOST = 48  # designs (shape x colour x design) one clip draws from at most: fewer each with many shapes
+CLIP_SHARE = 0.4  # the share of the pictures' memory (leafshapes.MAX_BYTES) one clip's pictures take at most: two
+# of the heaviest leaves clips (or three as usual) drawn together never make a picture again
+
+
+def _unit(v):
+    v = np.asarray(v, float)
+    return v / np.linalg.norm(v)
+
+
+FRONT_LIGHT = _unit([-0.35, -0.6, -0.72])  # towards the light in front (camera: x right, y down, z away from it)
+BACK_LIGHT = _unit([0.3, -0.5, 0.8])  # towards the sun behind the leaves
+HALF = _unit(FRONT_LIGHT + np.array([0.0, 0.0, -1.0]))  # (between the light and the camera: the glint)
+GLOWING = 1.1  # how bright a leaf glowing in the sun behind it is (1: face on to the light in front)
 
 
 def _uniform_again(s, a):
@@ -780,12 +192,18 @@ def _uniform_again(s, a):
                             np.where(s <= a, (s - b / 2) / a, 1 - (1 - s) ** 2 / (2 * a * b))), 0.0, 1.0)
 
 
+def ticked(p):
+    """The shapes ticked in settings `p`, in their order (none ticked: maple leaves)."""
+    return [s for s in SHAPES if p.get(s)] or ["maple"]
+
+
 class Leaves(Falling):
     CAP = 700  # leaves with fixed random draws; how many are used follows the "Số lá" slider
-    VERSION = 3  # (1: the first leaves, simple shapes; 2: this remake before its review)
+    VERSION = 4  # (1: the first leaves, simple shapes; 2: the remake before its review; 3: the remake)
     FULL = 90  # leaves on screen at a time at the top of the "Số lá" slider (16:9)
     SHUTTER = 0.5  # the share of a frame the shutter is open at the top of the motion blur slider
     SWING_HZ = 0.6  # swings a second of a middling leaf at the default fall speed
+    PREVIEW = 960  # its preview clip: as many pixels as 960 x 540 (small leaves blur at 640 wide)
     upgrade = staticmethod(upgrade)
 
     def __init__(self, *a):
@@ -794,16 +212,22 @@ class Leaves(Falling):
         u = self.rng.random((self.CAP, 40))
         self.gph = float(self.rng.random()) * 2 * math.pi  # when the gusts come
         ds, spin, sway = p["depth"] / 100, p["spin"] / 100, p["sway"] / 100
+        shapes = ticked(p)
+        # which shape each leaf is (each in an equal share). Ticking another shape gives most leaves another
+        # shape, and (the sizes and margins changing) other places too: a new mix of leaves
+        shape = np.array(shapes)[np.minimum((u[:, 26] * len(shapes)).astype(int), len(shapes) - 1)]
 
         # size: from "Lá nhỏ nhất" to "Lá to nhất", many small and a few really big (as many more far away as the
         # space widens away from the camera); with depth, far leaves are the small ones (and slower, hazier), near
-        # ones the big ones; `own`: how big a leaf really is (a big one swings slower and wider)
+        # ones the big ones; `own`: how big a leaf really is (a big one swings slower and wider). Each shape as big
+        # as it is beside the others: the biggest ticked reaches "Lá to nhất"
         own = u[:, 2]
         near = _uniform_again(ds * u[:, 0] + (1 - ds) * own, ds) ** 1.25  # 0 small (far) .. 1 big (near)
         lo, hi = sorted((size_px(p["small"]), size_px(p["big"])))
-        size = lo * (hi / lo) ** near  # px of a 1080-line frame: the leaf's longest side
-        if p["shape"] == "petal":
-            size = size * PETAL  # (a petal is much smaller than a leaf)
+        top = max([REL[s] for s in shapes if s != "petal"] or [REL["maple"]])
+        rel = np.array([REL[str(s)] for s in shape])
+        tops = np.maximum(lo, hi * rel / top)
+        size = lo * (tops / lo) ** near  # px of a 1080-line frame: the leaf's longest side
         seen = size / 1080  # in frame heights
 
         # the path: down, leaning with the wind (tumbling leaves glide off sideways), plus the gusts' steady drift
@@ -893,23 +317,49 @@ class Leaves(Falling):
         self.push = push[order]
         self.pass0 = u[:, 25]
 
-        # which leaf: its kind, colour and design; a little brighter or darker, warmer or cooler than its design.
+        # which leaf: its shape, colour and design; a little brighter or darker, warmer or cooler than its design.
         # Green leaves turn yellow or red at their edges only when some leaves have already turned (not in summer)
-        shape = p["shape"]
-        self.kind = np.where(u[:, 26] < 0.65, "maple", "oval") if shape == "mixed" else np.full(n, shape)
+        self.kind = shape[:n][order]
         shares = np.array([p["red"], p["yellow"], p["green"]], float)
         shares = shares / shares.sum() if shares.sum() > 0 else np.full(3, 1 / 3)
         self.family = np.searchsorted(np.cumsum(shares)[:2], u[:, 27], side="right")
         turning = min(0.5, 1.2 * (shares[0] + shares[1]))  # (the share of green leaves turning)
         self.palette = np.where((self.family == 2) & (u[:, 34] < turning), 3, self.family)
-        self.variant = np.array([int(u[i, 28] * VARIANTS[str(k)]) for i, k in enumerate(self.kind)], int)
+        petal = self.kind == "petal"
         self.tint = (_lerp(0.9, 1.08, u[:, 29])[:, None] * (1 + 0.05 * (u[:, 30:33] - 0.5))).astype(np.float32)
-        self.opacity = p["opacity"] / 100 * np.where(self.kind == "petal", 0.95, 1.0) * (1 - 0.35 * self.haze)
-        self.sheen = 0.25 * u[:, 33]
-        self.edge_light = np.where(self.kind == "petal", 0.06, 0.2)  # (a petal lets light through: no darker edge-on)
-        # the leaves' pictures: drawn as large as the largest leaf will be seen (small in a small preview)
-        most = float(self.size.max()) * self.px * 1.1 if n else 0.0
-        self.master = next((s for s in MIPS[2::-1] if 0.7 * s >= most), MIPS[0])
+        self.opacity = p["opacity"] / 100 * np.where(petal, 0.95, 1.0) * (1 - 0.35 * self.haze)
+        self.sheen = np.where(self.kind == "almond", _lerp(0.25, 0.5, u[:, 33]), 0.25 * u[:, 33])
+        self.sheen = np.where(petal, 0.05, self.sheen)
+        # in the sun or in the shade: how much a leaf glows when the sun is behind it
+        self.sun = p["glow"] / 100 * _lerp(0.35, 1.0, u[:, 37]) * np.where(petal, 0.6, 1.0)
+        self.soft = np.clip(_lerp(0.72, 1.0, near[order] / 0.35), 0.72, 1.0)  # (far ones a little softer)
+        # the leaves' pictures: each drawn as large as the leaf will be seen (small in a small preview: its shape's
+        # blade takes SHARE of its picture at least), from as many designs as memory allows
+        self.longest = self.size * self.px * (1 + self.zs)
+        self.master = np.array([next((s for s in MIPS[2::-1] if SHARE[str(kind)] * s >= 1.1 * v), MIPS[0])
+                                for kind, v in zip(self.kind, self.longest)], int)
+        self.count = self._designs(u[:, 28])
+
+    def _designs(self, draw):
+        """How many designs of each shape the leaves come in (fewer when many shapes and colours fall together, so
+        that all their pictures fit in a share of memory at once, room left for another leaves clip: none is made
+        again and again), which each leaf starts with (`variant`), and how large each design's pictures are made
+        (`sizes`: as large as the largest leaf showing it needs, the others drawn from them, so no design's pictures
+        are made twice)."""
+        pal = np.where(self.kind == "petal", 0, self.palette)
+        combos = len(set(zip(self.kind.tolist(), pal.tolist()))) or 1
+        most = max(2, DESIGNS_MOST // combos)
+        while True:
+            count = np.array([min(VARIANTS[str(k)], most) for k in self.kind], int)
+            self.variant = (draw * count).astype(int)
+            self.sizes = {}
+            for i in range(self.n):
+                for j in range(int(min(self.k[i], count[i]))):
+                    key = (str(self.kind[i]), int(pal[i]), int((self.variant[i] + 3 * j) % count[i]))
+                    self.sizes[key] = max(self.sizes.get(key, 0), int(self.master[i]))
+            if most <= 1 or sum(map(sprite_bytes, self.sizes.values())) <= CLIP_SHARE * leafshapes.MAX_BYTES:
+                return count
+            most -= 1
 
     def passes(self, t):
         """Which time round (0 .. k - 1) every leaf is on at frame t (it comes down k times a loop)."""
@@ -917,8 +367,7 @@ class Leaves(Falling):
 
     def design(self, t):
         """Which design every leaf is at frame t (another each time round)."""
-        count = np.array([VARIANTS[str(k)] for k in self.kind], int)
-        return (self.variant + 3 * self.passes(t).astype(int)) % count
+        return (self.variant + 3 * self.passes(t).astype(int)) % self.count
 
     def at(self, t, dt=0.0):
         """x, y (pixels) of every leaf's middle at frame t + dt, whether it is on its visible stretch at frame t, and
@@ -950,6 +399,18 @@ class Leaves(Falling):
         pitch = self.beta0 + self.P_amp * np.sin(phi) + 2 * math.pi * self.flips * tau + 1.5 * self.W * wob
         return roll, yaw, pitch, 1 + self.zs * np.sin(phi)
 
+    def light(self, roll, pitch):
+        """How bright every leaf is in the light in front (1: face on), and how much it glows lit from behind
+        (0..1), from which way its face points (tilted about an axis at roll + chi in the picture by pitch)."""
+        a = roll + self.chi
+        sp, cp = np.sin(pitch), np.cos(pitch)
+        face = np.where(cp >= 0, 1.0, -1.0)  # (the side seen: its front, or its back)
+        n = np.stack([-sp * np.sin(a), sp * np.cos(a), -cp]) * face  # (towards the camera)
+        lit = 0.75 + 0.35 * np.maximum(n.T @ FRONT_LIGHT, 0.0)
+        lit = lit + np.where(cp > 0, self.sheen * np.maximum(n.T @ HALF, 0.0) ** 30, 0.0)  # (the top glints)
+        glow = self.sun * np.maximum(-(n.T @ BACK_LIGHT), 0.0) ** 1.5
+        return lit, glow
+
     def draw(self, t, canvas, mask):
         if not self.n:
             return
@@ -969,21 +430,37 @@ class Leaves(Falling):
         # (squash < 0), the leaf is seen mirrored
         c = np.cos(pitch)
         squash = np.copysign(np.maximum(np.abs(c), 0.05), c)
-        # light: a leaf turned edge-on catches less of it; the top glints now and then as it turns
-        light = (1 - self.edge_light * (1 - np.abs(c))
-                 + np.where(c > 0, self.sheen * np.maximum(np.cos(pitch - 0.45), 0) ** 24, 0))
-        gain = self.tint * (light * self.opacity)[:, None]
+        lit, glow = self.light(roll, pitch)
+        glow = np.minimum(glow, 0.85)
+        gain = self.tint * ((lit + (GLOWING - lit) * glow) * self.opacity)[:, None]
         design = self.design(t)
         for i in np.flatnonzero(seen):
-            spr = sprite(str(self.kind[i]), PALETTES[self.palette[i]], int(design[i]), self.master)
+            spr = self.picture(i, int(design[i]))
             out = place(spr, c[i] < 0, length[i], roll[i] + self.chi[i], yaw[i] - self.chi[i], squash[i],
-                        x[i], y[i], 3 * float(self.blur[i]) + 2)
-            self._finish(i, spr, out, gain[i], mx[i], my[i], canvas, mask)
+                        x[i], y[i], 3 * float(self.blur[i]) + 2, float(glow[i]), float(self.soft[i]),
+                        (float(mx[i]), float(my[i])))
+            self._finish(i, spr, out, gain[i], canvas, mask)
 
-    def _finish(self, i, spr, placed, gain, mx, my, canvas, mask):
+    def picture(self, i, design):
+        """The pictures of leaf i's design: drawn large enough for it (made larger when its blade turns out to be
+        smaller in its picture than the leaf will be seen)."""
+        kind, pal = str(self.kind[i]), PALETTES[self.palette[i]]
+        size = self.sizes.get((kind, 0 if kind == "petal" else int(self.palette[i]), design), int(self.master[i]))
+        spr = sprite(kind, pal, design, size)
+        while spr.extent < self.longest[i] and spr.size < MIPS[0]:
+            spr = sprite(kind, pal, design, spr.size * 2)
+        return spr
+
+    def _finish(self, i, spr, placed, gain, canvas, mask):
         out, x0, y0 = placed
         if self.blur[i] > 0.4:
             out = out.filter(ImageFilter.GaussianBlur(float(self.blur[i])))
+        drawn = out.getbbox()  # (only what the leaf covers: its box's corners are often empty)
+        if drawn is None:
+            return
+        if drawn != (0, 0) + out.size:
+            out = out.crop(drawn)
+            x0, y0 = x0 + drawn[0], y0 + drawn[1]
         arr = np.asarray(out, np.float32) * (1 / 255.0)
         rgb = arr[..., :3]
         rgb *= gain
@@ -994,89 +471,97 @@ class Leaves(Falling):
             target = (0.6 * grey + 0.4 * np.array([0.8, 0.82, 0.85])).astype(np.float32)
             rgb *= 1 - hz
             rgb += (hz * target) * arr[..., 3:4]
-        if mx * mx + my * my > 1.0:
-            arr, dx0, dy0 = smear(arr, mx, my)
-            x0, y0 = x0 + dx0, y0 + dy0
+        np.minimum(rgb, arr[..., 3:4], out=rgb)  # (never brighter than it covers: no light rims)
         canvas.over_rgba(x0, y0, arr[..., :3], arr[..., 3], mask)
 
 
-def place(spr, back, length, roll, turn, squash, x, y, pad):
-    """A leaf's picture (`spr`, its back if `back`) `length` px long, turned by `turn`, squashed across by `squash`
-    (seen at a slant; < 0: turned over, mirrored), turned by `roll` in the frame, its middle at (x, y): a Pillow
-    "RGBa" image and the frame px of its top-left corner.
+def place(spr, back, length, roll, turn, squash, x, y, pad, glow=0.0, soft=1.0, smear=(0.0, 0.0)):
+    """A leaf's picture (`spr`, its back if `back`, lit from behind by `glow`) `length` px long, turned by `turn`,
+    squashed across by `squash` (seen at a slant; < 0: turned over, mirrored), turned by `roll` in the frame, its
+    middle at (x, y), smeared over the (dx, dy) px of `smear` it moves while the shutter is open: a Pillow "RGBa"
+    image and the frame px of its top-left corner.
 
-    The picture is chosen by the leaf's full length, so its long side is never enlarged (no blur that comes and
-    goes as it turns). Squashed a lot, it is turned first, made lower with a filter that averages (not point by
-    point: a leaf seen edge-on stays a solid line, no shimmer), then turned to its place."""
-    img = spr.image(back, length)
+    The picture is chosen by the leaf's full length (`soft` < 1: up to 1 / soft times smaller, a little soft, for a
+    far leaf), so its long side is not enlarged more than that (no blur that comes and goes as it turns). Squashed a
+    lot, it is turned first, made lower with a filter that averages (not point by point: a leaf seen edge-on stays a
+    solid line, no shimmer), then turned to its place. Only the box round the leaf is drawn (its corners where the
+    turns take them: a ginkgo's long stem or a willow's narrow blade leave much of its square picture empty)."""
+    img = spr.image(back, length * soft, glow)
     n = img.size[0]
-    k = length / (spr.extent * n / spr.size)  # frame px per picture px
-    r = spr.reach * n / spr.size  # how far the leaf reaches from the picture's middle (picture px)
+    f = n / spr.size
+    k = length / (spr.extent * f)  # frame px per picture px
+    corners = [(px * f, py * f) for px in spr.box[0::2] for py in spr.box[1::2]]  # (from the picture's middle)
     ca, sa, cb, sb = math.cos(roll), math.sin(roll), math.cos(turn), math.sin(turn)
-    # the frame box: as far as the leaf reaches along each axis, R(roll) diag(1, squash) R(turn) k
+    # the frame box: where the corners go, R(roll) diag(1, squash) R(turn) k
     a, b = k * (ca * cb - sa * squash * sb), k * (-ca * sb - sa * squash * cb)
     c, d = k * (sa * cb + ca * squash * sb), k * (-sa * sb + ca * squash * cb)
-    hw, hh = r * math.hypot(a, b) + pad, r * math.hypot(c, d) + pad
-    x0, y0 = math.floor(x - hw), math.floor(y - hh)
-    w, h = math.ceil(x + hw) - x0, math.ceil(y + hh) - y0
-    ox, oy = x0 - x, y0 - y
-    if abs(squash) >= SQUASHED:  # in one step: the frame -> picture map, the inverse of [[a, b], [c, d]]
+    us, vs = [a * px + b * py for px, py in corners], [c * px + d * py for px, py in corners]
+    box = (min(us) - pad, min(vs) - pad, max(us) + pad, max(vs) + pad)
+    if abs(squash) >= SQUASHED:  # in one step: frame offsets -> the picture, the inverse of [[a, b], [c, d]]
         det = a * d - b * c
         ia, ib, ic, id_ = d / det, -b / det, -c / det, a / det
-        data = (ia, ib, ia * ox + ib * oy + n / 2, ic, id_, ic * ox + id_ * oy + n / 2)
-        return img.transform((w, h), Image.Transform.AFFINE, data, resample=Image.Resampling.BICUBIC), x0, y0
-    # 1. turned by `turn` and made `k` times the size (k R(turn)), in a square around the leaf's middle
-    size = 2 * math.ceil(r * k) + 4
-    half = size / 2
-    data = (cb / k, sb / k, n / 2 - (cb + sb) / k * half, -sb / k, cb / k, n / 2 - (cb - sb) / k * half)
-    turned = img.transform((size, size), Image.Transform.AFFINE, data, resample=Image.Resampling.BICUBIC)
+        return _laid(img, (ia, ib, n / 2, ic, id_, n / 2), x, y, box, smear, Image.Resampling.BICUBIC)
+    # 1. turned by `turn` and made `k` times the size (k R(turn)), in a box round the leaf, its middle at (ox, oy)
+    qx = [k * (cb * px - sb * py) for px, py in corners]
+    qy = [k * (sb * px + cb * py) for px, py in corners]
+    ox, oy = 2 - math.floor(min(qx)), 2 - math.floor(min(qy))
+    tw, th = ox + math.ceil(max(qx)) + 2, oy + math.ceil(max(qy)) + 2
+    data = (cb / k, sb / k, n / 2 - (cb * ox + sb * oy) / k, -sb / k, cb / k, n / 2 - (cb * oy - sb * ox) / k)
+    turned = img.transform((tw, th), Image.Transform.AFFINE, data, resample=Image.Resampling.BICUBIC)
     # 2. squashed up-down, averaging
-    low = max(1, round(size * abs(squash)))
-    turned = turned.resize((size, low), Image.Resampling.LANCZOS)
-    e = math.copysign(abs(squash) * size / low, squash)  # (what is left of the squash: about 1, and the mirroring)
+    low = max(1, round(th * abs(squash)))
+    turned = turned.resize((tw, low), Image.Resampling.LANCZOS)
+    e = math.copysign(abs(squash) * th / low, squash)  # (what is left of the squash: about 1, and the mirroring)
     # 3. turned by `roll` into the frame: frame offset = R(roll) diag(1, e) (q - middle)
-    data = (ca, sa, ca * ox + sa * oy + half, -sa / e, ca / e, (-sa * ox + ca * oy) / e + low / 2)
-    return turned.transform((w, h), Image.Transform.AFFINE, data, resample=Image.Resampling.BICUBIC), x0, y0
+    return _laid(turned, (ca, sa, ox, -sa / e, ca / e, oy * low / th), x, y, box, smear, Image.Resampling.BICUBIC)
 
 
-def _runs(v):
-    """(start, end, value) of each run of equal values in v."""
-    cut = np.flatnonzero(np.diff(v)) + 1
-    starts = np.concatenate(([0], cut))
-    return zip(starts.tolist(), np.concatenate((cut, [len(v)])).tolist(), v[starts].tolist())
+def _warp(img, src, size, out, resample):
+    """`img` drawn into a picture of `size`: `out` (an affine map, as Pillow's) takes that picture's points to frame
+    offsets (u, v) from the leaf's middle, `src` takes frame offsets to points of `img`."""
+    p, q, r, s, t, w = src
+    o0, o1, o2, o3, o4, o5 = out
+    data = (p * o0 + q * o3, p * o1 + q * o4, p * o2 + q * o5 + r,
+            s * o0 + t * o3, s * o1 + t * o4, s * o2 + t * o5 + w)
+    return img.transform(size, Image.Transform.AFFINE, data, resample=resample)
 
 
-def smear(arr, dx, dy):
-    """`arr` (h, w, channels) smeared evenly over the (dx, dy) px it moves while the shutter is open: a box filter
-    along the way (sheared so that way runs down the rows, summed once along them, sheared back), so a long smear
-    costs no more than a short one. Returns (array, x0, y0): where its top-left pixel now sits relative to the
-    original's."""
-    if abs(dx) > abs(dy):  # mostly sideways: the same, along the other axis
-        out, y0, x0 = smear(arr.swapaxes(0, 1), dy, dx)
-        return out.swapaxes(0, 1), x0, y0
-    if dy < 0:
-        dx, dy = -dx, -dy  # (the same box: even about the middle)
-    h, w = arr.shape[:2]
-    rest = arr.shape[2:]
-    span = max(1, round(dy))  # rows the box spans (whole: one difference of the sums)
-    px, py = int(math.ceil(abs(dx) / 2)) + 1, span // 2 + 2
-    rows, cols = h + 2 * py, w + 2 * px
-    shift = np.rint(dx / dy * (np.arange(rows) - (rows - 1) / 2)).astype(int)  # each row's, about the middle
-    most = int(np.abs(shift).max())
-    e = span // 2 + 3  # (empty rows above and below: the sums never read past them)
-    sheared = np.zeros((rows + 2 * e, cols + 2 * most) + rest, np.float32)
-    for y0, y1, s in _runs(shift[py:py + h]):
-        sheared[e + py + y0:e + py + y1, px + most - s:px + most - s + w] = arr[y0:y1]
-    run = np.zeros((rows + 2 * e + 1, cols + 2 * most) + rest, np.float32)
-    np.cumsum(sheared, axis=0, out=run[1:])  # run[i]: the rows above row i summed
-    # the sums down to the box's lower edge (Y + 0.5 + span / 2) of output rows Y = -span .. rows - 1
-    edge = 0.5 + span / 2
-    f = math.floor(edge)
-    i, m = e + f - span, rows + span
-    low = run[i:i + m] if edge == f else (run[i:i + m] + run[i + 1:i + 1 + m]) * 0.5
-    box = low[span:] - low[:-span]
-    box *= 1 / span
-    out = np.empty((rows, cols) + rest, np.float32)
-    for y0, y1, s in _runs(shift):
-        out[y0:y1] = box[y0:y1, most - s:most - s + cols]
-    return out, -px, -py
+def _laid(img, src, x, y, box, smear, resample):
+    """`img` laid in the frame, its points at frame offsets (u, v) from (x, y) where `src` takes them in it, within
+    `box` (u0, v0, u1, v1) round there: (picture, x0, y0). Smeared over (dx, dy) = `smear`: drawn first where the
+    way it moves runs straight down (or across: each row moved aside by a fraction of a pixel, never whole pixels,
+    which would leave a fine zipper along its edges), averaged along it (a box: a long smear costs no more than a
+    short one), then put back."""
+    u0, v0, u1, v1 = box
+    dx, dy = smear
+    if dx * dx + dy * dy <= 1.0:
+        x0, y0 = math.floor(x + u0), math.floor(y + v0)
+        size = (math.ceil(x + u1) - x0, math.ceil(y + v1) - y0)
+        return _warp(img, src, size, (1, 0, x0 - x, 0, 1, y0 - y), resample), x0, y0
+    down = abs(dy) >= abs(dx)
+    k = dx / dy if down else dy / dx
+    if down:  # sheared: (u - k v, v), the way straight down
+        lo, hi = u0 - max(k * v0, k * v1) - 2, u1 - min(k * v0, k * v1) + 2
+        sox, soy = math.floor(lo), math.floor(v0 - abs(dy) / 2 - 2)
+        size = (math.ceil(hi) - sox, math.ceil(v1 + abs(dy) / 2 + 2) - soy)
+        sheared = _warp(img, src, size, (1, k, sox + k * soy, 0, 1, soy), resample)
+        sheared = sheared.filter(ImageFilter.BoxBlur((0, max(0.0, (abs(dy) - 1) / 2))))
+    else:  # sheared: (u, v - k u), the way straight across
+        lo, hi = v0 - max(k * u0, k * u1) - 2, v1 - min(k * u0, k * u1) + 2
+        sox, soy = math.floor(u0 - abs(dx) / 2 - 2), math.floor(lo)
+        size = (math.ceil(u1 + abs(dx) / 2 + 2) - sox, math.ceil(hi) - soy)
+        sheared = _warp(img, src, size, (1, 0, sox, k, 1, soy + k * sox), resample)
+        sheared = sheared.filter(ImageFilter.BoxBlur((max(0.0, (abs(dx) - 1) / 2), 0)))
+    x0, y0 = math.floor(x + u0 - abs(dx) / 2 - 1), math.floor(y + v0 - abs(dy) / 2 - 1)
+    fox, foy = x0 - x, y0 - y
+    data = (1, -k, fox - k * foy - sox, 0, 1, foy - soy) if down else (1, 0, fox - sox, -k, 1, foy - k * fox - soy)
+    size = (math.ceil(x + u1 + abs(dx) / 2 + 1) - x0, math.ceil(y + v1 + abs(dy) / 2 + 1) - y0)
+    return sheared.transform(size, Image.Transform.AFFINE, data, resample=Image.Resampling.BILINEAR), x0, y0
+
+
+def smear(img, dx, dy):
+    """A picture (Pillow "RGBa") smeared evenly over the (dx, dy) px it moves while the shutter is open (as place()
+    smears a leaf). Returns (image, x0, y0): where its top-left pixel now sits relative to the original's."""
+    w, h = img.size
+    return _laid(img, (1, 0, w / 2, 0, 1, h / 2), w / 2, h / 2, (-w / 2, -h / 2, w / 2, h / 2), (dx, dy),
+                 Image.Resampling.BILINEAR)

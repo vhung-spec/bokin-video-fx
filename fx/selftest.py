@@ -81,8 +81,9 @@ def periodic_checks():
     light = effects.light_map([(scene * 255 + 0.5).astype(np.uint8)])  # (rain lit by the scene)
     for kind in effects.KINDS:
         third = {"style": "dust"} if kind == "glow" else {"wind": 60}
-        if kind == "leaves":  # every way a leaf falls, and both kinds of leaf
-            third = {"wind": 60, "gust": 80, "spin": 100, "shape": "mixed"}
+        if kind == "leaves":  # every way a leaf falls, every shape of leaf, lit from behind
+            third = {"wind": 60, "gust": 80, "spin": 100, "glow": 100,
+                     **{p["key"]: True for p in effects.SCHEMA["leaves"]["params"] if p["type"] == "toggle"}}
         for extra in ({}, {"wind": -80, "speed": 100}, third):
             fx = effects.make(kind, extra, 5, P, FPS, 640, 360, light)
             canvas = effects.Canvas(640, 360)

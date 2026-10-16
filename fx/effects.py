@@ -320,6 +320,8 @@ class Effect:
     # the scene's light map over its own frame (light_map(), from the video: engine.scene_light), it stays an effect
     # drawn over the picture, so its preview clip carries it; light=None: drawn in its own colour
     LIT = False
+    PREVIEW = None  # a full-frame effect's sharper preview clip: as many pixels as a 16:9 one this wide (None:
+    # engine.FX_CLIP_WIDTH wide)
 
     def __init__(self, params, seed, frames, fps, w, h, aspect=None):
         self.p, self.seed = params, int(seed)
