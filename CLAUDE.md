@@ -24,7 +24,10 @@ hiệu ứng. Cách dùng: `README.md`.
   127.0.0.1/localhost. Mọi POST cần header `X-Bokin: 1`. Trang không bao giờ đưa đường dẫn: chỉ có mã dự án, clip,
   mục thư viện, kiểm theo mẫu.
 - `fx/index.html`: toàn bộ giao diện (JavaScript thuần, không framework, không bước build), tiếng Việt. Bốn vùng như
-  Premiere: Bảng chỉnh hiệu ứng, Chương trình (xem nhanh), Thư viện/Tạo sẵn/Dự án, Timeline.
+  Premiere: Bảng chỉnh hiệu ứng, Chương trình (xem nhanh), Thư viện/Tạo sẵn/Dự án, Timeline. Giao diện tối, nhấn xanh:
+  màu, bo góc, khoảng cách, cỡ chữ là token trên `:root` (`--bg`, `--panel`, `--accent`…; màu clip `--k-<loại>` theo
+  `data-kind`; thước timeline vẽ canvas đọc `--ruler-*`), biểu tượng nét mảnh tự vẽ trong `ICONS` (`icon()`, nút có
+  `data-icon`), không font hay ảnh ngoài.
 - `fx/timeline.py`: luật thời gian của clip (độ dài 30/60 giây, `Span`: bắt đầu, kết thúc, mờ dần). `index.html` có
   bản sao bằng JavaScript (`span`, `weight`, `plan`, `fileTime`): sửa một bên thì sửa cả bên kia.
 - `fx/projects.py`: dự án trong `%APPDATA%\Bokin\FX\projects\<id>` (project.json, input.*, proxy.mp4, still.png,
@@ -67,7 +70,8 @@ hiệu ứng. Cách dùng: `README.md`.
 - Hiệu ứng tạo sẵn: app kết xuất cả độ dài video thành clip nhỏ (WebM trong suốt, hoặc H.264 cho hạt sáng dùng
   Screen). Tên file theo nội dung (`fx-<khoá>.webm`), hai nửa của clip bị cắt dùng chung.
 - Khung chính xác từ `engine.Looks` (`/api/look`) là thứ video xuất ra. Trang chỉ hiện nó khi dừng hình nếu người dùng
-  bật 🎯, hoặc khi bản xem nhanh còn thiếu (`liveIncomplete`). Không tự thay ảnh khi dừng: mắt thấy như hình bị giật.
+  bật nút Khung chính xác (`#tExact`), hoặc khi bản xem nhanh còn thiếu (`liveIncomplete`). Không tự thay ảnh khi
+  dừng: mắt thấy như hình bị giật.
 - Khi phát, video gốc là đồng hồ; dừng thì giữ khung đang hiện (`requestVideoFrameCallback`). Bản nhẹ đánh số khung
   đều (`setpts=N/(fps*TB)`, `-fps_mode cfr`), nên khung n của trang là khung n của app.
 - Vẽ vùng: nét cọ vẽ thẳng lên mặt nạ và lớp màu; việc nặng (gửi vùng, làm mềm cho xem nhanh) chỉ chạy khi ngừng vẽ.
