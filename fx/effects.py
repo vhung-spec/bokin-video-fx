@@ -107,10 +107,16 @@ class Canvas:
     """One frame's particles before they are laid over the picture: premultiplied colour and coverage for
     'over' layers, or light for 'screen' layers, with the box they touched."""
 
-    def __init__(self, w, h):
+    def __init__(self, w, h, block=None):
+        """`block`: memory to draw in (float32, at least w * h * 4 of them, all 0; every user leaves it all 0 again,
+        as reset() does), shared with other canvases used one after another (sheet.Scratch); None: its own."""
         self.w, self.h = w, h
-        self.rgb = np.zeros((h, w, 3), np.float32)
-        self.a = np.zeros((h, w), np.float32)
+        if block is None:
+            self.rgb = np.zeros((h, w, 3), np.float32)
+            self.a = np.zeros((h, w), np.float32)
+        else:
+            self.rgb = block[:h * w * 3].reshape(h, w, 3)
+            self.a = block[h * w * 3:h * w * 4].reshape(h, w)
         self.box = None
 
     def reset(self):
@@ -198,7 +204,9 @@ class Effect:
     CAP = 1000  # particles with fixed random draws; how many are used follows the "amount" slider
     VERSION = 1  # raised when the picture an effect draws changes (its preview clips are made again)
     # lens: the effect also changes the picture under it (blur, refraction), in apply(); draw() is then only what
-    # it lays over the picture, which is all the page's live preview shows
+    # it lays over the picture, which is all the page's live preview shows. A lens that turns (TURNS) makes each
+    # pixel kept * itself + what it adds (both 0..1), and says how much it keeps: apply(t, picture, mask, gain,
+    # kept) fills `kept` (sheet.Sheet lays a turned lens on the frame with it)
     lens = False
     # placed: an effect at one place (a candle flame, steam over a cup), drawn inside its box (box()). BOX is the
     # box's shape (w, h); the settings x, y, scale (_place) place it as a file clip with fit "contain" is placed.

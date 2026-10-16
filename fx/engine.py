@@ -162,6 +162,7 @@ class Scene:
         self.layers = []  # (drawer, area as float or None (built-in effects), timeline.Span)
         self.missing = []  # file clips left out, their file not there (yet: a played-backwards copy being made)
         ids = []
+        scratch = sheet.Scratch()  # (the memory the effects placed or turned share)
         try:
             shown = clip_order(project)
             pairs = timeline.mix_pairs(shown, self.frames, fps)
@@ -193,7 +194,7 @@ class Scene:
                     ids.append(layer["id"])
                 elif effects.on_sheet(layer["kind"], layer.get("params")):  # placed or turned: laid as a file clip
                     drawer = sheet.Sheet(layer["kind"], layer.get("params"), layer.get("seed", 1), self.frames, fps,
-                                         self.w, self.h, area, info["w"] / info["h"])
+                                         self.w, self.h, area, info["w"] / info["h"], scratch)
                     self.layers.append((drawer, None, span))
                     ids.append(layer["id"])
                 else:
@@ -208,8 +209,14 @@ class Scene:
         # layer i and the next one crossfade (a Mix): on a track, by start, so drawn one right after the other
         pairs = {(a, b) for a, b, _ in pairs}
         self.mixed = [(ids[i], ids[i + 1]) in pairs for i in range(len(ids) - 1)] + [False]
-        self.canvas = effects.Canvas(self.w, self.h) if any(
-            not isinstance(d, overlay.Laid) for d, _, _ in self.layers) else None
+        upright = any(not isinstance(d, overlay.Laid) for d, _, _ in self.layers)
+        sheets = [d.scratch_size() for d, _, _ in self.layers if isinstance(d, sheet.Sheet)]
+        if sheets:  # one canvas for them and the upright effects, as big as the biggest, made once
+            scratch.floats("canvas", max([n for n, _ in sheets] + [self.w * self.h * 4 if upright else 0]))
+            scratch.floats("lens", max(n for _, n in sheets))
+        self.canvas = None
+        if upright:
+            self.canvas = scratch.canvas(self.w, self.h) if sheets else effects.Canvas(self.w, self.h)
 
     def image(self, t, base):
         """Frame t as an RGB image: `base` (uint8 RGB array, the video's frame at this size) with the still areas
@@ -353,8 +360,9 @@ def render_part(folder, project, size, period, crf, preset, threads, start, end,
 
 def workers(encoder_threads=True, pixels=0):
     """Worker processes for a render: half the logical CPUs when the encoders need the rest, else all but one;
-    1 to 8, and at most 4 for frames bigger than 1440p (each worker holds a few full frames, more with water on
-    glass: about 0.6 GB at 4K)."""
+    1 to 8, and at most 4 for frames bigger than 1440p (each worker holds a few full frames and each effect's own
+    buffers: at 4K about 0.9 GB with five snow clips, upright or turned (turned ones share one canvas:
+    sheet.Scratch), 1.4 GB at 200%, more with water on glass: 2 to 3 GB with five)."""
     cpus = os.cpu_count() or 2
     most = 4 if pixels > 2560 * 1440 else 8
     return max(1, min(most, cpus // 2 if encoder_threads else cpus - 1))

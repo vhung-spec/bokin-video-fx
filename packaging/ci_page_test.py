@@ -196,8 +196,9 @@ def effects_turned(page, drag):
                        "!!$('#ec input[data-num=\"rot_x\"]'), !!$('#rotReset'), "
                        "!!$('#ec input[type=range][data-param=\"scale\"]'), !!$('#tools [data-rotreset]')]")
     box = page.evaluate(BOX)
+    ui.append("ô cửa nhìn chéo" in page.evaluate("$('#ec').textContent"))  # (the window example in its turn note)
     check("3D effects: snow has the white box around the frame, the round knob, \"3D\" and its place and turn "
-          "settings", ui == ["block"] * 3 + [True] * 4 and all(abs(a - b) < 1.0 for a, b in zip(box, [0, 0, vw, vh])),
+          "settings", ui == ["block"] * 3 + [True] * 5 and all(abs(a - b) < 1.0 for a, b in zip(box, [0, 0, vw, vh])),
           str([ui, box]))
     name0 = page.evaluate(f"S.fx['{sid}'].shown")
     live, exact = live_and_exact(page, "05e-snow-upright")
@@ -287,6 +288,49 @@ def effects_turned(page, drag):
     page.keyboard.press("Control+z")
     page.wait_for_timeout(200)
     page.keyboard.press("Control+0")
+
+    # the snow over the whole frame, selected: a drag in its box moves it, whatever lies under it (a small picture,
+    # a file over the whole frame) or over it (light over the whole frame); a click (no drag) on the small picture
+    # under it picks that picture, a click where only clips over the whole frame are keeps the snow
+    fid, gid = page.evaluate(f"""(() => {{ const ti = S.project.tracks.findIndex(t => t.id === clipById('{sid}').track);
+        const below = {{id: newId("t"), on: true}}; S.project.tracks.splice(ti, 0, below);
+        addClip({{lib: S.lib.find(i => i.info.image).id}}, below.id, 0, total()); const f = clipById(S.sel);
+        Object.assign(f.params, {{blend: 'normal', fit: 'contain', scale: 30}});
+        const above = {{id: newId("t"), on: true}}; S.project.tracks.push(above);
+        addClip({{kind: 'glow'}}, above.id, 0, total()); const g = clipById(S.sel);
+        edited(); seek(2); select('{sid}'); return [f.id, g.id]; }})()""")
+    page.wait_for_timeout(300)
+    sc = page.evaluate("(r => [r.left + r.width / 2, r.top + r.height / 2])(screenEl.getBoundingClientRect())")
+    xs = f"[S.sel, clipById('{sid}').params.x, clipById('{fid}').params.x, clipById('{gid}').params.x]"
+    under = page.evaluate(f"[pickAt({{clientX: {sc[0]}, clientY: {sc[1]}}}) && pickAt({{clientX: {sc[0]}, "
+                          f"clientY: {sc[1]}}}).id, coversFrame(clipById('{sid}')), coversFrame(clipById('{gid}'))]")
+    drag(sc[0], sc[1], sc[0] + 120, sc[1] + 40)
+    dragged = page.evaluate(xs)
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    page.mouse.click(sc[0], sc[1])
+    page.wait_for_timeout(300)
+    clicked = page.evaluate(xs)
+    page.evaluate(f"(() => {{ Object.assign(clipById('{fid}').params, {{fit: 'cover', scale: 100}}); edited(); "
+                  f"select('{sid}'); }})()")  # the picture now over the whole frame
+    page.wait_for_timeout(200)
+    drag(sc[0], sc[1], sc[0] + 120, sc[1] + 40)
+    dragged2 = page.evaluate(xs)
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    page.mouse.click(sc[0], sc[1])
+    page.wait_for_timeout(300)
+    clicked2 = page.evaluate(xs)
+    check("3D effects: dragging the box of the selected snow over the whole frame moves the snow (a small picture "
+          "under it, a file over the whole frame under it, light over the whole frame over it); a click picks the "
+          "small picture, not a clip over the whole frame",
+          under == [fid, True, True] and dragged[0] == sid and dragged[1] > 5 and dragged[2:] == [0, 0] and
+          clicked == [fid, 0, 0, 0] and dragged2[0] == sid and dragged2[1] > 5 and dragged2[2:] == [0, 0] and
+          clicked2 == [sid, 0, 0, 0], str([under, dragged, clicked, dragged2, clicked2]))
+    page.evaluate(f"""(() => {{ for (const id of ['{fid}', '{gid}']) {{ const t = clipById(id).track;
+        deleteClip(clipById(id)); S.project.tracks = S.project.tracks.filter(x => x.id !== t); }}
+        edited(); select('{sid}'); }})()""")
+    page.wait_for_timeout(200)
     turn(sid, dict(rot_x=25, rot_y=-30, rot_z=10, persp=60, scale=70, x=8, y=-5))
 
     # leaves turned: the live picture is the exact frame's
@@ -1117,8 +1161,9 @@ def run(page, folder, edge):
               and bool(mk[4]), str(mk))
         spin = page.evaluate("[$('#xformRot').style.display, $('#xform3d').style.display, !!$('#ec [data-num=\"rot_x\"]')]")
         if kind == "steam":  # turned as a file clip, its box the sheet; a flame always rises straight up
-            check("steam: turned in 3D (the knob, the 3D handle, its settings)", spin == ["block", "block", True],
-                  str(spin))
+            window = "ô cửa nhìn chéo" in page.evaluate("$('#ec').textContent")  # (an example for full-frame effects)
+            check("steam: turned in 3D (the knob, the 3D handle, its settings; no window example in its note)",
+                  spin == ["block", "block", True] and not window, str([spin, window]))
         else:
             check("candle: not turned in 3D (no knob, no 3D handle, no settings for it)", spin == ["none", "none", False]
                   and "không xoay 3D" in page.evaluate("$('#ec').textContent"), str(spin))

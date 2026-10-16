@@ -1,4 +1,5 @@
 """Built-in effects placed and turned in 3D like a file clip (sheet.py): drawn on a sheet, warped onto the frame."""
+import inspect
 import math
 import os
 import tempfile
@@ -6,7 +7,7 @@ import time
 import unittest
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from tests import helpers  # noqa: F401 - temporary data folder
 from tests.test_overlay import _css_corners
@@ -29,15 +30,18 @@ class Dot(effects.Effect):
 
 
 class Spot(effects.Effect):
-    """A test lens: it changes the picture only in a small square around the middle of its sheet (or nowhere)."""
+    """A test lens: it turns the picture white only in a small square around the middle of its sheet (or nowhere)."""
     lens = True
     where = (0.5, 0.5)
 
-    def apply(self, t, picture, mask, gain):
+    def apply(self, t, picture, mask, gain, kept=None):
         if self.where is None:
             return
         x, y, r = round(self.where[0] * self.w), round(self.where[1] * self.h), max(2, self.h // 20)
-        picture[y - r:y + r, x - r:x + r] = 1.0 - picture[y - r:y + r, x - r:x + r] * gain
+        square = picture[y - r:y + r, x - r:x + r]
+        square += gain * (1.0 - square)
+        if kept is not None:
+            kept[y - r:y + r, x - r:x + r] = 1.0 - gain
 
     def draw(self, t, canvas, mask):
         pass
@@ -125,6 +129,8 @@ class Plain(unittest.TestCase):
                 self.assertFalse(effects.on_sheet(kind, {"rot_x": 30, "rot_z": 10}))
                 continue
             self.assertTrue(cls.TURNS, kind)
+            if cls.lens:  # (a lens that turns says how much of the picture under it it keeps: sheet.Sheet)
+                self.assertIn("kept", inspect.signature(cls.apply).parameters, kind)
             for key in overlay.ROTATIONS + ("persp",):
                 self.assertEqual({k: v for k, v in by[key].items() if k != "group"},
                                  {k: v for k, v in file[key].items() if k != "group"}, (kind, key))
@@ -292,7 +298,7 @@ class Lens(unittest.TestCase):
             self.assertLess(math.hypot(xs.mean() + 0.5 - u / w, ys.mean() + 0.5 - v / w), 1.5)
             reach = (max(2, ch // 20) * math.sqrt(2) + 2) * 2 + 2  # the square and the bilinear's reach, on the frame
             self.assertLess(float(np.hypot(xs + 0.5 - u / w, ys + 0.5 - v / w).max()), reach)
-            self.assertGreater(int(diff.max()), 100)  # (the square is turned inside out)
+            self.assertGreater(int(diff.max()), 100)  # (the square is white)
             Spot.where = (0.5, 0.5)
 
     def test_water_on_glass_turned(self):
@@ -311,6 +317,44 @@ class Lens(unittest.TestCase):
         flat = Image.new("RGB", (W, H), (200, 180, 160))
         got = np.asarray(s.draw(7, flat.copy())).astype(int)
         self.assertGreater(int(got[2:-2, 2:-2].min()), 120)  # (a black band would pull the fogged glass down)
+
+    def test_water_on_glass_blurs_as_upright(self):
+        """Turned by a hair, or fitted to a window seen at an angle, fogged glass blurs the scene behind it as
+        upright glass does: the frame's fine detail does not show crisp through the fog (the glass says how much of
+        each pixel it keeps, and the frame is laid with that). Clear glass keeps the frame's own pixels, exactly,
+        wherever it changes nothing."""
+        rng = np.random.default_rng(3)
+        fine = np.dstack([60 + 120 * (((_xx // 3) + (_yy // 3)) % 2), 80 + 90 * ((_xx // 5) % 2),
+                          100 + 60 * np.sin(_yy / 3.0)])  # fine detail, and grain
+        fine = np.clip(fine + rng.normal(0, 10, (H, W, 3)), 0, 255).astype(np.uint8)
+
+        def edges(a):  # how crisp: the mean of a Laplacian
+            a = a.astype(float).mean(axis=2)
+            return np.abs(4 * a[1:-1, 1:-1] - a[:-2, 1:-1] - a[2:, 1:-1] - a[1:-1, :-2] - a[1:-1, 2:])
+
+        window = {"scale": 45, "x": 22, "y": -12, "rot_x": 10, "rot_y": -35, "rot_z": 4, "persp": 70}
+        clear = {"haze": 0, "defocus": 0, "drops": 0, "hits": 0, "beads": 40}
+        for params in ({"haze": 100, "blur": 100}, {}, clear):
+            fx = effects.make("glass", params, 3, 48, 24, W, H)
+            pic = fine.astype(np.float32) * (1 / 255.0)
+            fx.apply(5, pic, None, 1.0)
+            upright = (np.clip(pic, 0, 1) * 255 + 0.5).astype(np.uint8)
+            for turn in ({"rot_z": 0.1}, window):
+                s = sheet.Sheet("glass", dict(params, **turn), 3, 48, 24, W, H, None, W / H)
+                got = np.asarray(s.draw(5, Image.fromarray(fine)))
+                cover = np.zeros((H, W), np.uint8)
+                x0, y0, x1, y1 = s.box
+                cover[y0:y1, x0:x1] = np.asarray(s.cover)
+                inner = np.asarray(Image.fromarray(cover).filter(ImageFilter.MinFilter(7)))[1:-1, 1:-1] == 255
+                diff = np.abs(got.astype(int) - fine).max(axis=2)
+                self.assertFalse(diff[cover == 0].any(), (params, turn))  # nothing outside the quad
+                was, up, now = (float(edges(a)[inner].mean()) for a in (fine, upright, got))
+                if params is clear:  # the frame's own detail, untouched where the glass is clear
+                    self.assertGreater(float((diff[1:-1, 1:-1][inner] == 0).mean()), 0.85, turn)
+                    self.assertLess(abs(now / was - 1), 0.05, (turn, was, now))
+                else:  # as blurred as upright glass (adding only the change brought back 0.4 of the detail)
+                    self.assertLess(now, 1.2 * up, (params, turn, was, up, now))
+                    self.assertLess(now, 0.12 * was, (params, turn, was, up, now))
 
 
 class Loops(unittest.TestCase):
@@ -350,22 +394,72 @@ class Loops(unittest.TestCase):
             self.assertLessEqual(int(np.abs(a[t] - b[t]).max()), 1, t)
 
 
+class Memory(unittest.TestCase):
+    def test_sheets_share_their_scratch(self):
+        """The sheets of a scene, and its upright effects, share one canvas and one lens buffer (they are drawn one
+        after another, and each leaves the canvas empty): the frames are the very frames drawn with memory of
+        their own, and several turned clips hold one canvas, as big as the biggest, not one each."""
+        clips = [("snow", {}), ("rain", dict(TURN, amount=70)), ("glass", dict(TURN, haze=70)),
+                 ("glow", {"rot_z": 20, "scale": 140}), ("leaves", {"scale": 60, "x": -20}),
+                 ("glass", {"rot_y": 30, "scale": 80}), ("snow", {"rot_x": 30, "scale": 200, "persp": 80}),
+                 ("steam", {"rot_y": 25}), ("glow", {})]
+        folder = tempfile.mkdtemp(prefix="sheet-", dir=helpers.ROOT)
+        project = {"id": "sheetmem", "video": {"w": W, "h": H, "fps": "24", "frames": 48, "seconds": 2.0,
+                                               "file": "x.mp4"}, "length": 30,
+                   "tracks": [{"id": f"t{i}", "on": True} for i in range(len(clips))],
+                   "layers": [{"id": f"a{i}", "kind": kind, "params": p, "seed": 5 + i, "track": f"t{i}", "start": 0,
+                               "end": 720} for i, (kind, p) in enumerate(clips)]}
+
+        def frames():
+            scene = engine.Scene(folder, project, (W, H))
+            try:
+                return scene, [scene.frame(t, SCENE) for t in (0, 9, 40, 9)]
+            finally:
+                scene.close()
+        scene, shared = frames()
+        sheets = [d for d, _, _ in scene.layers if isinstance(d, sheet.Sheet)]
+        self.assertEqual(len(sheets), 7)
+        blocks = sheets[0].scratch.blocks
+        self.assertTrue(all(s.scratch is sheets[0].scratch for s in sheets))
+        self.assertEqual(blocks["canvas"].size, max(s.scratch_size()[0] for s in sheets))  # (the biggest: 200%)
+        self.assertGreater(blocks["canvas"].size, W * H * 4)
+        self.assertTrue(np.shares_memory(scene.canvas.rgb, blocks["canvas"]))
+        self.assertFalse(blocks["canvas"].any())  # (left empty)
+        floats = sheet.Scratch.floats
+        try:  # each asking for memory of its own
+            sheet.Scratch.floats = lambda self, name, n: np.zeros(n, np.float32)
+            _, own = frames()
+        finally:
+            sheet.Scratch.floats = floats
+        for a, b in zip(shared, own):
+            self.assertEqual(a.tobytes(), b.tobytes())
+        self.assertEqual(shared[1].tobytes(), shared[3].tobytes())
+
+
 class Speed(unittest.TestCase):
     def test_turned_at_1080p_in_time(self):
-        """The speed budget: a full-frame rain or snow turned at 1080p costs about twice the upright one (here: at
-        most three times, and a little more for a busy machine)."""
-        for kind in ("rain", "snow"):
-            times = {}
-            for label, p in (("upright", {}), ("turned", {"rot_x": 20, "rot_y": -25, "rot_z": 8, "persp": 50})):
-                scene = make_scene(kind, p, (1920, 1080))
-                base = np.zeros((1080, 1920, 3), np.uint8) + 60
-                scene.frame(0, base)
-                start = time.perf_counter()
-                for t in (7, 14, 21):
-                    scene.frame(t, base)
-                times[label] = (time.perf_counter() - start) / 3
-                scene.close()
-            self.assertLess(times["turned"], 3 * times["upright"] + 0.1, f"{kind}: {times}")
+        """The speed budget: a full-frame rain, snow, leaves or water on glass turned at 1080p costs about twice the
+        upright one at most (measured: 1.4 to 1.9 times; here, for a busy machine, 2.5 times and a little more).
+        Each round's frames are timed together, the best round counts."""
+        base = np.zeros((1080, 1920, 3), np.uint8) + 60
+        base[::7] = 200  # (something for the glass to blur)
+        for kind in ("rain", "snow", "leaves", "glass"):
+            scenes = {label: make_scene(kind, p, (1920, 1080)) for label, p in (
+                ("upright", {}), ("turned", {"rot_x": 20, "rot_y": -25, "rot_z": 8, "persp": 50}))}
+            try:
+                for scene in scenes.values():
+                    scene.frame(0, base)
+                times = {label: math.inf for label in scenes}
+                for r in range(3):
+                    for label, scene in scenes.items():
+                        start = time.perf_counter()
+                        for t in (7 + r, 14 + r):
+                            scene.frame(t, base)
+                        times[label] = min(times[label], (time.perf_counter() - start) / 2)
+            finally:
+                for scene in scenes.values():
+                    scene.close()
+            self.assertLess(times["turned"], 2.5 * times["upright"] + 0.05, f"{kind}: {times}")
             self.assertLess(times["turned"], 1.5, f"{kind}: {times}")
 
 

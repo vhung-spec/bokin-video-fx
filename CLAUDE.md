@@ -62,8 +62,14 @@ hiệu ứng. Cách dùng: `README.md`.
   tấm (`effects.sheet_rect`: hiệu ứng phủ cả hình là tấm hình khung, đặt như file cỡ khung "contain"; hiệu ứng đặt một
   chỗ: hộp của nó) ở cỡ phép nắn cần (không mịn hơn cỡ đặt, tối đa `SHEET_MOST` khung), nắn bằng cùng `homography()`
   (bilinear), rồi đặt như clip file (`overlay.Laid`, `overlay.lay`: hoà trộn, mờ dần, vùng và tiền cảnh sau khi nắn).
-  Lens (nước trên kính): đưa hình dưới tấm lên tấm, `apply()`, chỉ cộng lại phần đổi (float) nên chỗ không đổi giữ
-  nguyên từng điểm ảnh. 100%, ở giữa, không xoay: đường cũ, giống hệt từng byte (`effects.on_sheet`). Chỗ và góc không
+  Lens (nước trên kính): đưa hình dưới tấm lên tấm, `apply(..., kept)` (lens xoay được phải cho biết giữ lại bao
+  nhiêu của mỗi điểm ảnh); phần đổi là một lớp (phần thêm = màu nhân sẵn, 1 - kept = độ phủ), nắn và đặt như hiệu ứng
+  vẽ: hình khung * kept + phần thêm. Chỗ sương mờ mất chi tiết như khi thẳng (chỉ cộng phần đổi after - before thì chi
+  tiết khung lọt qua sương); chỗ không đổi và ngoài tấm giữ nguyên từng điểm ảnh. Các tấm của một cảnh dùng chung bộ
+  nhớ (`Scratch`: một canvas, cả của hiệu ứng thẳng, một bộ đệm lens, cỡ lớn nhất). Mỗi clip xoay tốn thêm một lần
+  nắn (1080p: 1,5–2 lần clip thẳng; tấm to hơn khung, ví dụ 140% để nghiêng vẫn phủ kín: 2–2,5 lần; clip xoay chồng
+  nhau thì cộng dồn); tấm quá `SHEET_MOST` thì vẽ thưa hơn (cỡ trên khoảng 150%: hơi mềm, đổi lấy bộ nhớ). 100%, ở
+  giữa, không xoay: đường cũ, giống hệt từng byte (`effects.on_sheet`). Chỗ và góc không
   vào clip xem nhanh (`effects.sheet_params`, `SHEET_KEYS`): xoay là thấy ngay, tên clip không đổi. Hiệu ứng trên tấm
   lấy đúng tỉ lệ của video (`Effect(..., aspect)`): số hạt (lá) theo tỉ lệ, lệch một hạt là cả loạt lá dời chỗ.
 - `fx/video.py`: ffmpeg (bản đi kèm imageio-ffmpeg): đọc khung, ghi H.264, nối các đoạn bằng stream copy, bản nhẹ cho
@@ -100,8 +106,10 @@ hiệu ứng. Cách dùng: `README.md`.
   (`pad_for()`). `#xform` xoay theo clip (bỏ lật), nút tròn `#xformRot` xoay phẳng (giữ con trỏ riêng: bấm đúp là
   của nó), nút `#xform3d` nằm cạnh nút tròn (không ở giữa: giữa khung là để dời) và nghiêng; nhãn tên tránh hai
   nút. Chọn clip trên hình theo tứ giác (`hitsClip`, `pickAt`); hiệu ứng phủ kín khung chỉ được chọn ở chỗ không có
-  clip khác (`coversFrame`). Hiệu ứng tạo sẵn trừ nến xoay như vậy (`turns()`, `sheetKind()`: clip xem nhanh cả khung
-  hoặc hộp, đặt bằng cùng `turnCSS`). CI so góc trang với Python (clip file, tuyết, khói, hạt sáng và mưa trong Mix).
+  clip khác (`coversFrame`). Đang chọn nó: kéo trong khung là dời nó; bấm (không kéo) trúng clip nhỏ hơn thì lúc nhả
+  chuột chọn clip đó (`handoff`; clip phủ kín khung không giành, `fillsFrame`). Hiệu ứng tạo sẵn trừ nến xoay như vậy
+  (`turns()`, `sheetKind()`: clip xem nhanh cả khung hoặc hộp, đặt bằng cùng `turnCSS`). CI so góc trang với Python
+  (clip file, tuyết, khói, hạt sáng và mưa trong Mix).
 - Màu của clip file: `overlay.colour_ops` (đường cong tông giữ đen là đen, rồi ma trận màu) và trang dựng đúng các số
   đó thành bộ lọc SVG (`colourOps`, `colourFilter`, `feComponentTransfer` bảng + `feColorMatrix`, sRGB).
 - Hoàn tác: `S.hist` giữ timeline và cả lần vẽ vùng (mặt nạ trước/sau, chỉ 8 lần gần nhất). Phóng to hình:

@@ -230,7 +230,8 @@ Lúc xem nhanh và trong video xuất ra, clip nằm đúng cùng một chỗ. `
 tạo sẵn thì xem nhanh đổi ngay (không phải chờ app làm lại bản xem nhanh). Video xuất ra vẫn loop liền mạch.
 
 Trên hình, bấm vào một clip để chọn nó. Hiệu ứng phủ cả hình (như tuyết cả khung) chỉ được chọn khi bấm vào chỗ không
-có clip nào khác, nên vẫn bấm chọn được logo hay ảnh nằm trong khung tuyết.
+có clip nào khác, nên vẫn bấm chọn được logo hay ảnh nằm trong khung tuyết. Khi đang chọn tuyết: kéo trong khung trắng
+là dời tuyết (dù bên dưới có logo hay một video phủ cả hình); chỉ bấm (không kéo) vào logo thì chọn logo.
 
 ### Màu của video hiệu ứng nhập từ ngoài
 
