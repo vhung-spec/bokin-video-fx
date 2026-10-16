@@ -160,12 +160,13 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; text-align: center
 /* ---- frame: header, the four panels, footer -------------------------------------------------------------- */
 .app { display: grid; grid-template-rows: var(--h-header) 1fr var(--h-footer); height: 100vh; }
 header { display: flex; align-items: center; gap: var(--s2); padding: 0 var(--gutter) 0 var(--s3); background: var(--bg); min-width: 0; }
-header .logo { display: flex; align-items: center; gap: var(--s2); margin-right: var(--s1); font-size: var(--fs-md); font-weight: 650; }
+header .logo { display: flex; align-items: center; gap: var(--s2); margin-right: var(--s1); font-size: var(--fs-md); font-weight: 650; white-space: nowrap; }
+header > :not(.proj, .grow) { flex: none; }   /* only the project's name gives way when the bar is full (it ends in "…") */
 header .logo svg { width: 22px; height: 22px; }
 header .logo svg rect { fill: var(--accent); }
 header .logo svg g { stroke: #fff; }
 #newBtn .ic { color: var(--accent-text); }
-header .proj { color: var(--text-3); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw;
+header .proj { flex: 0 1 auto; min-width: 0; color: var(--text-3); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw;
   padding-left: var(--s3); margin-left: var(--s1); border-left: 1px solid var(--line-2); }
 header .proj:empty { border: 0; }
 header .proj b { color: var(--text); font-weight: 600; font-size: var(--fs); cursor: text; padding: 2px 4px; margin-left: -4px; border-radius: var(--r-xs); }
@@ -174,7 +175,7 @@ header .grow { flex: 1; }
 header .prep { display: inline-flex; align-items: center; color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
 header .prep:not(:empty) { padding: 3px 10px; border-radius: var(--r-pill); background: var(--panel); }
 header .prep .ic { color: var(--warn); }
-.update { display: none; gap: var(--s2); align-items: center; padding: 2px 3px 2px 10px; border-radius: var(--r-pill); font-size: var(--fs-sm);
+.update { display: none; gap: var(--s2); align-items: center; padding: 2px 3px 2px 10px; border-radius: var(--r-pill); font-size: var(--fs-sm); white-space: nowrap;
   background: rgba(63, 207, 142, .12); border: 1px solid rgba(63, 207, 142, .35); color: #9ff0c9; }
 .update button { min-height: 22px; border-radius: var(--r-pill); background: var(--good); color: #062014; font-weight: 600; }
 .update button:hover:not(:disabled) { background: #5be0a3; }
@@ -218,7 +219,7 @@ header .prep .ic { color: var(--warn); }
   border-radius: var(--r); background: var(--raised); color: var(--accent-text); }
 .ec .title > span:first-child .ic { width: 18px; height: 18px; }
 .ec .title input { flex: 1; min-width: 0; min-height: 30px; margin-left: -2px; padding: 0 6px; background: transparent; border-color: transparent;
-  font-size: var(--fs-md); font-weight: 600; }
+  font-size: var(--fs-md); font-weight: 600; text-overflow: ellipsis; }
 .ec .title input:hover { border-color: var(--line-2); background: var(--field); }
 .ec .title input:focus { background: var(--field); }
 .ec .title b { font-size: var(--fs-md); font-weight: 600; }
@@ -230,7 +231,7 @@ header .prep .ic { color: var(--warn); }
 .ec .lab b { min-width: 28px; text-align: right; color: var(--accent-text); font-weight: 600; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .ec input[type=range] { display: block; }
 .ec .pair { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s2); }
-.ec .pair label { display: flex; flex-direction: column; gap: 3px; color: var(--text-3); font-size: 11.5px; }
+.ec .pair label { display: flex; flex-direction: column; justify-content: space-between; gap: 3px; color: var(--text-3); font-size: 11.5px; }
 .ec .pair input { width: 100%; font-variant-numeric: tabular-nums; }
 .ec .note { margin: var(--s2) 0; color: var(--text-3); font-size: var(--fs-sm); line-height: 1.5; }
 .ec .warn { margin: var(--s2) 0; color: var(--warn); font-size: var(--fs-sm); line-height: 1.5; }
@@ -244,8 +245,9 @@ header .prep .ic { color: var(--warn); }
 .ec .empty { padding: var(--s3) 2px; color: var(--text-2); font-size: 12.5px; line-height: 1.75; }
 .ec .empty kbd { margin: 0 1px; }
 .ec select { width: 100%; }
-/* a wide panel: label, slider and value on one line (like Resolve's inspector); a narrow one keeps them stacked */
-@container ec (min-width: 296px) {
+/* a wide panel: label, slider and value on one line (like Resolve's inspector); at the usual width (360px) they stay
+   stacked, so a slider is the panel's whole width and fine changes by mouse stay easy */
+@container ec (min-width: 420px) {
   .ec .row:has(> input[type=range]), .ec .row:has(> .lab > input[type=color]) > .lab {
     display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr) auto; column-gap: 10px; align-items: center; }
   .ec .row:has(> input[type=range]), .ec .row:has(> .lab > input[type=color]) { margin: 2px 0; min-height: 28px; }
@@ -287,15 +289,15 @@ header .prep .ic { color: var(--warn); }
 .stage.grab, .stage.grab * { cursor: grab !important; }
 .stage.panning, .stage.panning * { cursor: grabbing !important; }
 .stage.grab .xform, .stage.grab .xform *, .stage.grab .x3d { pointer-events: none !important; }  /* a drag on the clip's box moves the picture */
-/* labels on the picture */
-.badge, .waiting { position: absolute; top: 10px; z-index: 70; display: none; pointer-events: none; padding: 3px 10px; border-radius: var(--r-pill);
-  background: rgba(10, 11, 13, .78); border: 1px solid rgba(255, 255, 255, .08); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-  font-size: 11.5px; line-height: 1.45; }
-.badge { right: 10px; color: var(--text-2); }
-.waiting { left: 10px; color: var(--warn); max-width: 70%; }
+/* labels on the picture: at its foot, clear of a clip's knob and "3D" (above its box); the waiting note wraps beside the badge */
+.labels { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 70; display: flex; align-items: flex-end; gap: var(--s2); pointer-events: none; }
+.badge, .waiting { display: none; padding: 3px 10px; border-radius: 12px; background: rgba(10, 11, 13, .78); border: 1px solid rgba(255, 255, 255, .08);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); font-size: 11.5px; line-height: 1.45; }
+.badge { flex: none; margin-left: auto; color: var(--text-2); white-space: nowrap; }
+.waiting { flex: 0 1 auto; min-width: 0; max-width: 70%; color: var(--warn); }
 .cursor { position: absolute; border: 1.5px solid #fff; border-radius: 50%; pointer-events: none; mix-blend-mode: difference; display: none; z-index: 80; }
 /* the selected clip's box: white lines, white handles with a blue rim */
-/* (over the labels on the picture, .badge and .waiting: its handles, its name and "3D" stay in sight) */
+/* (over the labels on the picture, .badge and .waiting: its handles and its name stay in sight) */
 .xform { position: absolute; z-index: 72; display: none; border: 1px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(0, 0, 0, .35);
   cursor: move; touch-action: none; }
 .xform.off { border-style: dashed; }
@@ -331,16 +333,23 @@ header .prep .ic { color: var(--warn); }
 
 /* the tool column at the right of the picture */
 .tools { width: var(--w-tools); flex: none; overflow-y: auto; padding: var(--s1) var(--s3) var(--s3); background: var(--panel); border-left: 1px solid var(--line); }
-.tools h5 { margin: var(--s4) 0 var(--s2); color: var(--text-3); font-size: 11.5px; font-weight: 600; }
-.tools .who { display: flex; gap: 10px; align-items: center; margin-top: var(--s2); padding: var(--s2) var(--s3); border-radius: var(--r);
-  background: var(--raised); font-size: 12.5px; font-weight: 600; line-height: 1.35; }
-.tools .who i { width: 10px; height: 10px; flex: none; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .08); }
+.tools h5 { margin: var(--s3) 0 6px; color: var(--text-3); font-size: 11.5px; font-weight: 600; line-height: 16px; }
+/* a heading with its value at the right (Cỡ cọ, Mép mềm) */
+.tools h5.lab { display: flex; justify-content: space-between; align-items: baseline; }
+.tools h5.lab b { font-size: var(--fs-sm); }
+/* painting: who is painted on one line, compact tools, "Xong" on a strip at the foot of the column, always in sight */
+.tools.painting { display: flex; flex-direction: column; padding-bottom: 0; }
+.tools.painting > * { flex: none; }
+.tools .who { display: flex; gap: var(--s2); align-items: center; min-width: 0; margin-top: 6px; padding: 6px 10px; border-radius: var(--r);
+  background: var(--raised); font-size: 12.5px; font-weight: 600; line-height: 18px; }
+.tools .who span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tools .who i { width: 9px; height: 9px; flex: none; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .08); }
 .tools .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .tools .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 .tools .three button { padding: 0 4px; }
-.tools .big { flex-direction: column; gap: 4px; min-height: 54px; padding: var(--s2) var(--s1); border-radius: var(--r); color: var(--text-2); font-size: var(--fs-sm); }
-.tools .big b { display: inline-flex; font-size: 18px; font-weight: 400; line-height: 1; }
-.tools .big .ic { width: 20px; height: 20px; }
+.tools .big { gap: 6px; min-height: 32px; padding: 0 6px; border-radius: var(--r); color: var(--text-2); font-size: var(--fs-sm); }
+.tools .big b { display: inline-flex; font-weight: 400; }
+.tools .big .ic { width: 16px; height: 16px; }
 .tools .big.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent-ring); }
 .tools .big.on b { color: var(--accent-text); }
 .tools .wide { width: 100%; justify-content: flex-start; gap: var(--s2); min-height: 32px; margin-top: 6px; padding: 0 10px; text-align: left; }
@@ -348,17 +357,20 @@ header .prep .ic { color: var(--warn); }
 .tools .wide.primary, .tools .wide.small { justify-content: center; }
 .tools .wide.small { min-height: var(--h-ctl); }
 .tools .size { display: flex; align-items: center; gap: 10px; }
-.tools .size span { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none;
+.tools .size span { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none;
   background: var(--field); border: 1px solid var(--line); border-radius: var(--r); }
 .tools .size span i { display: block; border-radius: 50%; border: 1.5px solid #fff; }
 .tools .size input { flex: 1; min-width: 0; }
 .tools .lab { display: flex; justify-content: space-between; align-items: center; color: var(--text-3); font-size: var(--fs-sm); }
 .tools .lab b { color: var(--accent-text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .tools label.check { display: flex; gap: var(--s2); align-items: center; margin-top: var(--s3); color: var(--text); font-size: 12.5px; cursor: pointer; }
-.tools .tip { margin-top: var(--s3); color: var(--text-3); font-size: 11.5px; line-height: 1.55; }
-/* "Xong" stays in sight at the bottom of the column, however short the window */
-.tools .done { position: sticky; bottom: 0; z-index: 1; width: 100%; min-height: 34px; margin-top: var(--s4); font-size: var(--fs);
-  box-shadow: 0 0 0 6px var(--panel), 0 14px 0 6px var(--panel), 0 -12px 12px 2px var(--panel); }
+.tools .tip { margin: var(--s3) 0 0; color: var(--text-3); font-size: 11.5px; line-height: 1.55; }
+.tools .wide + .tip { margin-top: var(--s2); }
+.tools h5 + .tip { margin-top: 0; }
+.tools .donebar { position: sticky; bottom: 0; z-index: 1; margin: auto calc(-1 * var(--s3)) 0; padding: var(--s2) var(--s3) var(--s3);
+  background: var(--panel); border-top: 1px solid var(--line); }   /* at the foot of the column (margin-top: auto) */
+.tools.painting > :nth-last-child(2) { margin-bottom: var(--s3); }   /* room above the strip when the column is full */
+.tools .done { width: 100%; min-height: 32px; font-size: var(--fs); }
 .tools .done:focus-visible { outline-offset: 2px; }
 .tools .two button.small .ic { margin-right: 4px; }
 
@@ -448,7 +460,7 @@ header .prep .ic { color: var(--warn); }
 .plist .item:hover button.danger { color: var(--bad-text); }
 
 /* ---- timeline -------------------------------------------------------------------------------------------- */
-.tl-tools { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; margin-left: var(--s2); overflow: hidden; }
+.tl-tools { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; margin: -3px 0 -3px 5px; padding: 3px; overflow: hidden; }  /* (padding: room for focus rings) */
 .tl-tools .sep { width: 1px; height: 16px; flex: none; margin: 0 6px; background: var(--line-2); }
 .tl-tools > span[style] { margin-right: var(--s1); font-size: var(--fs-sm); white-space: nowrap; }
 .tl-tools .seg { display: flex; gap: 2px; padding: 2px; flex: none; border-radius: 7px; background: var(--field); border: 1px solid var(--line); }
@@ -539,11 +551,15 @@ header .prep .ic { color: var(--warn); }
 
 /* ---- footer: export jobs ----------------------------------------------------------------------------------- */
 footer { display: flex; align-items: center; gap: var(--s2); padding: 0 var(--gutter) 0 var(--s3); background: var(--bg); color: var(--text-3); font-size: var(--fs-sm); min-width: 0; }
-footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s3); min-width: 0; overflow: hidden; }
-.job { display: flex; align-items: center; gap: var(--s2); white-space: nowrap; color: var(--text-2); }
-.job > span:first-child { color: var(--text); font-weight: 500; }
-.job + .job { padding-left: var(--s3); border-left: 1px solid var(--line-2); }
-.job .bar { width: 120px; height: 4px; flex: none; overflow: hidden; border-radius: 2px; background: #2c313b; }
+footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-width: 0; overflow: hidden; white-space: nowrap; }
+/* a job's parts sit straight in the bar (display: contents): when jobs crowd it, every job's name gives way alike, then the
+   bars and an error's text ("…", the full text in their tooltips), while statuses and buttons always stay in sight */
+.job { display: contents; color: var(--text-2); }
+.job > * { flex: none; }
+.job > span:first-child { flex: 0 1 auto; min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-weight: 500; }
+.job.error > span:nth-child(3) { flex: 0 1 auto; min-width: 0; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.job + .job::before { content: ""; flex: none; width: 1px; height: 16px; margin: 0 var(--s1); background: var(--line-2); }   /* a hairline between jobs */
+.job .bar { width: 120px; min-width: 40px; height: 4px; flex: 0 4 auto; overflow: hidden; border-radius: 2px; background: #2c313b; }
 .job .bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--accent); }
 .job.done .bar i { background: var(--good); }
 .job.done > span:nth-child(3) { color: var(--good); }
@@ -635,8 +651,7 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s3); min-
         <span class="xlab" id="xformLab"></span>
         <div class="x3d" id="xform3d" title="Kéo để nghiêng 3D: kéo sang trái / phải là xoay trái / phải, kéo lên / xuống là nghiêng trước / sau (Shift: một hướng). Bấm đúp: thẳng lại">3D</div>
         <div class="cursor" id="cursor"></div>
-        <div class="badge" id="badge"></div>
-        <div class="waiting" id="waiting"></div>
+        <div class="labels"><div class="waiting" id="waiting"></div><div class="badge" id="badge"></div></div>
         <div class="drop" id="drop">
           <div class="box"><b>Kéo video loop vào đây</b>hoặc bấm <b style="display:inline;font-size:inherit">+ Video mới…</b> ở trên.<br>Thường là video loop 6 giây (1920×1080, 24 khung/giây).<br>App làm ra video 30 giây hoặc 1 phút, vẫn loop liền mạch.</div>
           <div class="recent" id="recent"></div>
@@ -766,7 +781,7 @@ const ICONS = {
     '<g transform="rotate(60 10 10)"><path d="M10 2.5v15"/><path d="M8 4.2l2 1.6 2-1.6M8 15.8l2-1.6 2 1.6"/></g>' +
     '<g transform="rotate(120 10 10)"><path d="M10 2.5v15"/><path d="M8 4.2l2 1.6 2-1.6M8 15.8l2-1.6 2 1.6"/></g>',
   rain: '<path d="M6 11.5h8.2a3.2 3.2 0 0 0 .4-6.4 4.6 4.6 0 0 0-8.8 1.2A2.6 2.6 0 0 0 6 11.5z"/><path d="M7.2 14l-1 2.6M10.7 14l-1 2.6M14.2 14l-1 2.6"/>',
-  glass: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M8 6.5c-1.1 1.4-1.7 2.3-1.7 3a1.7 1.7 0 0 0 3.4 0c0-.7-.6-1.6-1.7-3z"/><path d="M13 11c-.7.9-1.1 1.5-1.1 2a1.1 1.1 0 0 0 2.2 0c0-.5-.4-1.1-1.1-2z"/>',
+  glass: '<path d="M3.5 17.5V5.5a6.5 3 0 0 1 13 0v12z"/><path d="M10 2.5v15M3.5 10h13"/><path d="M13.25 11.4c-.9 1.1-1.4 1.85-1.4 2.45a1.4 1.4 0 0 0 2.8 0c0-.6-.5-1.35-1.4-2.45z"/>',  // a window, a drop on a pane
   steam: '<path d="M4 9.5h10v2.5a4.5 4.5 0 0 1-4.5 4.5h-1A4.5 4.5 0 0 1 4 12z"/><path d="M14 10.5h1a2 2 0 0 1 0 4h-1.4"/><path d="M7.5 3c-.9 1 .9 2.2 0 3.6M11 3c-.9 1 .9 2.2 0 3.6"/>',
   candle: '<rect x="7.3" y="10" width="5.4" height="7.5" rx="1"/><path d="M10 10V8.7"/><path d="M10 2.5c1.7 1.9 2.2 3.1 2.2 4a2.2 2.2 0 0 1-4.4 0c0-.9.5-2.1 2.2-4z"/>',
   leaves: '<path d="M4.5 15.5C4.5 8 9 4 16 4c0 7-4.2 11.5-11.5 11.5z"/><path d="M4.5 15.5l7-7"/>',
@@ -2155,6 +2170,7 @@ function drawArea() {
   g.globalCompositeOperation = "destination-over"; g.globalAlpha = 0.16; g.drawImage(shrunk, 0, 0);
   g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
 }
+function brushDot() { return Math.round(Math.max(3, Math.min(26, S.brush.size / 6))); }  // the dot beside the size slider
 function featherOf(name) {  // the softness of a mask's edge, in pixels of the video
   const p = S.project;
   if (name === "freeze" || name === "fg") return p[name].feather;
@@ -2162,30 +2178,33 @@ function featherOf(name) {  // the softness of a mask's edge, in pixels of the v
 }
 function renderTools() {  // the tool column at the right of the monitor: painting tools, or ways to start painting
   const el = $("#tools"), p = S.project, br = S.brush;
+  el.classList.toggle("painting", !!(p && S.paint));
   if (!p) { el.innerHTML = `<p class="tip">Mở một video để bắt đầu.</p>`; return; }
   if (S.paint) {
-    const d = Math.max(3, Math.min(40, br.size / 6));
-    el.innerHTML = `<div class="who"><i style="background:${COLORS[maskKind(S.paint)]}"></i><span>Đang vẽ ${esc(paintName(S.paint))}</span></div>
+    const d = brushDot(), who = "Đang vẽ " + paintName(S.paint);
+    // the brush's size only for the brush; the polygon's steps (and "Khép vùng") in its place for the polygon
+    const size = br.tool === "poly"
+      ? `<h5>Khoanh vùng</h5>
+      ${S.poly.length >= 3 ? '<button class="small primary wide" data-pclose="1" title="Khép vùng (Enter)">Khép vùng</button>' : ""}
+      <p class="tip">Bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (vòng sáng), bấm đúp hoặc Enter. Backspace: bỏ điểm cuối.</p>`
+      : `<h5 class="lab"><span>Cỡ cọ (điểm ảnh)</span><b id="brushSizeVal">${br.size}</b></h5>
+      <div class="size"><span><i id="sizeDot" style="width:${d}px;height:${d}px"></i></span><input type="range" id="brushSize" min="2" max="400" value="${br.size}" style="${rangeP(br.size, 2, 400)}" title="Phím [ và ] để đổi nhanh"></div>`;
+    el.innerHTML = `<div class="who" title="${esc(who)}"><i style="background:${COLORS[maskKind(S.paint)]}"></i><span>${esc(who)}</span></div>
       <h5>Công cụ</h5>
       <div class="two"><button class="big ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ: kéo chuột để tô (B)"><b>${icon("brush")}</b>Cọ</button>
         <button class="big ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh: bấm từng điểm, bấm lại điểm đầu để khép (L)"><b>${icon("poly")}</b>Khoanh</button></div>
       <h5>Chế độ</h5>
       <div class="two"><button class="big ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X để đổi)"><b>${icon("plus")}</b>Thêm</button>
         <button class="big ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X để đổi)"><b>${icon("minus")}</b>Bớt</button></div>
-      <h5>Cỡ cọ</h5>
-      <div class="size"><span><i id="sizeDot" style="width:${d}px;height:${d}px"></i></span><input type="range" id="brushSize" min="2" max="400" value="${br.size}" style="${rangeP(br.size, 2, 400)}" title="Phím [ và ] để đổi nhanh"></div>
-      <div class="lab" style="margin-top:3px"><span>điểm ảnh</span><b id="brushSizeVal">${br.size}</b></div>
+      ${size}
       <h5>Cả vùng</h5>
       <div class="three"><button class="small" data-fill="all" title="Tô kín cả khung hình">Tô hết</button><button class="small" data-fill="none" title="Xoá cả vùng">Xoá hết</button><button class="small" data-fill="invert" title="Đổi chỗ tô và chỗ trống">Đảo</button></div>
-      <h5>Mép mềm</h5>
-      <div class="lab"><span>độ mềm (điểm ảnh)</span><b id="paintFeatherVal">${featherOf(S.paint)}</b></div>
-      <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}" style="${rangeP(featherOf(S.paint), 0, 200)}">
-      ${br.tool === "poly" ? `<p class="tip">Bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (vòng sáng), bấm đúp, hoặc Enter. Backspace: bỏ điểm cuối.</p>
-        ${S.poly.length >= 3 ? '<button class="small primary wide" data-pclose="1" title="Khép vùng (Enter)">Khép vùng</button>' : ""}` : ""}
+      <h5 class="lab"><span>Mép mềm (điểm ảnh)</span><b id="paintFeatherVal">${featherOf(S.paint)}</b></h5>
+      <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}" style="${rangeP(featherOf(S.paint), 0, 200)}" title="Độ mềm của mép vùng">
       <div class="two" style="margin-top:12px"><button class="small" data-pundo="1" title="Hoàn tác (Ctrl+Z)">${icon("undo", "lead")}Hoàn tác</button><button class="small" data-predo="1" title="Làm lại (Ctrl+Y)">${icon("redo", "lead")}Làm lại</button></div>
       <label class="check"><input type="checkbox" id="onlyBase" ${S.onlyBase ? "checked" : ""}> Chỉ xem video gốc</label>
-      <button class="primary done" data-done="1" title="Xong (Esc)">Xong</button>
-      <p class="tip">Lăn chuột trên hình: phóng to. Giữ chuột phải: kéo hình. Esc: xong.</p>`;
+      <p class="tip">Lăn chuột trên hình: phóng to. Giữ chuột phải: kéo hình. Esc: xong.</p>
+      <div class="donebar"><button class="primary done" data-done="1" title="Xong (Esc)">Xong</button></div>`;
     return;
   }
   const c = clipById(S.sel);
@@ -2238,8 +2257,8 @@ $("#tools").addEventListener("input", e => {
   if (!S.paint) return;
   if (t.id === "brushSize") {
     S.brush.size = +t.value; $("#brushSizeVal").textContent = t.value;
-    const d = Math.max(3, Math.min(40, S.brush.size / 6)), dot = $("#sizeDot");
-    dot.style.width = dot.style.height = d + "px";
+    const dot = $("#sizeDot");
+    dot.style.width = dot.style.height = brushDot() + "px";
   }
   if (t.id === "onlyBase") { S.onlyBase = t.checked; styleAll(); applyTime(); }
   if (t.id === "paintFeather") {  // the same softness as in the Effect Controls
@@ -2546,7 +2565,7 @@ function renderTimeline() {
   const baseRow = rs[rs.length - 1], P = loopFrames(), loops = N / P;
   for (let k = 0; k < loops; k++) {
     const x = k * P / f * pps, w = P / f * pps;
-    lane.push(`<div class="clip base${S.sel === "base" ? " sel" : ""}" data-base="1" style="left:${x}px;width:${Math.max(1, w - 1)}px;top:${baseRow.y + 4}px;background-image:url(/api/thumb?id=${p.id})"><span class="nm" title="Vòng loop thứ ${k + 1}">${k === 0 ? `<span class="pn">${esc(p.name)}</span>` : ""}${icon("repeat")}${k + 1}</span></div>`);
+    lane.push(`<div class="clip base${S.sel === "base" ? " sel" : ""}" data-base="1" style="left:${x}px;width:${Math.max(1, w - 1)}px;top:${baseRow.y + 4}px;background-image:url(/api/thumb?id=${p.id})"><span class="nm" title="Vòng loop thứ ${k + 1}">${k === 0 && w > 110 ? `<span class="pn">${esc(p.name)}</span>` : ""}${icon("repeat")}${k + 1}</span></div>`);
   }
   for (let k = 1; k < loops; k++) lane.push(`<div class="seam" style="left:${k * P / f * pps}px"></div>`);
   for (const c of p.layers) {
@@ -3556,7 +3575,7 @@ function renderJobs(list) {
     else status = "lỗi: " + esc(j.message);
     const btn = j.state === "running" || j.state === "queued" ? `<button class="small" data-cancel="${j.id}">Huỷ</button>`
       : j.state === "done" ? `<button class="small" data-play="${esc(j.output)}">Xem</button><button class="small" data-reveal="${esc(j.output)}">Mở thư mục</button>` : "";
-    return `<div class="job ${j.state}"><span>${what}</span><span class="bar"><i style="width:${Math.round((j.state === "done" ? 1 : j.progress) * 100)}%"></i></span><span>${status}</span>${btn}</div>`;
+    return `<div class="job ${j.state}"><span title="${what}">${what}</span><span class="bar"><i style="width:${Math.round((j.state === "done" ? 1 : j.progress) * 100)}%"></i></span><span${j.state === "error" ? ` title="${status}"` : ""}>${status}</span>${btn}</div>`;
   }).join("");
 }
 $("#jobs").addEventListener("click", e => {
