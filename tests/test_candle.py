@@ -42,6 +42,22 @@ def scene(flame=True, wide=1.0):
 SCENE = scene()
 
 
+def soft_flame(pic, cx, base, tall, half_w, lean=0.0, blob=None):
+    """A soft, bright flame (light added with Screen) on `pic`: a teardrop `tall` pixels high whose tip leans
+    `lean` pixels aside; and a loose soft blob (x, y, radius) if given."""
+    yy, xx = np.mgrid[0:pic.shape[0], 0:pic.shape[1]].astype(np.float32) + 0.5
+    u = (base - yy) / tall
+    uc = np.clip(u, 0, 1)
+    r = half_w * np.sqrt(uc / 0.32) * ((1 - uc) / 0.68) ** 1.3 + 0.3
+    xc = cx + lean * uc ** 2
+    light = np.clip(1.4 - np.abs(xx - xc) / r, 0, 1) * ((u > -0.02) & (u < 1))
+    if blob is not None:
+        bx, by, br = blob
+        light = np.maximum(light, np.exp(-((xx - bx) ** 2 + (yy - by) ** 2) / (2 * br * br)) * 1.1)
+    light = np.clip(light, 0, 1)[..., None] * np.array([1.0, 0.75, 0.4], np.float32)
+    return (1 - (1 - pic) * (1 - light)).astype(np.float32)
+
+
 def lens(fx, t, pic=SCENE, mask=None, gain=1.0):
     out = pic.copy()
     fx.apply(t, out, mask, gain)
@@ -95,6 +111,17 @@ class Loops(unittest.TestCase):
             fx = make({"mode": mode})
             self.assertGreater(np.abs(lens(fx, 0) - lens(fx, 30)).max(), 0.05, mode)
 
+    def test_no_motion_faster_than_a_quarter_of_the_frame_rate(self):
+        """Faster than that, the frames show a jitter, not a flame moving: every rate (waves, flutters, the
+        ripple up the flame) stays at or under fps / 4, even at the fastest pace."""
+        for fps, frames in ((24, 144), (24, 720), (30, 900), (25, 750)):
+            fx = make({"speed": 100, "flutter": 100}, frames, fps)
+            rates = np.concatenate([w.m for w in fx.waves] + [fx.f_m, [fx.m_rip]]) / fx.loop_s
+            self.assertTrue(len(fx.f_m))
+            self.assertLessEqual(float(rates.max()), fps / 4 + 1e-9, (fps, frames))
+            # the fast waves still differ from each other (eased below the limit, not cut to it)
+            self.assertGreater(len(set(fx.waves[1].m)), 1)
+
     def test_order_of_frames_does_not_matter(self):
         """A frame is the same whatever was made before it, and the same for the same seed."""
         for mode in ("alive", "new"):
@@ -111,6 +138,14 @@ class Loops(unittest.TestCase):
         for mode in ("alive", "new"):
             fx = make({"mode": mode, **STILL})
             self.assertTrue(np.array_equal(lens(fx, 0), lens(fx, 77)), mode)
+
+    def test_alive_and_calm_changes_nothing(self):
+        """Bringing a flame to life with no motion, no light thrown, no halo and its size and brightness as they
+        are leaves the picture exactly as it was."""
+        for pic in (SCENE, soft_flame(scene(False), CX, BASE, TALL, 5)):
+            fx = make({"mode": "alive", **STILL, "light": 0, "halo": 0, "size": 50, "brightness": 50, "warmth": 50})
+            for t in (0, 33, 101):
+                self.assertTrue(np.array_equal(lens(fx, t, pic), pic))
 
 
 class Place(unittest.TestCase):
@@ -260,10 +295,82 @@ class Picture(unittest.TestCase):
                       / (f[int(BASE - 0.8 * TALL), :] @ candle.LUMA).sum()) for f in frames]
         self.assertGreater(max(mids) - min(mids), 0.01)
 
+    def test_alive_moves_only_the_flame(self):
+        """Only the flame's own light moves: a dark line just beside it (a frame, a jar's rim) and the room round
+        it stay exactly as they were, frame after frame, even in a breeze."""
+        pic = soft_flame(scene(False), CX, BASE, TALL, 2.5)  # (its light reaches 0.16 flame heights aside)
+        x = int(CX + 0.3 * TALL)
+        pic[int(BASE - 1.9 * TALL):int(BASE) - 1, x - 1:x + 2] = (0.08, 0.06, 0.05)
+        pic[int(BASE - 1.9 * TALL):int(BASE) - 1, int(CX - 0.6 * TALL)] = (0.6, 0.45, 0.3)  # (a bright line)
+        line = np.zeros((H, W), bool)
+        line[int(BASE - 1.9 * TALL):int(BASE) - 1, x - 1:x + 2] = True
+        for params in ({}, dict(candle.LOOKS["breeze"])):
+            fx = make({"mode": "alive", **params, "light": 0, "halo": 0})
+            moved = 0.0
+            for t in range(144):
+                out = np.round(lens(fx, t, pic) * 255)  # (the same in the video: 8 bits)
+                self.assertTrue(np.array_equal(out[line], np.round(pic[line] * 255)), (params, t))
+                self.assertTrue(np.array_equal(out[:, int(CX - 0.6 * TALL)],
+                                               np.round(pic[:, int(CX - 0.6 * TALL)] * 255)))
+                out /= 255
+                moved = max(moved, float(np.abs(out - pic).max()))
+            self.assertGreater(moved, 0.2, params)  # (and the flame did move)
+
+    def test_new_flame_hides_broken_flames(self):
+        """The broken flames a made-up video shows (a blob come loose 1.3 flame heights up, a tip bent 0.6 flame
+        heights aside, a flame 1.6 flame heights tall) are gone: with the new flame drawn, the picture is the
+        room with the new flame (within 0.1) everywhere but on the new flame itself."""
+        room = scene(False)
+        cases = {"blob": soft_flame(room, CX, BASE, TALL, 5, blob=(CX + 2.4, BASE - 1.3 * TALL, 2.4)),
+                 "bent": soft_flame(room, CX, BASE, TALL * 1.05, 4.5, lean=0.6 * TALL),
+                 "tall": soft_flame(room, CX, BASE, 1.6 * TALL, 5),
+                 "wide": soft_flame(room, CX, BASE, 0.85 * TALL, 8)}
+        params = {"mode": "new", **STILL, "light": 0}
+        want = lens(make(params), 0, room)
+        black = np.zeros_like(room)
+        flame = lens(make({**params, "halo": 0}), 0, black).max(axis=2) > 0.04
+        for name, pic in cases.items():
+            self.assertGreater(float(np.abs(pic - room)[~flame].max()), 0.5, name)  # (broken outside the new one)
+            got = lens(make(params), 0, pic)
+            self.assertLess(float(np.abs(got - want)[~flame].max()), 0.1, name)
+            kept = lens(make({**params, "cover": 0}), 0, pic)
+            self.assertGreater(float(np.abs(kept - want)[~flame].max()), 0.4, name)
+
+    def test_new_flame_keeps_what_is_darker(self):
+        """A flame only adds light, so hiding it never takes away what is darker than the room round it (the
+        wick, a dark frame or line behind)."""
+        pic = soft_flame(scene(False), CX, BASE, TALL, 5)
+        x = int(CX + 0.25 * TALL)
+        pic[int(BASE - 1.5 * TALL):int(BASE) - 1, x:x + 2] = (0.05, 0.04, 0.03)
+        out = lens(make({"mode": "new", **STILL, "light": 0, "halo": 0, "size": 0}), 0, pic)
+        self.assertLess(float(np.abs(out[int(BASE - 1.5 * TALL):int(BASE) - 1, x:x + 2] - 0.04).max()), 0.03)
+
+    def test_preview_from_the_picture_under_the_box(self):
+        """The box alone (as the preview clip is made) on the picture under the box, resized to the clip, gives
+        what the whole frame gives there: the integrator can make the live preview from it."""
+        from PIL import Image
+        pic = soft_flame(scene(False), CX, BASE, TALL, 5)
+        for mode in ("alive", "new"):
+            params = {"mode": mode, "light": 0, **AT}
+            whole = make(params)
+            x0, y0, bw, bh = whole.box()
+            cw, ch = round(bw * 4), round(bh * 4)
+            alone = effects.make("candle", engine.fx_clip_params("candle", params), 3, 144, 24, cw, ch)
+
+            def under(a):
+                return np.asarray(Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8)).resize(
+                    (cw, ch), Image.Resampling.BICUBIC, box=(x0, y0, x0 + bw, y0 + bh)), np.float32) / 255
+            for t in (0, 50):
+                got = under(pic)
+                alone.apply(t, got, None, 1.0)
+                want = under(lens(whole, t, pic))
+                self.assertLess(float(np.abs(got - want).mean()), 0.02, (mode, t))
+
     def test_alive_keeps_the_white_core_white(self):
         """When the light dims, what the camera saw white stays white (it does not turn grey)."""
         fx = make({"mode": "alive", "flicker": 100, "light": 100, "brightness": 0})
         core = (SCENE.min(axis=2) > 0.84)
+        core[:int(BASE - 0.5 * TALL)] = False  # (its top half: the flame shrinks below it now and then)
         lows = []
         for t in range(0, 144, 3):
             out = lens(fx, t)
@@ -334,6 +441,16 @@ class Settings(unittest.TestCase):
             self.assertEqual(effects.clean_params("candle", preset), {**defaults, **preset}, name)
         self.assertEqual(look["presets"][look["value"]], {k: v for k, v in defaults.items() if k in keys})
         self.assertEqual(defaults["mode"], "alive")
+
+    def test_anchor(self):
+        """Where the flame's base goes in the box (for a mark on the page's box): its bottom middle."""
+        self.assertEqual(candle.SCHEMA["anchor"], [0.5, candle.BASE])
+        self.assertTrue(candle.SCHEMA["anchor_hint"])
+        fx = make({})
+        x0, y0, w, h = fx.box()
+        g = fx._geom()
+        self.assertAlmostEqual(g[4], x0 + 0.5 * w)
+        self.assertAlmostEqual(g[5], y0 + candle.BASE * h)
 
     def test_screen_blend_and_lens(self):
         """Screen (light on black for the preview clip, as the name of the clip says) and a lens."""
