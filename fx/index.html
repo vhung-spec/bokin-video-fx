@@ -1002,6 +1002,7 @@ function layoutScreen() {
 function clearLayers() {
   for (const el of Object.values(S.els)) { if (el.media.tagName === "VIDEO") { el.media.pause(); el.media.removeAttribute("src"); el.media.load(); } el.wrap.remove(); }
   for (const box of Object.values(S.trackEls)) box.remove();
+  if (S.underEl) { S.underEl.remove(); S.underEl = null; }
   S.els = {}; S.trackEls = {}; S.mixRole = {};
   $("#ccDefs").innerHTML = "";
 }
@@ -1010,6 +1011,13 @@ function trackBox(id) {  // a track's clips lie in one box: in a Mix its two cli
   if (!box) { box = S.trackEls[id] = document.createElement("div"); box.className = "trk"; }
   return box;
 }
+// clips made from the picture under their box (a candle: the video and its still area, changed) are laid on that
+// picture, under every track: what the tracks under them add then shows (over them; nearly as the export has it)
+function underBox() {
+  if (!S.underEl) { S.underEl = document.createElement("div"); S.underEl.className = "trk"; S.underEl.style.isolation = "isolate"; }
+  return S.underEl;
+}
+function boxOf(c) { return S.schema.under[c.kind] ? underBox() : trackBox(c.track); }
 function mediaFor(c) {  // what the live preview plays for a clip: {kind: "video"|"img", src, info} or null
   const p = S.project;
   if (c.kind === "file") {
@@ -1034,6 +1042,7 @@ function syncLayers() {  // one element per clip, in drawing order
     }
   }
   for (const [id, box] of Object.entries(S.trackEls)) if (!S.project.tracks.some(t => t.id === id)) { box.remove(); delete S.trackEls[id]; }
+  layersEl.appendChild(underBox());
   for (const t of S.project.tracks) layersEl.appendChild(trackBox(t.id));  // bottom first
   for (const c of order) {
     const m = mediaFor(c);
@@ -1052,7 +1061,7 @@ function syncLayers() {  // one element per clip, in drawing order
       el = S.els[c.id] = {wrap, media, src: m.src, m};
       media.addEventListener("loadeddata", () => applyTime());
     }
-    trackBox(c.track).appendChild(el.wrap);  // in order
+    boxOf(c).appendChild(el.wrap);  // in order
     styleLayer(c, el);
   }
   updateWaiting();
@@ -1152,6 +1161,13 @@ function showXform() {  // the box of the selected file clip, over the picture
   } else mk.style.display = "none";
 }
 function num(v) { return String(+(+v).toFixed(2)); }
+function keepAnchor(c, was) {  // after a new size: x, y moved so the anchor (a candle's wick) is where it was with `was`
+  const a = S.schema.kinds[c.kind].anchor, W = info().w, H = info().h;
+  const r = placed(Object.assign({}, c, {params: Object.assign({}, c.params, {x: was.x, y: was.y, scale: was.scale})}));
+  const f = c.params.scale / was.scale, w = r.w * f, h = r.h * f;
+  const left = r.x + a[0] * r.w - a[0] * w, top = r.y + a[1] * r.h - a[1] * h;
+  c.params.x = placeParam(c, "x", (left - (W - w) / 2) / W * 100); c.params.y = placeParam(c, "y", (top - (H - h) / 2) / H * 100);
+}
 function placeParam(c, key, v) {  // on the parameter's own step (a twentieth of a percent: about a pixel)
   const d = S.schema.kinds[c.kind].params.find(x => x.key === key), step = d.step || 1;
   return clamp(+(Math.round(v / step) * step).toFixed(3), d.min, d.max);
@@ -1181,6 +1197,12 @@ xform.addEventListener("pointermove", e => {
   if (d.scale && e.altKey) {  // around the middle
     pr.scale = placeParam(c, "scale", d.p0.scale * Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.d0);
     pr.x = d.p0.x; pr.y = d.p0.y;
+  } else if (d.scale && S.schema.kinds[c.kind] && S.schema.kinds[c.kind].anchor) {  // its anchor (a wick) stays put
+    const a = S.schema.kinds[c.kind].anchor, r = d.r0, W = info().w, H = info().h;
+    const ax = d.sc.left + (r.x + a[0] * r.w) / W * d.sc.width, ay = d.sc.top + (r.y + a[1] * r.h) / H * d.sc.height;
+    const vx = d.x0 - ax, vy = d.y0 - ay, n = vx * vx + vy * vy || 1;
+    pr.scale = placeParam(c, "scale", d.p0.scale * Math.max(0.01, ((e.clientX - ax) * vx + (e.clientY - ay) * vy) / n));
+    keepAnchor(c, d.p0);
   } else if (d.scale) {  // the opposite corner stays where it is, as in Premiere
     const vx = d.x0 - d.ox, vy = d.y0 - d.oy, n = vx * vx + vy * vy || 1;
     const k = Math.max(0.01, ((e.clientX - d.ox) * vx + (e.clientY - d.oy) * vy) / n);  // along the diagonal
@@ -2615,7 +2637,12 @@ $("#ec").addEventListener("input", e => {
     const key = t.dataset.param, def = S.schema.kinds[c.kind].params.find(d => d.key === key);
     let v = t.type === "range" ? +t.value : t.type === "checkbox" ? t.checked : t.value;
     const lab = $("#v-" + key); if (lab) lab.textContent = v;
+    const was = Object.assign({}, c.params);
     c.params[key] = v;
+    if (key === "scale" && S.schema.kinds[c.kind].anchor && placeable(c)) {  // the wick stays put: x, y follow
+      keepAnchor(c, was);
+      for (const k of ["x", "y"]) { const i = $(`#ec [data-param="${k}"]`), l = $("#v-" + k); if (i) i.value = c.params[k]; if (l) l.textContent = num(c.params[k]); }
+    }
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
     if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
     else if (S.els[c.id]) styleLayer(c, S.els[c.id]);

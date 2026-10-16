@@ -74,8 +74,8 @@ SCHEMA = {"label": "Lửa nến", "params": [
     "tip_label": "đỉnh lửa",
     "note": "Sửa nến bị lỗi: (1) nếu lửa trong video giật, méo hay biến mất ở chỗ loop, bấm V1 Video gốc rồi Vẽ vùng "
             "đứng yên, tô lên ngọn nến (chọn khung hình có lửa đẹp); (2) kéo khung trắng cho vạch vàng dưới (đầu bấc) "
-            "nằm ở chân ngọn lửa, rồi kéo góc khung cho vạch vàng trên (đỉnh lửa) chạm đỉnh ngọn lửa: phía trên còn "
-            "trống để có quầng sáng; (3) Cách sửa: Làm sống ngọn lửa có sẵn, hoặc Vẽ ngọn lửa mới nếu lửa cũ hỏng "
+            "nằm ở chân ngọn lửa, rồi kéo góc khung (vạch dưới đứng yên) cho vạch vàng trên (đỉnh lửa) chạm đỉnh ngọn "
+            "lửa: phía trên còn trống để có quầng sáng; (3) Cách sửa: Làm sống ngọn lửa có sẵn, hoặc Vẽ ngọn lửa mới nếu lửa cũ hỏng "
             "nặng. Bấm Suốt video để lửa sống cả video. Mỗi ngọn nến một clip Lửa nến."}
 
 

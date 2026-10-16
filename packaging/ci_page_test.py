@@ -427,6 +427,17 @@ def run(page, folder, edge):
             el = page.evaluate(laid + ".concat([S.els['" + cid + "'].wrap.style.display])")
             check("candle: its old preview clip hides until the new one is made, then that one shows in the box",
                   hidden and el[2] is True and el[3] == "", str([hidden] + el))
+            under = page.evaluate(f"S.els['{cid}'].wrap.parentNode === $('#layers').firstChild")
+            check("candle: laid just over the video and its still area (under every track)", under)
+            wick = "(r => [r.left + r.width / 2, r.top])($('#xformMark').getBoundingClientRect())"
+            w0 = page.evaluate(wick)
+            xb = page.locator("#xform").bounding_box()
+            drag(xb["x"] + 1, xb["y"] + 1, xb["x"] - 30, xb["y"] - 40)  # the top left corner, pulled out
+            w1, xb1 = page.evaluate(wick), page.locator("#xform").bounding_box()
+            check("candle: a corner sizes its box, the wick mark stays put", xb1["height"] > xb["height"] * 1.2 and
+                  abs(w1[0] - w0[0]) < 1.5 and abs(w1[1] - w0[1]) < 1.5, f"{w0} -> {w1}, {xb['height']} -> {xb1['height']}")
+            page.keyboard.press("Control+z")
+            page.wait_for_timeout(200)
     shot("05b-steam-candle")
 
     page.evaluate("saveNow()")

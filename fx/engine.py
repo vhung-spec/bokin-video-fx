@@ -490,26 +490,34 @@ def fx_clip_frame(info, kind, layer=None):
     return max(2, round(h * box[0] / box[1] / 2) * 2), h
 
 
-_painted = {}  # a mask file's (stamp) -> where it is painted, fractions of its size (left, top, right, bottom)
+_near = {}  # (mask file, its stamp, a part of it) -> what is painted there
 
 
-def _painted_box(path, stamp):
-    """Where a mask has anything painted, as fractions of its size; None if nothing (kept for its stamp)."""
-    if _painted.get(path, (None,))[0] != stamp:
+def _painted_near(path, stamp, part):
+    """A short hash of what a mask has painted in `part` (left, top, right, bottom: fractions of its size, a few of
+    its pixels added round it); None if nothing is painted there. Kept for the file's stamp."""
+    key = (path, stamp, tuple(round(v, 5) for v in part))
+    if key not in _near:
         try:
             with Image.open(path) as im:
                 im.load()
                 m = im.getchannel("A") if "A" in im.getbands() else im.convert("L")
-                bb = m.getbbox()
-                _painted[path] = (stamp, bb and (bb[0] / m.width, bb[1] / m.height, bb[2] / m.width, bb[3] / m.height))
         except (OSError, ValueError):
-            return (0.0, 0.0, 1.0, 1.0)  # (unreadable: as if it reached everywhere)
-    return _painted[path][1]
+            return "unreadable"  # (as if painted: the clip is made again when it can be read)
+        rect = (max(0, math.floor(part[0] * m.width) - 2), max(0, math.floor(part[1] * m.height) - 2),
+                min(m.width, math.ceil(part[2] * m.width) + 2), min(m.height, math.ceil(part[3] * m.height) + 2))
+        crop = m.crop(rect) if rect[0] < rect[2] and rect[1] < rect[3] else None
+        if len(_near) > 256:
+            _near.clear()
+        _near[key] = (hashlib.sha1(repr(rect).encode() + crop.tobytes()).hexdigest()[:12]
+                      if crop is not None and crop.getbbox() else None)
+    return _near[key]
 
 
 def _under_key(project, layer):
-    """What the picture under a placed effect's box is made of: the video, and the still area if its soft edge
-    reaches the box (then its softness, mask and picture). A still area elsewhere does not make the clip again."""
+    """What the picture under a placed effect's box is made of: the video, and the still area where its soft edge
+    can reach the box (its softness, what is painted there, its picture). A still area elsewhere (painted, changed
+    or undone) does not make the clip again."""
     key = [project["video"].get("file")]
     folder = os.path.join(paths.projects_dir(), project.get("id") or "-")
     path = mask_path(folder, "freeze")
@@ -517,16 +525,14 @@ def _under_key(project, layer):
         st = os.stat(path)
     except OSError:
         return key
-    painted = _painted_box(path, (st.st_mtime_ns, st.st_size))
-    if not painted:
-        return key
     info = project["video"]
     w, h = info["w"], info["h"]
     feather = float((project.get("freeze") or {}).get("feather", 0) or 0)
     grow = 3 * feather + 2  # (a Gaussian blur of radius r spreads about 2.5 r)
     x0, y0, bw, bh = effects.box_of(layer["kind"], layer.get("params"), w, h)
-    if (painted[0] * w - grow >= x0 + bw or painted[2] * w + grow <= x0 or painted[1] * h - grow >= y0 + bh
-            or painted[3] * h + grow <= y0):
+    painted = _painted_near(path, (st.st_mtime_ns, st.st_size),
+                            ((x0 - grow) / w, (y0 - grow) / h, (x0 + bw + grow) / w, (y0 + bh + grow) / h))
+    if not painted:
         return key
     still, picture = project.get("still") or {}, None
     if still.get("source") == "image":  # (as still_picture: a frame of the video when there is no picture)
@@ -535,7 +541,7 @@ def _under_key(project, layer):
             picture = ["image", sp.st_mtime_ns, sp.st_size]
         except OSError:
             pass
-    return key + [feather, [st.st_mtime_ns, st.st_size], picture or ["frame", still.get("frame", 0)]]
+    return key + [feather, painted, picture or ["frame", still.get("frame", 0)]]
 
 
 def fx_clip_params(kind, params):

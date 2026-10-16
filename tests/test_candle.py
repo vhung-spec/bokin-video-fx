@@ -512,22 +512,31 @@ class Settings(unittest.TestCase):
         x0, y0, bw, bh = effects.box_of("candle", AT, W, H)
         bare = engine.fx_clip_name(project, layer)
 
-        def paint(x, y, w, h):
+        stamp = [0]
+
+        def paint(*rects):
             m = Image.new("L", (W, H), 0)
-            m.paste(255, (int(x), int(y), int(x + w), int(y + h)))
+            for x, y, w, h in rects:
+                m.paste(255, (int(x), int(y), int(x + w), int(y + h)))
             m.save(os.path.join(masks, "freeze.png"))
-            os.utime(os.path.join(masks, "freeze.png"), ns=(1, 10 ** 9 * int(x + 7 * y)))  # (a new stamp)
+            stamp[0] += 1
+            os.utime(os.path.join(masks, "freeze.png"), ns=(1, 10 ** 9 * stamp[0]))  # (a new stamp each time)
             return engine.fx_clip_name(project, layer)
-        far = paint(5, 5, 30, 30)  # far from the box (top left; the box is right of the middle)
+        far = paint((5, 5, 30, 30))  # far from the box (top left; the box is right of the middle)
         self.assertGreater(x0, 120)
         self.assertEqual(far, bare)
         self.assertEqual(engine.fx_clip_name(dict(project, still={"source": "frame", "frame": 9}), layer), bare)
         self.assertEqual(engine.fx_clip_name(dict(project, freeze={"feather": 20}), layer), bare)
-        over = paint(x0 + 2, y0 + 2, 8, 8)
+        over = paint((x0 + 2, y0 + 2, 8, 8))
         self.assertNotEqual(over, bare)
+        # more still area elsewhere, or that taken away again: the clip stays
+        self.assertEqual(paint((x0 + 2, y0 + 2, 8, 8), (5, 5, 30, 30)), over)
+        self.assertEqual(paint((x0 + 2, y0 + 2, 8, 8)), over)
+        self.assertNotEqual(paint((x0 + 2, y0 + 2, 9, 8)), over)  # changed under the box: made again
+        self.assertEqual(paint((x0 + 2, y0 + 2, 8, 8)), over)  # (undone: the clip made before)
         self.assertNotEqual(engine.fx_clip_name(dict(project, still={"source": "frame", "frame": 9}), layer), over)
         self.assertNotEqual(engine.fx_clip_name(dict(project, freeze={"feather": 20}), layer), over)
-        near = paint(x0 - 30, y0 + 10, 20, 20)  # 10 px left of the box: its soft edge (10 px) reaches it
+        near = paint((x0 - 30, y0 + 10, 20, 20))  # 10 px left of the box: its soft edge (10 px) reaches it
         self.assertNotEqual(near, bare)
         moved = engine.fx_clip_name(project, {"kind": "candle", "params": dict(AT, x=AT["x"] + 30)})
         self.assertNotEqual(moved, near)
