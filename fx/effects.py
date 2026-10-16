@@ -219,6 +219,7 @@ class Effect:
     # turns: placed and turned in 3D as a file clip is (sheet.Sheet): a full-frame effect on a sheet of the frame's
     # shape, a placed one in its box. A candle's flame does not turn (it always rises straight up).
     TURNS = True
+    PREVIEW = None  # the width of a full-frame effect's preview clip (None: engine.FX_CLIP_WIDTH)
 
     def __init__(self, params, seed, frames, fps, w, h, aspect=None):
         self.p, self.seed = params, int(seed)

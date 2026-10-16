@@ -6,7 +6,8 @@ Starts the app's server on test data, then works the page as a person would: ope
 and a picture into the library, drags the effect onto the timeline, adds snow, plays, cuts a clip, moves and trims
 clips, undoes, paints a still area, zooms and moves the picture (a clip outside the frame grabbed there) and exports a
 30-second video. It checks the timeline the page saved, that the live preview plays the light copies (H.264 and
-transparent WebM), and that the page reports no script errors.
+transparent WebM), the falling leaves' settings (each shape a checkbox, "Loại lá" following them), and that the page
+reports no script errors.
 Screenshots of each step go to the folder given (default: page-test).
 
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
@@ -347,6 +348,45 @@ def effects_turned(page, drag):
     turned = picture_parity(page, lv, vw, vh, None, live, exact)
     check("3D effects: the live picture of turned leaves is the exact frame's (as close as upright)",
           as_close(upright, turned), str({"upright": upright, "turned": turned}))
+
+    # the leaves' settings: "Loại lá" and "Kiểu lá rơi" under "Kiểu", every shape a checkbox under its own heading
+    # (the two maples ticked); a "Loại lá" ticks its shapes and colours them, a shape ticked by hand turns it to "Tự
+    # chọn", and back when the ticks are its own again
+    page.evaluate(f"select('{lv}')")
+    page.wait_for_timeout(200)
+    shapes_head = "Kiểu dáng lá (tích nhiều ô để trộn)"
+    heads = page.evaluate("[...document.querySelectorAll('#ec h4')].map(h => h.textContent)")
+    boxes = page.evaluate("[...document.querySelectorAll('#ec input[type=checkbox][data-param]')]"
+                          ".map(i => [i.dataset.param, i.checked])")
+    state = f"""(() => {{ const c = clipById('{lv}'); return [c.params.scene,
+        document.querySelector('#ec select[data-param=scene]').value, c.params.season,
+        [...document.querySelectorAll('#ec input[type=checkbox][data-param]')].filter(i => i.checked)
+          .map(i => i.dataset.param).join(' ')]; }})()"""
+    page.select_option("#ec select[data-param=scene]", "ginkgo")
+    page.wait_for_timeout(300)
+    ginkgo = page.evaluate(state)
+    box = page.evaluate("""(() => { const s = document.querySelector('#ec select[data-param=scene]');
+        let p = s.parentElement;  // (the panel's own scroll box: the page itself stays put)
+        while (p && !(p.scrollHeight > p.clientHeight && /(auto|scroll)/.test(getComputedStyle(p).overflowY)))
+          p = p.parentElement;
+        if (!p) return null;
+        p.scrollTop += s.getBoundingClientRect().top - p.getBoundingClientRect().top - 60;
+        const r = p.getBoundingClientRect(); return {x: r.left, y: r.top, width: r.width, height: r.height}; })()""")
+    if box:
+        page.screenshot(path=os.path.join(SHOTS, "05g-leaves-settings.png"), clip=box)
+    page.click("#ec input[type=checkbox][data-param=oak]")
+    page.wait_for_timeout(200)
+    custom = page.evaluate(state)
+    page.click("#ec input[type=checkbox][data-param=oak]")
+    page.wait_for_timeout(200)
+    again = page.evaluate(state)
+    shapes = ["maple", "japanese", "ginkgo", "oak", "almond", "birch", "willow", "heart", "petal"]
+    check("leaves: kinds of leaves at once and every shape a checkbox, under clear headings",
+          "Kiểu" in heads and heads[heads.index("Kiểu"):][:4] == ["Kiểu", shapes_head, "Màu lá (cánh hoa luôn màu hồng)",
+                                                                  "Ánh sáng"]
+          and boxes == [[s, s in ("maple", "japanese")] for s in shapes]
+          and ginkgo == ["ginkgo", "ginkgo", "gold", "ginkgo"] and custom == ["custom", "custom", "gold", "ginkgo oak"]
+          and again == ["ginkgo", "ginkgo", "gold", "ginkgo"], str([heads, boxes, ginkgo, custom, again]))
 
     # light on black (H.264, laid with Screen) and a transparent WebM, turned, in a Mix: in their track's box, on
     # the renderer's corners

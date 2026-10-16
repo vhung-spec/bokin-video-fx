@@ -40,11 +40,18 @@ hiệu ứng. Cách dùng: `README.md`.
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, lá rơi, nước trên kính, khói cốc cà phê,
-  lửa nến, mỗi cái một file. Lá rơi: lá phong (đỏ, vàng, xanh), lá thường, cánh hoa vẽ bằng trường khoảng cách (thuỳ,
-  răng cưa, gân), mỗi mẫu làm một lần ở cỡ vừa đủ (`master`, `sprite()`, giới hạn `MAX_BYTES`); lá xanh ngả màu
-  (`turning`) chỉ khi đã có lá đỏ/vàng; mỗi lần rơi lại là lá khác (`passes()`, `design()`); lá nghiêng chọn hình theo
-  chiều dài, ép bằng bộ lọc trung bình (`place()`); chao theo tốc độ rơi; `upgrade()` của lớp
-  hiệu ứng (gọi trong `clean_params`) chuyển thông số clip của bản cũ. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi
+  lửa nến, mỗi cái một file. Lá rơi: chuyển động, thông số trong `fx/leaves.py`; hình lá trong `fx/leafshapes.py`:
+  chín kiểu dáng (`SHAPES`: phong 5 thuỳ, phong Nhật, bạch quả, sồi, bàng, bạch dương, liễu, hình tim, cánh hoa) vẽ bằng
+  trường khoảng cách (`Lobe`: thuỳ, răng cưa, đầu tròn là nửa ellipse; quạt bạch quả, khe tim `sinus`; gân), mỗi kiểu
+  màu riêng cho đỏ/vàng/xanh (`PAINT`: bạch quả không đỏ, sồi đỏ nâu, bàng gân sẫm), mặt trước, mặt sau và hình ngược
+  sáng (`lit`: trang trộn theo hướng lá, `light()`, thanh "Nắng chiếu xuyên lá"). Mỗi kiểu là một ô tích (`_toggle`,
+  không tích ô nào: phong 5 thuỳ); "Loại lá" (`SCENES`, `match`: trang tự chuyển về "Tự chọn" khi tích tay,
+  `followChoices`) tích sẵn vài kiểu và tô màu theo mùa; to nhỏ đúng tỉ lệ giữa các kiểu (`REL`, kiểu to nhất đạt "Lá
+  to nhất"). Mỗi lá một cỡ hình vừa đủ (`master` theo từng lá, `picture()`), số mẫu mỗi kiểu giảm khi tích nhiều kiểu
+  để mọi hình vừa `MAX_BYTES` (`_designs()`); lá xanh ngả màu (`turning`) chỉ khi đã có lá đỏ/vàng; mỗi lần rơi lại là
+  lá khác (`passes()`, `design()`); lá nghiêng chọn hình theo chiều dài, ép bằng bộ lọc trung bình (`place()`); lá xa
+  hơi mềm; chao theo tốc độ rơi; clip xem nhanh rộng 960 (`PREVIEW`). `upgrade()` của lớp hiệu ứng (gọi trong
+  `clean_params`) chuyển thông số clip của bản cũ ("shape" cũ thành ô tích). `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi
   (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên kính, lửa nến) đổi cả hình bên dưới: `apply()` cho video xuất
   và khung chính xác; trang chỉ phát clip xem nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung chính xác
   (`liveIncomplete`).
@@ -86,8 +93,9 @@ hiệu ứng. Cách dùng: `README.md`.
 - Trình duyệt tự ghép: `<video>` bản nhẹ của video gốc, ảnh vùng đứng yên, rồi từng clip với CSS `mix-blend-mode`
   (screen, multiply, plus-lighter cho add), `opacity` (mờ dần) và `mask-image` (vùng đã làm mềm; clip "sau tiền cảnh"
   thêm tiền cảnh đảo ngược, `mask-composite: intersect`). Một đồng hồ chung giữ mọi video khớp nhau.
-- Hiệu ứng tạo sẵn: app kết xuất cả độ dài video thành clip nhỏ (WebM trong suốt, hoặc H.264 cho hạt sáng dùng
-  Screen). Tên file theo nội dung (`fx-<khoá>.webm`), hai nửa của clip bị cắt dùng chung.
+- Hiệu ứng tạo sẵn: app kết xuất cả độ dài video thành clip nhỏ (rộng 640, hoặc `PREVIEW` của hiệu ứng: lá rơi 960;
+  WebM trong suốt, hoặc H.264 cho hạt sáng dùng Screen). Tên file theo nội dung (`fx-<khoá>.webm`), hai nửa của clip
+  bị cắt dùng chung.
 - Khung chính xác từ `engine.Looks` (`/api/look`) là thứ video xuất ra. Trang chỉ hiện nó khi dừng hình nếu người dùng
   bật nút Khung chính xác (`#tExact`), hoặc khi bản xem nhanh còn thiếu (`liveIncomplete`). Không tự thay ảnh khi
   dừng: mắt thấy như hình bị giật.

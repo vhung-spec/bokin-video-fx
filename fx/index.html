@@ -1742,6 +1742,17 @@ function keepAnchor(c, was) {  // after a new size: x, y moved so the anchor (a 
   const left = r.x + a[0] * r.w - a[0] * w, top = r.y + a[1] * r.h - a[1] * h;
   c.params.x = placeParam(c, "x", (left - (W - w) / 2) / W * 100); c.params.y = placeParam(c, "y", (top - (H - h) / 2) / H * 100);
 }
+function followChoices(c, key) {  // a choice that sets `key` (its presets' "match"): the option whose preset is what
+  // is set now, or its own option without a preset (e.g. "Loại lá": the leaves' shapes ticked by hand)
+  for (const d of S.schema.kinds[c.kind].params) {
+    if (d.type !== "choice" || !d.match || d.key === key || !d.match.includes(key)) continue;
+    const hit = d.options.find(o => d.presets[o.value] && d.match.every(k => d.presets[o.value][k] === c.params[k]))
+      || d.options.find(o => !d.presets[o.value]);
+    if (!hit || hit.value === c.params[d.key]) continue;
+    c.params[d.key] = hit.value;
+    const sel = $(`#ec select[data-param="${d.key}"]`); if (sel) sel.value = hit.value;
+  }
+}
 function placeParam(c, key, v) {  // on the parameter's own step (a twentieth of a percent: about a pixel)
   const d = S.schema.kinds[c.kind].params.find(x => x.key === key), step = d.step || 1;
   return clamp(+(Math.round(v / step) * step).toFixed(3), d.min, d.max);
@@ -3366,6 +3377,7 @@ $("#ec").addEventListener("input", e => {
       for (const k of ["x", "y"]) { const i = $(`#ec [data-param="${k}"]`), l = $("#v-" + k); if (i) { i.value = c.params[k]; fillRange(i); } if (l) l.textContent = num(c.params[k]); }
     }
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
+    else followChoices(c, key);
     if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
     else if (S.els[c.id]) styleLayer(c, S.els[c.id]);
     applyTime(); invalidateExact(); scheduleSave(); renderTimeline(); showXform();

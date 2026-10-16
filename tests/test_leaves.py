@@ -1,10 +1,12 @@
+import math
 import time
 import unittest
 
 import numpy as np
+from PIL import Image
 
 from tests import helpers  # noqa: F401 - temporary data folder
-from fx import effects, leaves
+from fx import effects, engine, leafshapes, leaves
 
 W, H = 320, 180
 
@@ -17,19 +19,29 @@ def frame(fx, t, w=W, h=H, mask=None, base=0.3):
     return pic
 
 
+def only(*shapes, **extra):
+    """Settings with just these shapes ticked."""
+    return {**{s: s in shapes for s in leaves.SHAPES}, **extra}
+
+
 MAX = {p["key"]: p["max"] for p in leaves.SCHEMA["params"] if p["type"] == "range"}
 MIN = {p["key"]: p["min"] for p in leaves.SCHEMA["params"] if p["type"] == "range"}
 OLD = {"style": "autumn", "amount": 30, "size": 45, "speed": 35, "wind": 15, "spin": 50, "sway": 50, "depth": 50,
        "blur": 30, "opacity": 100}  # a clip saved by the first leaves effect
+REMAKE = dict(leaves.LOOKS["medium"], look="medium", shape="maple", season="mixed", red=40, yellow=35, green=25)
+# (a clip saved by the remake before the shapes: one kind of leaf)
 
 
 class Loops(unittest.TestCase):
-    """Frame P is frame 0 again with every look, kind of leaf and way of falling, at any loop length."""
+    """Frame P is frame 0 again with every look, every shape on its own, every "Loại lá" and way of falling, at any
+    loop length."""
 
-    CASES = [dict(leaves.LOOKS[name], look=name) for name in leaves.LOOKS] + [
-        {"shape": shape} for shape in ("mixed", "oval", "petal")] + [
-        MAX, dict(MIN, amount=100), dict(MAX, wind=-100), {"spin": 100, "sway": 100, "gust": 100, "motion": 100},
-        {"spin": 0, "sway": 0, "gust": 0, "motion": 0, "blur": 0, "haze": 0}, {"big": 0, "small": 100}, OLD]
+    CASES = ([dict(leaves.LOOKS[name], look=name) for name in leaves.LOOKS]
+             + [only(s) for s in leaves.SHAPES] + [dict(leaves.SCENES[s], scene=s) for s in leaves.SCENES]
+             + [MAX, dict(MIN, amount=100), dict(MAX, wind=-100),
+                {"spin": 100, "sway": 100, "gust": 100, "motion": 100},
+                {"spin": 0, "sway": 0, "gust": 0, "motion": 0, "blur": 0, "haze": 0, "glow": 0},
+                {"big": 0, "small": 100}, OLD, REMAKE, only()])
 
     def test_frame_p_is_frame_zero(self):
         for frames, fps in ((144, 24), (150, 25), (90, 30), (720, 24)):
@@ -37,12 +49,23 @@ class Loops(unittest.TestCase):
                 fx = effects.make("leaves", params, 3, frames, fps, W, H)
                 diff = np.abs(frame(fx, 0) - frame(fx, frames)).max()
                 self.assertLess(diff, 1 / 512, f"{params} P={frames} fps={fps}")
-                if frames == 144:  # every leaf where it was, turned as it was
+                if frames == 144:  # every leaf where it was, turned as it was, lit as it was
                     a, b = fx.at(0), fx.at(frames)
                     for u, v in zip(a[:2], b[:2]):
                         self.assertLess(float(np.abs(u - v).max()), 1e-6, params)
-                    for u, v in zip(fx.pose(a[3], a[4]), fx.pose(b[3], b[4])):
+                    pa, pb = fx.pose(a[3], a[4]), fx.pose(b[3], b[4])
+                    for u, v in zip(pa, pb):
                         self.assertLess(float(np.abs(np.cos(u) - np.cos(v)).max()), 1e-6, params)
+                    for u, v in zip(fx.light(pa[0], pa[2]), fx.light(pb[0], pb[2])):
+                        self.assertLess(float(np.abs(u - v).max()), 1e-6, params)
+
+    def test_every_shape_on_its_own_loops_at_1080p(self):
+        """Each shape alone, big and many, at full size (its largest pictures): the loop closes exactly."""
+        for s in leaves.SHAPES:
+            fx = effects.make("leaves", only(s, amount=60, big=95), 4, 96, 24, 1920, 1080)
+            diff = np.abs(frame(fx, 0, 1920, 1080) - frame(fx, 96, 1920, 1080)).max()
+            self.assertLess(diff, 1 / 512, s)
+            self.assertGreater(np.abs(frame(fx, 10, 1920, 1080) - 0.3).max(), 0.2, s)  # (something drawn)
 
     def test_leaves_move(self):
         fx = effects.make("leaves", {"amount": 80}, 3, 144, 24, W, H)
@@ -73,7 +96,8 @@ class Loops(unittest.TestCase):
         """A gliding leaf swings sideways at most about 3 times as fast as it falls and hardly ever rises at the ends
         of a swing, however slow the fall; a slower fall swings slower, and big leaves swing slower than small."""
         periods = {}
-        for params in ({}, {"speed": 0}, {"speed": 100}, {"speed": 0, "sway": 100}, dict(leaves.LOOKS["dreamy"])):
+        for params in ({}, {"speed": 0}, {"speed": 100}, {"speed": 0, "sway": 100}, dict(leaves.LOOKS["dreamy"]),
+                       only("willow", "almond", "petal")):
             fx = effects.make("leaves", dict(params, gust=0), 3, 1800, 30, 1920, 1080)
             g = np.flatnonzero(fx.mode == leaves.GLIDE)
             xy = np.array([fx.at(t)[:2] for t in range(0, 1801)])[:, :, g] * 30  # px a second apart
@@ -105,7 +129,7 @@ class Loops(unittest.TestCase):
     def test_lanes_spread_evenly(self):
         """The leaves come down all across the frame (no band left empty for the whole loop), and each time a leaf
         comes down again it is another leaf: shifted a little, another design."""
-        for params in ({}, dict(leaves.LOOKS["few"])):
+        for params in ({}, dict(leaves.LOOKS["few"]), only("almond", "birch")):
             for seed in (1, 2, 3):
                 fx = effects.make("leaves", params, seed, 720, 24, 1920, 1080)
                 hist = np.zeros(8)
@@ -145,17 +169,34 @@ class Settings(unittest.TestCase):
         self.assertEqual([p["group"] for p in effects.SCHEMA["leaves"]["params"][own:]],
                          ["Vị trí và cỡ"] * 3 + ["Xoay 3D"] * 4)
         self.assertIs(effects.KINDS["leaves"], leaves.Leaves)
-        self.assertGreater(leaves.Leaves.VERSION, 1)  # (the first leaves' preview clips are made again)
+        self.assertEqual(leaves.Leaves.VERSION, 4)  # (the remake's preview clips are made again)
+
+    def test_shapes_are_checkboxes(self):
+        """Each shape is a checkbox of its own under one heading, the two maples ticked at first; "Loại lá" and
+        "Kiểu lá rơi" come first, under "Kiểu"."""
+        by = {p["key"]: p for p in leaves.SCHEMA["params"]}
+        keys = [p["key"] for p in leaves.SCHEMA["params"]]
+        self.assertEqual(keys[:2], ["scene", "look"])
+        self.assertEqual({by[k]["group"] for k in ("scene", "look")}, {"Kiểu"})
+        self.assertEqual(keys[2:2 + len(leaves.SHAPES)], list(leaves.SHAPES))
+        for s in leaves.SHAPES:
+            self.assertEqual(by[s]["type"], "toggle", s)
+            self.assertEqual(by[s]["group"], leaves.SHAPES_GROUP, s)
+            self.assertEqual(by[s]["value"], s in ("maple", "japanese"), s)
+        self.assertEqual(len({by[s]["label"] for s in leaves.SHAPES}), len(leaves.SHAPES))
+        p = effects.clean_params("leaves", {s: "true" if s == "oak" else 0 for s in leaves.SHAPES})
+        self.assertEqual([s for s in leaves.SHAPES if p[s]], ["oak"])
 
     def test_looks_and_seasons(self):
-        """Each look sets every setting but the kind of leaf and its colours ("Lá rơi vừa" is the defaults); each
-        season sets how many leaves are red, yellow and green; all to values the page accepts."""
+        """Each "Kiểu lá rơi" sets how the leaves fall, how many and how big ("Lá rơi vừa" is the defaults), not
+        which shapes, their colours or the light; each season sets how many leaves are red, yellow and green; all
+        to values the page accepts."""
         by = {p["key"]: p for p in leaves.SCHEMA["params"]}
         self.assertIs(by["look"]["presets"], leaves.LOOKS)
         self.assertIs(by["season"]["presets"], leaves.SEASONS)
         self.assertEqual({o["value"] for o in by["look"]["options"]}, set(leaves.LOOKS))
         self.assertEqual({o["value"] for o in by["season"]["options"]}, set(leaves.SEASONS))
-        keys = set(by) - {"look", "shape", "season", "red", "yellow", "green"}
+        keys = set(by) - {"scene", "look", "season", "red", "yellow", "green", "glow"} - set(leaves.SHAPES)
         defaults = effects.defaults("leaves")
         for name, preset in leaves.LOOKS.items():
             self.assertEqual(set(preset), keys, name)
@@ -165,39 +206,56 @@ class Settings(unittest.TestCase):
             self.assertEqual(set(preset), {"red", "yellow", "green"}, name)
         self.assertEqual(leaves.SEASONS[defaults["season"]],
                          {k: defaults[k] for k in ("red", "yellow", "green")})  # (the default season is the default)
-        self.assertEqual(defaults["shape"], "maple")
 
-    def test_old_clips_still_load(self):
-        """A clip saved by the first leaves effect gets every setting of this one, meaning what it meant: its kind of
-        leaves and colours, about as big and as many leaves."""
-        p = effects.clean_params("leaves", OLD)
-        self.assertEqual(set(p), set(effects.defaults("leaves")))
-        self.assertEqual((p["shape"], p["season"], p["red"], p["yellow"], p["green"]),
-                         ("mixed", "redgold", 50, 50, 0))
-        for key in ("speed", "wind", "spin", "sway", "depth", "blur", "opacity"):
-            self.assertEqual(p[key], OLD[key], key)
-        self.assertLess(abs(leaves.size_px(p["small"]) - 0.7 * 48.1), 3)
-        self.assertLess(abs(leaves.size_px(p["big"]) - 1.8 * 48.1), 6)
-        self.assertEqual(p["amount"], 15)  # (as many leaves in the frame as before)
-        self.assertEqual(effects.clean_params("leaves", p), p)  # (cleaned again: as it is)
-        for style, (shape, season) in (("green", ("oval", "summer")), ("petal", ("petal", "mixed"))):
-            q = effects.clean_params("leaves", dict(OLD, style=style))
-            self.assertEqual((q["shape"], q["season"]), (shape, season))
-        self.assertEqual(effects.clean_params("leaves", {"size": "junk", "amount": float("nan")})["amount"],
-                         effects.defaults("leaves")["amount"])
-        # the first leaves effect showed about 13.5 leaves in a 1080p frame with these settings, their area about
-        # 2830 px² each on average (measured with it)
-        counts, areas = [], []
-        for seed in (3, 4, 5):
-            old = effects.make("leaves", OLD, seed, 720, 24, 1920, 1080)
-            for t in range(0, 720, 12):
-                x, y, on = old.at(t)[:3]
-                seen = on & (x >= 0) & (x < 1920) & (y >= 0) & (y < 1080)
-                counts.append(seen.sum())
-                areas.append(old.size[seen] ** 2)
-        self.assertLess(abs(np.mean(counts) / 13.5 - 1), 0.15, np.mean(counts))
-        self.assertLess(abs(np.mean(np.concatenate(areas)) / 2830 - 1), 0.2)
-        self.assertGreater(np.abs(frame(old, 10, 640, 360) - 0.3).max(), 0.1)
+    def test_kinds_of_leaves_at_once(self):
+        """Each "Loại lá" ticks its shapes (and only those) and sets its season's colours (cherry petals leave the
+        colours as they are); the defaults are "Rừng phong"; the page follows the ticked shapes back to the "Loại
+        lá" (match), or to "Tự chọn" when none has them."""
+        by = {p["key"]: p for p in leaves.SCHEMA["params"]}
+        scene = by["scene"]
+        self.assertIs(scene["presets"], leaves.SCENES)
+        self.assertEqual(scene["match"], list(leaves.SHAPES))
+        values = [o["value"] for o in scene["options"]]
+        self.assertEqual(values, list(leaves.SCENES) + [leaves.CUSTOM])
+        self.assertNotIn(leaves.CUSTOM, scene["presets"])
+        defaults = effects.defaults("leaves")
+        self.assertEqual(defaults["scene"], "maple")
+        self.assertEqual(leaves.scene_of(defaults), "maple")
+        names = {}
+        for name, preset in leaves.SCENES.items():
+            p = effects.clean_params("leaves", {**defaults, **preset})
+            self.assertEqual(p, {**defaults, **preset}, name)
+            ticked = tuple(s for s in leaves.SHAPES if p[s])
+            self.assertTrue(ticked, name)
+            names[ticked] = name
+            self.assertEqual(leaves.scene_of(p), name)
+            if "petal" not in ticked:
+                self.assertIn(preset["season"], leaves.SEASONS, name)
+                self.assertEqual({k: preset[k] for k in ("red", "yellow", "green")}, leaves.SEASONS[preset["season"]])
+        self.assertEqual(len(names), len(leaves.SCENES))  # (no two with the same shapes)
+        self.assertEqual(leaves.SCENES["almond"]["season"], "red")  # (a bàng tree in winter: red)
+        self.assertEqual(leaves.SCENES["ginkgo"]["season"], "gold")
+        self.assertEqual(leaves.scene_of(only("oak", "willow")), leaves.CUSTOM)
+        labels = {o["value"]: o["label"] for o in scene["options"]}
+        self.assertIn("bàng", labels["almond"].lower())
+        self.assertIn("anh đào", labels["petal"].lower())
+
+    def test_shapes_ticked(self):
+        """The leaves are the shapes ticked, in about equal shares; none ticked: maple leaves; ticking another shape
+        leaves which shape every other leaf is."""
+        for s in leaves.SHAPES:
+            fx = effects.make("leaves", only(s, amount=100), 3, 144, 24, W, H)
+            self.assertEqual(set(fx.kind.tolist()), {s}, s)
+        fx = effects.make("leaves", only(amount=100), 3, 144, 24, W, H)
+        self.assertEqual(set(fx.kind.tolist()), {"maple"})
+        for shapes in (("maple", "japanese"), ("ginkgo", "oak", "almond"), leaves.SHAPES):
+            fx = effects.make("leaves", only(*shapes, amount=100), 3, 720, 24, 1920, 1080)
+            self.assertEqual(set(fx.kind.tolist()), set(shapes))
+            share = np.array([(fx.kind == s).mean() for s in shapes])
+            self.assertLess(float(np.abs(share - 1 / len(shapes)).max()), 0.35 / len(shapes) + 0.03, (shapes, share))
+        self.assertGreater(fx.n, 100)
+        again = effects.make("leaves", only(*leaves.SHAPES, amount=100), 3, 720, 24, 1920, 1080)
+        self.assertTrue(np.array_equal(fx.kind, again.kind))  # (the same seed: the same leaves)
 
     def test_colour_mix(self):
         """How many leaves are red, yellow and green follows the three sliders; the same leaves keep their places
@@ -225,30 +283,45 @@ class Settings(unittest.TestCase):
         self.assertGreater((early.palette[green] == 3).mean(), 0.25)
         self.assertTrue((early.palette[~green] == early.family[~green]).all())
 
-    def test_kinds_of_leaf(self):
-        for shape, kinds in (("maple", {"maple"}), ("oval", {"oval"}), ("petal", {"petal"}),
-                             ("mixed", {"maple", "oval"})):
-            fx = effects.make("leaves", {"shape": shape, "amount": 100}, 3, 144, 24, W, H)
-            self.assertEqual(set(fx.kind), kinds, shape)
-        mixed = effects.make("leaves", {"shape": "mixed", "amount": 100}, 3, 144, 24, 1920, 1080)
-        self.assertGreater((mixed.kind == "maple").mean(), 0.5)
+    def test_each_shape_as_big_as_it_is(self):
+        """Each shape keeps its size beside the others (a bàng or a maple leaf big, a birch or willow leaf small,
+        a ginkgo leaf between), all between "Lá nhỏ nhất" and "Lá to nhất"; the biggest shape ticked reaches "Lá to
+        nhất", even on its own."""
+        lo, hi = leaves.size_px(22), leaves.size_px(82)
+        rel = leaves.REL
+        for big in ("almond", "maple", "oak"):
+            for small in ("birch", "willow", "petal"):
+                self.assertGreater(rel[big], 1.3 * rel[small], (big, small))
+        self.assertGreater(rel["ginkgo"], 1.1 * rel["birch"])
+        self.assertLess(rel["ginkgo"], 0.8 * rel["maple"])
+        self.assertEqual(max(rel, key=rel.get), "almond")
+        fx = effects.make("leaves", only(*leaves.SHAPES, amount=100), 3, 720, 24, 1920, 1080)
+        self.assertTrue((fx.size >= lo - 1e-6).all() and (fx.size <= hi + 1e-6).all())
+        for s in leaves.SHAPES:
+            ceiling = max(lo, hi * rel[s] / rel["almond"])
+            mine = fx.size[fx.kind == s]
+            self.assertTrue((mine <= ceiling + 1e-6).all(), s)
+            self.assertGreater(float(mine.max()), 0.75 * ceiling, s)  # (its nearest about as big as it gets)
+        self.assertGreater(float(fx.size[fx.kind == "almond"].max()), 0.9 * hi)
+        for s in leaves.SHAPES:  # alone: the whole range (petals: smaller than leaves, as they always were)
+            alone = effects.make("leaves", only(s, amount=100), 3, 720, 24, 1920, 1080)
+            want = hi * (leaves.REL["petal"] / leaves.REL["maple"] if s == "petal" else 1.0)
+            self.assertLess(abs(float(alone.size.max()) / want - 1), 0.08, s)
 
     def test_big_and_small_leaves(self):
-        """The leaves' sizes span "Lá nhỏ nhất" to "Lá to nhất" (either way round), far ones small, near ones big;
-        petals are smaller than leaves."""
+        """The leaves' sizes span "Lá nhỏ nhất" to "Lá to nhất" (either way round), far ones small, near ones big."""
         for big, small in ((78, 25), (60, 10), (20, 90)):
             fx = effects.make("leaves", {"big": big, "small": small, "amount": 60}, 3, 720, 24, 1920, 1080)
             lo, hi = sorted((leaves.size_px(small), leaves.size_px(big)))
+            maple = fx.kind == "maple"
             self.assertLess(abs(fx.size.min() / lo - 1), 0.08, (big, small))
-            self.assertLess(abs(fx.size.max() / hi - 1), 0.08, (big, small))
+            self.assertLess(abs(fx.size[maple].max() / hi - 1), 0.08, (big, small))
             self.assertGreater(np.corrcoef(fx.z, np.log(fx.size))[0, 1], 0.6)
             if hi / lo > 2:  # big and small at once: a few really big, more small ones
                 self.assertGreater((fx.size > lo * (hi / lo) ** 0.75).sum(), 2)
                 self.assertGreater((fx.size < lo * (hi / lo) ** 0.35).sum(), fx.n // 4)
         same = effects.make("leaves", {"big": 50, "small": 50}, 3, 144, 24, W, H)
         self.assertLess(float(np.ptp(same.size)), 1e-6)
-        petals = effects.make("leaves", {"shape": "petal"}, 3, 144, 24, W, H)
-        self.assertAlmostEqual(float(petals.size.max()), leaves.size_px(78) * leaves.PETAL, delta=8)
         for v in (0, 25, 50, 100):
             self.assertAlmostEqual(leaves.size_slider(leaves.size_px(v)), v)
 
@@ -266,6 +339,63 @@ class Settings(unittest.TestCase):
             self.assertGreater((s >= 0.8 * leaves.size_px(leaves.LOOKS[name]["big"])).sum(), 0, name)
             self.assertGreaterEqual(leaves.LOOKS[name]["big"], 82, name)
 
+    def test_old_clips_still_load(self):
+        """A clip saved by the first leaves effect gets every setting of this one, meaning what it meant: its kind of
+        leaves (maple leaves and ordinary ones: now both maples and birch) and colours, about as big and as many
+        leaves."""
+        p = effects.clean_params("leaves", OLD)
+        self.assertEqual(set(p), set(effects.defaults("leaves")))
+        self.assertEqual([s for s in leaves.SHAPES if p[s]], ["maple", "japanese", "birch"])
+        self.assertEqual((p["scene"], p["season"], p["red"], p["yellow"], p["green"]),
+                         (leaves.CUSTOM, "redgold", 50, 50, 0))
+        for key in ("speed", "wind", "spin", "sway", "depth", "blur", "opacity"):
+            self.assertEqual(p[key], OLD[key], key)
+        self.assertLess(abs(leaves.size_px(p["small"]) - 0.7 * 48.1), 3)
+        self.assertLess(abs(leaves.size_px(p["big"]) - 1.8 * 48.1), 6)
+        self.assertEqual(p["amount"], 15)  # (as many leaves in the frame as before)
+        self.assertEqual(effects.clean_params("leaves", p), p)  # (cleaned again: as it is)
+        for style, (shapes, season) in (("green", (("birch",), "summer")), ("petal", (("petal",), "mixed"))):
+            q = effects.clean_params("leaves", dict(OLD, style=style))
+            self.assertEqual((tuple(s for s in leaves.SHAPES if q[s]), q["season"]), (shapes, season))
+        self.assertEqual(effects.clean_params("leaves", {"size": "junk", "amount": float("nan")})["amount"],
+                         effects.defaults("leaves")["amount"])
+        # the first leaves effect showed about 13.5 leaves in a 1080p frame with these settings, its maple leaves'
+        # area about 2830 px² each on average (measured with it)
+        counts, areas = [], []
+        for seed in (3, 4, 5):
+            old = effects.make("leaves", OLD, seed, 720, 24, 1920, 1080)
+            for t in range(0, 720, 12):
+                x, y, on = old.at(t)[:3]
+                seen = on & (x >= 0) & (x < 1920) & (y >= 0) & (y < 1080)
+                counts.append(seen.sum())
+                areas.append(old.size[seen & (old.kind == "maple")] ** 2)
+        self.assertLess(abs(np.mean(counts) / 13.5 - 1), 0.15, np.mean(counts))
+        self.assertLess(abs(np.mean(np.concatenate(areas)) / 2830 - 1), 0.2)
+        self.assertGreater(np.abs(frame(old, 10, 640, 360) - 0.3).max(), 0.1)
+
+    def test_remade_clips_still_load(self):
+        """A clip saved by the remake (one kind of leaf: "shape") gets the shapes that kind was: the same kind of
+        leaves keep falling, every other setting as it was."""
+        for shape, shapes in (("maple", ("maple", "japanese")), ("mixed", ("maple", "japanese", "birch")),
+                              ("oval", ("birch",)), ("petal", ("petal",)), ("junk", ("maple", "japanese")),
+                              (["x"], ("maple", "japanese"))):
+            p = effects.clean_params("leaves", dict(REMAKE, shape=shape))
+            self.assertEqual(tuple(s for s in leaves.SHAPES if p[s]), shapes, shape)
+            self.assertNotIn("shape", p)
+            self.assertEqual(p["scene"], leaves.scene_of(p), shape)
+            for key, v in REMAKE.items():
+                if key != "shape":
+                    self.assertEqual(p[key], v, (shape, key))
+        self.assertEqual(effects.clean_params("leaves", dict(REMAKE, shape="maple"))["scene"], "maple")
+        self.assertEqual(effects.clean_params("leaves", dict(REMAKE, shape="petal"))["scene"], "petal")
+        # ticked shapes win over an old kind saved beside them
+        p = effects.clean_params("leaves", dict(only("oak"), shape="petal"))
+        self.assertEqual([s for s in leaves.SHAPES if p[s]], ["oak"])
+        # the old maple leaves fall as before: both kinds of maple, the biggest as big as "Lá to nhất"
+        old = effects.make("leaves", dict(REMAKE, amount=100), 7, 720, 24, 1920, 1080)
+        self.assertEqual(set(old.kind.tolist()), {"maple", "japanese"})
+        self.assertLess(abs(float(old.size[old.kind == "maple"].max()) / leaves.size_px(82) - 1), 0.08)
+
     def test_alike_at_every_size(self):
         """Sizes and paths are worked out in a 1080-line frame: the preview, the video and 4K show the same leaves
         in the same places (in frame heights); a small frame draws them from smaller pictures."""
@@ -276,9 +406,13 @@ class Settings(unittest.TestCase):
             self.assertLess(float(np.abs(xa / made[0].h - xb / fx.h).max()), 1e-9)
             self.assertLess(float(np.abs(ya / made[0].h - yb / fx.h).max()), 1e-9)
             self.assertTrue(np.array_equal(made[0].family, fx.family))
-        self.assertEqual([fx.master for fx in made], [72, 288, 288])
-        self.assertEqual(effects.make("leaves", {"big": 100}, 2, 144, 24, 1280, 720).master, 288)
-        self.assertEqual(effects.make("leaves", {"big": 70}, 2, 144, 24, 1280, 720).master, 144)
+            self.assertTrue(np.array_equal(made[0].kind, fx.kind))
+        self.assertEqual([int(fx.master.max()) for fx in made], [72, 288, 288])
+        self.assertEqual(int(effects.make("leaves", {"big": 100}, 2, 144, 24, 1280, 720).master.max()), 288)
+        self.assertEqual(int(effects.make("leaves", {"big": 70}, 2, 144, 24, 1280, 720).master.max()), 144)
+        fx = made[1]  # (each leaf's pictures as large as it: the small far ones small)
+        self.assertTrue(((fx.master >= 288) == (0.7 * 144 < 1.1 * fx.longest)).all())
+        self.assertGreater((fx.master <= 144).mean(), 0.5)
 
     def test_same_seed_same_picture(self):
         a = effects.make("leaves", {}, 9, 144, 24, W, H)
@@ -288,6 +422,10 @@ class Settings(unittest.TestCase):
         self.assertFalse(np.array_equal(frame(a, 17), frame(c, 17)))
         leaves._SPRITES.clear()  # (made again: the same pictures)
         self.assertTrue(np.array_equal(frame(a, 17), frame(b, 17)))
+        d = effects.make("leaves", only(*leaves.SHAPES), 9, 144, 24, 1280, 720)
+        first = frame(d, 30, 1280, 720)
+        leaves._SPRITES.clear()
+        self.assertTrue(np.array_equal(first, frame(d, 30, 1280, 720)))
 
     def test_nothing_outside_the_area(self):
         mask = np.zeros((H, W), np.float32)
@@ -297,11 +435,27 @@ class Settings(unittest.TestCase):
         self.assertTrue(np.array_equal(pic[:, :W // 2], np.full((H, W // 2, 3), 0.3, np.float32)))
         self.assertGreater(float(np.abs(pic[:, W // 2:] - 0.3).max()), 0.1)
 
+    def test_preview_clip_is_sharper(self):
+        """The leaves' preview clip is 960 wide (small leaves blur at 640); every other effect's is as it was, its
+        name too (no preview made again for them)."""
+        info = {"w": 1920, "h": 1080, "fps": "30", "frames": 300, "seconds": 10.0, "file": "input.mp4"}
+        self.assertEqual(engine.fx_clip_frame(info, "leaves"), (960, 540))
+        self.assertEqual(engine.fx_clip_frame(dict(info, w=1080, h=1920), "leaves"), (960, 1706))
+        self.assertEqual(engine.fx_clip_frame(dict(info, w=640, h=360), "leaves"), (640, 360))  # (never larger)
+        for kind in ("snow", "rain", "glow", "glass"):
+            self.assertEqual(engine.fx_clip_frame(info, kind), (640, 360), kind)
+        project = {"id": "names", "video": info, "length": 30, "layers": []}
+        names = {"snow": "fx-2a4ed27c4984.webm", "rain": "fx-375813166d5d.webm", "glow": "fx-15f81175c33d.mp4",
+                 "glass": "fx-c4e2c2d87bcc.webm", "steam": "fx-3f939fe36c86.webm", "candle": "fx-273a3828f2a8.webm"}
+        for kind, name in names.items():  # (measured before the leaves' shapes)
+            self.assertEqual(engine.fx_clip_name(project, {"id": "x1", "kind": kind, "params": {}, "seed": 5}), name)
+        self.assertNotEqual(engine.fx_clip_name(project, {"id": "x1", "kind": "leaves", "params": {}, "seed": 5}),
+                            "fx-203e86c65a77.webm")
 
-def solidity(sprite):
-    """How much of its convex hull a leaf's picture fills (deep sinuses between lobes: much less than 1)."""
-    a = np.asarray(sprite.front[0], np.float32)[..., 3] / 255
-    ys, xs = np.nonzero(a > 0.5)
+
+def solidity(inside):
+    """How much of its convex hull a leaf's blade fills (deep sinuses between lobes: much less than 1)."""
+    ys, xs = np.nonzero(inside)
     pts = sorted(set(zip(xs.tolist(), ys.tolist())))
 
     def half(points):
@@ -314,107 +468,235 @@ def solidity(sprite):
         return out
     hull = half(pts)[:-1] + half(pts[::-1])[:-1]
     area = 0.5 * abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(hull, hull[1:] + hull[:1])))
-    return float((a > 0.5).sum()) / area
+    return float(inside.sum()) / area
+
+
+def blade(kind, family, v, n=200):
+    """A leaf design's blade (no stem) on a grid of leaf units, y up: inside (bool), and the grid."""
+    design, _ = leafshapes.design_of(kind, family, v)
+    x0, y0, x1, y1 = leafshapes._bounds(design)
+    gx, gy = np.meshgrid(np.linspace(x0, x1, n, dtype=np.float32), np.linspace(y1, y0, n, dtype=np.float32))
+    return leafshapes._blade(design, gx, gy)[0] < 0, gx, gy
+
+
+def hsv(img):
+    a = np.asarray(img, np.float32) / 255
+    m = a[..., 3] > 0.5
+    rgb = a[..., :3][m] / a[..., 3][m][:, None]
+    hi, lo = rgb.max(1), rgb.min(1)
+    d = np.maximum(hi - lo, 1e-6)
+    r, g, b = rgb.T
+    h = np.where(hi == r, ((g - b) / d) % 6, np.where(hi == g, (b - r) / d + 2, (r - g) / d + 4)) * 60
+    return h, (hi - lo) / np.maximum(hi, 1e-6), rgb @ np.array([0.2126, 0.7152, 0.0722])
 
 
 class Pictures(unittest.TestCase):
-    def test_maple_leaves(self):
-        """A maple leaf: one piece with deep sinuses between its lobes (much less of its outline filled than an
-        ordinary leaf's), coloured as its colour, a duller and lighter back."""
-        hues = {"red": lambda c: c[0] > 1.6 * c[1] and c[0] > 2 * c[2],
-                "yellow": lambda c: c[0] > 0.7 and c[1] > 0.45 and c[2] < 0.5 * c[1],
-                "green": lambda c: c[1] > c[0] and c[1] > 1.3 * c[2]}
-        for family, hue in hues.items():
-            for v in range(leaves.VARIANTS["maple"]):
-                s = leaves.make_sprite("maple", family, v, 144)
-                a = np.asarray(s.front[0], np.float32)[..., 3] / 255
-                self.assertTrue(hue(s.rgb), (family, v, s.rgb))
-                self.assertLess(solidity(s), 0.82, (family, v))  # (an ordinary leaf: about 0.94)
-                front = np.asarray(s.front[0], np.float32)[..., :3].sum(axis=(0, 1)) / max(a.sum(), 1)
-                back = np.asarray(s.back[0], np.float32)[..., :3].sum(axis=(0, 1)) / max(a.sum(), 1)
-                self.assertGreater(back.mean(), front.mean(), (family, v))  # lighter
-                self.assertLess(np.ptp(back), np.ptp(front) + 1, (family, v))  # duller
-        for v in range(leaves.VARIANTS["oval"]):
-            self.assertGreater(solidity(leaves.make_sprite("oval", "green", v, 144)), 0.88, v)
+    def test_each_shape_looks_like_itself(self):
+        """Measured on the blades: maples cut deep between their lobes (a Japanese maple's deepest), an oak's lobes
+        cut in too; the others whole; a willow leaf long and narrow, a bàng leaf longer than wide and widest beyond
+        its middle, a birch or heart-shaped leaf about as wide as long, a ginkgo fan wider than long; a heart-shaped
+        leaf notched at its stem, a ginkgo often notched at its edge."""
+        def ratio(inside, gx, gy):  # length (along y) / width (along x) of the blade
+            ys, xs = gy[inside], gx[inside]
+            return float(np.ptp(ys) / np.ptp(xs))
+        maple = []
+        for v in range(4):
+            sol = {k: solidity(blade(k, "green", v)[0]) for k in leafshapes.SHAPES}
+            self.assertLess(sol["japanese"], 0.68, v)
+            self.assertLess(sol["maple"], 0.9, v)
+            maple.append(sol["maple"])
+            self.assertLess(sol["oak"], 0.85, v)
+            for k in ("ginkgo", "almond", "birch", "willow", "heart", "petal"):
+                self.assertGreater(sol[k], 0.9, (k, v, sol[k]))
+            r = {k: ratio(*blade(k, "green", v)) for k in ("willow", "almond", "birch", "heart", "ginkgo")}
+            self.assertGreater(r["willow"], 4.5, v)
+            self.assertTrue(1.45 < r["almond"] < 2.3, (v, r["almond"]))
+            self.assertTrue(0.95 < r["birch"] < 1.6, (v, r["birch"]))
+            self.assertTrue(0.9 < r["heart"] < 1.4, (v, r["heart"]))
+            self.assertLess(r["ginkgo"], 0.85, v)
+            inside, gx, gy = blade("almond", "green", v)
+            rows = inside.sum(axis=1)  # (width at each height, top row first)
+            widest_y = gy[np.argmax(rows), 0]
+            self.assertGreater(widest_y, 0.55, v)  # (obovate: widest near its end)
+            inside, gx, gy = blade("heart", "green", v, 300)
+            col = inside[:, np.argmin(np.abs(gx[0] - 0.0))]  # down the middle: the notch reaches up to the stem
+            low = gy[:, 0][np.flatnonzero(col)].min()
+            side = inside[:, np.argmin(np.abs(gx[0] - 0.2))]
+            self.assertGreater(low - gy[:, 0][np.flatnonzero(side)].min(), 0.05, v)
+        self.assertLess(np.mean(maple), 0.83)
+        notched = 0
+        for v in range(6):
+            design, _ = leafshapes.design_of("ginkgo", "yellow", v)
+            notched += design["notch"] > 0.08
+        self.assertGreaterEqual(notched, 2)
 
     def test_maple_leaves_are_alike_on_both_sides(self):
         """A maple leaf's two halves mirror each other (each a little different, nothing missing on one side)."""
         xs = np.linspace(-1.4, 1.4, 320, dtype=np.float32)
         ys = np.linspace(1.3, -0.7, 240, dtype=np.float32)
         gx, gy = np.meshgrid(xs, ys)
-        for palette in leaves.PALETTES:
-            for v in range(leaves.VARIANTS["maple"]):
-                rng = np.random.default_rng([0, leaves.PALETTES.index(palette), v, 4111])  # (as make_sprite)
-                blade = leaves._blade(leaves.maple_design(rng), gx, gy)[0] < 0
-                mirror = blade[:, ::-1]
-                self.assertGreaterEqual((blade & mirror).sum() / (blade | mirror).sum(), 0.9, (palette, v))
+        for kind in ("maple", "japanese"):
+            for palette in leaves.PALETTES:
+                for v in range(leaves.VARIANTS[kind]):
+                    design, _ = leafshapes.design_of(kind, palette, v)
+                    inside = leafshapes._blade(design, gx, gy)[0] < 0
+                    mirror = inside[:, ::-1]
+                    least = 0.9 if kind == "maple" else 0.85  # (a Japanese maple's narrow lobes: a little less)
+                    self.assertGreaterEqual((inside & mirror).sum() / (inside | mirror).sum(), least,
+                                            (kind, palette, v))
 
-    def test_colours(self):
-        """Red leaves are red (scarlet, crimson: not orange); green ones turning are warmer than green ones; a
-        petal is pink on both sides, its back much like its front."""
-        def hsv(img):
-            a = np.asarray(img, np.float32) / 255
-            m = a[..., 3] > 0.5
-            rgb = a[..., :3][m] / a[..., 3][m][:, None]
-            hi, lo = rgb.max(1), rgb.min(1)
-            d = np.maximum(hi - lo, 1e-6)
-            r, g, b = rgb.T
-            h = np.where(hi == r, ((g - b) / d) % 6, np.where(hi == g, (b - r) / d + 2, (r - g) / d + 4)) * 60
-            return h, (hi - lo) / np.maximum(hi, 1e-6), rgb @ np.array([0.2126, 0.7152, 0.0722])
-        hues = np.concatenate([hsv(leaves.make_sprite("maple", "red", v, 144).front[0])[0]
-                               for v in range(leaves.VARIANTS["maple"])])
-        self.assertGreater(((hues <= 8) | (hues >= 340)).mean(), 0.6)
-        warmth = {p: np.mean([leaves.make_sprite("maple", p, v, 72).rgb[0] / leaves.make_sprite("maple", p, v, 72).rgb[1]
-                              for v in range(leaves.VARIANTS["maple"])]) for p in ("green", "turning")}
-        self.assertGreater(warmth["turning"], warmth["green"] + 0.15)
+    def test_natural_colours(self):
+        """Each shape in its own colours: red maples red (not orange), a ginkgo's "red" a deep golden orange (it
+        never goes red), an oak's red russet brown, a bàng leaf's red to orange; yellows yellow, greens green; a
+        willow's green yellowish and its back silvery; turning leaves warmer than green ones; a petal pink on both
+        sides."""
+        def mean(kind, family, view="front", size=72):
+            out = []
+            for v in range(3):
+                h, s, l = hsv(getattr(leafshapes.make_sprite(kind, family, v, size), view)[0])
+                out.append((np.median(h), s.mean(), l.mean()))
+            return np.array(out).mean(axis=0)
+
+        def reds(kind, most):  # (hues round 0: their share near red)
+            h = np.concatenate([hsv(leafshapes.make_sprite(kind, "red", v, 72).front[0])[0] for v in range(3)])
+            return ((h <= most) | (h >= 340)).mean()
+        for kind in ("maple", "japanese"):
+            self.assertGreater(reds(kind, 12), 0.6, kind)
+            self.assertGreater(mean(kind, "red")[1], 0.6, kind)
+        self.assertGreater(reds("almond", 25), 0.7)
+        h, _, _ = mean("ginkgo", "red")
+        self.assertTrue(24 < h < 45, h)  # (golden orange)
+        h, s, l = mean("oak", "red")
+        self.assertTrue(10 < h < 32 and l < 0.4, (h, l))  # (russet: brown-red, dark)
+        for kind in leafshapes.SHAPES[:-1]:
+            h, s, l = mean(kind, "yellow")
+            self.assertTrue(30 < h < 62, (kind, h))
+            h, s, l = mean(kind, "green")
+            self.assertTrue(62 < h < 130, (kind, h))
+            rgb = {p: [leafshapes.make_sprite(kind, p, v, 72).rgb for v in range(3)] for p in ("green", "turning")}
+            warm = {p: np.mean([c[0] / c[1] for c in cs]) for p, cs in rgb.items()}
+            self.assertGreater(warm["turning"], warm["green"] + 0.1, kind)
+        hw, _, _ = mean("willow", "green")
+        hm, _, _ = mean("maple", "green")
+        self.assertLess(hw, hm)  # (a willow's green: more yellow)
+        _, sat_back, l_back = mean("willow", "green", "back")
+        _, sat_front, l_front = mean("willow", "green", "front")
+        self.assertLess(sat_back, 0.7 * sat_front)
+        self.assertGreater(l_back, l_front + 0.1)
         for v in range(leaves.VARIANTS["petal"]):
-            s = leaves.make_sprite("petal", "red", v, 144)
+            s = leafshapes.make_sprite("petal", "red", v, 144)
             (hf, sf, lf), (_, sb, lb) = hsv(s.front[0]), hsv(s.back[0])
             self.assertGreater(sf.mean(), 0.15, v)
             self.assertGreater(sb.mean(), 0.15, v)
             self.assertLess(abs(lb.mean() / lf.mean() - 1), 0.05, v)
             self.assertTrue(((hf > 300) | (hf < 15)).mean() > 0.8, v)  # (pink)
 
+    def test_colour_varies_across_a_leaf(self):
+        """No flat fills: across a leaf its colour and lightness vary (more than its grain alone would)."""
+        for kind in leafshapes.SHAPES:
+            for family in ("red", "yellow", "green"):
+                h, s, l = hsv(leafshapes.make_sprite(kind, family, 1, 144).front[0])
+                self.assertGreater(float(np.percentile(l, 90) - np.percentile(l, 10)), 0.06, (kind, family))
+
+    def test_back_and_lit_from_behind(self):
+        """The back is duller and lighter than the front (veins standing out); lit from behind, a leaf glows:
+        brighter and warmer than its front, its veins darker than the blade beside them."""
+        for kind in leafshapes.SHAPES[:-1]:
+            for family in ("red", "yellow", "green"):
+                spr = leafshapes.make_sprite(kind, family, 0, 144)
+                a = np.asarray(spr.front[0], np.float32)[..., 3] / 255
+                front, back, lit = (np.asarray(img[0], np.float32)[..., :3].sum(axis=(0, 1)) / max(a.sum(), 1)
+                                    for img in (spr.front, spr.back, spr.lit))
+                if kind != "ginkgo":  # (a ginkgo's back is much like its front)
+                    self.assertGreater(back.mean(), front.mean(), (kind, family))
+                luma = np.array([0.3, 0.55, 0.15])
+                self.assertGreater(lit @ luma, front @ luma + 4, (kind, family))  # (0..255)
+                self.assertGreater(lit[0] / max(lit[2], 1), front[0] / max(front[2], 1) * 0.98, (kind, family))
+        design, rng = leafshapes.design_of("maple", "yellow", 2)
+        spr = leafshapes.make_sprite("maple", "yellow", 2, 288)
+        main = _main_veins(design, 288)
+        lit = np.asarray(spr.lit[0], np.float32)[..., :3].sum(axis=2)
+        front = np.asarray(spr.front[0], np.float32)[..., :3].sum(axis=2)
+        near = (np.asarray(spr.front[0])[..., 3] > 250) & (main < 0.05)
+        on = main > 0.6
+        self.assertLess(lit[on].mean(), 0.85 * lit[near].mean())  # (lit: the veins dark)
+        self.assertGreater(front[on].mean(), 0.97 * front[near].mean())  # (in front: no darker than the blade)
+
     def test_every_design_differs(self):
         seen = set()
         for kind, count in leaves.VARIANTS.items():
             for v in range(count):
-                s = leaves.make_sprite(kind, "red", v, 72)
+                s = leafshapes.make_sprite(kind, "red", v, 72)
                 seen.add(np.asarray(s.front[0])[..., 3].tobytes())
         self.assertEqual(len(seen), sum(leaves.VARIANTS.values()))
 
+    def test_crisp_edges_no_halo(self):
+        """The edge is antialiased over about a pixel at every size (no hard steps, no smudge), and never brighter
+        than what it covers (premultiplied colour no more than its coverage: no light rim on a dark ground)."""
+        for kind in leafshapes.SHAPES:
+            spr = leafshapes.make_sprite(kind, "yellow", 0, 288)
+            for img in spr.front + spr.back + spr.lit:
+                a = np.asarray(img, np.int32)
+                self.assertTrue((a[..., :3] <= a[..., 3:4] + 1).all(), (kind, img.size))
+            a = np.asarray(spr.front[0], np.float32)[..., 3] / 255
+            part = ((a > 0.02) & (a < 0.9 * a.max())).sum()
+            edge = np.abs(np.diff(a > 0.5, axis=0)).sum() + np.abs(np.diff(a > 0.5, axis=1)).sum()
+            self.assertTrue(0.6 < part / edge < 2.6, (kind, part / edge))
+
     def test_pictures_kept_within_bounds(self):
-        """The pictures kept take a bounded share of memory, and every design at the largest size fits in it (they
-        are not made again and again while a video is made)."""
+        """The pictures kept take a bounded share of memory (the least recently used go first); one clip draws from
+        no more designs than fit in it at once, however many shapes are ticked (none is made again and again)."""
         leaves._SPRITES.clear()
+        most = leafshapes.MAX_BYTES
         try:
-            for kind, count in leaves.VARIANTS.items():
-                for family in leaves.FAMILIES:
-                    for v in range(count):
-                        leaves.sprite(kind, family, v, 288)
-            everything = len(leaves._SPRITES)
-            self.assertEqual(everything, sum(leaves.VARIANTS.values()) * 3 - 2 * leaves.VARIANTS["petal"])
-            for kind in ("maple", "oval"):
-                for v in range(leaves.VARIANTS[kind]):
-                    leaves.sprite(kind, "turning", v, 288)
-            everything = len(leaves._SPRITES)
-            size = sum(sum(len(img.tobytes()) for img in s.front + s.back) for s in leaves._SPRITES.values())
-            self.assertLessEqual(size, leaves.MAX_BYTES)
-            leaves.MAX_BYTES = 4 << 20  # (less room: the oldest go)
+            for params, size in ((only(*leaves.SHAPES, amount=100, big=100), (3840, 2160)), ({}, (1920, 1080)),
+                                 (dict(only(*leaves.SHAPES), **leaves.LOOKS["many"]), (1920, 1080))):
+                fx = effects.make("leaves", params, 3, 720, 24, *size)
+                pictures = set()
+                for t in range(0, 720, 3):
+                    for i, d in enumerate(fx.design(t)):
+                        pictures.add((fx.kind[i], fx.palette[i] if fx.kind[i] != "petal" else 0, d, fx.master[i]))
+                self.assertLessEqual(sum(leafshapes.sprite_bytes(m) for *_, m in pictures), 0.8 * most, params)
+                self.assertTrue((fx.count >= (2 if size[0] < 2000 else 1)).all(), params)  # (4K: their largest)
+            single = effects.make("leaves", only("maple", amount=100), 3, 720, 24, 1920, 1080)
+            self.assertTrue((single.count == leaves.VARIANTS["maple"]).all())  # (one shape: every design)
+            leafshapes.MAX_BYTES = 4 << 20  # (less room: the least recently used go)
             for v in range(30):
-                leaves.sprite("maple", leaves.FAMILIES[v % 3], v % leaves.VARIANTS["maple"], 144)
-            self.assertLessEqual(sum(s.bytes for s in leaves._SPRITES.values()), leaves.MAX_BYTES)
-            self.assertIn(("maple", "green", 9, 144), leaves._SPRITES)  # (the last one made)
+                leafshapes.sprite("maple", leaves.FAMILIES[v % 3], v % leaves.VARIANTS["maple"], 144)
+                leafshapes.sprite("maple", "red", 0, 144)  # (used again and again: kept)
+            self.assertLessEqual(sum(s.bytes for s in leaves._SPRITES.values()), leafshapes.MAX_BYTES)
+            self.assertIn(("maple", "red", 0, 144), leaves._SPRITES)
+            self.assertIn(("maple", leaves.FAMILIES[29 % 3], 29 % leaves.VARIANTS["maple"], 144), leaves._SPRITES)
+            self.assertEqual(leafshapes.sprite_bytes(288), leafshapes.make_sprite("oak", "red", 0).bytes)
         finally:
-            leaves.MAX_BYTES = 80 << 20
+            leafshapes.MAX_BYTES = most
             leaves._SPRITES.clear()
+
+
+def _main_veins(design, n):
+    """The main veins of a design as drawn into its pictures (n px), 0..1."""
+    x0, y0, x1, y1 = leafshapes._bounds(design)
+    n0 = 64
+    ppu0 = (n0 - 4) / max(x1 - x0, y1 - y0)
+    gx, gy = leafshapes._grid(n0, (x0 + x1) / 2, (y0 + y1) / 2, ppu0)
+    a0 = np.clip(0.5 - leafshapes._blade(design, gx, gy)[0] * ppu0, 0, 1)
+    cx, cy = float((a0 * gx).sum() / a0.sum()), float((a0 * gy).sum() / a0.sum())
+    half = max(cx - x0, x1 - cx, cy - y0, y1 - cy) + 0.02
+    ppu = (n / 2 - 2) / half
+    from PIL import Image, ImageDraw
+    big = n * leafshapes.SS
+    img = Image.new("L", (big, big), 0)
+    draw = ImageDraw.Draw(img)
+    for line in leafshapes._veins(design)[0]:
+        leafshapes._poly_stroke(draw, line, ppu * leafshapes.SS, cx - n / 2 / ppu, cy + n / 2 / ppu, 255)
+    return np.asarray(img.resize((n, n), Image.Resampling.BOX), np.float32) / 255
 
 
 class Drawing(unittest.TestCase):
     def test_long_side_never_enlarged(self):
         """Whatever its slant, a leaf is drawn from a picture at least as long as it is seen (no blur that comes and
         goes as it turns); seen edge-on it is a solid line, no gaps."""
-        spr = leaves.sprite("maple", "red", 0, 288)
+        spr = leafshapes.sprite("maple", "red", 0, 288)
         for length in (30, 70, 95, 150, 250):
             img = spr.image(False, length)
             self.assertGreaterEqual(spr.extent * img.size[0] / spr.size, min(length, spr.extent) - 1e-6)
@@ -433,56 +715,132 @@ class Drawing(unittest.TestCase):
         a, b = (np.asarray(p[0], np.float32) / 255 for p in (one, two))
         self.assertLess(float(np.abs(a - b).mean()), 0.01)
         self.assertLess(abs(float(a[..., 3].sum() / b[..., 3].sum()) - 1), 0.01)
+        # far leaves a little softer: drawn from a picture up to a third smaller, never more
+        img = spr.image(False, 60 * 0.72)
+        self.assertGreaterEqual(spr.extent * img.size[0] / spr.size, 60 * 0.72 - 1e-6)
+
+    def test_every_leaf_drawn_large_enough(self):
+        """Every leaf on screen comes from pictures at least as large as it is seen, whatever its shape (a ginkgo's
+        long stem or a willow's narrow blade do not shrink it)."""
+        fx = effects.make("leaves", only(*leaves.SHAPES, amount=100, big=100), 3, 144, 24, 1920, 1080)
+        for i in np.flatnonzero(fx.longest > 50):
+            for d in range(int(fx.count[i])):
+                spr = fx.picture(i, d)
+                self.assertTrue(spr.extent >= fx.longest[i] - 1e-6 or spr.size == leaves.MIPS[0], (fx.kind[i], d))
+
+    def test_light(self):
+        """Face on, a leaf is about as bright as its picture; turned to the light in front, brighter; turned away,
+        darker; the sun behind it makes it glow most when it faces the camera from in front of the sun, not at all
+        at "Nắng chiếu xuyên lá" 0."""
+        fx = effects.make("leaves", {"glow": 100, "amount": 100}, 3, 144, 24, 1920, 1080)
+        fx.chi = np.zeros(fx.n)
+        fx.sun = np.ones(fx.n)
+        fx.sheen = np.zeros(fx.n)
+        zero = np.zeros(fx.n)
+        lit, glow = fx.light(zero, zero)  # face on
+        self.assertTrue(np.allclose(lit, 0.75 + 0.35 * 0.72, atol=0.01))
+        self.assertTrue((glow > 0.5).all())
+        towards, _ = fx.light(zero, np.full(fx.n, -0.6))  # (its face turned up, to the light above)
+        away, glow_away = fx.light(zero, np.full(fx.n, 0.6))
+        self.assertTrue((towards > lit + 0.03).all() and (away < lit - 0.03).all())
+        edge_lit, edge_glow = fx.light(zero, np.full(fx.n, math.pi / 2))
+        self.assertTrue((edge_glow < glow).all())
+        turned, turned_glow = fx.light(zero, np.full(fx.n, math.pi))  # (its back seen: lit the same)
+        self.assertTrue(np.allclose(turned, lit) and np.allclose(turned_glow, glow))
+        none = effects.make("leaves", {"glow": 0, "amount": 100}, 3, 144, 24, 1920, 1080)
+        self.assertEqual(float(np.abs(none.light(zero, zero)[1]).max()), 0.0)
+
+    def test_backlight_makes_leaves_glow(self):
+        """At "Nắng chiếu xuyên lá" 100 the leaves are brighter and warmer on the whole than at 0."""
+        a = effects.make("leaves", {"glow": 0, "amount": 100}, 3, 144, 24, 640, 360)
+        b = effects.make("leaves", {"glow": 100, "amount": 100}, 3, 144, 24, 640, 360)
+        pa, pb = frame(a, 20, 640, 360, base=0.0), frame(b, 20, 640, 360, base=0.0)
+        self.assertGreater(pb.sum(), 1.05 * pa.sum())
+        self.assertGreater(pb[..., 0].sum() / pb[..., 2].sum(), pa[..., 0].sum() / pa[..., 2].sum())
 
     def test_smear(self):
         """Motion blur spreads a leaf evenly along the way it moves: nothing lost, its middle where it was, as long
-        as the way; a long smear costs about what a short one does."""
-        arr = np.zeros((40, 30, 4), np.float32)
-        arr[15:25, 10:20] = 1.0
-        for dx, dy in ((0, 12), (5, 20), (-30, 8), (17.5, -17.2), (0.8, 0.9)):
-            out, x0, y0 = leaves.smear(arr, dx, dy)
-            a = out[..., 3]
-            self.assertAlmostEqual(float(a.sum()), 100.0, 2)
+        as the way, its edges along the way smooth (no zipper); a long smear costs about what a short one does."""
+        arr = np.zeros((40, 30, 4), np.uint8)
+        arr[15:25, 10:20] = 255
+        img = Image.fromarray(arr, "RGBa")
+        for dx, dy in ((0, 12), (5, 20), (-30, 8), (17.5, -17.2), (0.8, 0.9), (9.3, 21.7)):
+            out, x0, y0 = leaves.smear(img, dx, dy)
+            a = np.asarray(out, np.float32)[..., 3] / 255
+            self.assertLess(abs(float(a.sum()) / 100.0 - 1), 0.02, (dx, dy))
             h, w = a.shape
             cx = float((a * np.arange(w)).sum() / a.sum()) + x0
             cy = float((a * np.arange(h)[:, None]).sum() / a.sum()) + y0
-            self.assertLess(abs(cx - 14.5) + abs(cy - 19.5), 0.1, (dx, dy))
-            ys, xs = np.nonzero(a > 1e-4)
+            self.assertLess(abs(cx - 14.5) + abs(cy - 19.5), 0.15, (dx, dy))
+            ys, xs = np.nonzero(a > 0.004)
             self.assertLess(abs(np.ptp(xs) + 1 - 10 - abs(dx)) if abs(dx) > abs(dy) else
                             abs(np.ptp(ys) + 1 - 10 - abs(dy)), 3, (dx, dy))
-        big = np.random.default_rng(1).random((200, 200, 4)).astype(np.float32)
+        # a disc moving along a slant: as the many copies of it along the way, each moved by a fraction of a pixel,
+        # would make it (whole-pixel shears were up to 0.24 off at its edges: a fine zipper along them)
+        yy, xx = np.mgrid[0:60, 0:60]
+        disc = np.clip(20.5 - np.hypot(xx - 29.5, yy - 29.5), 0, 1).astype(np.float32)
+        for dx, dy in ((7.3, 17.9), (3.1, 12.4), (-11.0, 14.5), (17.5, -17.2)):
+            out, x0, y0 = leaves.smear(Image.fromarray((np.dstack([disc] * 4) * 255).astype(np.uint8), "RGBa"), dx, dy)
+            got = np.asarray(out, np.float32)[..., 3] / 255
+            h, w = got.shape
+            want = np.zeros((h, w), np.float32)
+            for t in (np.arange(200) + 0.5) / 200 - 0.5:
+                want += np.asarray(Image.fromarray(disc, "F").transform(
+                    (w, h), Image.Transform.AFFINE, (1, 0, x0 - t * dx, 0, 1, y0 - t * dy),
+                    resample=Image.Resampling.BILINEAR))
+            want /= 200
+            self.assertLess(float(np.abs(got - want).max()), 0.1, (dx, dy))
+        big = Image.fromarray(np.random.default_rng(1).integers(0, 256, (200, 200, 4), np.uint8), "RGBa")
 
         def cost(dx, dy):  # a second per million px of what it makes
             t0 = time.perf_counter()
             for _ in range(5):
                 out = leaves.smear(big, dx, dy)[0]
-            return (time.perf_counter() - t0) / (5 * out.shape[0] * out.shape[1]) * 1e6
+            return (time.perf_counter() - t0) / (5 * out.size[0] * out.size[1]) * 1e6
         cost(4, 6)
         self.assertLess(cost(60, 90), 3 * cost(4, 6))  # (not 24 copies against 7)
 
 
 class Speed(unittest.TestCase):
+    @staticmethod
+    def cost(kind, params, size=(1920, 1080)):
+        fx = effects.make(kind, params, 3, 720, 24, *size)
+        canvas = effects.Canvas(*size)
+        pic = np.full((size[1], size[0], 3), 0.3, np.float32)
+        for t in range(0, 720, 40):  # (their pictures made first, as for a video)
+            fx.draw(t, canvas, None)
+            canvas.flush(pic, fx.blend)
+        best = []
+        for t in range(5, 720, 90):
+            t0 = time.perf_counter()
+            fx.draw(t, canvas, None)
+            canvas.flush(pic, fx.blend)
+            best.append(time.perf_counter() - t0)
+        return float(np.median(best))
+
     def test_a_1080p_frame_costs_about_as_much_as_snow(self):
-        """At the defaults a 1080p frame of leaves takes no more than about twice what one of snow takes (their
-        pictures made first, as for a video)."""
-        def cost(kind, params):
-            fx = effects.make(kind, params, 3, 720, 24, 1920, 1080)
-            canvas = effects.Canvas(1920, 1080)
-            pic = np.full((1080, 1920, 3), 0.3, np.float32)
-            for t in range(0, 720, 40):
-                fx.draw(t, canvas, None)
-                canvas.flush(pic, fx.blend)
-            best = []
-            for t in range(5, 720, 90):
-                t0 = time.perf_counter()
-                fx.draw(t, canvas, None)
-                canvas.flush(pic, fx.blend)
-                best.append(time.perf_counter() - t0)
-            return float(np.median(best))
-        snow, leaf = cost("snow", {}), cost("leaves", {})
+        """At the defaults a 1080p frame of leaves takes no more than about twice what one of snow takes (measured:
+        the leaves before their shapes took 55 ms, now 49 ms; snow about 25 ms); every shape at once about as much
+        as the defaults."""
+        snow, leaf = self.cost("snow", {}), self.cost("leaves", {})
         self.assertLess(leaf, 2.5 * snow + 0.01, (leaf, snow))
-        windy = cost("leaves", dict(leaves.LOOKS["windy"], motion=100))  # (many leaves, fast, smeared)
+        windy = self.cost("leaves", dict(leaves.LOOKS["windy"], motion=100))  # (many leaves, fast, smeared)
         self.assertLess(windy, 4 * snow + 0.01, (windy, snow))
+        every = self.cost("leaves", only(*leaves.SHAPES))
+        self.assertLess(every, 1.4 * leaf + 0.005, (every, leaf))
+
+    def test_pictures_made_quickly(self):
+        """The pictures a 1080p clip needs are made in a few seconds, however many shapes are ticked (measured: 3 s
+        at the defaults, 2 s with every shape)."""
+        for params in ({}, only(*leaves.SHAPES)):
+            leaves._SPRITES.clear()
+            t0 = time.perf_counter()
+            fx = effects.make("leaves", params, 3, 720, 24, 1920, 1080)
+            for i in range(fx.n):
+                for j in range(int(min(fx.k[i], fx.count[i]))):
+                    fx.picture(i, int((fx.variant[i] + 3 * j) % fx.count[i]))
+            self.assertLess(time.perf_counter() - t0, 12, params)
+        leaves._SPRITES.clear()
 
 
 if __name__ == "__main__":
