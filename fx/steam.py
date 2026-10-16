@@ -12,8 +12,9 @@ It blurs more as it rises (it mixes with the air): drawn on a few layers, each b
 The air moves on a clock of "ticks" (TICKS a second, a whole number per loop), and every bit of steam is followed
 tick by tick from where it was let go; a frame lies between two ticks. The air, the points and how much steam they let
 go of are functions of the tick modulo the loop (whole numbers of cycles), so frame P is frame 0 again, exactly.
-Frames drawn one after the other carry the steam on a tick at a time; a frame drawn on its own starts a whole
-lifetime of the steam earlier (the same sums, so the same picture).
+Frames drawn one after the other carry the steam on a tick at a time (from the last tick drawn, when it is a few ticks
+back: a video of few frames a second); a frame drawn on its own starts a whole lifetime of the steam earlier (the same
+sums, so the same picture).
 
 The box: the cup's rim lies along the middle of its bottom (half its width: "rim"), the steam rising to its top.
 Inside it every length is in box heights, so the small preview clip (the box alone) and the video show the same steam.
@@ -49,13 +50,19 @@ def _p(key, label, value, group, lo=0, hi=100):
     return _num(key, label, value, lo, hi, group=group)
 
 
-SCHEMA = {"label": "Khói cốc cà phê", "params": [
+SCHEMA = {
+    "label": "Khói cốc cà phê",
+    # for the page: a mark where the cup's mouth goes, a flat ellipse centred on the middle of the box's bottom edge,
+    # as wide as the setting "rim" (% of the box's width), and a tip to go with it
+    "mark": {"width": "rim", "tip": "Đặt vạch ở đáy khung trắng ngang giữa miệng cốc, rồi kéo góc khung cho vạch "
+                                    "dài bằng miệng cốc."},
+    "params": [
     _choice("look", "Kiểu", "light",
             [("light", "Hơi nóng nhẹ"), ("thick", "Khói đậm"), ("long", "Khói lượn dài"),
              ("breeze", "Khói bay nghiêng theo gió")], presets=LOOKS, group="Kiểu"),
     _p("amount", "Lượng khói", DEFAULTS["amount"], "Khói"),
-    _p("rim", "Độ rộng miệng cốc (% bề ngang khung)", DEFAULTS["rim"], "Khói", 10, 100),
-    _p("reach", "Bay cao đến (% chiều cao khung)", DEFAULTS["reach"], "Khói", 20, 100),
+    _p("rim", "Độ rộng miệng cốc (so với khung trắng)", DEFAULTS["rim"], "Khói", 10, 100),
+    _p("reach", "Khói bay cao (so với khung trắng)", DEFAULTS["reach"], "Khói", 20, 100),
     _p("spread", "Độ loe khi bay lên", DEFAULTS["spread"], "Khói"),
     _p("soft", "Độ mềm, nhoè", DEFAULTS["soft"], "Khói"),
     _p("speed", "Tốc độ bay lên", DEFAULTS["speed"], "Chuyển động"),
@@ -139,6 +146,7 @@ class Steam(Effect):
         m = rng.random((MODES, 4))
         g = rng.random(8)
         fb = rng.random((2, 3))
+        more = rng.random((SOURCES, 9))  # (points for a wide rim: drawn last, so the others keep their draws)
         self.bw = self.BOX[0] / self.BOX[1]  # the box's width, in box heights
         self.ticks = max(1, int(round(TICKS * self.loop_s)))  # ticks per loop
         self.dt = self.loop_s / self.ticks  # seconds a tick
@@ -147,14 +155,18 @@ class Steam(Effect):
         self.reach = p["reach"] / 100
         life = 1.5 * self.reach / self.speed + 0.6  # seconds a bit of steam is followed
         self.L = int(math.ceil(life / self.dt)) + 2  # ticks
-        # the points on the surface, evenly across the rim; the back of the surface is a little higher
-        n = self.n = SOURCES
+        # the points on the surface, anywhere across the rim (not evenly: no comb of strands); the back of the surface
+        # is a little higher. A few let go of much more than the others: a wisp is a ribbon or two and faint threads.
+        # A rim wider than half the box has more points, as close together, and its wisps are as wide
+        wide = max(1.0, p["rim"] / 50)
+        n = self.n = int(round(SOURCES * wide))
+        u = np.concatenate([u, more])[:n]
         rim = p["rim"] / 100 * self.bw
-        self.v = -1 + (np.arange(n) + 0.5 + (u[:, 0] - 0.5) * 0.9) * (2 / n)
+        self.v = u[:, 0] * 2 - 1
         self.sx = self.v * rim / 2 * 0.92
         self.sy = u[:, 1] * 0.025 * np.sqrt(1 - self.v ** 2)
         self.lift = _lerp(0.88, 1.12, u[:, 4])  # some rise a little quicker
-        self.bright = _lerp(0.6, 1.0, u[:, 5])
+        self.bright = 1.85 * np.exp(-2.0 * u[:, 5])  # (0.8 on average)
         self.wander = rim * 0.03 * u[:, 6]  # each point wanders a little
         self.wm = self.cycles(_lerp(0.1, 0.3, u[:, 7])).astype(np.int64)
         self.wphi = u[:, 8] * 2 * math.pi
@@ -169,14 +181,16 @@ class Steam(Effect):
         wu = wu[:nw]
         self.nw = nw
         self.wc = ((np.arange(nw) * 0.6180339887 + g[5]) % 1.0 * 2 - 1) * 0.65
-        self.wa = _lerp(0.1, 0.3, wu[:, 0])
+        self.wa = _lerp(0.1, 0.3, wu[:, 0]) / wide
         self.cm = self.cycles(_lerp(0.02, 0.07, wu[:, 1])).astype(np.int64)
         self.cphi = wu[:, 2] * 2 * math.pi
-        self.ws = _lerp(0.1, 0.22, wu[:, 3])  # width, in half rims
+        self.ws = _lerp(0.1, 0.22, wu[:, 3]) / wide  # width, in half rims
         self.e1 = self.cycles(_lerp(0.04, 0.12, wu[:, 4])).astype(np.int64)
         self.e2 = self.cycles(_lerp(0.12, 0.3, wu[:, 5])).astype(np.int64)
         self.ephi1, self.ephi2 = wu[:, 6] * 2 * math.pi, wu[:, 7] * 2 * math.pi
-        self.gain = _lerp(0.7, 1.0, amount) / max(1, nw) ** 0.3 / n
+        self.gain = _lerp(0.7, 1.0, amount) / max(1, nw) ** 0.3 / SOURCES
+        # as much steam along a wisp at any speed (quicker steam would spread the same over a longer path)
+        self.gain *= self.speed / _lerp(0.16, 0.6, DEFAULTS["speed"] / 100)
         self.veil = 0.04 + 0.16 * amount ** 3  # the whole surface steams too, a lot when it is very hot
         self.gather = 1.5 * (1 - 0.6 * amount ** 2)  # a little steam gathers into a few wisps; a lot rises wide
         # eddies: a stream function of waves that drift up with the steam
@@ -193,7 +207,7 @@ class Steam(Effect):
         self.om = self.cycles(drift * ky / (2 * math.pi)).astype(np.int64)  # cycles per loop
         self.mphi = m[:, 3] * 2 * math.pi
         # the breeze: a lean, and a sway now and then
-        self.lean = p["breeze"] / 100 * 0.7 * self.speed
+        self.lean = p["breeze"] / 100 * 1.1 * self.speed
         self.sway = p["gust"] / 100 * 0.5 * self.speed
         self.bm = self.cycles(np.array([_lerp(0.04, 0.08, g[1]), _lerp(0.1, 0.2, g[2])])).astype(np.int64)
         self.bphi = g[3:5] * 2 * math.pi
@@ -225,8 +239,8 @@ class Steam(Effect):
         z = np.clip((y - top) / (reach - top), 0.0, 1.0)
         gy = q * q * (3 - 2 * q) * (1 - 0.5 * z * z)  # the eddies grow with height, then calm down
         dg = 6 * q * (1 - q) / top - z * ((y > top) & (y < reach)) / (reach - top)
-        vx = self._breeze(k) * (0.04 + 0.96 * _smooth(0.0, 0.6, y))
-        axis = self.lean * y * y / (2 * self.speed)  # where the leaning steam is, roughly
+        vx = self._breeze(k) * (0.04 + 0.96 * _smooth(0.0, 0.25, y))  # (the cup shelters the steam just above it)
+        axis = self.lean * np.maximum(y - 0.12, 0.0) / self.speed  # where the leaning steam is, roughly
         vx = vx + self.flare * (x - axis) * _smooth(0.05, 0.5 * reach, y)  # it spreads as it rises
         vx = vx - self.gather * x * np.exp(-np.maximum(y, 0.0) / 0.06)  # the draught over the cup gathers it
         th = (x.astype(np.float32)[..., None] * self.kx + y.astype(np.float32)[..., None] * self.ky -
@@ -259,8 +273,12 @@ class Steam(Effect):
         k %= self.ticks
         if k in self.states:
             return self.states[k]
-        prev = (k - 1) % self.ticks
-        if prev in self.states:
+        back = [(k - j) % self.ticks for j in self.states]
+        near = min((b for b in back if 0 < b <= 8), default=0)  # a tick a little earlier: carried on from it
+        if near:
+            for j in range(k - near, k - 1):
+                self._state(j + 1)
+            prev = (k - 1) % self.ticks
             state = self._step(self.states[prev], prev)
         else:  # from scratch, a whole lifetime back: whatever was there before has gone by tick k
             sx, sy = self._source(k)
@@ -332,7 +350,8 @@ class Steam(Effect):
         age = (np.arange(self.L - 1) + f)[:, None] * self.dt
         life = self.L * self.dt
         mass = self._emission(k - np.arange(self.L - 1)) * self.gain
-        mass *= _smooth(0.0, 0.8, age) * _smooth(0.0, 0.12, y) * (1 - _smooth(0.35 * self.reach, self.reach, y))
+        e = min(1.0, self.reach / 0.6)  # (steam that does not rise far shows sooner, or there would be none)
+        mass *= _smooth(0.0, 0.8 * e, age) * _smooth(0.0, 0.12 * e, y) * (1 - _smooth(0.35 * self.reach, self.reach, y))
         mass *= 1 - _smooth(life * 0.75, life, age)
         sig = self.s0 + (self.s1 - self.s0) * np.clip(y / max(self.reach, 1e-3), 0, 1.3) ** 2
         grid = self._splat(x, y, mass, sig, gh, gw)

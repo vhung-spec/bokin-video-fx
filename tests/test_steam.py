@@ -83,6 +83,21 @@ class Loops(unittest.TestCase):
         self.assertTrue(np.array_equal(frame(a, 17), frame(b, 17)))
         self.assertFalse(np.array_equal(frame(a, 17), frame(c, 17)))
 
+    def test_few_frames_a_second(self):
+        """A video of few frames a second (more than one tick a frame) still carries the steam on from the frame
+        before, and gets the same steam as frame after frame or a fresh start."""
+        seq = effects.make("steam", BIG, 3, 64, 8, W, H)
+        steps = []
+        step = seq._step
+        seq._step = lambda *a: steps.append(1) or step(*a)
+        drawn = {t: cover(seq, t) for t in range(10, 30)}
+        self.assertLess(len(steps), seq.L + 3 * 20)  # (not a whole lifetime of steam each frame)
+        skip = effects.make("steam", BIG, 3, 64, 8, W, H)
+        for t in range(10, 30, 3):
+            self.assertTrue(np.array_equal(cover(skip, t), drawn[t]), t)
+        fresh = effects.make("steam", BIG, 3, 64, 8, W, H)
+        self.assertLess(np.abs(cover(fresh, 29) - drawn[29]).max(), 1e-4)
+
     def test_between_frames(self):
         """A time between two frames is drawn too (between them)."""
         fx = effects.make("steam", BIG, 3, 144, 24, W, H)
@@ -133,9 +148,21 @@ class Box(unittest.TestCase):
             x0, y0, w, h = fx.box()
             a = sum(cover(fx, t) for t in range(0, 144, 24))[int(y0):int(y0 + h * 0.6), int(x0):int(x0 + w)]
             return float((a.sum(axis=0) * np.arange(a.shape[1])).sum() / a.sum() / a.shape[1] - 0.5)
-        self.assertGreater(lean(100), 0.05)
-        self.assertLess(lean(-100), -0.05)
+        self.assertGreater(lean(100), 0.12)
+        self.assertLess(lean(-100), -0.12)
         self.assertLess(abs(lean(0)), 0.1)
+        self.assertGreater(lean(steam.LOOKS["breeze"]["breeze"]), lean(steam.DEFAULTS["breeze"]) + 0.1)  # the look
+
+    def test_wide_rim(self):
+        """A wide rim has more points, as close together as at half the box, and wisps as wide: no fringe of
+        strands far apart. The points are not evenly spread and a few let go of much more steam than the others."""
+        half, wide = (effects.make("steam", {"rim": r}, 2, 144, 24, W, H) for r in (50, 100))
+        self.assertEqual(wide.n, 2 * half.n)
+        self.assertTrue(np.allclose(wide.ws * 2, half.ws))
+        self.assertTrue(np.array_equal(wide.sx[:half.n], half.sx * 2))  # (the same points, and more)
+        gaps = np.diff(np.sort(half.v))
+        self.assertGreater(gaps.std(), 0.5 * gaps.mean())
+        self.assertGreater(np.sort(half.bright)[-half.n // 5:].sum(), 0.3 * half.bright.sum())  # (even: 0.2)
 
     def test_preview_clip_is_the_box(self):
         """The page's preview clip (the box alone, at its own size) looks like the steam drawn in the frame."""
@@ -157,6 +184,17 @@ class Box(unittest.TestCase):
                 self.assertGreater(a.max(), 0.05)
                 self.assertLess(np.abs(a - b).mean(), 0.05 * a.mean() + 1e-4, params)
                 self.assertLess(np.abs(a - b).max(), 0.25 * a.max(), params)
+
+    def test_as_strong_at_any_speed_or_reach(self):
+        """Quicker steam is not fainter (as much steam along a wisp), and steam that does not rise far still shows."""
+        def strength(params):
+            fx = effects.make("steam", {"scale": 100, **params}, 4, 144, 24, 270, 270)
+            frames = [cover(fx, t) for t in range(0, 144, 8)]
+            return np.mean([a.mean() for a in frames]), np.median([a.max() for a in frames])
+        mean, peak = strength({})
+        for speed in (0, 100):
+            self.assertLess(abs(strength({"speed": speed})[0] / mean - 1), 0.3, speed)
+        self.assertGreater(strength({"reach": 20})[1], 0.7 * peak)
 
     def test_off_the_frame_and_extreme_sizes(self):
         for params in ({"scale": 80, "x": 60, "y": 40}, {"scale": 1}, {"scale": 300}, {"scale": 10, "x": 100},
@@ -214,6 +252,8 @@ class Settings(unittest.TestCase):
             self.assertEqual(effects.clean_params("steam", preset), {**defaults, **preset}, name)  # in range
         self.assertEqual(look["presets"]["light"], {k: defaults[k] for k in keys})  # the default look: defaults
         self.assertEqual({o["value"] for o in look["options"]}, set(steam.LOOKS))
+        self.assertIn(steam.SCHEMA["mark"]["width"], {p["key"] for p in params})  # the cup's mouth on the box
+        self.assertTrue(steam.SCHEMA["mark"]["tip"])
 
     def test_box(self):
         self.assertEqual(steam.Steam.BOX, (1, 1))
