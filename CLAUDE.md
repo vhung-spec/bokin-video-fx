@@ -38,7 +38,9 @@ hiệu ứng. Cách dùng: `README.md`.
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, lá rơi, nước trên kính, khói cốc cà phê,
   lửa nến, mỗi cái một file. Lá rơi: lá phong (đỏ, vàng, xanh), lá thường, cánh hoa vẽ bằng trường khoảng cách (thuỳ,
-  răng cưa, gân), mỗi mẫu làm một lần ở cỡ vừa đủ (`master`, `sprite()`, giới hạn `MAX_BYTES`); `upgrade()` của lớp
+  răng cưa, gân), mỗi mẫu làm một lần ở cỡ vừa đủ (`master`, `sprite()`, giới hạn `MAX_BYTES`); lá xanh ngả màu
+  (`turning`) chỉ khi đã có lá đỏ/vàng; mỗi lần rơi lại là lá khác (`passes()`, `design()`); lá nghiêng chọn hình theo
+  chiều dài, ép bằng bộ lọc trung bình (`place()`); chao theo tốc độ rơi; `upgrade()` của lớp
   hiệu ứng (gọi trong `clean_params`) chuyển thông số clip của bản cũ. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi
   (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên kính, lửa nến) đổi cả hình bên dưới: `apply()` cho video xuất
   và khung chính xác; trang chỉ phát clip xem nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung chính xác
