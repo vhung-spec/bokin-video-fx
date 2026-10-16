@@ -316,6 +316,21 @@ class Look(unittest.TestCase):
         self.assertGreater(min(cover), 0)
         self.assertLess(max(cover) / min(cover), 1.4, cover)
 
+    def test_heavy_rain_on_the_ground(self):
+        """Heavy rain on a paved ground fizzes: drops land all over it (far more than the streaks drawn), each a
+        crown of droplets and spreading rings; they change a good share of the ground."""
+        w, h = 1920, 1080
+        pave = np.zeros((h, w, 3), np.float32) + 0.3
+        pave[: int(0.45 * h)] = 0.7  # (a bright sky)
+        light = effects.light_map([np.asarray(Image.fromarray((pave * 255).astype(np.uint8)).resize((960, 540)))])
+        look = dict(LOOKS["heavy"], look="heavy", ground=45)
+        wet = effects.make("rain", look, 3, 750, 25, w, h, light)
+        dry = effects.make("rain", dict(look, splash=0, ripple=0), 3, 750, 25, w, h, light)
+        self.assertGreater(len(wet.hits["k"]), 5000)
+        self.assertTrue(np.all(wet.hits["k"] == np.round(wet.hits["k"])))  # (whole landings a loop)
+        d = np.abs(frame(wet, 100, pave, w=w, h=h) - frame(dry, 100, pave, w=w, h=h)).max(axis=2)
+        self.assertGreater(float((d[int(0.46 * h):] > 2 / 255).mean()), 0.05)
+
     def test_splashes_only_with_a_ground(self):
         """No ground in view: nothing below where the drops already are; a ground: splashes and rings on it."""
         bare = effects.make("rain", {"ground": 100, "splash": 100, "ripple": 100}, 3, 144, 24, W, H)
@@ -403,10 +418,13 @@ class Lit(unittest.TestCase):
         seen = a > 0.05
         near, far = round_lamp(0.15), round_lamp(9.0) & ~round_lamp(0.6)
         luma = rgb @ effects.LUMA
-        self.assertGreater(luma[seen & near].mean(), 1.4 * luma[seen & far].mean())
+        self.assertGreater(luma[seen & near].mean(), 3 * luma[seen & far].mean())
         warm = rgb[seen & near]
         self.assertGreater(warm[:, 0].mean(), 1.1 * warm[:, 2].mean())  # (the lamp's colour)
-        self.assertGreater(luma[seen & far].mean(), 0.3)  # (and some rain shows in the dark: FLOOR)
+        rgb, a = self.colours({}, LIGHT)  # (the default: a little of its own colour, so some rain shows in the dark)
+        dark = (rgb @ effects.LUMA)[(a > 0.05) & far].mean()
+        self.assertGreater(dark, 0.1)
+        self.assertLess(dark, 0.35)
 
     def test_its_own_colour_without_the_light(self):
         """At 0, or without a picture (no video), the rain is drawn in its own colour, the same either way."""
@@ -434,27 +452,114 @@ class Lit(unittest.TestCase):
 
     def test_light_map(self):
         """Glints round a small light; a big bright sky is no light source (rain against it barely shows)."""
-        e = effects.light_map([night(640, 360)])
-        lh, lw = e.shape[:2]
-        self.assertEqual((lh, lw), (effects.LIGHT_H, 240))
-        lum = e @ effects.LUMA
+        m = effects.light_map([night(640, 360)])
+        lh, lw = m.shape[:2]
+        self.assertEqual(m.shape, (effects.LIGHT_H, 240, 6))
+        lum = effects.light(m) @ effects.LUMA
         x, y = round(0.8 * lw), round(0.3 * lh)
         self.assertGreater(lum[y, x + 6], 20 * lum[y, x - 60])  # (50 px of 1080 from the lamp, and far from it)
         sky = np.zeros((360, 640, 3), np.uint8) + 40
         sky[:150] = 225
-        e = effects.light_map([sky])
+        e = effects.light(effects.light_map([sky]))
         self.assertLess(float((e @ effects.LUMA)[:40].max()), float(effects.linear(225 / 255.0)) * 1.02)
         self.assertIsNone(effects.light_map([]))
+
+    def test_daylight_is_no_lamp(self):
+        """Only clipped highlights in a dark scene glint: not white paint, a bright sky between dark shapes or a
+        clipped sky in daylight. Where the picture is clipped (the sun), the light is at least white."""
+        yy, xx = np.mgrid[0:360, 0:640]
+        day = np.zeros((360, 640, 3), np.uint8) + np.array([90, 95, 100], np.uint8)
+        day[:120] = 205  # an overcast sky
+        day[40:110, 200:440] = (40, 60, 45)  # a tree, with the sky showing through a gap
+        day[60:80, 300:320] = 218
+        day[300:306, 100:540:40] = 220  # white paint on the road
+        e = effects.light(effects.light_map([day]))
+        self.assertLess(float(e.max()), float(effects.linear(220 / 255.0)) * 1.05)
+        blown = day.copy()
+        blown[:120] = 255  # a blown-out sky in daylight, through the leaves too
+        blown[60:80, 300:320] = 255
+        sun = (xx - 500) ** 2 + (yy - 50) ** 2 < 30 ** 2
+        e = effects.light(effects.light_map([blown]))
+        self.assertLess(float(e.max()), 1.0 + 1e-3)  # (no glint: never brighter than white)
+        lh, lw = e.shape[:2]
+        self.assertGreater(float(e[round(50 / 360 * lh), round(500 / 640 * lw)].min()), 0.95)  # (the sun: white)
+        self.assertTrue(sun.any())
+        # a rain in it: the light is nowhere brighter than white, so no drop flashes
+        for scene in (day, blown):
+            fx = effects.make("rain", {}, 3, 144, 24, W, H, effects.light_map([scene]))
+            self.assertIsNone(fx._colours()[2])
+        fx = effects.make("rain", {}, 3, 144, 24, W, H, LIGHT)  # (and by a lamp at night some do)
+        self.assertIsNotNone(fx._colours()[2])
+
+    def lay(self, params, pic, light=None, t=60):
+        """Rain at 640 x 360 laid over `pic` (float RGB) in its own light."""
+        h, w = pic.shape[:2]
+        light = effects.light_map([(pic * 255 + 0.5).astype(np.uint8)]) if light is None else light
+        fx = effects.make("rain", params, 3, 750, 25, w, h, light)
+        return frame(fx, t, pic=pic, w=w, h=h)
+
+    def test_lights_stay_bright(self):
+        """Nothing in the rain darkens a light brighter than white: a lamp, a neon tube, the sun (the mist and the
+        sheets of rain glow round them instead)."""
+        yy, xx = np.mgrid[0:360, 0:640]
+        dark = np.zeros((360, 640, 3), np.float32) + 0.05
+        lamp = (xx - 500) ** 2 + (yy - 100) ** 2 < 14 ** 2
+        tube = (np.abs(yy - 200) < 3) & (np.abs(xx - 160) < 80)
+        dark[lamp] = (1.0, 0.95, 0.85)
+        dark[tube] = (0.4, 1.0, 1.0)
+        day = np.zeros((360, 640, 3), np.float32) + np.array([0.75, 0.78, 0.7], np.float32)
+        sun = (xx - 450) ** 2 + (yy - 90) ** 2 < 45 ** 2
+        day[sun] = 1.0
+        day[250:] = 0.15
+        for name, values in LOOKS.items():
+            for pic, core in ((dark, lamp), (dark, tube), (day, sun)):
+                out = self.lay(dict(values, look=name), pic)
+                self.assertGreaterEqual(float(out[core].mean()), float(pic[core].mean()) - 0.005, name)
+            r = np.hypot(xx - 500, yy - 100)
+            halo, far = (r >= 14) & (r < 24), r > 150
+            lit = self.lay(dict(values, look=name, opacity=0, mist=80), dark) - dark
+            flat = self.lay(dict(values, look=name, opacity=0, mist=80, lit=0), dark) - dark
+            self.assertGreater(float(lit[halo].mean()), float(flat[halo].mean()), name)  # (a glow round it)
+            self.assertLess(float(lit[far].mean()), 0.25 * float(lit[halo].mean()), name)  # (and dark away from it)
+
+    def test_shows_by_the_light_not_in_the_dark(self):
+        """A lit window in a dark wall, the default rain: it shows more beside the window than far along the wall,
+        and the far wall's black stays nearly black (drizzle's mist too); against a flat bright sky it barely
+        shows."""
+        yy, xx = np.mgrid[0:360, 0:640]
+        wall = np.zeros((360, 640, 3), np.float32) + 0.03
+        window = (np.abs(xx - 200) < 70) & (np.abs(yy - 170) < 90)
+        wall[window] = (0.9, 0.62, 0.35)
+        light = effects.light_map([(wall * 255 + 0.5).astype(np.uint8)])
+        beside = (np.abs(xx - 300) < 25) & (np.abs(yy - 170) < 90)
+        far = (xx > 540) & (np.abs(yy - 170) < 90)
+        lifts = {"beside": [], "far": []}
+        for t in range(40, 400, 40):
+            out = self.lay({"amount": 100}, wall, light, t)
+            d = (out - wall) @ effects.LUMA
+            lifts["beside"].append(d[beside])
+            lifts["far"].append(d[far])
+        beside, far_ = (np.concatenate(lifts[k]) for k in ("beside", "far"))
+        self.assertGreater(float(beside.mean()), 1.5 * float(far_.mean()))
+        self.assertLess(float(np.percentile(far_, 99.5)), 0.2)
+        black = np.median((self.lay(dict(LOOKS["drizzle"], look="drizzle"), wall, light) @ effects.LUMA)[far])
+        self.assertLess(float(black), 1.3 * 0.03)
+        sky = np.zeros((360, 640, 3), np.float32) + np.array([0.82, 0.84, 0.86], np.float32)
+        for name in ("medium", "heavy"):
+            d = (self.lay(dict(LOOKS[name], look=name), sky) - sky) @ effects.LUMA
+            self.assertLess(float(np.percentile(np.abs(d), 99.5)), 0.04, name)
 
     def test_turned_sheet_sees_the_light_of_its_place(self):
         """A rain placed or turned in 3D gets the light of the place on the frame where each part of it lands."""
         nearly = sheet.Sheet("rain", {"rot_z": 0.1}, 3, 150, 25, W, H, light=LIGHT)
         got = nearly.fx.light
         self.assertEqual(got.shape[0], LIGHT.shape[0])
-        np.testing.assert_allclose(got[5:-5, 5:-5], LIGHT[5:-5, 5:-5], rtol=0.15, atol=0.01)
+        np.testing.assert_allclose(effects.light(got)[5:-5, 5:-5], effects.light(LIGHT)[5:-5, 5:-5], rtol=0.15,
+                                   atol=0.01)
         moved = sheet.Sheet("rain", {"x": -45}, 3, 150, 25, W, H, light=LIGHT).fx.light
-        lum = moved @ effects.LUMA  # (moved left: its right part lies on the frame's middle, far from the lamp)
-        self.assertLess(float(lum[:, -lum.shape[1] // 3:].max()), 0.5 * float((LIGHT @ effects.LUMA).max()))
+        lum = effects.light(moved) @ effects.LUMA  # (moved left: its right part lies on the frame's middle)
+        brightest = float((effects.light(LIGHT) @ effects.LUMA).max())
+        self.assertLess(float(lum[:, -lum.shape[1] // 3:].max()), 0.5 * brightest)
         a = np.asarray(nearly.draw(0, Image.fromarray(night())))
         b = np.asarray(nearly.draw(150, Image.fromarray(night())))
         self.assertLessEqual(int(np.abs(a.astype(int) - b).max()), 1)  # (it loops)
@@ -476,7 +581,7 @@ class Video(unittest.TestCase):
     def test_the_video_lights_the_rain(self):
         light = engine.scene_light(self.folder, self.project)
         self.assertIsNotNone(light)
-        lum = light @ effects.LUMA
+        lum = effects.light(light) @ effects.LUMA
         self.assertGreater(lum[:, -lum.shape[1] // 4:].max(), 10 * lum[:, :lum.shape[1] // 4].max())
         self.assertIs(engine.scene_light(self.folder, self.project), light)  # (read once)
         project = projects.apply(projects.load(self.project["id"]), {"layers": [
@@ -489,6 +594,26 @@ class Video(unittest.TestCase):
         self.assertIs(handed["_light"], light)
         self.assertIs(engine.scene_light("nowhere", handed), light)  # (a worker reads nothing)
         projects.apply(projects.load(self.project["id"]), {"layers": []})
+
+    def test_light_of_the_whole_loop(self):
+        """The light is the loop's average, from frames spread over all of it: a lamp lit only in the first second
+        counts for that second, one lit for the rest of the loop counts for the rest."""
+        path = os.path.join(helpers.ROOT, "lamps.mp4")
+        enc = video.Encoder(path, W, H, "24", crf=18, preset="veryfast")
+        yy, xx = np.mgrid[0:H, 0:W]
+        first = (xx - 0.25 * W) ** 2 + (yy - 0.3 * H) ** 2 < (0.03 * H) ** 2
+        later = (xx - 0.75 * W) ** 2 + (yy - 0.3 * H) ** 2 < (0.03 * H) ** 2
+        for t in range(144):
+            f = np.zeros((H, W, 3), np.uint8) + 14
+            f[first if t < 24 else later] = (255, 205, 120)
+            enc.write(f)
+        enc.close()
+        project = projects.create(path, "lamps.mp4")
+        lum = effects.light(engine.scene_light(projects.folder(project["id"]), project)) @ effects.LUMA
+        lh, lw = lum.shape
+        on_first, on_later = lum[round(0.3 * lh), round(0.25 * lw)], lum[round(0.3 * lh), round(0.75 * lw)]
+        self.assertGreater(on_later, 3 * on_first)
+        self.assertGreater(on_first, 3 * lum[-5, 5])
 
     def test_preview_clip_names(self):
         """Its preview clip is remade for another video when the rain is lit by it, not when it is not; the rain's
@@ -529,9 +654,9 @@ class Video(unittest.TestCase):
 
 class Speed(unittest.TestCase):
     def test_a_default_frame_in_time(self):
-        """The speed budget: the default rain at 1080p lit by a scene, as an export draws it, measured at 85 ms a frame
-        (the rain before it: 70 ms); here, for a busy machine, under 0.35 s. Each round's frames are timed together,
-        the best round counts."""
+        """The speed budget: the default rain at 1080p lit by a scene, as an export draws it, measured at 65 ms a frame
+        (the rain before it: 64 ms; heavy rain on a ground with its splashes: 118 ms, 91 ms before); here, for a busy
+        machine, under 0.35 s. Each round's frames are timed together, the best round counts."""
         light = effects.light_map([night(1920, 1080)])
         fx = effects.make("rain", {}, 2, 750, 25, 1920, 1080, light)
         canvas = effects.Canvas(1920, 1080)

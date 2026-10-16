@@ -132,13 +132,15 @@ def _from_yuv(info, size, src=None):
 
 class Frames:
     """The frames of a video as RGB uint8 arrays (h, w, 3), or RGBA (h, w, 4) with `alpha`, scaled to `size`,
-    from frame number `start` on (at most `count` of them), numbered in decoding order as probe() counts them.
-    Use it in a with-block, so ffmpeg is stopped when reading ends early."""
+    from frame number `start` on (at most `count` of them; every `step`-th one), numbered in decoding order as
+    probe() counts them. Use it in a with-block, so ffmpeg is stopped when reading ends early."""
 
-    def __init__(self, path, info, size=None, start=0, count=None, alpha=False, src=None):
+    def __init__(self, path, info, size=None, start=0, count=None, alpha=False, src=None, step=1):
         self.w, self.h = size or (info["w"], info["h"])
         self.depth = 4 if alpha else 3
         vf = ([f"select=gte(n\\,{int(start)})"] if start else [])
+        if step > 1:
+            vf.append(f"select=not(mod(n\\,{int(step)}))")
         if src and tuple(src) != (0, 0, info["w"], info["h"]):  # only this part of the source (x0, y0, x1, y1)
             vf.append(f"crop={src[2] - src[0]}:{src[3] - src[1]}:{src[0]}:{src[1]}:exact=1")
         vf.append(_from_yuv(info, (self.w, self.h), src))

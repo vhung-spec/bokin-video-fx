@@ -12,6 +12,7 @@ import io
 import json
 import math
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -235,7 +236,10 @@ def run():
         tags = video.run(["-i", made, "-f", "null", "-", "-frames:v", "1"])
         check("export: colour tags", "bt709" in tags)
         data = open(made, "rb").read()
-        traces = [s for s in ("x264", "Lavf", "Lavc", "FFmpeg", "ffmpeg") if s.encode() in data]
+        # (as the tools write their names: "x264 - core 164", "Lavf61.7.100", "Lavc61.19.100", "FFmpeg"; a bare
+        # four letters could turn up by chance in the coded picture)
+        traces = sorted({m.group().decode("latin-1") for m in re.finditer(
+            rb"x264 - core|Lav[fc]\d+\.\d+\.\d+|[Ff][Ff][Mm][Pp][Ee][Gg]", data)})
         check("export: nothing names the tools", not traces, ", ".join(traces))
         small = (480, 270)
         with video.Frames(made, got, small) as frames:

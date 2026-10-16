@@ -100,14 +100,15 @@ def still_picture(folder, project, size):
     return Image.fromarray(arr)
 
 
-LIGHT_FRAMES = 24  # frames of the video its light map is made from (the first ones)
+LIGHT_FRAMES = 24  # frames of the video its light map is made from (spread evenly over it)
 _lights = {}  # (video file, its stamp) -> its light map
 
 
 def scene_light(folder, project):
-    """The light of the project's video (effects.light_map), for the effects lit by it (Effect.LIT): made from its
-    first frames, once per video file; None if it cannot be read. A copy handed to worker processes carries it
-    ("_light": found_files, fx_clip), so they read nothing."""
+    """The light of the project's video (effects.light_map), for the effects lit by it (Effect.LIT): made from
+    frames spread evenly over the whole loop (a lamp lit for a moment counts for that moment), once per video file;
+    None if it cannot be read. A copy handed to worker processes carries it ("_light": found_files, fx_clip), so
+    they read nothing."""
     if "_light" in project:
         return project["_light"]
     path, info = input_path(folder, project), project["video"]
@@ -120,7 +121,8 @@ def scene_light(folder, project):
         h = min(info["h"], 4 * effects.LIGHT_H)  # (light averaged in linear light from four times the map's size)
         size = (max(2, round(info["w"] * h / info["h"] / 2) * 2), h - h % 2)
         try:
-            with video.Frames(path, info, size, count=min(info["frames"], LIGHT_FRAMES)) as frames:
+            step = max(1, info["frames"] // LIGHT_FRAMES)
+            with video.Frames(path, info, size, count=min(info["frames"], LIGHT_FRAMES), step=step) as frames:
                 light = effects.light_map(frames)
         except (video.VideoError, OSError, ValueError):
             light = None
@@ -401,7 +403,8 @@ def workers(encoder_threads=True, pixels=0):
     """Worker processes for a render: half the logical CPUs when the encoders need the rest, else all but one;
     1 to 8, and at most 4 for frames bigger than 1440p (each worker holds a few full frames and each effect's own
     buffers: at 4K about 0.9 GB with five snow clips, upright or turned (turned ones share one canvas:
-    sheet.Scratch), 1.4 GB at 200%, more with water on glass: 2 to 3 GB with five)."""
+    sheet.Scratch), 1.4 GB at 200%, more with water on glass: 2 to 3 GB with five; rain lit by the scene keeps
+    its colours as full-size 8-bit maps: about 60 MB more a rain at 4K, 115 MB turned at 140%)."""
     cpus = os.cpu_count() or 2
     most = 4 if pixels > 2560 * 1440 else 8
     return max(1, min(most, cpus // 2 if encoder_threads else cpus - 1))
@@ -722,21 +725,21 @@ def fx_part(project, layer, total, folder, start, end, path):
     writer = video.ClipWriter(path, w, h, info["fps"], alpha, getattr(fx, "PREVIEW_CRF", None))
     canvas = effects.Canvas(w, h)
     out = np.zeros((h, w, 4 if alpha else 3), np.uint8)
-    tmp = np.zeros((h, w), np.float32)
+    tmp, one = np.zeros((h, w), np.float32), np.zeros((h, w), np.float32)
     try:
         for t in range(start, end):
             if _stopped():
                 writer.abort()
                 return False
             fx.draw(t, canvas, None)
-            if alpha:  # straight (not premultiplied) colour and coverage
+            if alpha:  # straight (not premultiplied) colour and coverage (a channel at a time: no big temporaries)
                 np.maximum(canvas.a, 1 / 255, out=tmp)
-                np.reciprocal(tmp, out=tmp)
-                rgb = canvas.rgb * tmp[..., None]
-                np.minimum(rgb, 1.0, out=rgb)
-                rgb *= 255.0
-                rgb += 0.5
-                out[..., :3] = rgb
+                np.divide(255.0, tmp, out=tmp)
+                for c in range(3):
+                    np.multiply(canvas.rgb[..., c], tmp, out=one)
+                    np.minimum(one, 255.0, out=one)
+                    one += 0.5
+                    out[..., c] = one
                 np.multiply(canvas.a, 255.0, out=tmp)
                 tmp += 0.5
                 out[..., 3] = tmp

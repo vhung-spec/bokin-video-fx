@@ -1618,6 +1618,12 @@ function fillsFrame(c) {  // the clip's picture over the whole frame
 }
 // an effect's sheet over the whole frame: picked on the picture only where nothing else is
 function coversFrame(c) { return sheetKind(c) && fillsFrame(c); }
+// an effect lit by the scene (rain) that is moved or turned: its preview clip is lit by the frame where it stands
+// upright, so where it lands the light is only close (the renderer lights it where it lands: the exact frame)
+function litMoved(c) {
+  const pr = c.params;
+  return !!(S.schema.lit || {})[c.kind] && +pr.lit > 0 && sheetKind(c) && (turned(c) || +pr.scale !== 100 || +pr.x !== 0 || +pr.y !== 0);
+}
 function mul3(A, B) { return A.map(row => [0, 1, 2].map(j => row[0] * B[0][j] + row[1] * B[1][j] + row[2] * B[2][j])); }
 function homography(pr, r, W, H) {  // {m: (u, v, 1) of the placed picture (before flips) -> the video, d: the viewer's distance or null}
   const rad = k => (+pr[k] || 0) * Math.PI / 180, a = rad("rot_x"), b = rad("rot_y"), z = rad("rot_z");
@@ -2073,7 +2079,7 @@ function liveIncomplete() {  // something that shows now has no light copy ready
   const t = curFrame();
   return clipOrder().some(c => {
     if (weight(span(c), t) <= 0) return false;
-    if (S.schema.lens[c.kind]) return true;  // it changes the picture under it: the live preview is only close
+    if (S.schema.lens[c.kind] || litMoved(c)) return true;  // the live preview is only close: see litMoved
     const el = S.els[c.id];
     return !el || (el.media.tagName === "VIDEO" ? blank(el.media) : !el.media.complete);
   });
@@ -3180,7 +3186,7 @@ function renderControls() {
     source = `<div class="file">${fi ? `<b>${esc(c.file.name)}</b><br>${fi.image ? "Ảnh" : "Video"} ${fi.w}×${fi.h}${fi.image ? "" : `, ${fi.seconds} giây, ${fi.fps} khung/giây, ${esc(codecName(fi))}`}${fi.alpha ? ", nền trong suốt" : ""}${alphaNote(c, fi)}${it && !it.proxy ? (S.failed && S.failed[it.id] ? `<br>${icon("warn", "lead")}Không làm được bản xem nhanh. Dừng hình để xem khung chính xác.` : `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh…`) : ""}${!it && c.file && c.file.lib ? `<br>${icon("warn", "lead")}File đã bị xoá khỏi thư viện.` : ""}` : c.file && c.file.lib && !it ? `<b>${esc(c.file.name)}</b><br>${icon("warn", "lead")}File đã bị xoá khỏi thư viện: clip này không hiện gì. Hãy xoá clip.` : "Chưa có file."}</div>`;
   } else {
     const fx = S.fx[c.id];
-    source = `<div class="file"><b>${kindIcon(c.kind, "lead")}${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác.` : ""}${S.schema.lens[c.kind] ? "<br>Lúc phát chỉ xem gần đúng; dừng hình để thấy đúng như video xuất ra." : ""}</div>
+    source = `<div class="file"><b>${kindIcon(c.kind, "lead")}${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác.` : ""}${S.schema.lens[c.kind] || litMoved(c) ? "<br>Lúc phát chỉ xem gần đúng; dừng hình để thấy đúng như video xuất ra." : ""}</div>
       ${sch.note ? `<p class="note">${esc(sch.note)}</p>` : ""}
       <div class="btns"><button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">${icon("dice", "lead")}Đổi kiểu ngẫu nhiên</button></div>`;
   }

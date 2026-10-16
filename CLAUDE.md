@@ -46,14 +46,20 @@ hiệu ứng. Cách dùng: `README.md`.
   chiều dài, ép bằng bộ lọc trung bình (`place()`); chao theo tốc độ rơi; `upgrade()` của lớp
   hiệu ứng (gọi trong `clean_params`) chuyển thông số clip của bản cũ. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi
   (clip xem nhanh làm lại). Mưa: vệt đều, hai đầu tròn (màn trập nửa khung); một hệ số xa gần cho cả độ rộng và tốc
-  độ (hạt mảnh luôn chậm); mỗi lần rơi lại một làn khác (`lanes()`: k làn, bước m / k). Mưa sáng theo cảnh
-  (`Effect.LIT`): `light=` là bản đồ ánh sáng của video (`effects.light_map`: mờ rộng + lấp lánh quanh đèn nhỏ; đọc một
-  lần mỗi video: `engine.scene_light`, tiến trình con nhận sẵn `_light` qua `found_files` / `fx_clip`; tấm xoay:
-  `sheet.Sheet._lit`); màu thành bản đồ uint8 (`_colours`, sáng hơn trắng thì thêm độ phủ); vẫn là hiệu ứng vẽ đè,
-  nên clip xem nhanh mang đủ; tên clip đổi theo video khi `lit` > 0. Clip xem nhanh từng loại: `PREVIEW_W`,
-  `PREVIEW_CRF` (mưa: 1280, CRF 42). Hiệu ứng `lens` (nước trên kính, lửa nến) đổi cả hình bên dưới: `apply()` cho
-  video xuất và khung chính xác; trang chỉ phát clip xem nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung
-  chính xác (`liveIncomplete`).
+  độ (hạt mảnh luôn chậm); mỗi lần rơi lại một làn khác (`lanes()`: k làn, bước m / k); hạt chạm đất là một lớp riêng,
+  nhiều hơn số vệt vẽ (`_impacts()`: mỗi chỗ k lần mỗi vòng, mỗi lần một chỗ khác). Mưa sáng theo cảnh
+  (`Effect.LIT`): `light=` là bản đồ ánh sáng của video (`effects.light_map`, 6 kênh: ánh sáng quanh mỗi chỗ
+  (`effects.light()`: mờ rộng + lấp lánh quanh đèn; đèn = chỗ cháy sáng, nhỏ, trong cảnh tối; chỗ cháy sáng thì ít
+  nhất là trắng) và ánh sáng tại chỗ; trung bình của khung rải đều cả video; đọc một lần mỗi video:
+  `engine.scene_light`, tiến trình con nhận sẵn `_light` qua `found_files` / `fx_clip`; tấm xoay: `sheet.Sheet._lit`).
+  Hạt = ánh sáng quanh nó (trước nền tối hơn thì thêm), ít màu riêng; hơi nước = ánh sáng quanh, gần như không màu
+  riêng; mỗi kênh cắt ở trắng như máy quay (không làm tối đèn, mặt trời), hạt sáng hơn trắng thì thêm độ phủ
+  (`_colours`, bản đồ uint8 làm từ cỡ bản đồ ánh sáng); vẫn là hiệu ứng vẽ đè, nên clip xem nhanh mang đủ; tên clip
+  đổi theo video khi `lit` > 0. Mưa sáng theo cảnh đã dời / xoay: clip xem nhanh mang ánh sáng chỗ cũ, nên trang coi
+  là gần đúng (`litMoved`, `liveIncomplete`: dừng hình thì hiện khung chính xác). Clip xem nhanh từng loại:
+  `PREVIEW_W`, `PREVIEW_CRF` (mưa: 1280, CRF 42, mưa phùn 34; 30 giây khoảng 20 giây làm, 40 MB). Hiệu ứng `lens`
+  (nước trên kính, lửa nến) đổi cả hình bên dưới: `apply()` cho video xuất và khung chính xác; trang chỉ phát clip xem
+  nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung chính xác (`liveIncomplete`).
 - Hiệu ứng đặt một chỗ (`BOX`: khói, nến): thông số `x`, `y`, `scale` (`_place()`), `box()` cùng công thức với clip
   file (vừa khung). `UNDER` (nến): clip xem nhanh làm từ chính hình dưới hộp (video + vùng đứng yên, `apply()`),
   chỉ giữ phần đổi (`change_rgba`: độ đục vừa đủ), trang đặt nó bằng Normal ngay trên video và vùng đứng yên, dưới

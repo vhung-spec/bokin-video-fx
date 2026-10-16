@@ -10,28 +10,32 @@ line twice a second. Gusts add to the wind now and then: a drop drifts with the 
 leans with the gust.
 
 A drop is a tiny wide-angle lens: what it shows is the light around it, not what is behind it. Given the scene's light
-(light=: effects.light_map of the video), rain is bright and warm near lamps and lit windows, faint where nothing
-lights it, barely there (a little darker) against a flat bright sky; the "lit" setting mixes that with the rain's own
-colour, so some rain shows everywhere. The sheets of rain and the mist are lit the same way with less of their own
-colour: they glow round the lights and leave the dark dark. It stays an effect drawn over the picture (not a lens):
-its preview clip carries it all.
+(light=: effects.light_map of the video), a drop is that light: warm and glittering near lamps and lit windows, shown
+most where it falls before something darker than the light around it (lit from beside or behind), a little darker than
+a lit window or a bright sky behind it (against a flat sky it barely shows), and faint where nothing lights it. The
+"lit" setting mixes in the rain's own colour (at the default, a little: rain in the dark stays faint). The sheets of
+rain and the mist show the light around them, with almost none of their own colour: they glow round the lights and
+leave the dark dark. A light brighter than white is white (each channel clipped as a camera does), so nothing laid
+over a lamp or the sun darkens it; a drop that bright shows more of itself instead. It stays an effect drawn over
+the picture (not a lens): its preview clip carries it all.
 
-Around the drops: soft sheets of rain blown along, a light mist, splashes and rings where drops reach the ground (spray
-over it in heavy rain), and flashes of lightning.
+Around the drops: soft sheets of rain blown along, a light mist, flashes of lightning, and on the ground (when there is
+one in the picture) the drops landing: far more of them than the streaks drawn, each a crown of droplets and rings
+spreading on the wet ground, and spray over it in heavy rain.
 
 All of it is a function of tau = t / P with whole numbers of cycles per loop (gusts, sheets, rain coming in waves,
-lightning, each drop's lanes), so frame P is frame 0 again.
+lightning, each drop's lanes, each place on the ground's landings), so frame P is frame 0 again.
 """
 import math
 
 import numpy as np
 from PIL import Image
 
-from .effects import Falling, LUMA, _choice, _colour, _lerp, _num, _rgb, linear, srgb, stretch
+from .effects import Falling, LUMA, _choice, _colour, _lerp, _num, _rgb, linear, srgb
 
 PRESETS = {
     "drizzle": {"amount": 80, "size": 10, "length": 50, "speed": 10, "opacity": 30, "variety": 40, "wind": 6,
-                "gust": 10, "waves": 10, "depth": 40, "blur": 25, "veil": 10, "mist": 70, "splash": 15, "ripple": 30,
+                "gust": 10, "waves": 10, "depth": 40, "blur": 25, "veil": 10, "mist": 60, "splash": 15, "ripple": 30,
                 "lightning": 0},
     "medium": {"amount": 45, "size": 35, "length": 50, "speed": 60, "opacity": 45, "variety": 50, "wind": 10,
                "gust": 20, "waves": 15, "depth": 50, "blur": 35, "veil": 30, "mist": 0, "splash": 50, "ripple": 30,
@@ -103,14 +107,16 @@ PAD = 8  # spare columns either side of a layer: whatever falls outside the fram
 GRID = 2048  # samples of the periodic signals (gusts, waves) over one loop
 BAND = 48  # rows laid over the picture at a time (they stay in the processor's cache)
 RING_S = 0.6  # seconds a ring on the ground lasts
+IMPACTS = 15000  # drops landing a second on the ground in view at amount 100 (ground from 45% of the height down)
+MOST_IMPACTS = 24000
 LANE = 0.382  # about this share of the room a drop's lane moves on each time it comes down
 STRENGTH = 1.4  # coverage of a drop at opacity 100, before its own light and nearness
-DROP_GAIN = 2.0  # a lit drop: this many times the light around it (it gathers light from a wide angle)
-MIST_GAIN = 1.4  # lit sheets and mist: the light around them (they scatter it towards the camera)
-FLOOR = 0.15  # a lit drop keeps this share of its own colour where the scene is dark (some rain shows; small
-# drops less: drizzle shows mostly in the light)
-TINT_LUMA = float(linear(_rgb("#d4dce6")) @ LUMA)  # the default colour tints a lit drop not at all
-BRIGHT, BOOST = 0.75, 3.0  # a lit drop brighter than this (linear luma) shows more, at most this many times more
+DROP_GAIN = 1.0  # a lit drop: this many times the light around it
+LIT_SIDE = 1.5  # at night, before something darker than the light around it, a drop shows that much more of it
+# (in daylight 40% of that)
+MIST_GAIN = 1.0  # lit sheets and mist: the light around them (they scatter it towards the camera)
+NEUTRAL = linear(_rgb("#d4dce6"))  # the default colour tints a lit drop not at all (another one does)
+BOOST = 3.0  # a lit drop brighter than white shows more (coverage), at most this many times more
 
 
 def _smooth(e0, e1, x):
@@ -318,7 +324,9 @@ class Rain(Falling):
     VERSION = 4
     LIT = True
     PREVIEW_W = 1280  # its preview clip's width (engine.fx_clip_frame): thin streaks need the pixels
-    PREVIEW_CRF = 42  # and its quality (as good as 34 for streaks on see-through, two thirds the size)
+    # and its quality: 42 keeps 94% of medium rain's streaks (34: 97%) in two thirds the size; fine drizzle needs 34
+    # (88%; 42: 80%), and its clip is small anyway (set per rain in __init__)
+    PREVIEW_CRF = 42
     upgrade = staticmethod(upgrade)
 
     def __init__(self, *a, light=None):
@@ -383,7 +391,7 @@ class Rain(Falling):
         hit = np.where(g < 1, g + (1 - g) * 1.3 * z ** 0.8, 9.0)  # where on the ground a drop lands (frame heights)
         kept = self.choose(share, wanted, {
             "z": z, "width": drawn, "opacity": np.minimum(1.0, opacity), "defocus": defocus, "wide": wide,
-            "hit": hit, "gate": u[:, 8], "su": u[:, 9], "sv": u[:, 10], "sw": u[:, 11], "wander": wander,
+            "hit": hit, "gate": u[:, 8], "wander": wander,
             "wm": self.cycles(_lerp(0.25, 0.8, uw[:, 0])), "wphi": uw[:, 1] * 2 * math.pi,
             "lane0": u[:, 1] + u[:, 6], "lo": lo, "room": room})
         self.__dict__.update(kept)
@@ -400,12 +408,10 @@ class Rain(Falling):
             m[bad] += 1
         self.step = m / k
 
-        # splashes and rings where drops land: how strong, how long, how big (by how near the spot is)
+        # splashes and rings where drops land on the ground: far more of them than the streaks drawn (_impacts())
         self.ground = g
         self.splash, self.ripple = p["splash"] / 100, p["ripple"] / 100
-        close = np.clip((self.hit - g) / max(1 - g, 1e-6), 0, 1.3)  # 0 at the far edge of the ground
-        self.spot = (0.15 + 0.85 * close) * px  # size of things on the ground there, px of 1080 per px
-        self.pass_s = self.len / self.speed  # seconds between two landings of the same drop
+        self.hits = self._impacts(p, g) if g < 1 and (self.splash > 0 or self.ripple > 0) else None
 
         # sheets of rain blown along (two drifting patterns, so their shapes change), mist, spray over the ground
         vrng = np.random.default_rng([self.seed, 1103, 3])
@@ -443,7 +449,11 @@ class Rain(Falling):
         self.light = light
         self.lit = p["lit"] / 100 if light is not None else 0.0
         self.maps = None
-        self.edge = p["edge"] / 100 * (1 - 0.6 * self.lit)  # (lit: a streak darker than a bright sky needs less)
+        if p["size"] < 25:
+            self.PREVIEW_CRF = 34
+        self.edge = p["edge"] / 100 * (1 - self.lit) ** 2  # (lit: against a bright sky a drop is darker already)
+        if self.edge < 0.04:  # (too faint to see: not drawn)
+            self.edge = 0.0
 
     # --- what moves -------------------------------------------------------------------------------------------
 
@@ -525,7 +535,7 @@ class Rain(Falling):
             return
         sharp = Layer(self.w, self.h)
         soft_size = (self.w + 1) // 2, (self.h + 1) // 2
-        on_ground = self.ground < 1 and (self.splash > 0 or self.ripple > 0)
+        on_ground = self.hits is not None
         soft = Layer(*soft_size) if self.blurred.any() or (on_ground and self.px >= 1.5) else None
         shade = Layer(*soft_size) if self.edge > 0 or (on_ground and self.ripple > 0) else None
         hx, hy, ux, uy, length, s, show = self.drops(t)
@@ -550,41 +560,53 @@ class Rain(Falling):
             rim = width + 1.2 * self.px
             shade.streaks(tx / 2, ty / 2, hx / 2, hy / 2, rim / 2, glow * self.edge * 0.45, cut / 2, soft=True)
         if on_ground:
-            self._splashes(tau, sharp, soft, shade, s)
+            self._splashes(tau, sharp, soft, shade)
         haze = self._veil(tau) if self.veil + self.mist + self.spray > 0 else None
         self._lay(canvas, mask, sharp, soft, shade, haze, flash)
 
     def _colours(self):
         """The colour of the drops, and of the sheets and mist: their own (3,), or, lit by the scene, maps of what the
-        light around them makes them (sRGB, uint8 planes (3, h, w)), and how much more of them shows where that light
-        is brighter than white (a drop by a lamp flashes: more coverage, None if nowhere). Made once; release() lets
-        them go."""
+        light around them makes them (sRGB, uint8 planes (3, h, w)), and how much more of a drop shows where that light
+        is brighter than white (a drop by a lamp flashes: more coverage; None if nowhere). Worked out at the light
+        map's size (it changes slowly), each channel clipped at white as a camera does (a light far brighter than white
+        is white, not darkened). Made once; release() lets them go."""
         if self.maps is None:
             if self.lit <= 0:
                 self.maps = (self.colour, self.colour, None)
             else:
-                e = stretch(self.light, (self.w + 1) // 2, (self.h + 1) // 2)  # linear light (it changes slowly)
                 own = linear(self.colour)
-                e *= own / TINT_LUMA  # (its colour tints the light it shows)
+                tint = own / NEUTRAL  # (its colour tints the light it shows)
+                e, here = self.light[..., :3] * tint, self.light[..., 3:] * tint
                 lit = self.lit
-                floor = FLOOR * min(1.0, (0.15 + self.p["size"] / 100) / 0.5)
-                drops = (1 - lit * (1 - floor)) * own + (lit * DROP_GAIN) * e
-                boost = np.clip((drops @ LUMA) / BRIGHT, 1.0, BOOST)
-                mists = (1 - lit) ** 2 * own + (lit * MIST_GAIN) * e  # (mist: little light of its own)
-                planes = [self._big(srgb(c / boost[..., None])) for c in (drops, mists)]
+                # a drop before something darker than the light around it shows more of that light (lit from
+                # beside or behind: by a lamp, a window, the sky), most at night; it flashes (more of it shows) only
+                # where the light itself is brighter than white
+                keep = (1 - lit) ** 3 * min(1.0, (0.15 + self.p["size"] / 100) / 0.5)  # (small drops: less)
+                drops = keep * own + ((1 - keep) * DROP_GAIN) * e
+                more = np.minimum(drops, 1.0)
+                boost = np.clip((drops @ LUMA) / np.maximum(more @ LUMA, 1e-6), 1.0, BOOST)
+                night = float(_smooth(0.16, 0.08, float((here @ LUMA).mean())))
+                drops += ((1 - keep) * DROP_GAIN * LIT_SIDE * (0.4 + 0.6 * night)) * np.maximum(e - here, 0.0)
+                shown = np.minimum(drops, 1.0, out=more)
+                del drops, here
+                keep = (1 - lit) ** 4  # (mist: little light of its own)
+                mists = keep * own + ((1 - keep) * MIST_GAIN) * e
+                np.minimum(mists, 1.0, out=mists)
+                planes = [self._big(srgb(c)) for c in (shown, mists)]
                 more = None
                 if boost.max() > 1.0 + 1 / 255:
-                    more = self._big((boost - 1.0)[..., None] / (BOOST - 1.0))[0]
+                    more = self._big(((boost - 1.0) / (BOOST - 1.0))[..., None])[0]
                 self.maps = (planes[0], planes[1], more)
         return self.maps
 
     def _big(self, c):
-        """A half-size map (h, w, n) of 0..1 values as uint8 planes (n, h, w) of the full size."""
+        """A small map (h, w, n) of 0..1 values as uint8 planes (n, h, w) of the layer's size (bilinear; made in 8
+        bits from the start: no full-size floats)."""
         planes = np.empty((c.shape[2], self.h, self.w), np.uint8)
+        small = np.clip(c * 255.0 + 0.5, 0, 255).astype(np.uint8)
         for k in range(c.shape[2]):
-            big = Image.fromarray(np.ascontiguousarray(c[..., k] * 255.0, np.float32), "F").resize(
-                (self.w, self.h), Image.Resampling.BILINEAR)
-            planes[k] = np.clip(np.asarray(big) + 0.5, 0, 255)
+            planes[k] = np.asarray(Image.fromarray(np.ascontiguousarray(small[..., k]), "L").resize(
+                (self.w, self.h), Image.Resampling.BILINEAR))
         return planes
 
     def release(self):
@@ -633,93 +655,109 @@ class Rain(Falling):
                 rim *= 1.0 - cover
                 alpha = cover + rim
             if mist is not None:
-                if gain is not None:
-                    mist *= gain
-                    np.minimum(mist, 1.0, out=mist)
                 mist *= 1.0 - alpha
                 _tint(mist, mists, r0, lift, into=prgb)
                 alpha = alpha + mist
             canvas.over_rgba(0, r0, prgb, alpha, mask)
 
-    def _splashes(self, tau, sharp, soft, shade, s):
+    def _impacts(self, p, g):
+        """Drops landing on the ground in view, apart from the streaks drawn (they are a few of the drops that fall):
+        places that each see a landing about once a second, k whole times a loop, each time somewhere else (a
+        low-discrepancy step on from the last), so frame P is frame 0 again. The heavier the rain, the more; the
+        bigger its drops, the more and bigger the splashes."""
+        big = min(1.0, (0.15 + p["size"] / 100) / 0.5)
+        rate = IMPACTS * (p["amount"] / 100) ** 1.5 * big ** 1.5 * (1 - g) / 0.55 * self.aspect / (16 / 9)
+        n = int(min(MOST_IMPACTS, round(rate)))
+        if n == 0:
+            return None
+        u = np.random.default_rng([self.seed, 1103, 6]).random((n, 8))
+        k = self.cycles(1.0 / (0.75 + 0.5 * u[:, 0]))  # landings a loop
+        return {"k": k, "phase": u[:, 1], "u": u[:, 2], "v": u[:, 3], "gate": u[:, 4], "r": u[:, 5:8].T,
+                "big": 0.55 + 0.45 * big}
+
+    def _splashes(self, tau, sharp, soft, shade):
         """Water thrown up where drops land, and rings spreading on the wet ground. Drawn where a pixel is about a
         pixel of a 1080-line frame (the half-size layer from 4K up), so they look alike at every size."""
-        d_hit = (self.hit + self.my) / self.cos
-        s_hit = self.extra + d_hit
-        age = np.mod(s - s_hit, self.len) / self.speed  # seconds since the drop landed
-        ok = (self.hit < 1.0 + 0.02) & (d_hit < self.len)
-        ok &= age < np.minimum(RING_S, 0.9 * self.pass_s)  # (as long as the longest part lasts: the rings)
-        if not ok.any():
+        hits, g = self.hits, self.ground
+        q = tau * hits["k"] + hits["phase"]  # landings so far
+        j = np.floor(q)
+        period = self.loop_s / hits["k"]
+        age = (q - j) * period  # seconds since the last one
+        i = np.flatnonzero(age < np.minimum(RING_S, 0.9 * period))  # (as long as the longest part lasts: a ring)
+        if not len(i):
             return
-        i = np.flatnonzero(ok)
-        a = age[i]
-        tau_hit = tau - a / self.loop_s
-        landed = _at(self.density, tau_hit - s_hit[i] / (self.k[i] * self.len[i])) > self.gate[i]
-        i, a, tau_hit = i[landed], a[landed], tau_hit[landed]
-        since = d_hit[i] / (self.k[i] * self.len[i])
-        x = self.lanes(tau_hit, i) + d_hit[i] * self.sin[i] + self.speed[i] * self.loop_s * (
-            _at(self.carried, tau_hit) - _at(self.carried, tau_hit - since) + self.gust_mean * since)
-        x = x + self.wander[i] * np.sin(2 * math.pi * self.wm[i] * tau_hit + self.wphi[i])
-        layer, f = (soft, 0.5) if soft is not None and self.px >= 1.5 else (sharp, 1.0)
-        x, y = x * self.h * f, self.hit[i] * self.h * f
-        size = self.spot[i] * f  # this layer's px for a size 1 at the bottom of a 1080-line frame
-        o = 0.4 + 0.6 * self.opacity[i]  # (a splash catches the light whatever the drop's own glint)
-        if self.splash > 0:
-            self._crowns(layer, a, x, y, size, o, i)
-        if self.ripple > 0:
-            self._rings(layer, shade, 0.5 / f, a, x, y, size, o, i)
+        j, a = np.mod(j[i], hits["k"][i]), age[i]
 
-    def _rings(self, layer, dark, f, a, x, y, size, o, i):
+        def each(r, step):  # a new draw each landing (the same one a loop later)
+            return np.mod(r + step * j, 1.0)
+        landed = _at(self.density, tau - a / self.loop_s) > each(hits["gate"][i], 0.6180339887)
+        i, j, a = i[landed], j[landed], a[landed]
+        u = each(hits["u"][i], 0.7548776662)
+        v = each(hits["v"][i], 0.5698402910)
+        su, sv, sw = (each(r[i], step) for r, step in zip(hits["r"], (0.4142135624, 0.7320508076, 0.2360679775)))
+        y = g + (1 - g) * v ** 1.4  # (more far off: more ground in each pixel there)
+        close = (y - g) / max(1 - g, 1e-6)  # 0 at the far edge of the ground
+        layer, f = (soft, 0.5) if soft is not None and self.px >= 1.5 else (sharp, 1.0)
+        x = (-0.02 + u * (self.aspect + 0.04)) * self.h * f
+        y = y * self.h * f
+        size = (0.15 + 0.85 * close) * hits["big"] * self.px * f  # this layer's px for 1 at a 1080 frame's bottom
+        o = 0.6 + 0.4 * sw  # (how much light each catches)
+        dur = np.minimum(RING_S, 0.9 * period[i])
+        if self.splash > 0:
+            self._crowns(layer, a, x, y, size, o, su, sv, sw, period[i])
+        if self.ripple > 0:
+            self._rings(layer, shade, 0.5 / f, a, x, y, size, o, sw, close, dur)
+
+    def _rings(self, layer, dark, f, a, x, y, size, o, sw, close, dur):
         """Rings spreading on the wet ground, a faint one inside: soft lines that catch the light on their far side
-        (the near side of a ripple faces down, away from the sky: darker, on `dark`, f times this layer's size)."""
-        dur = np.minimum(RING_S, 0.9 * self.pass_s[i])
+        (the near side of a ripple faces down, away from the sky: a little darker, on `dark`, f times this layer's
+        size)."""
         k = np.flatnonzero(a < dur)
         if not len(k):
             return
         f_age = a[k] / dur[k]
-        flat = 0.2 + 0.25 * np.clip((self.hit[i][k] - self.ground) / max(1 - self.ground, 1e-6), 0, 1)
-        reach = size[k] * (0.7 + 0.6 * self.sw[i][k])
-        line = 1.5 * size[k]  # how thick the line is, px
+        flat = 0.2 + 0.25 * close[k]
+        reach = size[k] * (0.7 + 0.6 * sw[k])
+        line = 1.8 * size[k]  # how thick the line is, px
         xs, ys, ws, ds = [], [], [], []
-        for lag, strength in ((0.0, 1.0), (0.3, 0.3)):
+        for lag, strength in ((0.0, 1.0), (0.3, 0.35)):
             g = np.clip((f_age - lag) / (1 - lag), 0, 1)
-            rx = (1.5 + 11.0 * np.sqrt(g)) * reach
+            rx = (2.0 + 16.0 * np.sqrt(g)) * reach
             ry = rx * flat
             around = 2 * math.pi * np.sqrt(0.5 * (rx * rx + ry * ry))
-            n = np.where(g > 0, np.maximum(24, np.ceil(around / 0.8)), 0).astype(np.intp)  # a point every 0.8 px
+            n = np.where(g > 0, np.maximum(16, np.ceil(around / 1.1)), 0).astype(np.intp)  # a point every 1.1 px
             ring = np.repeat(np.arange(len(n)), n)
             th = (np.arange(len(ring)) - np.repeat(np.cumsum(n) - n, n)) * (2 * math.pi) / n[ring]
             sin = np.sin(th)
-            cover = 0.8 * self.ripple * o[k] * strength * (1 - g) ** 1.5  # at its brightest, on the far side
+            cover = 1.2 * self.ripple * o[k] * strength * (1 - g) ** 1.5  # at its brightest, on the far side
             each = (cover * line * around / np.maximum(n, 1))[ring]
             xs.append(x[k][ring] + rx[ring] * np.cos(th))
             ys.append(y[k][ring] + ry[ring] * sin)
-            ws.append(each * (0.08 + 0.92 * np.clip(-sin, 0, 1)))
-            ds.append(each * 0.6 * np.clip(sin, 0, 1))
+            ws.append(each * (0.2 + 0.8 * np.clip(-sin, 0, 1)))
+            ds.append(each * 0.3 * np.clip(sin, 0, 1))
         xs, ys = np.concatenate(xs), np.concatenate(ys)
         layer.dots(xs, ys, np.concatenate(ws))
         if dark is not None:
             dark.dots(xs * f, ys * f, np.concatenate(ds) * (f * f))
 
-    def _crowns(self, layer, a, x, y, size, o, i):
-        """Droplets thrown up and out where drops land, each the short line it draws while the shutter is open,
-        and the drop breaking."""
-        dur = np.minimum(0.1 + 0.06 * self.sw[i], 0.9 * self.pass_s[i])  # over before the drop lands again
+    def _crowns(self, layer, a, x, y, size, o, su, sv, sw, period):
+        """Droplets thrown up and out where drops land (a crown of them, rising 8 to 25 px near the camera in a
+        1080-line frame), each the short line it draws while the shutter is open, and the drop breaking."""
+        dur = np.minimum(0.12 + 0.08 * sw, 0.9 * period)  # in the air (over before the next landing there)
         live = a < dur
         if not live.any():
             return
-        a, x, y, size, o, dur = a[live], x[live], y[live], size[live], o[live], dur[live]
-        su, sv = self.su[i][live], self.sv[i][live]
+        a, x, y, size, o, dur, su, sv = a[live], x[live], y[live], size[live], o[live], dur[live], su[live], sv[live]
         fade = np.sqrt(1 - a / dur)
-        fast = 420 * float(size.max())  # px a second, the fastest droplet
+        fast = 700 * float(size.max())  # px a second, the fastest droplet
         m = int(np.clip(np.ceil(fast * self.shutter / 0.7) + 1, 2, 12))  # points along each line, 0.7 px apart
-        for j in range(6):  # (how each droplet flies: its own mix of the drop's random draws)
+        for j in range(8):  # (how each droplet flies: its own mix of the landing's random draws)
             r1, r2 = (su * (2.618 * j + 1.3) + sv * (1.618 * j + 0.7)) % 1.0, (sv * (j + 3) + 0.37 * su) % 1.0
-            ang = 1.1 * (r1 - 0.5) + 0.1 * (j - 2.5)  # from straight up, within 0.6 or so
-            speed = (150 + 270 * r2) * size  # px a second
+            ang = 1.2 * (r1 - 0.5) + 0.12 * (j - 3.5)  # from straight up, within 0.65 or so
+            speed = (220 + 480 * r2) * size  # px a second
             rise, side = speed * np.cos(ang), speed * np.sin(ang)
             fall = 2 * rise / dur  # back on the ground at the end
-            w = self.splash * o * 2.2 * size ** 2 * fade / m
+            w = self.splash * o * 1.6 * size ** 2 * fade / m
             for back in np.linspace(0, 1, m):  # where it was while the shutter was open
                 b = np.maximum(a - back * self.shutter, 0)
                 layer.dots(x + side * b, y - np.maximum(rise * b - 0.5 * fall * b * b, 0), w)
