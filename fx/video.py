@@ -268,11 +268,12 @@ class ClipWriter:
     """A small clip for the page's live preview: RGBA frames into WebM (VP9 keeps the transparency), or RGB
     frames into H.264."""
 
-    def __init__(self, path, w, h, fps, alpha):
+    def __init__(self, path, w, h, fps, alpha, crf=None):
         self.err = tempfile.TemporaryFile()
         codec = (["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-deadline", "realtime",
-                  "-cpu-used", "8", "-b:v", "0", "-crf", "34", "-row-mt", "1"] if alpha else
-                 ["-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p", "-vf", TO_BT709])
+                  "-cpu-used", "8", "-b:v", "0", "-crf", str(crf or 34), "-row-mt", "1"] if alpha else
+                 ["-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf or 24), "-pix_fmt", "yuv420p", "-vf",
+                  TO_BT709])
         codec += ["-g", "24"]  # the page jumps anywhere in it
         args = [ffmpeg_exe(), "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgba" if alpha else "rgb24",
                 "-s", f"{w}x{h}", "-framerate", str(fps), "-i", "-", *codec, "-an", *CLEAN, path]

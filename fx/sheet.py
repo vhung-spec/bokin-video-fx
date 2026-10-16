@@ -15,6 +15,9 @@ as a file clip is (overlay.lay): with the effect's blend (Screen for light, Norm
 its area and foreground masks in frame space, after the warp. What would be cut at the sheet's edge is cut at the
 turned edge. The turn does not move, so the effect loops as it does upright.
 
+An effect lit by the scene (rain: Effect.LIT) gets the scene's light as it falls on the sheet (_lit()): a turned drop
+still shows the light of the place on the frame it is drawn over.
+
 A lens (water on glass) changes the picture under it. The picture under the sheet is brought onto the sheet (the inverse
 warp; past the frame's edge, its edge repeated, as a blur at the frame's edge does) and the effect applied there. It
 makes each pixel kept * itself + what it adds (the blurred scene, the veil, what a drop sees); a lens that turns says
@@ -68,7 +71,7 @@ class Sheet(overlay.Laid):
     of the video at full size, and of its preview clip. `scratch`: memory shared with the scene's other sheets
     (Scratch; None: its own)."""
 
-    def __init__(self, kind, params, seed, frames, fps, w, h, weight=None, aspect=None, scratch=None):
+    def __init__(self, kind, params, seed, frames, fps, w, h, weight=None, aspect=None, scratch=None, light=None):
         cls = effects.KINDS[kind]
         p = effects.clean_params(kind, params)
         self.kind, self.p, self.w, self.h = kind, p, int(w), int(h)
@@ -98,9 +101,30 @@ class Sheet(overlay.Laid):
         self.part = (max(0, math.floor(bu.min()) - 2), max(0, math.floor(bv.min()) - 2),
                      min(cw, math.ceil(bu.max()) + 2), min(ch, math.ceil(bv.max()) + 2))
         shape = cls.BOX[0] / cls.BOX[1] if cls.BOX else (aspect or sw / sh)
-        self.fx = cls(effects.clean_params(kind, effects.sheet_params(kind, p)), seed, frames, fps, cw, ch, shape)
+        lit = {"light": None if light is None else self._lit(light, hm, sw, sh)} if cls.LIT else {}
+        self.fx = cls(effects.clean_params(kind, effects.sheet_params(kind, p)), seed, frames, fps, cw, ch, shape,
+                      **lit)
         if self.lens:
             self._under()
+
+    def _lit(self, light, hm, sw, sh):
+        """The scene's light map (over the frame) as it falls on the sheet: what lies on the frame where each point of
+        the sheet lands (past the frame's edge: its edge), at the map's own size (it changes slowly)."""
+        lh, lw = light.shape[:2]
+        rows = lh
+        cols = max(2, round(rows * sw / sh))
+        u = (np.arange(cols) + 0.5) / cols * sw
+        v = (np.arange(rows) + 0.5) / rows * sh
+        uu, vv = np.meshgrid(u, v)
+        q = np.tensordot(hm, np.stack([uu, vv, np.ones_like(uu)]), axes=1)
+        z = np.where(q[2] > 1e-9, q[2], 1e-9)  # (a point behind the eye never shows)
+        fx = np.clip(q[0] / z / self.w * lw - 0.5, 0, lw - 1)
+        fy = np.clip(q[1] / z / self.h * lh - 0.5, 0, lh - 1)
+        x0, y0 = np.minimum(np.floor(fx).astype(int), lw - 2), np.minimum(np.floor(fy).astype(int), lh - 2)
+        ax, ay = (fx - x0)[..., None], (fy - y0)[..., None]
+        top = light[y0, x0] * (1 - ax) + light[y0, x0 + 1] * ax
+        bottom = light[y0 + 1, x0] * (1 - ax) + light[y0 + 1, x0 + 1] * ax
+        return (top * (1 - ay) + bottom * ay).astype(np.float32)
 
     def _under(self):
         """A lens: the frame's pixels under the part of the sheet that shows, and the warps between them."""

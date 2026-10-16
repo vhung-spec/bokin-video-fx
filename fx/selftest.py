@@ -77,12 +77,13 @@ def png_bytes(draw, size, mode="L"):
 def periodic_checks():
     yy, xx = np.mgrid[0:360, 0:640]
     scene = np.dstack([0.2 + 0.5 * (((xx // 16) + (yy // 16)) % 2), 0.3 + 0.4 * xx / 640, 0.25 + 0.5 * yy / 360])
+    light = effects.light_map([(scene * 255 + 0.5).astype(np.uint8)])  # (rain lit by the scene)
     for kind in effects.KINDS:
         third = {"style": "dust"} if kind == "glow" else {"wind": 60}
         if kind == "leaves":  # every way a leaf falls, and both kinds of leaf
             third = {"wind": 60, "gust": 80, "spin": 100, "shape": "mixed"}
         for extra in ({}, {"wind": -80, "speed": 100}, third):
-            fx = effects.make(kind, extra, 5, P, FPS, 640, 360)
+            fx = effects.make(kind, extra, 5, P, FPS, 640, 360, light)
             canvas = effects.Canvas(640, 360)
             frames = []
             for t in (0, P):
@@ -97,8 +98,9 @@ def periodic_checks():
             if not check(f"{kind} {extra or ''} returns to frame 0 after one loop", diff < 1 / 512, f"max diff {diff:.6f}"):
                 return
     picture = Image.fromarray((scene * 255 + 0.5).astype(np.uint8))
-    for kind in ("snow", "glass", "steam"):  # placed and turned in 3D: drawn on a sheet, warped onto the frame
-        fx = sheet.Sheet(kind, {"rot_x": 20, "rot_y": -30, "rot_z": 8, "persp": 60, "scale": 70}, 5, P, FPS, 640, 360)
+    for kind in ("snow", "rain", "glass", "steam"):  # placed and turned in 3D: drawn on a sheet, warped onto the frame
+        fx = sheet.Sheet(kind, {"rot_x": 20, "rot_y": -30, "rot_z": 8, "persp": 60, "scale": 70}, 5, P, FPS, 640, 360,
+                         light=light)
         a, b = (np.asarray(fx.draw(t, picture.copy())).astype(int) for t in (0, P))
         diff = int(np.abs(a - b).max())
         if not check(f"{kind} turned in 3D returns to frame 0 after one loop", diff <= 1, f"max diff {diff}"):

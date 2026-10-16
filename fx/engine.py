@@ -100,6 +100,36 @@ def still_picture(folder, project, size):
     return Image.fromarray(arr)
 
 
+LIGHT_FRAMES = 24  # frames of the video its light map is made from (the first ones)
+_lights = {}  # (video file, its stamp) -> its light map
+
+
+def scene_light(folder, project):
+    """The light of the project's video (effects.light_map), for the effects lit by it (Effect.LIT): made from its
+    first frames, once per video file; None if it cannot be read. A copy handed to worker processes carries it
+    ("_light": found_files, fx_clip), so they read nothing."""
+    if "_light" in project:
+        return project["_light"]
+    path, info = input_path(folder, project), project["video"]
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    key = (path, st.st_mtime_ns, st.st_size)
+    if key not in _lights:
+        h = min(info["h"], 4 * effects.LIGHT_H)  # (light averaged in linear light from four times the map's size)
+        size = (max(2, round(info["w"] * h / info["h"] / 2) * 2), h - h % 2)
+        try:
+            with video.Frames(path, info, size, count=min(info["frames"], LIGHT_FRAMES)) as frames:
+                light = effects.light_map(frames)
+        except (video.VideoError, OSError, ValueError):
+            light = None
+        if len(_lights) > 8:
+            _lights.clear()
+        _lights[key] = light
+    return _lights[key]
+
+
 output_frames = timeline.output_frames
 project_frames = timeline.project_frames
 
@@ -163,6 +193,15 @@ class Scene:
         self.missing = []  # file clips left out, their file not there (yet: a played-backwards copy being made)
         ids = []
         scratch = sheet.Scratch()  # (the memory the effects placed or turned share)
+        light = []  # (the video's light, read when a clip is lit by it)
+
+        def lit(kind):
+            if not effects.KINDS[kind].LIT:
+                return None
+            if not light:
+                light.append(scene_light(folder, project))
+            return light[0]
+
         try:
             shown = clip_order(project)
             pairs = timeline.mix_pairs(shown, self.frames, fps)
@@ -194,12 +233,12 @@ class Scene:
                     ids.append(layer["id"])
                 elif effects.on_sheet(layer["kind"], layer.get("params")):  # placed or turned: laid as a file clip
                     drawer = sheet.Sheet(layer["kind"], layer.get("params"), layer.get("seed", 1), self.frames, fps,
-                                         self.w, self.h, area, info["w"] / info["h"], scratch)
+                                         self.w, self.h, area, info["w"] / info["h"], scratch, lit(layer["kind"]))
                     self.layers.append((drawer, None, span))
                     ids.append(layer["id"])
                 else:
                     drawer = effects.make(layer["kind"], layer.get("params"), layer.get("seed", 1), self.frames, fps,
-                                          self.w, self.h)
+                                          self.w, self.h, lit(layer["kind"]))
                     self.layers.append((drawer, None if area is None else np.asarray(area, np.float32) * (1 / 255.0),
                                         span))
                     ids.append(layer["id"])
@@ -443,6 +482,8 @@ def found_files(folder, project):
             layer["file"] = {"found": (path, info)} if path else {}
     names = ["freeze", "fg"] + [layer["id"] for layer in project.get("layers", [])]
     project["_masks"] = {name: _read(mask_path(folder, name)) for name in names}
+    if any(effects.KINDS[lay["kind"]].LIT for lay in project.get("layers", []) if lay["kind"] in effects.KINDS):
+        project["_light"] = scene_light(folder, project)
     image = (project.get("still") or {}).get("source") == "image"
     project["_still"] = _read(os.path.join(folder, "still.png")) if image else None
     return project
@@ -480,19 +521,20 @@ def render(folder, project, out_path, seconds=None, size=None, crf=16, preset="f
         shutil.rmtree(work, ignore_errors=True)
 
 
-def fx_clip_size(info):
-    w = min(FX_CLIP_WIDTH, info["w"])
+def fx_clip_size(info, width=FX_CLIP_WIDTH):
+    w = min(width, info["w"])
     w -= w % 2
     return w, max(2, round(info["h"] * w / info["w"] / 2) * 2)
 
 
 def fx_clip_frame(info, kind, layer=None):
-    """The size of a built-in effect's preview clip: the video's, small; for a placed effect, its box's shape (one
-    made from the picture under it no bigger than the box is in the video)."""
+    """The size of a built-in effect's preview clip: the video's, small (an effect of fine detail says how wide:
+    PREVIEW_W); for a placed effect, its box's shape (one made from the picture under it no bigger than the box is in
+    the video)."""
     cls = effects.KINDS[kind]
     box = cls.BOX
     if not box:
-        return fx_clip_size(info)
+        return fx_clip_size(info, getattr(cls, "PREVIEW_W", FX_CLIP_WIDTH))
     h = min(FX_CLIP_WIDTH, max(64, info["h"]))
     if cls.UNDER and layer is not None:
         p = effects.clean_params(kind, layer.get("params"))
@@ -568,12 +610,14 @@ def fx_clip_name(project, layer):
     place on the timeline: the effect is drawn over the whole length), so the two halves of a cut clip share it."""
     info = project["video"]
     cls = effects.KINDS[layer["kind"]]
+    # (made from the picture under its box: the box's place too, 2: only its change kept, see change_rgba; lit by the
+    # video's light: the video too)
+    lit = cls.LIT and effects.clean_params(layer["kind"], layer.get("params")).get("lit", 1) > 0
     key = json.dumps([layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1),
                       project_frames(project), info["fps"],
                       fx_clip_frame(info, layer["kind"], layer)] + [cls.VERSION] * (cls.VERSION > 1)  # (1: as before)
                      + ([effects.clean_params(layer["kind"], layer.get("params")), _under_key(project, layer), 2]
-                        if cls.UNDER else []), sort_keys=True)  # (made from the picture under its box: the box's
-    # place too; 2: only its change kept, see change_rgba)
+                        if cls.UNDER else []) + [["light", info.get("file")]] * lit, sort_keys=True)
     alpha = cls.blend != "screen" or cls.UNDER  # (made from the picture under its box: soft edges)
     return f"fx-{hashlib.sha1(key.encode()).hexdigest()[:12]}" + (".webm" if alpha else ".mp4")
 
@@ -590,6 +634,8 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
     if os.path.exists(path):
         return name
     total = project_frames(project)
+    if effects.KINDS[layer["kind"]].LIT:  # (the video's light, read here: the workers read nothing)
+        project = dict(project, _light=scene_light(folder, project))
     count = max(1, min(processes or workers(False), total // 48))
     work = os.path.join(folder, "render-" + secrets.token_hex(3))
     os.makedirs(work)
@@ -671,9 +717,9 @@ def fx_part(project, layer, total, folder, start, end, path):
     info = project["video"]
     w, h = fx_clip_frame(info, layer["kind"])
     fx = effects.make(layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1), total,
-                      video.fps_value(info["fps"]), w, h)
+                      video.fps_value(info["fps"]), w, h, project.get("_light"))
     alpha = fx.blend != "screen"
-    writer = video.ClipWriter(path, w, h, info["fps"], alpha)
+    writer = video.ClipWriter(path, w, h, info["fps"], alpha, getattr(fx, "PREVIEW_CRF", None))
     canvas = effects.Canvas(w, h)
     out = np.zeros((h, w, 4 if alpha else 3), np.uint8)
     tmp = np.zeros((h, w), np.float32)

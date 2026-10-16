@@ -45,9 +45,15 @@ hiệu ứng. Cách dùng: `README.md`.
   (`turning`) chỉ khi đã có lá đỏ/vàng; mỗi lần rơi lại là lá khác (`passes()`, `design()`); lá nghiêng chọn hình theo
   chiều dài, ép bằng bộ lọc trung bình (`place()`); chao theo tốc độ rơi; `upgrade()` của lớp
   hiệu ứng (gọi trong `clean_params`) chuyển thông số clip của bản cũ. `VERSION` của hiệu ứng tăng khi hình vẽ ra đổi
-  (clip xem nhanh làm lại). Hiệu ứng `lens` (nước trên kính, lửa nến) đổi cả hình bên dưới: `apply()` cho video xuất
-  và khung chính xác; trang chỉ phát clip xem nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung chính xác
-  (`liveIncomplete`).
+  (clip xem nhanh làm lại). Mưa: vệt đều, hai đầu tròn (màn trập nửa khung); một hệ số xa gần cho cả độ rộng và tốc
+  độ (hạt mảnh luôn chậm); mỗi lần rơi lại một làn khác (`lanes()`: k làn, bước m / k). Mưa sáng theo cảnh
+  (`Effect.LIT`): `light=` là bản đồ ánh sáng của video (`effects.light_map`: mờ rộng + lấp lánh quanh đèn nhỏ; đọc một
+  lần mỗi video: `engine.scene_light`, tiến trình con nhận sẵn `_light` qua `found_files` / `fx_clip`; tấm xoay:
+  `sheet.Sheet._lit`); màu thành bản đồ uint8 (`_colours`, sáng hơn trắng thì thêm độ phủ); vẫn là hiệu ứng vẽ đè,
+  nên clip xem nhanh mang đủ; tên clip đổi theo video khi `lit` > 0. Clip xem nhanh từng loại: `PREVIEW_W`,
+  `PREVIEW_CRF` (mưa: 1280, CRF 42). Hiệu ứng `lens` (nước trên kính, lửa nến) đổi cả hình bên dưới: `apply()` cho
+  video xuất và khung chính xác; trang chỉ phát clip xem nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung
+  chính xác (`liveIncomplete`).
 - Hiệu ứng đặt một chỗ (`BOX`: khói, nến): thông số `x`, `y`, `scale` (`_place()`), `box()` cùng công thức với clip
   file (vừa khung). `UNDER` (nến): clip xem nhanh làm từ chính hình dưới hộp (video + vùng đứng yên, `apply()`),
   chỉ giữ phần đổi (`change_rgba`: độ đục vừa đủ), trang đặt nó bằng Normal ngay trên video và vùng đứng yên, dưới

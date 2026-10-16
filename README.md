@@ -16,8 +16,12 @@ Premiere Pro:
 - **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói cốc cà phê, lửa nến, lá rơi, đom đóm / bụi sáng. App tự
   vẽ, chỉnh được mật độ, cỡ, gió…
   - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
-    dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt gần to và nhoè),
-    màn mưa bay theo gió, hơi nước, nước bắn và gợn nước khi có mặt đất trong hình, chớp sáng.
+    dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt xa mảnh và rơi
+    chậm, hạt gần to, nhanh và nhoè), màn mưa bay theo gió, hơi nước, nước bắn và gợn nước khi có mặt đất trong hình,
+    chớp sáng. Hạt mưa sáng theo đèn trong cảnh như khi quay thật: gần đèn, cửa sổ sáng thì hạt sáng và ấm, lấp lánh;
+    chỗ tối thì mờ; trên nền trời sáng gần như không thấy. Mục **Hạt sáng theo đèn trong cảnh** chỉnh mức này (0: mưa
+    chỉ một màu, như bản cũ). Bản xem nhanh của mưa nét gần bằng video xuất, nên lần đầu chuẩn bị lâu hơn hiệu ứng
+    khác một chút (khoảng nửa phút cho 30 giây).
   - **Tuyết**: **Kiểu tuyết** (tuyết nhẹ, vừa, dày, bão tuyết, lấp lánh, bông to bay chậm) và **Hình bông tuyết** (tròn
     mềm, tinh thể sáu cánh, tự nhiên). Chỉnh thêm: đung đưa, xoáy nhẹ, gió giật, bông to sát ống kính (nhoè), màn tuyết
     mờ trắng xoá, lấp lánh, quầng sáng, màu bông ở gần và ở xa.

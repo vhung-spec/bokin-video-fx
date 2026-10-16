@@ -16,6 +16,7 @@ what it should and leaves every particle where it was.
 import math
 
 import numpy as np
+from PIL import Image
 
 from . import overlay, sprites
 
@@ -101,6 +102,79 @@ def _rgb(hex_colour):
 
 def _lerp(a, b, t):
     return a + (b - a) * t
+
+
+# --- the light of a scene (for effects lit by it) ------------------------------------------------------------------
+
+LIGHT_H = 135  # rows of a scene's light map (an eighth of 1080); its sizes below are in its own pixels
+_TO_LINEAR = np.where(np.arange(256) <= 10, np.arange(256) / 255.0 / 12.92,
+                      ((np.arange(256) / 255.0 + 0.055) / 1.055) ** 2.4).astype(np.float32)
+LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
+GLINT = 10.0  # how bright drops near a light source get (light map: times the light's colour, before blurring)
+
+
+def linear(c):
+    """sRGB (0..1) as linear light."""
+    c = np.asarray(c, np.float32)
+    return np.where(c <= 0.04045, c / 12.92, ((np.maximum(c, 0.04045) + 0.055) / 1.055) ** 2.4).astype(np.float32)
+
+
+def srgb(c):
+    """Linear light as sRGB (0..1; brighter than white: white)."""
+    c = np.clip(np.asarray(c, np.float32), 0.0, 1.0)
+    return np.where(c <= 0.0031308, c * 12.92, 1.055 * np.power(np.maximum(c, 0.0031308), 1 / 2.4) - 0.055).astype(
+        np.float32)
+
+
+def blur(a, sigma):
+    """A Gaussian blur (sigma in pixels) of a float array (h, w) or (h, w, c); past the edges the edge goes on."""
+    out = np.asarray(a, np.float32)
+    r = max(1, int(math.ceil(3 * sigma)))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2).astype(np.float32)
+    k /= k.sum()
+    for axis in (0, 1):
+        n = out.shape[axis]
+        pad = [(0, 0)] * out.ndim
+        pad[axis] = (r, r)
+        p = np.pad(out, pad, mode="edge")
+        acc = np.zeros_like(out)
+        for i, kv in enumerate(k):
+            acc += kv * np.take(p, np.arange(i, i + n), axis=axis)
+        out = acc
+    return out
+
+
+def light_map(frames):
+    """The light a scene casts on what moves in it, from a few of its frames (uint8 RGB, any size): linear RGB,
+    LIGHT_H rows, the frames' shape. A raindrop is a tiny wide-angle lens: what it shows is the light around it,
+    not the pixel behind it. So: the frames' light blurred wide (about 50 px and 160 px of a 1080-line frame, and a
+    share of the whole), plus glints round small light sources (a lamp, a lit window: a spot far brighter than what
+    is around it; a clipped highlight stands for light far brighter than white, so drops near it flash). A bright
+    sky is no light source: rain against it shows barely, a little darker, as it does on camera."""
+    acc, n = None, 0
+    for f in frames:
+        lin = _TO_LINEAR[np.asarray(f)[..., :3]]
+        acc = lin if acc is None else acc + lin
+        n += 1
+    if acc is None:
+        return None
+    acc /= n
+    h, w = acc.shape[:2]
+    lw = max(2, round(LIGHT_H * w / h))
+    small = np.stack([np.asarray(Image.fromarray(np.ascontiguousarray(acc[..., c]), "F").resize(
+        (lw, LIGHT_H), Image.Resampling.BOX)) for c in range(3)], 2)
+    e = 0.45 * blur(small, 6.0) + 0.35 * blur(small, 20.0) + 0.2 * small.mean(axis=(0, 1))
+    lum = small @ LUMA
+    spot = np.clip(lum - 1.5 * blur(lum, 8.0) - 0.05, 0.0, None)
+    hot = np.minimum(spot / 0.3, 1.0)[..., None] * small / np.maximum(lum, 1e-4)[..., None]
+    e += GLINT * (0.6 * blur(hot, 4.0) + 0.4 * blur(hot, 12.0))
+    return np.ascontiguousarray(e, np.float32)
+
+
+def stretch(light, w, h):
+    """A light map (or any small float (h, w, c) picture) stretched over w x h pixels (bilinear)."""
+    return np.stack([np.asarray(Image.fromarray(np.ascontiguousarray(light[..., c]), "F").resize(
+        (w, h), Image.Resampling.BILINEAR)) for c in range(light.shape[2])], 2)
 
 
 class Canvas:
@@ -219,6 +293,10 @@ class Effect:
     # turns: placed and turned in 3D as a file clip is (sheet.Sheet): a full-frame effect on a sheet of the frame's
     # shape, a placed one in its box. A candle's flame does not turn (it always rises straight up).
     TURNS = True
+    # lit: drawn in the light of the scene it falls in (rain: a drop shows the light around it). Made with light=
+    # the scene's light map over its own frame (light_map(), from the video: engine.scene_light), it stays an effect
+    # drawn over the picture, so its preview clip carries it; light=None: drawn in its own colour
+    LIT = False
 
     def __init__(self, params, seed, frames, fps, w, h, aspect=None):
         self.p, self.seed = params, int(seed)
@@ -413,6 +491,8 @@ def quad(kind, params, w, h):
     return overlay.corners(overlay.homography(p, rect, w, h)[0], rect[2], rect[3])
 
 
-def make(kind, params, seed, frames, fps, w, h):
-    """The effect of one layer, for a loop of `frames` frames at `fps`, drawn at w x h."""
-    return KINDS[kind](clean_params(kind, params), seed, frames, fps, w, h)
+def make(kind, params, seed, frames, fps, w, h, light=None):
+    """The effect of one layer, for a loop of `frames` frames at `fps`, drawn at w x h (`light`: the scene's light
+    map, for an effect lit by it: Effect.LIT)."""
+    cls = KINDS[kind]
+    return cls(clean_params(kind, params), seed, frames, fps, w, h, **({"light": light} if cls.LIT else {}))
