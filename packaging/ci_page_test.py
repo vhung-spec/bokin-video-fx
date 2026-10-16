@@ -175,6 +175,51 @@ def move_the_picture(page, fid, drag, shot):
     page.keyboard.press("v")
     check("H takes the hand tool, Esc or V puts it down", h1 == [False, fid] and h2 is True and
           page.evaluate("S.hand") is False, str([h1, h2]))
+    # H held down (the key repeats, as Windows sends it) while dragging: the hand for that drag only
+    b0 = page.evaluate(scr)
+    page.mouse.move(sx, sy)
+    page.keyboard.down("h")
+    for _ in range(4):
+        page.keyboard.down("h")  # (repeat: true)
+    held = page.evaluate("S.hand")
+    drag(sx, sy, sx + 40, sy + 25)
+    page.keyboard.up("h")
+    b1 = page.evaluate(scr)
+    let_go = page.evaluate("S.hand")
+    check("H held while dragging: the hand stays through the key's repeats, and goes when H comes up",
+          held is True and moved(b0, b1, 40, 25) and let_go is False and page.evaluate(params) == before,
+          str([held, b0, b1, let_go]))
+
+    # Space held: a drag moves the picture and plays nothing (the clip's box stays); Space alone plays and stops
+    page.evaluate("document.activeElement && document.activeElement.blur()")
+    b0 = page.evaluate(scr)
+    page.keyboard.down("Space")
+    page.keyboard.down("Space")  # (a repeat)
+    drag(sx, sy, sx - 30, sy + 20)
+    page.keyboard.up("Space")
+    b1 = page.evaluate(scr)
+    sp = page.evaluate("[S.playing, S.space, $('#xform').style.display, stage.classList.contains('grab')]")
+    page.keyboard.press("Space")
+    p1 = page.evaluate("S.playing")
+    page.keyboard.press("Space")
+    p2 = page.evaluate("S.playing")
+    check("Space + drag moves the picture without playing; Space alone still plays and stops",
+          moved(b0, b1, -30, 20) and sp == [False, False, "block", False] and p1 is True and p2 is False,
+          str([b0, b1, sp, p1, p2]))
+
+    # the keys + - (and Ctrl + -) with the mouse on the picture zoom about the mouse, as the wheel
+    page.keyboard.press("Control+0")
+    at = (st["x"] + st["width"] * 0.2, st["y"] + st["height"] * 0.25)
+    under = (f"(() => {{ const r = screenEl.getBoundingClientRect(); "
+             f"return [({at[0]} - r.left) / r.width, ({at[1]} - r.top) / r.height, S.scale]; }})()")
+    page.mouse.move(*at)
+    ks = [page.evaluate(under)]
+    for key in ("Minus", "Control+Minus", "Equal", "Control+Equal"):
+        page.keyboard.press(key)
+        ks.append(page.evaluate(under))
+    check("+ - and Ctrl + - with the mouse on the picture: the point under the mouse stays",
+          ks[1][2] < ks[0][2] and ks[2][2] < ks[1][2] and ks[4][2] > ks[3][2] > ks[2][2] and
+          all(abs(k[0] - ks[0][0]) < 1e-3 and abs(k[1] - ks[0][1]) < 1e-3 for k in ks), str(ks))
 
     # the middle button, two fingers on a touchpad (sideways too), Shift + wheel (sideways)
     page.mouse.move(sx, sy)
@@ -205,21 +250,36 @@ def move_the_picture(page, fid, drag, shot):
     check("a double-click around the picture: Vừa khung, in the middle", page.evaluate("S.zoom") == "fit" and
           all(abs(a - b) < 0.5 for a, b in zip(r, fit)), f"{r} / {fit}")
 
-    # a clip wholly outside the frame: a click where it lies selects it (its picture shows there, faintly), a corner
-    # sizes it there and its box drags it back
+    # a clip wholly outside the frame, not selected: nothing of it shows there, so a press there neither picks nor
+    # moves it, and a double-click there is "Vừa khung"; picked on the timeline, its picture shows there (faintly)
+    # and its box with it; a corner sizes it there and its box drags it back
     page.evaluate(f"(() => {{ const c = clipById('{fid}'); Object.assign(c.params, {{x: 90, y: 0, scale: 40}}); "
                   "S.sel = null; edited(); })()")
     page.select_option("#zoomSel", "0.25")
     page.wait_for_timeout(300)
-    out = page.evaluate(f"(() => {{ const q = placed(clipById('{fid}')), sc = screenEl.getBoundingClientRect(); "
-                        "return [sc.left + (q.x + q.w / 2) / info().w * sc.width, sc.top + (q.y + q.h / 2) / info().h "
-                        "* sc.height, sc.right, sc.left + sc.width / 2, sc.top + sc.height / 2]; })()")
-    page.mouse.click(out[0], out[1])
+    where_out = (f"(() => {{ const q = placed(clipById('{fid}')), sc = screenEl.getBoundingClientRect(); "
+                 "return [sc.left + (q.x + q.w / 2) / info().w * sc.width, sc.top + (q.y + q.h / 2) / info().h "
+                 "* sc.height, sc.right, sc.left + sc.width / 2, sc.top + sc.height / 2]; })()")
+    out = page.evaluate(where_out)
+    p0 = page.evaluate(params)
+    drag(out[0], out[1], out[0] - 40, out[1] + 10)
+    blind = page.evaluate(f"[S.sel, {params}]")
+    page.mouse.dblclick(out[0], out[1])
+    page.wait_for_timeout(200)
+    check("outside the frame, a clip not selected (not shown there) is not picked by a press, nor moved; "
+          "a double-click there is Vừa khung", out[0] > out[2] and blind == [None, p0] and
+          page.evaluate("S.zoom") == "fit", str([out, blind, p0]))
+    page.select_option("#zoomSel", "0.25")
+    page.wait_for_timeout(300)
+    out = page.evaluate(where_out)
+    page.click(f".clip[data-clip='{fid}']")
     page.wait_for_timeout(300)
     sel = page.evaluate(f"[S.sel === '{fid}', $('#xform').style.display, "
                         f"S.els['{fid}'].wrap.classList.contains('spill'), getComputedStyle($('#frame')).display]")
-    check("a clip outside the frame: a click where it lies selects it, its box shows there",
-          out[0] > out[2] and sel == [True, "block", True, "block"], str([out, sel]))
+    xb = page.locator("#xform").bounding_box()
+    check("a clip outside the frame, picked on the timeline: its box shows where it lies",
+          sel == [True, "block", True, "block"] and abs(xb["x"] + xb["width"] / 2 - out[0]) < 2 and
+          abs(xb["y"] + xb["height"] / 2 - out[1]) < 2, str([out, sel, xb]))
     shot("05c-outside-the-frame")
     xb = page.locator("#xform").bounding_box()
     s0 = page.evaluate(params)["scale"]
@@ -249,14 +309,15 @@ def move_the_picture(page, fid, drag, shot):
         return np.asarray(Image.open(io.BytesIO(png)).convert("RGB"))[int(p[1]), int(p[0])].astype(int).tolist()
 
     on = page.screenshot()
-    page.evaluate("(() => { S.sel = null; renderControls(); showXform(); })()")
+    page.keyboard.press("Escape")  # no clip selected
     page.wait_for_timeout(200)
     off = page.screenshot()
+    esc = page.evaluate(f"[S.sel, $('#xform').style.display, S.els['{lid}'].wrap.classList.contains('spill')]")
     yellow, empty, gone = px(on, pts[0]), px(on, pts[1]), px(off, pts[0])
-    check("the selected clip's picture shows faintly outside the frame, and only while it is selected",
-          yellow[0] > empty[0] + 20 and yellow[0] > yellow[2] + 20 and
-          max(abs(a - b) for a, b in zip(gone, empty)) <= 3,
-          str([yellow, empty, gone]))
+    check("the selected clip's picture shows faintly outside the frame, and only while it is selected (Esc: gone, "
+          "its box too)", yellow[0] > empty[0] + 20 and yellow[0] > yellow[2] + 20 and
+          max(abs(a - b) for a, b in zip(gone, empty)) <= 3 and esc == [None, "none", False],
+          str([yellow, empty, gone, esc]))
     page.evaluate(f"(() => {{ select('{lid}'); xform.style.display = 'none'; invalidateExact(); }})()")
     page.wait_for_timeout(300)
     inside = page.locator("#screen").screenshot()

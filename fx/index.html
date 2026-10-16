@@ -310,7 +310,7 @@ footer .jobs { flex: 1; display: flex; gap: 14px; min-width: 0; overflow: hidden
           <option value="" hidden></option><option value="0.1">10%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="fit">Vừa khung</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option>
         </select>
         <button class="icon" id="zIn" title="Phóng to hình (Ctrl +, hoặc + khi chuột ở trên hình)">+</button>
-        <button class="icon" id="handBtn" title="Bàn tay (H): kéo để dời cả hình đi, như Premiere. Esc hoặc V: thôi. Lúc nào cũng dời được: giữ phím cách hoặc chuột phải rồi kéo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V6a1.5 1.5 0 0 1 3 0v5.5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v5.5M17 11.5V9a1.5 1.5 0 0 1 3 0v5.5a7 7 0 0 1-7 7h-1a6.5 6.5 0 0 1-5.2-2.6l-3.3-4.4a1.6 1.6 0 0 1 2.5-2L8 14.5v-2"/></svg></button>
+        <button class="icon" id="handBtn" title="Bàn tay (H): kéo để dời cả hình đi, như Premiere. Esc hoặc V: thôi. Giữ H mà kéo: thả H là thôi. Lúc nào cũng dời được: giữ phím cách hoặc chuột phải rồi kéo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V6a1.5 1.5 0 0 1 3 0v5.5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v5.5M17 11.5V9a1.5 1.5 0 0 1 3 0v5.5a7 7 0 0 1-7 7h-1a6.5 6.5 0 0 1-5.2-2.6l-3.3-4.4a1.6 1.6 0 0 1 2.5-2L8 14.5v-2"/></svg></button>
         <div class="mid">
           <button class="icon" id="tStart" title="Về đầu (Home)">⏮</button>
           <button class="icon" id="tPrev" title="Khung trước (←)">◀|</button>
@@ -1801,12 +1801,14 @@ stage.addEventListener("pointerdown", e => {
   if (!S.project) return;
   if (e.button === 1 || e.button === 2 || (e.button === 0 && (S.space || S.hand))) {  // the picture moves, at any zoom
     panning = {x: e.clientX, y: e.clientY, px: S.panX, py: S.panY}; stage.setPointerCapture(e.pointerId); e.preventDefault();
+    for (const held of [S.spaceKey, S.handKey]) if (held) held.panned = true;  // (their key coming up: no play, no tool change)
     stage.classList.add("panning"); $("#cursor").style.display = "none"; return;
   }
   if (!S.paint && e.button === 0) {  // a click on a clip's picture selects it (the top one there)
     const sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
     const vx = (e.clientX - sc.left) / sc.width * W, vy = (e.clientY - sc.top) / sc.height * H, t = curFrame();
-    const hit = clipOrder().reverse().find(c => placeable(c) && weight(span(c), t) > 0 &&
+    const inFrame = vx >= 0 && vx <= W && vy >= 0 && vy <= H;  // outside it, only the selected clip shows (faintly)
+    const hit = clipOrder().reverse().find(c => (inFrame || c.id === S.sel) && placeable(c) && weight(span(c), t) > 0 &&
       (r => r && vx >= r.x && vx <= r.x + r.w && vy >= r.y && vy <= r.y + r.h)(placed(c)));
     if (hit) {
       if (hit.id !== S.sel) { select(hit.id); S.xdowns = null; }
@@ -1829,6 +1831,7 @@ stage.addEventListener("pointerdown", e => {
   }
 });
 stage.addEventListener("pointermove", e => {
+  S.mouseAt = [e.clientX, e.clientY];  // (the zoom keys zoom about it)
   moveCursor(e);
   if (panning) {
     const dx = e.clientX - panning.x, dy = e.clientY - panning.y;
@@ -1870,7 +1873,7 @@ function zoomPicture(how, cx, cy) {  // "fit", "100" (a video pixel per screen p
     layoutScreen(); invalidateExact(); refreshExact(); return;
   }
   const f = fitSize(), sr = stage.getBoundingClientRect();
-  if (cx === undefined) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }  // keys: about the middle
+  if (cx === undefined) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }  // buttons, the menu: about the middle
   const old = S.scale;
   let z = clamp(old * how, Math.min(old, minScale(f)), Math.max(old, 12));  // a menu zoom past these stays
   if ((old - 1) * (z - 1) < 0 || Math.abs(z - 1) < 1e-4) z = 1;  // stops at the size of "Vừa khung" on the way
@@ -1910,7 +1913,10 @@ stage.addEventListener("wheel", e => {
   }
   moveCursor(e);
 }, {passive: false});
-stage.addEventListener("pointerenter", () => { S.overStage = true; });
+stage.addEventListener("pointerenter", e => { S.overStage = true; S.mouseAt = [e.clientX, e.clientY]; });
+function zoomKey(how) {  // a key: about the mouse when it is on the picture (as the wheel), else about the middle
+  if (S.overStage && S.mouseAt) zoomPicture(how, S.mouseAt[0], S.mouseAt[1]); else zoomPicture(how);
+}
 stage.addEventListener("pointerleave", () => { S.overStage = false; });
 // Ctrl + wheel anywhere else would zoom the whole page (the window's own zoom): not here
 document.addEventListener("wheel", e => { if (e.ctrlKey && !e.defaultPrevented) e.preventDefault(); }, {passive: false});
@@ -3046,7 +3052,7 @@ document.addEventListener("keydown", e => {
   const ctrlKey = e.ctrlKey || e.metaKey, zk = e.key;
   if (ctrlKey && ["=", "+", "-", "_", "0", "1"].includes(zk) && S.project) {  // the picture's zoom (not the page's)
     e.preventDefault();
-    if (zk === "0") zoomPicture("fit"); else if (zk === "1") zoomPicture("100"); else zoomPicture(zk === "-" || zk === "_" ? 1 / 1.25 : 1.25);
+    if (zk === "0") zoomPicture("fit"); else if (zk === "1") zoomPicture("100"); else zoomKey(zk === "-" || zk === "_" ? 1 / 1.25 : 1.25);
     return;
   }
   if (e.target.matches("input[type=text], input[type=number], textarea")) return;
@@ -3058,12 +3064,11 @@ document.addEventListener("keydown", e => {
     return;
   }
   const k = e.key, ctrl = e.ctrlKey || e.metaKey;
-  if (e.code === "Space") {
+  if (e.code === "Space") {  // held: the picture moves with a drag (as in Photoshop); let go without that: play / stop
     S.space = true; grabCursor();
-    if (e.target.tagName === "BUTTON" || e.target === document.body || e.target.type === "range" || e.target.type === "checkbox") {
-      e.preventDefault();
-      if (!S.paint && !e.repeat) S.playing ? pause() : play();
-    }
+    const here = e.target.tagName === "BUTTON" || e.target === document.body || e.target.type === "range" || e.target.type === "checkbox";
+    if (here) e.preventDefault();  // (not a click on the button that has the focus)
+    if (!e.repeat) S.spaceKey = {play: here && !S.paint, panned: false};
     return;
   }
   if (ctrl && k.toLowerCase() === "z") { e.preventDefault(); undo(e.shiftKey); return; }
@@ -3082,7 +3087,10 @@ document.addEventListener("keydown", e => {
     if (to !== undefined) { pause(); seek(to / fps()); }
     return;
   }
-  if (k === "h" || k === "H") { setHand(!S.hand); return; }  // the Hand tool, as in Premiere and Photoshop
+  if (k === "h" || k === "H") {  // the Hand tool, as in Premiere and Photoshop (a held key repeats: only the first)
+    if (!e.repeat) { S.handKey = {was: S.hand, panned: false}; setHand(!S.hand); }
+    return;
+  }
   if (S.hand && (k === "Escape" || k === "v" || k === "V")) { setHand(false); if (k === "Escape") return; }
   if (S.paint) {
     if (k === "Enter") closePoly();
@@ -3098,15 +3106,24 @@ document.addEventListener("keydown", e => {
   else if (k === "c" || k === "C") { S.tool = "razor"; renderTimeline(); }
   else if (k === "s" || k === "S") { S.snap = !S.snap; renderTimeline(); }
   else if (k === "Delete" || k === "Backspace") { const c = clipById(S.sel); if (c) deleteClip(c); }
-  else if (k === "Escape") { if (S.sel) { S.sel = null; renderTimeline(); renderControls(); } }
-  else if (k === "+" || k === "=") S.overStage ? zoomPicture(1.25) : setPps(S.pps * 1.4, S.time);  // the panel under the mouse
-  else if (k === "-" || k === "_") S.overStage ? zoomPicture(1 / 1.25) : setPps(S.pps / 1.4, S.time);
+  else if (k === "Escape") { if (S.sel) select(null); }  // (its box and its picture outside the frame go too)
+  else if (k === "+" || k === "=") S.overStage ? zoomKey(1.25) : setPps(S.pps * 1.4, S.time);  // the panel under the mouse
+  else if (k === "-" || k === "_") S.overStage ? zoomKey(1 / 1.25) : setPps(S.pps / 1.4, S.time);
   else if (k === "\\") { if (S.overStage) zoomPicture("fit"); else { S.fitTl = true; renderTimeline(); } }
   else if (k === "k" || k === "K") pause();
   else if (k === "l" || k === "L") play();
 });
-document.addEventListener("keyup", e => { if (e.code === "Space") { S.space = false; grabCursor(); } });
-window.addEventListener("blur", () => { S.space = false; grabCursor(); });  // (its keyup goes to another window)
+document.addEventListener("keyup", e => {
+  if (e.code === "Space") {
+    const k = S.spaceKey; S.space = false; S.spaceKey = null; grabCursor();
+    if (k && k.play && !k.panned) { e.preventDefault(); S.playing ? pause() : play(); }
+  }
+  if (e.key === "h" || e.key === "H") {  // H held while the picture moved: only for that move (as Photoshop's tools)
+    const k = S.handKey; S.handKey = null;
+    if (k && k.panned && !k.was && S.hand) setHand(false);
+  }
+});
+window.addEventListener("blur", () => { S.space = false; S.spaceKey = S.handKey = null; grabCursor(); });  // (its keyup goes to another window)
 $("#handBtn").onclick = () => setHand(!S.hand);
 $("#tPlay").onclick = () => S.playing ? pause() : play();
 $("#undoBtn").onclick = () => undo(false);

@@ -79,8 +79,10 @@ hiệu ứng. Cách dùng: `README.md`.
 - Dời hình như Premiere (`layoutScreen`, `panBy`, `unfit`): `S.zoom` là `"fit"` (giữa, vừa khung) hoặc số điểm ảnh
   video trên một điểm màn hình, nhỏ tới 10% (`minScale`); `S.panX/Y` dời ở mọi mức (bàn tay `H`/`#handBtn`, chuột
   phải/giữa, phím cách, hai ngón trên bàn di chuột, Shift + lăn: `wheelPans`), luôn còn `PAN_KEEP` điểm của khung
-  trên màn hình. Quanh khung là vùng tối (`#frame`: viền khung + lớp che); lớp của clip đang chọn tràn ra ngoài khung
-  (`.spill`, `spill()`) nên thấy mờ ở đó, `#xform` kéo được ở đó. Dời hình không hỏi lại khung chính xác.
+  trên màn hình. Phím cách phát/dừng lúc nhả, trừ khi đã dời hình lúc giữ (`S.spaceKey`); giữ `H` mà dời thì nhả là
+  thôi bàn tay (`S.handKey`). Phím phóng (`zoomKey`) phóng quanh chuột khi chuột trên hình. Quanh khung là vùng tối
+  (`#frame`: viền khung + lớp che); lớp của clip đang chọn tràn ra ngoài khung (`.spill`, `spill()`) nên thấy mờ ở
+  đó, `#xform` kéo được ở đó; ngoài khung chỉ bấm trúng clip đang chọn. Dời hình không hỏi lại khung chính xác.
 - Trình duyệt Chromium của Playwright không phát H.264. Edge và Chrome thì phát được (CI thử trên Edge).
 
 ## Quy tắc phải giữ

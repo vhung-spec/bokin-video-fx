@@ -77,9 +77,9 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
      file (vài giây đến vài phút), clip hiện lại khi xong. Bấm vào
      hình của một clip trên màn hình để chọn clip đó; bấm rồi kéo luôn để di chuyển nó. Phóng to màn hình để đặt
      clip thật chính xác (mỗi bước nhích khoảng một điểm ảnh). Clip nằm một phần hay cả ra ngoài khung hình: thu nhỏ
-     hình (lăn chuột xuống, hoặc chọn **25%**) để thấy vùng tối quanh khung. Phần ngoài khung của clip đang chọn hiện
-     mờ ở đó; bấm vào chỗ clip nằm, kéo khung trắng hoặc kéo góc của nó như bình thường (xem
-     [Phóng to, thu nhỏ, dời hình](#phóng-to-thu-nhỏ-dời-hình)).
+     hình (lăn chuột xuống, hoặc chọn **25%**) để thấy vùng tối quanh khung. Chọn clip (bấm nó trên timeline, hoặc bấm
+     phần của nó trong khung hình): phần ngoài khung của nó hiện mờ ở vùng tối, kéo khung trắng hoặc kéo góc của nó như
+     bình thường (xem [Phóng to, thu nhỏ, dời hình](#phóng-to-thu-nhỏ-dời-hình)).
    - **Vùng**: bấm **✎ Vẽ vùng** để tô chỗ hiệu ứng được hiện.
 6. **Vùng đứng yên và tiền cảnh**: bấm vào **V1 Video gốc** trên timeline, rồi bấm **✎ Vẽ vùng đứng yên** hoặc
    **✎ Vẽ tiền cảnh**.
@@ -138,16 +138,17 @@ viền khung là đường kẻ mảnh: cái gì nằm ở vùng tối thì khô
 
 | Thao tác | Cách làm |
 |---|---|
-| Phóng to / thu nhỏ | Lăn chuột trên hình: phóng quanh chỗ chuột. Hoặc `Ctrl` `+` / `Ctrl` `-`, nút **−** **+**, hoặc chọn trong ô cỡ hình (10%, 25%, 50%, Vừa khung, 100%, 200%, 400%). Khi chuột ở trên hình: `+` `-` |
-| Dời hình | Bấm nút **✋ Bàn tay** cạnh ô cỡ hình (phím `H`) rồi kéo. Bấm `Esc` hoặc `V` để thôi. Lúc nào cũng dời được: giữ chuột phải, nút giữa (bánh xe) hoặc phím cách rồi kéo |
+| Phóng to / thu nhỏ | Lăn chuột trên hình: phóng quanh chỗ chuột. Phím `+` `-` (khi chuột ở trên hình) và `Ctrl` `+` / `Ctrl` `-` cũng phóng quanh chỗ chuột. Nút **−** **+** và ô cỡ hình (10%, 25%, 50%, Vừa khung, 100%, 200%, 400%): phóng quanh giữa |
+| Dời hình | Bấm nút **✋ Bàn tay** cạnh ô cỡ hình (phím `H`) rồi kéo. Bấm `Esc` hoặc `V` để thôi. Giữ `H` mà kéo thì thả `H` là thôi. Lúc nào cũng dời được: giữ chuột phải, nút giữa (bánh xe) hoặc phím cách rồi kéo (bấm phím cách rồi thả mà không kéo: phát / dừng như cũ) |
 | Dời ngang bằng chuột | `Shift` + lăn chuột |
 | Bàn di chuột (laptop) | Trượt hai ngón: dời hình. Chụm / mở hai ngón: thu nhỏ / phóng to |
 | Về vừa khung, ở giữa | `Ctrl` `0`, phím `\` khi chuột ở trên hình, chọn **Vừa khung**, hoặc bấm đúp vào vùng tối quanh hình |
 | Cỡ thật | `Ctrl` `1` (100%: mỗi điểm ảnh của video là một điểm trên màn hình) |
 
 Ô cỡ hình luôn ghi cỡ đang xem (ví dụ 37%). Hình không bao giờ bị kéo mất: luôn còn một góc của khung trên màn hình.
-Phần ngoài khung của clip đang chọn hiện mờ trên vùng tối; khung trắng và các góc của nó kéo được cả ở đó. Nếu lăn
-chuột mà hình bị dời đi thay vì phóng to (vài loại chuột lăn mượt, không có nấc), giữ `Ctrl` rồi lăn.
+Phần ngoài khung của clip đang chọn hiện mờ trên vùng tối; khung trắng và các góc của nó kéo được cả ở đó. Ở vùng tối
+chỉ có clip đang chọn: bấm vào đó không chọn clip khác (chọn trên timeline). Nếu lăn chuột mà hình bị dời đi thay vì
+phóng to (vài loại chuột lăn mượt, không có nấc), giữ `Ctrl` rồi lăn.
 
 ### Khói cốc cà phê, lửa nến
 
