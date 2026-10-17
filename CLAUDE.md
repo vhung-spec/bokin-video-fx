@@ -130,8 +130,8 @@ hiệu ứng. Cách dùng: `README.md`.
   cũ, giống hệt từng byte. Phần nguồn đọc ở cỡ phép nắn cần (`jacobians()`: một điểm ảnh của phần đọc không lớn hơn
   một điểm ảnh khung chỗ hình to nhất, không mịn hơn file gốc), mép lặp ra đủ xa cho phía xa của mặt nghiêng
   (`pad_for()`). `#xform` xoay theo clip (bỏ lật), nút tròn `#xformRot` xoay phẳng (giữ con trỏ riêng: bấm đúp là
-  của nó), nút `#xform3d` nằm cạnh nút tròn (không ở giữa: giữa khung là để dời) và nghiêng; nhãn tên tránh hai
-  nút. Chọn clip trên hình theo tứ giác (`hitsClip`, `pickAt`); hiệu ứng phủ kín khung chỉ được chọn ở chỗ không có
+  của nó), nút `#xform3d` nằm cạnh nút tròn (không ở giữa: giữa khung là để dời) và nghiêng; nhãn tên và số
+  (`#xformLab`) chỉ hiện lúc đang kéo, ở góc trên trái (lúc yên nó che đúng chỗ đang căn, như cái cốc dưới khói). Chọn clip trên hình theo tứ giác (`hitsClip`, `pickAt`); hiệu ứng phủ kín khung chỉ được chọn ở chỗ không có
   clip khác (`coversFrame`). Đang chọn nó: kéo trong khung là dời nó; bấm (không kéo) trúng clip nhỏ hơn thì lúc nhả
   chuột chọn clip đó (`handoff`; clip phủ kín khung không giành, `fillsFrame`). Hiệu ứng tạo sẵn trừ nến xoay như vậy
   (`turns()`, `sheetKind()`: clip xem nhanh cả khung hoặc hộp, đặt bằng cùng `turnCSS`). CI so góc trang với Python

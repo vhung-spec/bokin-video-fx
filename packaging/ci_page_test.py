@@ -1045,6 +1045,20 @@ def run(page, folder, edge):
         page.evaluate(f"select('{rid}')")
         covered.append(page.evaluate(hit))
     check("3D: the name tag hides neither the knob nor \"3D\"", all(c == [False, False, False] for c in covered), str(covered))
+    # the name tag only while the box is dragged (at rest it would hide what the clip is being lined up with)
+    rest = page.evaluate("xformLab.style.display")
+    xb = page.locator("#xform").bounding_box()
+    page.mouse.move(xb["x"] + xb["width"] * 0.3, xb["y"] + xb["height"] * 0.55)
+    page.mouse.down()
+    page.mouse.move(xb["x"] + xb["width"] * 0.3 + 30, xb["y"] + xb["height"] * 0.55, steps=4)
+    during = page.evaluate("[xformLab.style.display, xformLab.textContent.length > 0]")
+    page.mouse.up()
+    page.wait_for_timeout(200)
+    after = page.evaluate("xformLab.style.display")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    check("the clip's name tag shows only while its box is dragged", rest == "none" and during == ["block", True]
+          and after == "none", str([rest, during, after]))
 
     # "3D" is not on the clip's middle: a click there selects the clip, a drag from the same point moves it
     turn(dict(rot_x=0, rot_y=0, rot_z=0, x=0, y=0, scale=60))

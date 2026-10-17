@@ -313,7 +313,7 @@ header .prep .ic { color: var(--warn); }
 .xform .xmark[data-lab]::after { content: attr(data-lab); position: absolute; left: 100%; top: -8px; margin-left: 5px;
   font-size: 11px; line-height: 14px; color: #ffd84d; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
 .xform .xmark.dot[data-lab]::after { top: 50%; margin-top: -7px; }
-/* the clip's name tag: placed by the script beside the box, clear of the knob and "3D" */
+/* the clip's name tag and numbers: only while its box is dragged, in the picture area's top left corner */
 .xlab { position: absolute; z-index: 72; display: none; padding: 2px 8px; border-radius: var(--r-sm); background: rgba(10, 11, 13, .85);
   color: #fff; font-size: 11px; line-height: 16px; white-space: nowrap; pointer-events: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06); }
 /* turning a file clip: a round knob on a stem above the box (Z), a "3D" handle beside it (tilt); sizes are functional */
@@ -1692,7 +1692,6 @@ function showXform() {  // the box of the selected clip (a file, an effect's she
   const q = turn ? quad(c) : [[r.x, r.y], [r.x + r.w, r.y + r.h]], xs = q.map(p => ox + p[0] * kx), ys = q.map(p => oy + p[1] * ky);
   const spin = turns(c);  // (a candle does not turn)
   xformRot.style.display = spin ? "block" : "none";
-  const keep = [];  // what the name tag must not cover: the knob and "3D" (stage pixels)
   if (spin) {  // the knob above the top edge; with no room there (a clip bigger than the picture), the first place
     // down the box's middle line that can be seen
     const {m} = homography(flat, r, W, H), on = (u, v) => { const [px, py, pw] = project(m, u, v); return [ox + px * kx, oy + py * ky, pw]; };
@@ -1701,8 +1700,7 @@ function showXform() {  // the box of the selected clip (a file, an effect's she
     const at = steps.find(seen), v = at === undefined ? steps[1] : at;
     xformRot.classList.toggle("in", at !== steps[0]);
     xformRot.style.top = (v * ky - 7) + "px";
-    const [kcx, kcy] = on(r.w / 2, v), [tx, ty] = at === steps[0] ? on(r.w / 2, 0) : [kcx, kcy];  // (and its stem)
-    keep.push([Math.min(kcx, tx) - 8, Math.min(kcy, ty) - 8, Math.max(kcx, tx) + 8, Math.max(kcy, ty) + 8]);
+    const [kcx, kcy] = on(r.w / 2, v);
     // "3D" just beside the knob, along the top edge (never on the clip's middle, where a press moves it); left
     // where it is while it is dragged (it does not run off under the pointer)
     const tilting = S.xdrag && S.xdrag.h === "tilt";
@@ -1717,21 +1715,14 @@ function showXform() {  // the box of the selected clip (a file, an effect's she
       Object.assign(xform3d.style, {left: clamp(hx, 21, st.width - 21) + "px", top: clamp(hy, 15, st.height - 15) + "px"});
     }
     xform3d.style.display = now || tilting ? "block" : "none";
-    if (xform3d.style.display === "block") {
-      const hx = parseFloat(xform3d.style.left), hy = parseFloat(xform3d.style.top);
-      keep.push([hx - 18, hy - 12, hx + 18, hy + 12]);
-    }
   } else xform3d.style.display = "none";
-  // the name tag above the box's top left corner; if the knob or "3D" is there, below the box, else above them
-  xformLab.textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}` +
-    (turn ? ` · xoay ${num(c.params.rot_x)}°, ${num(c.params.rot_y)}°, ${num(c.params.rot_z)}°` : "");
-  xformLab.style.display = "block";
-  const lw = xformLab.offsetWidth, lh = xformLab.offsetHeight, x0 = Math.min(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const tops = [y0 - lh - 3, y1 + 4, Math.min(y0, ...keep.map(k => k[1])) - lh - 3];
-  const spots = tops.map(t => [clamp(x0, 0, Math.max(0, st.width - lw)), clamp(t, 0, Math.max(0, st.height - lh))]);
-  const free = ([x, y]) => keep.every(k => x + lw <= k[0] || x >= k[2] || y + lh <= k[1] || y >= k[3]);
-  const [lx, ly] = spots.find(free) || spots[0];
-  Object.assign(xformLab.style, {left: lx + "px", top: ly + "px"});
+  // the name tag only while the box is moved, sized or turned (its numbers then), in the picture area's top left
+  // corner: beside the box it hid what the box is being lined up with (a cup under its steam)
+  if (S.xdrag && S.xdrag.c === c && !S.xdrag.handoff) {
+    xformLab.textContent = `${c.name} · cỡ ${num(c.params.scale)}% · ${num(c.params.x)}, ${num(c.params.y)}` +
+      (turn ? ` · xoay ${num(c.params.rot_x)}°, ${num(c.params.rot_y)}°, ${num(c.params.rot_z)}°` : "");
+    Object.assign(xformLab.style, {display: "block", left: "8px", top: "8px"});
+  } else xformLab.style.display = "none";
   // where the thing it belongs to goes: a cup's mouth (a flat ellipse on the bottom edge), a candle's wick (a line)
   const sch = S.schema.kinds[c.kind], mk = $("#xformMark"), tip = $("#xformTip");
   const line = (el, at, w, hint, lab) => {  // a level line at `at` (fractions of the box)
