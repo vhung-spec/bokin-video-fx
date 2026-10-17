@@ -138,9 +138,9 @@ hiện trong cột đó, hình không bị thu nhỏ.
 | Thao tác | Cách làm |
 |---|---|
 | Tô | Chọn **Cọ** rồi kéo chuột. Chỉnh **Cỡ cọ**, hoặc bấm phím `[` `]` |
-| Khoanh vùng | Chọn **Khoanh**, bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (nó sáng vòng vàng khi chuột tới gần), bấm đúp, bấm **Khép vùng** hoặc Enter. Bấm **Xong** khi chưa khép thì vùng cũng được khép. `Backspace` bỏ điểm cuối |
+| Khoanh vùng | Chọn **Khoanh**, bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (nó sáng vòng vàng khi chuột tới gần), bấm đúp, bấm **Khép vùng** hoặc Enter. Bấm **Xong** khi chưa khép thì vùng cũng được khép. Đang khoanh: `Ctrl+Z` (hoặc `Backspace`, nút **Bỏ điểm cuối**) bỏ điểm vừa bấm, `Ctrl+Y` lấy lại; `Esc` (nút **Bỏ đường đang khoanh**) bỏ cả đường đang khoanh, `Esc` lần nữa để thôi vẽ |
 | Thêm / bớt | **Thêm** (dấu +), **Bớt** (dấu −) (phím `X` để đổi). Ở chế độ Bớt, nét và đường khoanh có màu đỏ |
-| Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` |
+| Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y`. Đang khoanh dở thì bỏ / lấy lại từng điểm trước, vùng đã vẽ vẫn còn |
 | Phóng to, kéo hình | Lăn chuột trên hình để phóng to / thu nhỏ. Bấm nút **Bàn tay** (phím `H`) rồi kéo, rồi `Esc` (hoặc chọn **Cọ** / **Khoanh**) để tô tiếp. Hoặc giữ chuột phải (hoặc phím cách) rồi kéo. Vẫn tô đúng chỗ chuột |
 | Xoá cả vùng | **Xoá vùng** (vùng đứng yên, tiền cảnh) hoặc **Cả khung hình** (vùng của clip). Bấm `Ctrl+Z` để lấy lại |
 | Xong | Bấm **Xong** (luôn ở cuối cột công cụ) hoặc `Esc`. Vùng của clip vẫn hiện bằng viền xanh để bạn kéo clip vào đúng chỗ (tắt bằng ô **Hiện vùng của clip**) |

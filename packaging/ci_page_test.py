@@ -856,6 +856,29 @@ def run(page, folder, edge):
     page.keyboard.press("Control+y")
     page.wait_for_function("S.project.masks.includes('freeze') && !S.masks.freeze.empty", timeout=30000)
     check("a painted area: undone and done again with Ctrl+Z / Ctrl+Y", undone is True)
+    # outlining a shape: Ctrl+Z takes the last point back (the areas already drawn stay), Ctrl+Y puts it again,
+    # Esc drops the unfinished shape, a second Esc ends the painting
+    page.click(".clip.base >> nth=0")
+    page.click("#paintFreeze")
+    page.keyboard.press("l")  # the polygon tool
+    box = page.locator("#screen").bounding_box()
+    ver = page.evaluate("S.masks.freeze.ver")
+    for fx_, fy_ in ((0.45, 0.2), (0.7, 0.3), (0.6, 0.55)):
+        page.mouse.click(box["x"] + box["width"] * fx_, box["y"] + box["height"] * fy_)
+        page.wait_for_timeout(300)
+    n3 = page.evaluate("S.poly.length")
+    page.keyboard.press("Control+z")
+    n2 = page.evaluate("[S.poly.length, S.masks.freeze.ver === " + str(ver) + ", S.masks.freeze.empty]")
+    page.keyboard.press("Control+y")
+    n3b = page.evaluate("S.poly.length")
+    page.keyboard.press("Escape")
+    dropped = page.evaluate("[S.poly.length, !!S.paint]")
+    page.keyboard.press("b")  # (the brush again, as the later steps expect)
+    page.keyboard.press("Escape")
+    out = page.evaluate("!S.paint")
+    check("outlining: Ctrl+Z takes the last point back, Ctrl+Y puts it again, Esc drops the shape",
+          n3 == 3 and n2 == [2, True, False] and n3b == 3 and dropped == [0, True] and out,
+          str([n3, n2, n3b, dropped, out]))
     page.keyboard.press("Control+Equal")  # the picture's zoom, not the page's
     page.wait_for_timeout(200)
     zoomed = page.evaluate("[S.scale, window.devicePixelRatio]")

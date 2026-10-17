@@ -1109,7 +1109,16 @@ function undoState() {  // the undo and redo buttons
   u.disabled = !S.project || (!S.paint && S.histAt <= 0);
   r.disabled = !S.project || (!S.paint && S.histAt >= S.hist.length - 1);
 }
-function undo(redo) { if (S.paint) undoPaint(redo); else history(redo ? 1 : -1); }
+function undo(redo) {
+  // drawing a shape: Ctrl+Z takes its last point back, Ctrl+Y puts it again (the areas already drawn stay)
+  if (S.paint && S.brush.tool === "poly" && (redo ? (S.polyRedo || []).length : S.poly.length)) return polyStep(redo);
+  if (S.paint) undoPaint(redo); else history(redo ? 1 : -1);
+}
+function polyStep(redo) {
+  S.polyRedo = S.polyRedo || [];
+  if (redo) S.poly.push(S.polyRedo.pop()); else S.polyRedo.push(S.poly.pop());
+  drawPoly(); renderTools();
+}
 function history(step) {
   const at = S.histAt + step;
   if (!S.project || at < 0 || at >= S.hist.length) return;
@@ -2162,7 +2171,7 @@ function enterPaint(name) {
   if (!S.masks[name]) return;
   endStroke();
   pause();
-  S.paint = name; S.poly = []; setHand(false);  // a brush in hand: no longer the Hand tool
+  S.paint = name; S.poly = []; S.polyRedo = []; setHand(false);  // a brush in hand: no longer the Hand tool
   S.onlyBase = name === "freeze" || name === "fg";
   paintCanvas.style.display = polyCanvas.style.display = "block";
   invalidateExact(); showXform();
@@ -2178,7 +2187,7 @@ function exitPaint() {
   const pm = S.masks[S.paint];
   if (S.poly.length >= 3 && pm && !(S.brush.mode === "sub" && pm.empty)) closePoly();  // done: the shape is kept
   const name = S.paint, m = S.masks[name];
-  S.paint = null; S.poly = [];
+  S.paint = null; S.poly = []; S.polyRedo = [];
   if (m) { clearTimeout(m.useTimer); maskUsed(name); }  // the live preview follows at once
   paintCanvas.style.display = polyCanvas.style.display = "none"; renderTools(); $("#cursor").style.display = "none";
   styleAll(); applyTime(); renderControls(); showXform(); drawArea();
@@ -2230,7 +2239,8 @@ function renderTools() {  // the tool column at the right of the monitor: painti
     const size = br.tool === "poly"
       ? `<h5>Khoanh vùng</h5>
       ${S.poly.length >= 3 ? '<button class="small primary wide" data-pclose="1" title="Khép vùng (Enter)">Khép vùng</button>' : ""}
-      <p class="tip">Bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (vòng sáng), bấm đúp hoặc Enter. Backspace: bỏ điểm cuối.</p>`
+      ${S.poly.length ? '<div class="btns"><button class="small" data-pback="1" title="Ctrl+Z hoặc Backspace">Bỏ điểm cuối</button><button class="small" data-pdrop="1" title="Esc">Bỏ đường đang khoanh</button></div>' : ""}
+      <p class="tip">Bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (vòng sáng), bấm đúp hoặc Enter. Ctrl+Z (hoặc Backspace): bỏ điểm vừa bấm, Ctrl+Y: lấy lại. Esc: bỏ cả đường đang khoanh, bấm Esc lần nữa để thôi vẽ.</p>`
       : `<h5 class="lab"><span>Cỡ cọ (điểm ảnh)</span><b id="brushSizeVal">${br.size}</b></h5>
       <div class="size"><span><i id="sizeDot" style="width:${d}px;height:${d}px"></i></span><input type="range" id="brushSize" min="2" max="400" value="${br.size}" style="${rangeP(br.size, 2, 400)}" title="Phím [ và ] để đổi nhanh"></div>`;
     el.innerHTML = `<div class="who" title="${esc(who)}"><i style="background:${COLORS[maskKind(S.paint)]}"></i><span>${esc(who)}</span></div>
@@ -2285,7 +2295,9 @@ $("#tools").addEventListener("click", e => {
   if (!S.paint) return;
   if (b.dataset.mode) { S.brush.mode = b.dataset.mode; renderTools(); drawPoly(); }
   if (b.dataset.pclose) closePoly();
-  if (b.dataset.ptool) { S.brush.tool = b.dataset.ptool; S.poly = []; setHand(false); renderTools(); drawPoly(); }
+  if (b.dataset.pback && S.poly.length) polyStep(false);
+  if (b.dataset.pdrop) { S.poly = []; S.polyRedo = []; S.hover = null; drawPoly(); renderTools(); }
+  if (b.dataset.ptool) { S.brush.tool = b.dataset.ptool; S.poly = []; S.polyRedo = []; setHand(false); renderTools(); drawPoly(); }
   if (b.dataset.fill) fillMask(S.paint, b.dataset.fill);
   if (b.dataset.pundo) undoPaint(false);
   if (b.dataset.predo) undoPaint(true);
@@ -2405,7 +2417,7 @@ function warnTakingAway() {  // "Bớt" on an area with nothing in it yet does n
 }
 function closePoly() {
   const m = S.masks[S.paint];
-  if (!m || S.poly.length < 3) { S.poly = []; drawPoly(); renderTools(); return; }
+  if (!m || S.poly.length < 3) { S.poly = []; S.polyRedo = []; drawPoly(); renderTools(); return; }
   if (S.brush.mode === "sub" && m.empty) {  // kept: after "Thêm", Enter (or the first point) makes it the area
     toast('Vòng này đang ở chế độ "Bớt" nên không thêm gì. Bấm "Thêm", rồi bấm Enter để dùng vòng vừa khoanh.', true, 8000);
     return;
@@ -2419,7 +2431,7 @@ function closePoly() {
     g.closePath(); g.fill();
     g.globalCompositeOperation = "source-over";
   }
-  S.poly = []; S.hover = null;
+  S.poly = []; S.polyRedo = []; S.hover = null;
   keepWhole(m);
   drawPoly(); renderTools();
   maskChanged(S.paint, add ? "add" : "sub");
@@ -2461,8 +2473,8 @@ stage.addEventListener("pointerdown", e => {
   } else {
     if (nearFirst(pt)) { closePoly(); return; }
     if (!S.poly.length) warnTakingAway();
-    S.poly.push(pt); drawPoly();
-    if (S.poly.length === 3) renderTools();  // its "Khép vùng" button
+    S.poly.push(pt); S.polyRedo = []; drawPoly();
+    if (S.poly.length === 1 || S.poly.length === 3) renderTools();  // its "Bỏ điểm cuối", "Khép vùng" buttons
   }
 });
 stage.addEventListener("pointermove", e => {
@@ -3777,10 +3789,10 @@ document.addEventListener("keydown", e => {
   if (S.hand && (k === "Escape" || k === "v" || k === "V")) { setHand(false); if (k === "Escape") return; }
   if (S.paint) {
     if (k === "Enter") closePoly();
-    else if (k === "Escape") { if (S.poly.length) { S.poly = []; S.hover = null; drawPoly(); renderTools(); } else exitPaint(); }
-    else if (k === "Backspace" && S.poly.length) { S.poly.pop(); drawPoly(); if (S.poly.length === 2) renderTools(); }
+    else if (k === "Escape") { if (S.poly.length) { S.poly = []; S.polyRedo = []; S.hover = null; drawPoly(); renderTools(); } else exitPaint(); }
+    else if (k === "Backspace" && S.poly.length) polyStep(false);
     else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderTools(); drawPoly(); }
-    else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; S.hover = null; setHand(false); renderTools(); drawPoly(); }
+    else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; S.polyRedo = []; S.hover = null; setHand(false); renderTools(); drawPoly(); }
     else if (k === "l" || k === "L") { S.brush.tool = "poly"; setHand(false); renderTools(); }
     else if (k === "[" || k === "]") { S.brush.size = clamp(Math.round(S.brush.size * (k === "]" ? 1.2 : 1 / 1.2)), 2, 400); renderTools(); }
     return;
