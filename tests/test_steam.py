@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 
 from tests import helpers
-from fx import effects, engine, projects, sheet, steam
+from fx import effects, engine, projects, sheet, steam, video
 
 W, H = 320, 180
 PLACE = ("x", "y", "scale")
@@ -143,6 +143,20 @@ class Loops(unittest.TestCase):
             steps = [np.abs(a - b).mean() for a, b in zip(run, run[1:])]
             self.assertLess(max(steps), 2.5 * np.median(steps), params)
 
+    def test_nothing_pops_at_a_tick(self):
+        """The air moves on ticks (20 a second), frames lie between them: right over the surface, where new smoke
+        comes in, the step from a frame on a tick to the next is no bigger than the others (no pulse 4 or 10 times a
+        second)."""
+        for params in STYLES.values():
+            for fps, per in ((24, 6), (30, 3)):  # (a frame on a tick every `per` frames)
+                fx = effects.make("steam", {**params, "scale": 90}, 3, 10 * fps, fps, 640, 360)
+                x0, y0, w, h = fx.box()
+                rows = slice(int(round(y0 + h * (1 - 2 * fx.yc - 0.1))), int(round(y0 + h)))
+                run = np.stack([cover(fx, t)[rows, int(x0):int(x0 + w)] for t in range(60, 60 + 40 * per + 1)])
+                steps = np.abs(np.diff(run, axis=0)).mean(axis=(1, 2))
+                on = np.arange(60, 60 + steps.size) % per == 0
+                self.assertLess(steps[on].mean(), 1.15 * steps[~on].mean(), (params["style"], fps))
+
 
 class Box(unittest.TestCase):
     """A placed effect: the steam rises from the mark at the middle of its box's bottom and stays inside the box."""
@@ -179,6 +193,69 @@ class Box(unittest.TestCase):
         self.assertLess(mean[:int(bh * 0.02)].max(), 0.01)  # faded before the top
         self.assertLess(mean[:, :int(bw * 0.02)].max(), 0.01)  # and the sides
         self.assertLess(mean[:, -int(bw * 0.02):].max(), 0.01)
+
+    def test_fades_before_the_sides(self):
+        """However it spreads or leans, the steam thins out before the box's sides (each strand a little sooner or
+        later: no straight edge), not cut off by them."""
+        for name, params in STYLES.items():
+            for look in steam.LOOKS:
+                fx = effects.make("steam", dict(params, **steam.LOOKS[look], look=look, scale=95), 3, 720, 24, 640,
+                                  360)
+                for t in range(0, 720, 48):
+                    a = in_box(fx, cover(fx, t))
+                    n = int(0.06 * a.shape[1])
+                    self.assertLess(max(a[:, :n].max(), a[:, -n:].max()), 0.05, (name, look, t))
+
+    def test_never_a_flat_lump(self):
+        """Where much steam overlaps it covers more, but ever more slowly: never all its opacity (a flat grey
+        lump), not even a dense pot before a bright light (it glows), at its thickest."""
+        light = light_of((70, 60, 50), 640, 360, lamp="left")
+        for name, params in STYLES.items():
+            for look in ("light", "thick", "strong"):
+                p = dict(params, **steam.LOOKS["thick" if look == "strong" else look], scale=95)
+                if look == "strong":
+                    p.update(amount=100, opacity=100)
+                fx = effects.make("steam", p, 3, 720, 24, 640, 360, light)
+                for t in range(0, 720, 90):
+                    a = in_box(fx, cover(fx, t))
+                    self.assertLessEqual(a.max(), 0.951 * p["opacity"] / 100, (name, look, t))
+                    self.assertLess((a > 0.9 * p["opacity"] / 100).sum(), 0.15 * (a > 0.05).sum(), (name, look, t))
+
+    def test_a_veil_over_the_pot(self):
+        """Over a pot the steam is an even veil right over the water (no row of tongues, each from its own point),
+        thicker than over a cup."""
+        def peaks(row):  # (bumps standing well clear of the dips on both sides)
+            d = np.sign(np.diff(row))
+            ext = row[[0, *(np.flatnonzero(np.diff(d) != 0) + 1), row.size - 1]]
+            dip = 0.15 * row.max()
+            return int(((ext[1:-1] - ext[:-2] > dip) & (ext[1:-1] - ext[2:] > dip)).sum())
+        for look in steam.LOOKS:
+            fx = effects.make("steam", dict(STYLES["pot"], **steam.LOOKS[look], look=look, scale=95), 3, 720, 24,
+                              640, 360)
+            counts = []
+            for t in range(0, 720, 60):
+                a = in_box(fx, cover(fx, t))
+                bh, bw = a.shape
+                half = 0.7 * fx.a * bh
+                for f in (1.0, 0.5):  # (the mark's middle, and in front of it)
+                    row = a[int(round(bh * (1 - f * fx.yc))), int(bw / 2 - half):int(bw / 2 + half)]
+                    self.assertGreater(row.mean(), 0.03, (look, t))
+                    counts.append(peaks(row))
+            self.assertLess(np.mean(counts), 2.5, look)  # (the old pot: 4 to 5, up to 11)
+
+    def test_a_kettle(self):
+        """A pot's steam from a narrow mark (a kettle's spout): fewer points, less steam in all (not all of a pot's
+        heaped on a few pixels), a short clear stretch above the spout, then a plume."""
+        pot = effects.make("steam", STYLES["pot"], 3, 720, 24, 640, 360)
+        fx = effects.make("steam", dict(STYLES["pot"], rim=12, scale=95), 3, 720, 24, 640, 360)
+        self.assertEqual(fx.n, steam.FEW)
+        self.assertLess(fx.gain * fx.n, 0.5 * pot.gain * pot.n)
+        mean = sum(in_box(fx, cover(fx, t)) for t in range(0, 720, 30)) / 24
+        rows = mean.max(axis=1)[::-1]  # (from the bottom)
+        mark = int(round(2 * fx.yc * mean.shape[0]))
+        self.assertLess(rows[:mark + 2].max(), 0.25 * rows.max())  # (clear just above the spout)
+        self.assertGreater(rows[mark:mark + int(0.25 * mean.shape[0])].max(), 0.15)
+        self.assertLess(mean.max(), 0.9 * STYLES["pot"]["opacity"] / 100)
 
     def test_no_comb(self):
         """No strands rise from the same places all the time (a comb): over a whole loop, the steam just above the
@@ -290,18 +367,30 @@ class Box(unittest.TestCase):
                 self.assertLess(np.abs(rgb - c).mean(), 0.06 * rgb.mean() + 1e-4, params)
 
     def test_preview_clip_name(self):
-        """Lit by the scene, the preview clip is lit where the box stands: moved, a new one is made (turned, not);
-        unlit, it is the same wherever the box is."""
-        project = {"video": {"w": 1920, "h": 1080, "fps": "24", "frames": 240, "seconds": 10.0, "file": "input.mp4"},
-                   "length": 30}
+        """Lit by the scene, the preview clip is lit by the light where the box stands (a little rounded): moved
+        into other light, a new one is made; nudged, or turned, not (it is lit the same); unlit, it is the same
+        wherever the box is."""
+        src = os.path.join(helpers.ROOT, "steam-lamp.mp4")
+        enc = video.Encoder(src, 320, 180, "24", crf=18, preset="veryfast")
+        for _ in range(12):
+            f = np.full((180, 320, 3), 40, np.uint8)
+            f[:, :80] = (255, 210, 150)  # (a warm lamp on the left)
+            enc.write(f)
+        enc.close()
+        project = projects.create(src, "steam-lamp.mp4")
 
         def name(**p):
             return engine.fx_clip_name(project, {"id": "s1", "kind": "steam", "params": p, "seed": 3})
-        self.assertNotEqual(name(x=10), name(x=11))
-        self.assertNotEqual(name(scale=40), name(scale=41))
+        self.assertNotEqual(name(x=-30), name(x=30))
+        self.assertNotEqual(name(scale=20, x=-30), name(scale=60, x=-30))
+        self.assertEqual(name(x=10), name(x=10.5))  # (nudged)
         self.assertEqual(name(x=10), name(x=10, rot_y=30, rot_z=5))
-        self.assertEqual(name(x=10, lit=0), name(x=11, lit=0, scale=40))
+        self.assertEqual(name(x=-30, lit=0), name(x=30, lit=0, scale=40))
         self.assertNotEqual(name(style="incense"), name(style="pot"))
+        light = engine.scene_light(projects.folder(project["id"]), project)
+        exact = effects.placed_light("steam", light, {"x": 10}, 320, 180)
+        rounded = effects.placed_light("steam", light, {"x": 10}, 320, 180, rounded=True)
+        self.assertLess(np.abs(np.sqrt(exact[:6]) - np.sqrt(rounded[:6])).max(), 1 / 120)
         clip = effects.make("steam", {"style": "incense"}, 1, 144, 24, 640, 640)
         self.assertLess(clip.PREVIEW_CRF, 34)  # (thin threads: a little more quality)
 
@@ -492,6 +581,22 @@ class Settings(unittest.TestCase):
             self.assertEqual(steam.upgrade_in(new, w, h), new)  # (once only)
         self.assertEqual(effects.upgrade_in("snow", {"amount": 3}, 640, 360), {"amount": 3})
 
+    def test_old_turned_mark_stays_on_the_cup(self):
+        """Turned in 3D, the box is moved so that the new mark's middle is where the old one was in the frame."""
+        from fx import overlay
+
+        def mark(params, rim, now):
+            p = effects.clean_params("steam", params)
+            rect = effects.sheet_rect("steam", p, 1920, 1080)
+            q = overlay.homography(p, rect, 1920, 1080)[0] @ (
+                rect[2] / 2, rect[3] - (steam.MARK / 2 * rim / 100 * rect[2] if now else 0), 1.0)
+            return q[:2] / q[2]
+        for turn in ({"rot_z": 30}, {"rot_x": 50, "persp": 80}, {"rot_y": 40, "rot_z": 15, "persp": 60}):
+            old = {"rim": 60, "scale": 45, "x": 3, "y": 10, **turn}
+            new = steam.upgrade_in(old, 1920, 1080)
+            self.assertLess(np.hypot(*(mark(old, 60, False) - mark(new, 60, True))), 1.0, turn)
+            self.assertEqual(steam.upgrade_in(new, 1920, 1080), new)
+
     def test_old_project_loads(self):
         """An old project's steam clip: loaded, it is a cup's steam with its settings, its box moved so the mark
         stays on the cup; saved again, it keeps that place."""
@@ -517,22 +622,35 @@ class Settings(unittest.TestCase):
 
 class Speed(unittest.TestCase):
     def test_a_frame_is_quick(self):
-        """A 1080p frame with the default box (and the steam lit by the scene), drawn frame after frame as an export
-        does: well under a tenth of a second (about 20 ms on a 4-core laptop; the old steam took 16 ms)."""
-        light = light_of((60, 45, 35), 1920, 1080, lamp="left")
-        for params in ({}, STYLES["pot"]):
-            fx = effects.make("steam", params, 7, 720, 24, 1920, 1080, light)
-            canvas = effects.Canvas(1920, 1080)
-            pic = np.zeros((1080, 1920, 3), np.float32)
-            fx.draw(100, canvas, None)
-            canvas.flush(pic, fx.blend)
-            took = []
+        """A frame (the steam lit by the scene) drawn frame after frame as an export does, against laying a picture
+        as big as its box over the frame (what any effect there costs at least), timed here on the same machine:
+        a default 1080p frame about 2 times that (about 20 ms on a 4-core laptop; the old steam took 16 ms, 1.3
+        times), a box at the finest grid or in 4K about as much as laying it."""
+        def took(w, h, draw, flush):
+            times = []
             for t in range(101, 125):
                 t0 = time.perf_counter()
-                fx.draw(t, canvas, None)
-                canvas.flush(pic, fx.blend)
-                took.append(time.perf_counter() - t0)
-            self.assertLess(float(np.median(took)), 0.12, params)
+                draw(t)
+                flush()
+                times.append(time.perf_counter() - t0)
+            return float(np.median(times))
+
+        for (w, h), params, most in (((1920, 1080), {}, 3.0), ((1920, 1080), STYLES["pot"], 3.0),
+                                     ((1920, 1080), dict(STYLES["incense"], scale=100), 2.0),
+                                     ((1920, 1080), {"scale": 100}, 2.0), ((3840, 2160), {}, 2.0)):
+            light = light_of((60, 45, 35), w, h, lamp="left")
+            fx = effects.make("steam", params, 7, 720, 24, w, h, light)
+            canvas = effects.Canvas(w, h)
+            pic = np.zeros((h, w, 3), np.float32)
+            fx.draw(100, canvas, None)
+            canvas.flush(pic, fx.blend)
+            steam_s = took(w, h, lambda t: fx.draw(t, canvas, None), lambda: canvas.flush(pic, fx.blend))
+            x0, y0, bw, bh = (int(round(v)) for v in fx.box())
+            sheet = np.random.default_rng(1).random((min(bh, h), min(bw, w))).astype(np.float32) * 0.5
+            lay = took(w, h, lambda t: canvas.over(max(0, x0), max(0, y0), sheet, (0.9, 0.9, 0.9), 1.0, None),
+                       lambda: canvas.flush(pic, "over"))
+            self.assertLess(steam_s, most * lay, (w, h, params, steam_s, lay))
+            self.assertLess(steam_s, 0.5, (w, h, params))
 
 
 if __name__ == "__main__":

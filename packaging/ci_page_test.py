@@ -1248,7 +1248,8 @@ def run(page, folder, edge):
         page.mouse.down()
         page.mouse.move(cx0 + 20, cy0, steps=4)
         mid = page.evaluate(f"S.els['{cid}'] ? S.els['{cid}'].wrap.style.display : 'gone'")
-        page.mouse.move(cx0 + 40, cy0, steps=4)
+        # (steam: well over, into other light; a nudge keeps its clip, lit the same: test_steam)
+        page.mouse.move(cx0 + (40 if kind == "candle" else 160), cy0, steps=8)
         page.mouse.up()
         page.wait_for_timeout(300)
         check(f"{kind}: while its box moves, its preview clip " +

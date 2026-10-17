@@ -525,14 +525,17 @@ def quad(kind, params, w, h):
     return overlay.corners(overlay.homography(p, rect, w, h)[0], rect[2], rect[3])
 
 
-def placed_light(kind, light, params, w, h):
+def placed_light(kind, light, params, w, h, rounded=False):
     """The light a placed effect lit by the scene (BOX and LIT: steam) is drawn with anywhere but upright in its own
     w x h frame (on its sheet, turned; in its preview clip, the box alone): the light where its box stands upright in
-    that frame (its light_at(), from the scene's light map over the frame); None without the scene's light."""
+    that frame (its light_at(), from the scene's light map over the frame); None without the scene's light.
+    `rounded`: a little rounded (its rounded_light()), the same for a box moved a little: its preview clip, named by
+    it, is not made again for every nudge."""
     if light is None:
         return None
     cls = KINDS[kind]
-    return cls.light_at(light, place_box(cls.BOX, clean_params(kind, params), w, h), w, h)
+    tone = cls.light_at(light, place_box(cls.BOX, clean_params(kind, params), w, h), w, h)
+    return cls.rounded_light(tone) if rounded else tone
 
 
 def make(kind, params, seed, frames, fps, w, h, light=None):

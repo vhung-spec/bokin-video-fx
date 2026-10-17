@@ -184,7 +184,9 @@ dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong 
 2. Chọn **Kiểu khói**:
    - **Hơi nóng cốc cà phê, trà**: vài làn hơi mảnh bốc lên từ mặt cốc, uốn lượn, xoắn lại rồi tan dần.
    - **Khói nhang**: một sợi khói thật mảnh bốc thẳng lên từ đầu que nhang, lên cao mới gợn sóng, cuộn xoáy rồi tản ra.
-   - **Hơi nước nồi, ấm**: hơi nước dày phủ cả mặt nồi, bốc nhanh thành từng đám cuộn lên rồi tan.
+   - **Hơi nước nồi, ấm**: một lớp hơi mỏng phủ đều mặt nước, bốc lên thành từng đám cuộn rồi tan. Với ấm đun nước:
+     đặt hình vàng vào miệng vòi ấm, kéo góc khung cho hình vàng nhỏ bằng miệng vòi; hơi phụt nhanh ra, cách miệng
+     vòi một chút mới thấy (như hơi thật), rồi uốn lượn và tan.
 3. Kéo khung trắng đến chỗ khói bốc lên. Ở đáy khung có **hình bầu dục vàng** (ghi "chỗ khói bốc lên"): đặt nó trùng
    miệng cốc (mặt nồi), rồi kéo góc khung cho hình vàng rộng bằng miệng cốc. Với khói nhang, hình vàng chỉ là một chấm:
    đặt chấm vào đầu que nhang, rồi kéo góc khung cho khung cao bằng chỗ khói bay lên.
@@ -194,7 +196,8 @@ dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong 
    trước cửa sổ sáng thì khói sáng lên. Muốn khói chỉ một màu như trước: kéo **Sáng theo đèn trong cảnh** về 0.
 6. Bấm **Suốt video** để khói bay cả video.
 
-Sau khi dời khung khói, app làm lại bản xem nhanh cho đúng ánh sáng chỗ mới (một lúc); trong lúc đó vẫn phát bản cũ.
+Dời khung khói sang chỗ sáng tối khác, app làm lại bản xem nhanh cho đúng ánh sáng chỗ mới (một lúc); trong lúc đó vẫn
+phát bản cũ. Dời nhích một chút để căn cho khớp thì không phải làm lại.
 Dự án cũ: khói cũ vẫn mở được, vẫn nằm đúng trên cốc, và đẹp hơn (vẽ theo cách mới).
 
 **Lửa nến** (sửa ngọn nến bị lỗi trong video gốc)

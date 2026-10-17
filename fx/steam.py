@@ -12,25 +12,33 @@ it (at rates that never quite repeat), short ones grow with height so that no tw
 stretch (a long one for incense: a smooth thin column first) small whirls are born that roll the wisps into curls and
 hooks; each whirl is a point carried by the air like the smoke (so it stays with the plume), rising a little slower,
 turning more slowly as it ages. A pot lets its steam go in puffs, each with a pair of whirls that rolls it up as it
-rises. A breeze leans the plume and sways it now and then; near the box's side it rises instead (and evaporates).
+rises; its steam first lies over the water as a thin even veil (each bit spread over the surface between the points
+for its first moments) that draws together into wisps. A pot's steam goes with its surface (a wider pot more of it);
+from a narrow mark (a kettle's spout) it is a quick jet, clear for a little way (the vapour still too hot to show).
+A breeze leans the plume and sways it now and then; near the box's side it rises instead, and each strand
+evaporates before the side (a little sooner or later: no straight edge).
 
 Each bit of smoke keeps its amount: a wisp is denser where the air squeezes it and fainter where it is stretched. It
 blurs with the square root of its age as it mixes with the air (incense threads stay sharp for long), and steam
 evaporates: it thins and tears as it rises rather than turning into fog, so it is densest near the surface and never
-piles up into a lump. Drawn on a few layers, each blurred twice as much as the one before, the blurred ones on coarser
-grids (a pyramid: as quick as drawing them all fine).
+piles up into a lump; where much of it overlaps it covers ever more slowly (KNEE: never a flat grey lump). Drawn on a
+few layers, each blurred twice as much as the one before, the blurred ones on coarser grids (a pyramid: as quick as
+drawing them all fine); along each piece of a strand its amount goes from one end's to the other's.
 
 Lit by the scene (light=: effects.light_map of the video, as rain): steam shows the light that falls on it, the
 brightest light near where it rises (a lamp-lit cup, a window behind it), its wisps lighter on the side the light comes
 from, plus the light behind it scattered forward (backlit steam glows); each channel clipped at white. Its own colour
 then only tints that light ("lit" mixes in its own colour). A placed effect is lit by the light where its box stands
-upright (light_at(): a few numbers), however it is turned, so its preview clip is lit exactly as the video.
+upright (light_at(): a few numbers), however it is turned, so its preview clip is lit as the video (a little rounded:
+rounded_light(), so a nudge does not make it again).
 
 The air moves on a clock of "ticks" (TICKS a second, a whole number per loop), and every bit of smoke (and every
 whirl) is followed tick by tick from where it was let go; a frame lies between two ticks. The air, the points, the
 whirls' births and how much smoke the points let go of are functions of the tick modulo the loop (whole numbers of
 cycles), so frame P is frame 0 again, exactly. Frames drawn one after the other carry the smoke on a tick at a time;
-a frame drawn on its own starts a whole lifetime of the smoke earlier (the same sums, so the same picture).
+a frame drawn on its own starts a whole lifetime of the smoke earlier (the same sums, so the same picture; it costs
+about as much as 10 to 15 frames drawn one after the other). The newest piece of each strand, from the source to the
+bit let go at the last tick, grows out of the source between ticks: nothing pops in at a tick.
 
 The box: the place the smoke rises from (a cup's mouth: an ellipse MARK as high as wide, "rim" wide) sits in the middle
 of its bottom, the smoke rising to its top. Inside it every length is in box heights, so the small preview clip (the
@@ -44,6 +52,7 @@ from PIL import Image
 from .effects import LUMA, Effect, _choice, _colour, _lerp, _num, _place, _rgb, linear, srgb
 
 TICKS = 20  # the air's clock, ticks a second
+FEW = 24  # points at least (a style whose steam goes with its rim: a narrow one)
 MARK = 0.22  # the place the smoke rises from (the page's mark): an ellipse this flat (height / width), sitting on the
 # box's bottom edge
 GRID_MAX = 640  # rows: the smoke is drawn at its box's size, at most this fine (the preview clip's height)
@@ -53,6 +62,7 @@ PLUMES = 12  # and for the places over the surface that let go of more
 WHIRLS = 8  # columns of whirls at most
 MOST_SPIN = 7.0  # radians a second at most a whirl turns (a tick turns a bit of smoke less than 0.35 radians)
 DENSITY = 0.03  # how much a bit of smoke covers
+KNEE = 1.5  # thicker than this (1 - e^-1.5: 78% of its opacity), smoke covers more ever more slowly (95% at most)
 ALBEDO = 0.85  # lit steam: this much of the light that falls on it
 FORWARD = 0.35  # and of the light behind it (droplets scatter forward: backlit steam glows)
 
@@ -70,20 +80,25 @@ FORWARD = 0.35  # and of the light behind it (droplets scatter forward: backlit 
 #             age after a second (incense: threads that spread into veils)
 #   evap, fade, show: how soon it evaporates, from what share of its reach it fades, how long it takes to show
 #   mass      how much a point lets go of; grid: rows it is drawn on at most; colour, rim: its own (style presets)
+#   dense     its steam goes with its surface (a pot: points and steam as the rim; narrow: a jet) or not (a cup: as
+#             much in all, spread over a wider one)
+#   vb, vt    its first moments spread between the points (times the gap between them), for about vt seconds
 STYLES = {
     "cup": {"speed": (0.16, 0.6), "points": 64, "plumes": (3, 7), "veil": (0.04, 0.2), "gather": 0.45, "neck": 0.4,
             "calm": 0.05, "stir": 0.0, "wander": 0.18, "sway": 1.0, "wave": (0.35, 0.9), "eddy": 1.0, "fine": 1.0,
             "whirls": 4, "spin": 1.0, "rc": 0.045, "s0": (0.0009, 0.0035), "grow": (0.0035, 0.012), "widen": 0.0,
-            "evap": 1.0, "fade": 0.4, "show": 0.25, "puffs": False, "mass": 0.065, "colour": "#f4f1ec", "rim": 50},
+            "evap": 1.0, "fade": 0.4, "show": 0.25, "puffs": False, "mass": 0.065, "colour": "#f4f1ec", "rim": 50,
+            "dense": False, "vb": 0.0, "vt": 0.25},
     "incense": {"speed": (0.12, 0.45), "points": 6, "plumes": (0, 0), "veil": (1.0, 1.0), "gather": 0.0, "neck": 0.0,
                 "calm": 0.25, "stir": 0.0, "wander": 0.0, "sway": 2.2, "wave": (0.1, 0.2), "eddy": 0.8, "fine": 0.7,
                 "whirls": 2, "spin": 1.6, "rc": 0.04, "s0": (0.0004, 0.0013), "grow": (0.0003, 0.0022),
                 "widen": 0.0012, "evap": 0.2, "fade": 0.7, "show": 0.1, "puffs": False, "mass": 0.065, "grid": 1080,
-                "colour": "#ccd3dd", "rim": 3},
+                "colour": "#ccd3dd", "rim": 3, "dense": False, "vb": 0.0, "vt": 0.25},
     "pot": {"speed": (0.25, 0.95), "points": 110, "plumes": (4, 9), "veil": (0.4, 0.9), "gather": 0.0, "neck": 0.0,
             "calm": 0.0, "stir": 0.3, "wander": 0.4, "sway": 0.8, "wave": (0.35, 0.9), "eddy": 1.1, "fine": 1.2,
-            "whirls": 8, "spin": 1.0, "rc": 0.06, "s0": (0.003, 0.007), "grow": (0.008, 0.02), "widen": 0.0,
-            "evap": 1.8, "fade": 0.3, "show": 0.05, "puffs": True, "mass": 0.6, "colour": "#f2f2f0", "rim": 85},
+            "whirls": 8, "spin": 1.0, "rc": 0.06, "s0": (0.002, 0.005), "grow": (0.005, 0.014), "widen": 0.0,
+            "evap": 1.8, "fade": 0.3, "show": 0.15, "puffs": True, "mass": 0.18, "colour": "#f2f2f0", "rim": 70,
+            "dense": True, "vb": 0.7, "vt": 0.3},
 }
 
 DEFAULTS = {"amount": 45, "reach": 80, "spread": 40, "speed": 35, "curl": 40, "breeze": 6, "gust": 25, "soft": 40,
@@ -109,14 +124,14 @@ def _p(key, label, value, group, lo=0, hi=100):
 SCHEMA = {
     "label": "Khói",
     "note": "Chọn kiểu khói: hơi nóng bốc lên từ cốc cà phê, trà; khói nhang; hay hơi nước từ nồi, ấm. Kéo khung trắng "
-            "trên hình đến chỗ khói bốc lên: hình bầu dục vàng nằm ở đáy khung, đặt nó trùng miệng cốc (mặt nồi), hoặc "
-            "chấm vàng vào đầu que nhang. Kéo góc khung cho hình vàng rộng bằng miệng cốc. Khói chỉ bay trong khung. "
-            "Khói tự sáng theo đèn trong cảnh (đèn bên cạnh, cửa sổ phía sau).",
+            "trên hình đến chỗ khói bốc lên: hình bầu dục vàng nằm ở đáy khung, đặt nó trùng miệng cốc (mặt nồi, "
+            "miệng vòi ấm), hoặc chấm vàng vào đầu que nhang. Kéo góc khung cho hình vàng rộng bằng miệng cốc. Khói "
+            "chỉ bay trong khung. Khói tự sáng theo đèn trong cảnh (đèn bên cạnh, cửa sổ phía sau).",
     # for the page: a mark where the smoke rises from, a flat ellipse (`ratio`: height / width) sitting on the middle
     # of the box's bottom edge, inside the box, as wide as the setting "rim" (% of the box's width), and a tip
     "mark": {"width": "rim", "ratio": MARK, "sits": True, "label": "chỗ khói bốc lên",
-             "tip": "Đặt hình bầu dục vàng trùng miệng cốc (mặt nồi), hoặc chấm vàng vào đầu que nhang, rồi kéo góc "
-                    "khung cho hình vàng rộng bằng miệng cốc."},
+             "tip": "Đặt hình bầu dục vàng trùng miệng cốc (mặt nồi, miệng vòi ấm), hoặc chấm vàng vào đầu que nhang, "
+                    "rồi kéo góc khung cho hình vàng rộng bằng miệng cốc."},
     "params": [
         _choice("style", "Kiểu khói", "cup",
                 [("cup", "Hơi nóng cốc cà phê, trà"), ("incense", "Khói nhang"), ("pot", "Hơi nước nồi, ấm")],
@@ -148,18 +163,27 @@ def upgrade(raw):
 
 
 def upgrade_in(raw, w, h):
-    """Settings saved before the mark sat inside the box (no "style"), for a video w x h: the box moved down by half
-    the mark's height, so the mark (once centred on the box's bottom edge) stays where it was on the cup."""
+    """Settings saved before the mark sat inside the box (no "style"), for a video w x h: the box moved so the mark
+    (once centred on the box's bottom edge) stays where it was on the cup: down by half the mark's height when it
+    stands upright; turned in 3D, by what takes the new mark's middle to where the old one was in the frame (moving
+    the box moves its turned picture as much: one step, exact)."""
     if not isinstance(raw, dict) or "style" in raw:
         return raw
-    try:
-        rim, scale, y = (float(raw.get(k, d)) for k, d in (("rim", 50), ("scale", 45), ("y", 0)))
-    except (TypeError, ValueError, OverflowError):
+    if w <= 0 or h <= 0:
         return upgrade(raw)
-    if not all(map(math.isfinite, (rim, scale, y))) or w <= 0 or h <= 0:
-        return upgrade(raw)
-    box = min(w, h) * scale / 100  # the box's width (BOX: square), pixels
-    return dict(upgrade(raw), y=y + MARK / 2 * rim / 100 * box / h * 100)
+    from . import effects, overlay  # (they import this one)
+    p = effects.clean_params("steam", raw)  # (read as the page read them)
+    rect = effects.sheet_rect("steam", p, w, h)
+    hm = overlay.homography(p, rect, w, h)[0]
+
+    def at(u, v):  # a point of the box (pixels from its top left corner) in the frame
+        q = hm @ (u, v, 1.0)
+        return q[:2] / q[2]
+    dx, dy = at(rect[2] / 2, rect[3]) - at(rect[2] / 2, rect[3] - MARK / 2 * p["rim"] / 100 * rect[2])
+    out = dict(upgrade(raw), y=p["y"] + float(dy) / h * 100)
+    if abs(dx) > 1e-6:
+        out["x"] = p["x"] + float(dx) / w * 100
+    return out
 
 
 def _smooth(e0, e1, x):
@@ -196,9 +220,10 @@ def _double(a, shape):
 
 def light_at(light, rect, w, h):
     """What lights steam whose box stands at `rect` (x0, y0, bw, bh: pixels) in a w x h frame, from the scene's light
-    (effects.light_map over that frame): 7 numbers, linear light. The light falling on it (3: the brightest light near
-    where it rises: a lamp-lit cup, a lamp, a window behind it), the light behind it (3: around where it rises), and
-    the side the light comes from (-1: from the left, 1: from the right; 0: from the front or all round)."""
+    (effects.light_map over that frame): 7 numbers, linear light. The light falling on it (3: as bright as the
+    brightest light near where it rises: a lamp-lit cup, a lamp, a window behind it; of the colour of the light sources
+    there), the light behind it (3: around where it rises), and the side the light comes from (-1: from the left, 1:
+    from the right; 0: from the front or all round)."""
     lh, lw = light.shape[:2]
     x0, y0, bw, bh = (float(v) for v in rect)
 
@@ -209,16 +234,39 @@ def light_at(light, rect, w, h):
         r1 = int(np.clip(math.ceil(ay1 / h * lh), r0 + 1, lh))
         return light[r0:r1, c0:c1, channels].reshape(-1, 3)
 
+    def hue(c):  # (a colour as bright as white: its hue)
+        return c / max(float(c @ LUMA), 1e-6)
+
     here = slice(3, 6)
-    near = part(x0 - 0.25 * bw, y0 - 0.25 * bh, x0 + 1.25 * bw, y0 + 1.25 * bh, here)  # the box, and around it
+    area = (x0 - 0.25 * bw, y0 - 0.25 * bh, x0 + 1.25 * bw, y0 + 1.25 * bh)  # the box, and around it
+    near = part(*area, here)
     lum = near @ LUMA
     top = lum >= np.percentile(lum, 95)
     key = near[top].mean(axis=0) if top.any() else near.mean(axis=0)
+    # its colour: the light sources' (the brightest places, the light around them: a lamp's warm glow), not the
+    # colour of what is merely bright there (a blue sky in a steel pot)
+    wt = lum.astype(np.float64) ** 4
+    around = part(*area, slice(0, 3))
+    alum = around @ LUMA
+    if wt.sum() > 1e-12:
+        glow = around[alum >= np.percentile(alum, 95)].mean(axis=0)
+        key = float(key @ LUMA) * hue(0.5 * hue((near * wt[:, None]).sum(axis=0) / wt.sum()) + 0.5 * hue(glow))
     back = part(x0 + 0.15 * bw, y0 + 0.1 * bh, x0 + 0.85 * bw, y0 + 0.9 * bh, slice(0, 3)).mean(axis=0)
     left = float(part(x0 - 0.5 * bw, y0 + 0.2 * bh, x0 + 0.4 * bw, y0 + 1.3 * bh, here).mean(axis=0) @ LUMA)
     right = float(part(x0 + 0.6 * bw, y0 + 0.2 * bh, x0 + 1.5 * bw, y0 + 1.3 * bh, here).mean(axis=0) @ LUMA)
     side = (right - left) / max(right + left, 1e-6)
     return np.array([*key, *back, side], np.float32)
+
+
+def rounded_light(tone):
+    """The light of where a box stands (light_at()) a little rounded (its colours to 1/64 of their square root, the
+    side to 1/32): for its preview clip, so a box moved a little is lit the same (a difference of 1 or 2 levels of
+    255) and its clip is not made again."""
+    t = np.asarray(tone, np.float32)
+    out = np.empty_like(t)
+    out[:6] = np.square(np.round(np.sqrt(np.maximum(t[:6], 0.0)) * 64) / 64)
+    out[6:] = np.round(t[6:] * 32) / 32
+    return out
 
 
 class Steam(Effect):
@@ -228,6 +276,7 @@ class Steam(Effect):
     upgrade = staticmethod(upgrade)
     upgrade_in = staticmethod(upgrade_in)
     light_at = staticmethod(light_at)
+    rounded_light = staticmethod(rounded_light)
 
     def __init__(self, *a, light=None):
         super().__init__(*a)
@@ -256,8 +305,12 @@ class Steam(Effect):
         self.a = rim / 2 * 0.9  # half its width
         self.e = MARK / 2 * rim  # half its height
         self.yc = self.e  # its middle, above the box's bottom
-        wide = max(1.0, p["rim"] / 50) if st["plumes"][1] else 1.0
-        n = self.n = min(POINTS, int(round(st["points"] * wide)))
+        if st["dense"]:  # (a pot: as much steam over every bit of its surface, however wide or narrow)
+            wide = p["rim"] / st["rim"]
+            more = math.sqrt(wide)  # (a narrow one is a jet: denser)
+        else:  # (a cup: as much steam in all, spread over a wider surface)
+            wide, more = (max(1.0, p["rim"] / 50) if st["plumes"][1] else 1.0), 1.0
+        n = self.n = min(POINTS, max(FEW, int(round(st["points"] * wide))))
         u = u[:n]
         r, th = np.sqrt(u[:, 0]), u[:, 1] * 2 * math.pi
         self.ux = (r * np.cos(th)).astype(np.float32)  # where on the surface (-1..1 across it)
@@ -269,8 +322,15 @@ class Steam(Effect):
         self.bright = (0.6 + 0.8 * u[:, 3]).astype(np.float32)
         self.fuzz = np.exp(_lerp(math.log(0.7), math.log(2.2), u[:, 11]) * (self.kind != "incense")).astype(
             np.float32)  # (some strands crisp, some soft)
+        # its first moments: spread over the surface between the points (a thin even veil over the liquid, that
+        # draws together into wisps), box heights
+        self.vb = st["vb"] * math.sqrt(math.pi * self.a * self.e / n)
+        # near the box's sides it evaporates, each strand a little nearer or farther (no straight edge)
+        self.edge = (np.clip(self.a + 0.02, 0.26, 0.34) + 0.04 * ((u[:, 11] * 13.7 + u[:, 2] * 5.3) % 1.0)
+                     ).astype(np.float32)
         # each point wanders over the surface (two rates, whole cycles a loop)
-        self.wan = (st["wander"] * u[:, 4]).astype(np.float32)
+        self.wan = (st["wander"] * u[:, 4] * (1 - 0.7 * float(_smooth(30.0, 12.0, p["rim"])) * st["dense"])
+                    ).astype(np.float32)  # (a kettle's spout: a jet, it stays at the spout)
         self.wm = np.stack([self.cycles(_lerp(0.03, 0.09, u[:, 5])), self.cycles(_lerp(0.09, 0.22, u[:, 6]))]
                            ).astype(np.int64)
         self.wphi = u[:, 7:9].T * 2 * math.pi
@@ -302,7 +362,7 @@ class Steam(Effect):
         # how much smoke a point lets go of a tick: a strand as dense at any speed (a quicker one spreads it over a
         # longer path), a little denser when softer (it spreads wider)
         self.gain = (st["mass"] * _lerp(0.55, 1.0, amount) * V * self.dt * math.sqrt(_lerp(*st["s0"], 0.4) * 500) *
-                     st["points"] / n)
+                     st["points"] * more / n)
         self.gather = st["gather"] * (1 - 0.5 * amount ** 2)  # into the wisps: a lot of steam rises wider
         self.neck = st["neck"] * (1 - 0.6 * amount ** 2)
         # the waves of air: long ones that sway it, middle ones, short ones; drifting up with it
@@ -362,10 +422,15 @@ class Steam(Effect):
                               ).astype(np.int64)
         self.gphi = g[9:12] * 2 * math.pi
         self.flare = _lerp(0.0, 1.0, p["spread"] / 100) * V * {"cup": 1.0, "incense": 0.55, "pot": 1.1}[self.kind]
+        # a narrow source of a lot of steam (a kettle's spout): a quick jet, clear for a little way (vapour still too
+        # hot to show), then spreading at once
+        self.jet = float(_smooth(30.0, 12.0, p["rim"])) if st["dense"] else 0.0
+        self.gap = self.jet * 0.6 * rim
         # blur: thin at the surface, more with the square root of age
         soft = p["soft"] / 100
         self.s0 = _lerp(*st["s0"], soft)
-        self.grow = _lerp(*st["grow"], soft) * _lerp(0.75, 1.3, p["spread"] / 100)
+        self.grow = _lerp(*st["grow"], soft) * _lerp(0.75, 1.3, p["spread"] / 100) * (1 + 0.6 * self.jet)  # (a jet
+        # mixes with the air quickly)
         self.evap = st["evap"]
         # colour: its own, or lit by the scene
         self.colour = _rgb(p["color"])
@@ -415,6 +480,8 @@ class Steam(Effect):
         quicker each point's smoke rises)."""
         V, reach = self.speed, self.reach
         up = lift * V * (0.3 + 0.7 * (1 - np.exp(-age / 0.4)))  # slow at the surface, quicker above it
+        if self.jet:  # (a jet: quick out of the spout, slowing down)
+            up = up + (2.0 * self.jet * V) * np.exp(-age / 0.35)
         up = up * (1 - 0.2 * _smooth(0.3 * reach, reach, y))
         h = np.maximum(y - self.yc, 0.0)
         # a breeze: the surface shelters what is just above it; near the box's side it rises instead
@@ -699,22 +766,26 @@ class Steam(Effect):
             f = t * self.ticks / self.P - k
         xa, ya = self._state(k)[:2]
         xb, yb = self._state(k + 1)[:2]
-        # the bit of smoke let go at tick k - a: row a at tick k, row a + 1 at tick k + 1
-        x = (1 - f) * xa[:-1] + f * xb[1:]
-        y = (1 - f) * ya[:-1] + f * yb[1:]
-        age = ((np.arange(self.L - 1) + f) * self.dt)[:, None].astype(np.float32)
-        mass = self._emission(k - np.arange(self.L - 1)) * self.gain
+        # the bit of smoke let go at tick k - a: row a at tick k, row a + 1 at tick k + 1; and first, the smoke being
+        # let go now, at the source (so the youngest piece, from the source to the bit let go at tick k, grows from
+        # nothing and goes on into the next tick's: nothing pops at a tick)
+        x = np.concatenate([(1 - f) * xa[:1] + f * xb[:1], (1 - f) * xa[:-1] + f * xb[1:]])
+        y = np.concatenate([(1 - f) * ya[:1] + f * yb[:1], (1 - f) * ya[:-1] + f * yb[1:]])
+        age = (np.maximum(np.arange(self.L) - 1 + f, 0.0) * self.dt)[:, None].astype(np.float32)
+        mass = self._emission(np.concatenate([[k + 1], k - np.arange(self.L - 1)])) * self.gain
         reach, life = self.reach, self.life
         h_ = y - self.yc
         mass *= _smooth(0.0, self.style["show"], age)  # (steam shows as it cools, a little above the surface)
         # it evaporates: as it ages, and before its reach
         mass *= np.exp(-age * self.evap / (0.45 * life)) * (1 - _smooth(self.style["fade"] * reach, reach, h_))
         mass *= 1 - _smooth(life * 0.75, life, age)
-        if self.lean:  # (blown sideways it evaporates before the box's side)
-            lo = max(0.28, self.a + 0.04)  # (past the rim, on the side it is blown to)
-            mass *= 1 - _smooth(lo, max(0.46, lo + 0.06), x * math.copysign(1.0, self.lean))
+        mass *= 1 - _smooth(self.edge, self.edge + 0.07, np.abs(x))  # (and before the box's sides)
+        if self.gap:
+            mass *= _smooth(0.2 * self.gap, self.gap, h_)
         sig = (self.s0 * self.fuzz + self.grow * np.sqrt(np.maximum(age - 0.05, 0.0)) +
                self.style["widen"] * np.maximum(age - 1.0, 0.0))
+        if self.vb:
+            sig = sig + self.vb * np.exp(-age / self.style["vt"])
         got = self._splat(x, y, mass, sig, gh, gw)
         if got is None:
             return None
@@ -724,7 +795,9 @@ class Steam(Effect):
         hh, ww = dens.shape
         cols = (np.arange(gc, gc + ww, dtype=np.float32) + 0.5) / gw
         rows = (np.arange(gr, gr + hh, dtype=np.float32) + 0.5) / gh
-        dens *= _smooth(0.0, 0.1, rows)[:, None] * (_smooth(0.0, 0.1, cols) * _smooth(0.0, 0.1, 1 - cols))[None, :]
+        low = max(self.yc - 0.85 * self.e, 1.5 / gh)  # (below the front of the mark: nothing, the cup's lip is there)
+        dens *= ((_smooth(0.0, 0.1, rows) * _smooth(0.0, low, 1 - rows))[:, None] *
+                 (_smooth(0.0, 0.1, cols) * _smooth(0.0, 0.1, 1 - cols))[None, :])
         shade = None
         if self.tone is not None and self.side:  # which way each place faces: up its slope, toward the light or not
             g = np.zeros_like(dens)
@@ -736,6 +809,10 @@ class Steam(Effect):
             shade /= g
             shade *= 0.5
             shade += 0.5
+        thick = dens > KNEE  # (where much smoke overlaps it covers more, but never quite all: no flat lump)
+        if thick.any():
+            more = dens[thick] - KNEE
+            dens[thick] = KNEE + more / (1 + more / KNEE)
         cover = np.negative(dens, out=dens)
         np.exp(cover, out=cover)
         cover *= -self.opacity
@@ -750,9 +827,12 @@ class Steam(Effect):
         gx = ((x + self.bw / 2) * gh - 0.5).ravel()
         gy = ((1 - y) * gh - 0.5).ravel()
         rows, n = x.shape
-        m = 0.5 * (mass[:-1] + mass[1:])
-        top = gy[:-n].reshape(rows - 1, n)
-        idx = np.flatnonzero(((m > 1e-5) & (top > -gh * 0.2) & (top < gh * 1.2)).ravel())
+        ma, mb = mass[:-1].ravel(), mass[1:].ravel()  # (the amount along a piece: from one end's to the other's)
+        most = np.maximum(ma, mb)
+        on = most > 0.01 * self.gain  # (all but the faintest; the youngest pieces, growing from nothing, all)
+        on[:3 * n] = most[:3 * n] > 0
+        top = gy[:-n]
+        idx = np.flatnonzero(on & (top > -gh * 0.2) & (top < gh * 1.2))
         if idx.size == 0:
             return None
         a, col = idx // n, idx % n
@@ -790,9 +870,10 @@ class Steam(Effect):
         hh, ww = r1 - r0, c1 - c0
         px -= c0
         py -= r0
-        wgt = (m.ravel()[idx] / cnt).astype(np.float32)
-        w1 = (wgt * frac)[rep]
-        w0 = wgt[rep] - w1
+        ma, mb = (ma[idx] / cnt).astype(np.float32), (mb[idx] / cnt).astype(np.float32)
+        wgt = ma[rep] + (mb - ma)[rep] * u
+        w1 = wgt * frac[rep]
+        w0 = wgt - w1
         bb = b0[rep]
         # each layer's grid (a pixel larger all round: what falls on its border is dropped)
         sh_, sw_ = hh >> level, ww >> level

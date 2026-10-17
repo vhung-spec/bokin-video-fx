@@ -118,10 +118,11 @@ class Plain(unittest.TestCase):
             names = {engine.fx_clip_name(project, {"kind": kind, "params": q, "seed": 5})
                      for q in (old, p, dict(p, **turn))}
             self.assertEqual(len(names), 1, kind)  # the preview clip never depends on the turn (nor the place...)
-            if cls.BOX and cls.LIT:  # (...but a placed effect lit by the scene is lit by the light where it stands)
+            if cls.BOX and cls.LIT:  # (...but a placed effect lit by the scene is lit by the light where it stands:
+                # test_steam, with a video; this project has none to read, so its light is not known)
                 moved = {engine.fx_clip_name(project, {"kind": kind, "params": dict(q, x=10), "seed": 5})
                          for q in (p, dict(p, lit=0))}
-                self.assertNotIn(names.pop(), moved, kind)
+                self.assertIn(names.pop(), moved, kind)
                 self.assertIn(engine.fx_clip_name(project, {"kind": kind, "params": dict(p, lit=0), "seed": 5}), moved)
 
     def test_settings(self):

@@ -44,12 +44,19 @@ hiệu ứng. Cách dùng: `README.md`.
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
   (streakline) theo luồng khí: điểm toả khói trên cả hình bầu dục, đi lang thang (không thành răng lược); luồng khí
   gom về vài chỗ bốc mạnh đang trôi; sóng dài / vừa / ngắn; xoáy (`_whirls`: cột điểm trôi theo khí, sinh số nguyên
-  lần mỗi vòng; làm từ đầu thì làm xoáy trước một vòng đời, `_state`); nhang có đoạn lặng (`calm`); nồi phả từng đợt.
-  Mờ theo căn tuổi, bay hơi khi lên cao; vẽ trên lưới cỡ khung (`GRID_MAX`, nhang 1080), các lớp mờ trên lưới thô dần,
-  chỉ phần có khói (`_splat`). Sáng theo cảnh (`LIT`, `light_at()`: 7 số, đèn chiếu vào, ánh sáng phía sau, phía đèn;
-  hiệu ứng đặt một chỗ sáng theo chỗ khung đứng thẳng: `effects.placed_light`, cả tấm xoay và clip xem nhanh; tên
-  clip xem nhanh có chỗ đặt khi `lit` > 0). Hình bầu dục `mark` nằm trong khung ở đáy (`ratio`, `sits`); dự án cũ
-  có tâm hình ở đáy khung: `upgrade_in()` (gọi trong `projects.load`) dời khung xuống nửa chiều cao hình. Lá rơi: chuyển động, thông số trong `fx/leaves.py`; hình lá trong `fx/leafshapes.py`:
+  lần mỗi vòng; làm từ đầu thì làm xoáy trước một vòng đời, `_state`: một khung lẻ tốn bằng 10–15 khung liền nhau);
+  nhang có đoạn lặng (`calm`); nồi phả từng đợt, lúc đầu toả mỏng đều trên mặt nước (`vb`, `vt`: không thành hàng
+  răng), lượng hơi theo độ rộng mặt nồi (`dense`; hẹp như vòi ấm: luồng phụt nhanh, cách miệng vòi một đoạn mới hiện,
+  `jet`, `gap`). Mờ theo căn tuổi, bay hơi khi lên cao và trước hai bên khung (`edge`, mỗi vệt một chỗ); dày quá thì
+  phủ chậm dần (`KNEE`, tối đa 95% độ đậm: không thành mảng xám phẳng). Mảnh non nhất của vệt mọc ra từ chỗ toả giữa
+  hai tick, độ khói đi dần từ đầu này sang đầu kia mỗi mảnh: không nháy theo tick. Vẽ trên lưới cỡ khung (`GRID_MAX`,
+  nhang 1080), các lớp mờ trên lưới thô dần, chỉ phần có khói (`_splat`). Sáng theo cảnh (`LIT`, `light_at()`: 7
+  số, đèn chiếu vào (màu theo nguồn sáng, không theo vật sáng như nồi inox), ánh sáng phía sau, phía đèn; hiệu ứng
+  đặt một chỗ sáng theo chỗ khung đứng thẳng: `effects.placed_light`, cả tấm xoay và clip xem nhanh; tên clip xem
+  nhanh có ánh sáng đó làm tròn (`rounded_light`) khi `lit` > 0: nhích khung không làm lại clip; `Jobs.fx_clip` bỏ
+  cả clip đang làm mà không clip nào cần nữa). Hình bầu dục `mark` nằm trong khung ở đáy (`ratio`, `sits`); dự án
+  cũ có tâm hình ở đáy khung: `upgrade_in()` (gọi trong `projects.load`) dời khung để tâm hình mới nằm đúng chỗ tâm
+  cũ trên hình (cả khi khung đã xoay 3D: qua `overlay.homography`). Lá rơi: chuyển động, thông số trong `fx/leaves.py`; hình lá trong `fx/leafshapes.py`:
   chín kiểu dáng (`SHAPES`: phong 5 thuỳ, phong Nhật, bạch quả, sồi, bàng, bạch dương, liễu, hình tim, cánh hoa) vẽ bằng
   trường khoảng cách (`Lobe`: thuỳ, răng cưa; đầu tròn là nửa ellipse chỉ khi `round_end`: sồi, bàng, còn thuỳ phong
   luôn nhọn; quạt bạch quả; lá tim là đường viền theo góc `_heart_radius`: lệch, răng cưa quanh, mũi ngắn; gân), lỗ bị
