@@ -13,8 +13,8 @@ Premiere Pro:
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
   khoanh cho kỹ.
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
-- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói cốc cà phê, lửa nến, lá rơi, đom đóm / bụi sáng. App tự
-  vẽ, chỉnh được mật độ, cỡ, gió…
+- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói (cà phê, trà, nhang, nồi), lửa nến, lá rơi, đom đóm / bụi
+  sáng. App tự vẽ, chỉnh được mật độ, cỡ, gió…
   - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
     dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt xa mảnh và rơi
     chậm, hạt gần to, nhanh và nhoè), màn mưa bay theo gió, hơi nước, chớp sáng. Khi có mặt đất trong hình (mục **Mặt
@@ -45,7 +45,7 @@ Premiere Pro:
     rồi **Vẽ vùng** (nút có hình bút chì) khoanh đúng ô kính (khung cửa thì để ngoài). Muốn mưa rơi bên ngoài: thêm
     **Mưa** ở track dưới, cũng khoanh vùng ô kính. Lúc phát chỉ xem gần đúng; độ nhoè và cảnh trong giọt nước thấy khi
     dừng hình và trong video xuất ra.
-  - **Khói cốc cà phê** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói cốc cà phê, lửa nến** bên dưới).
+  - **Khói** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói, lửa nến** bên dưới).
 
 ## Cài đặt
 
@@ -173,18 +173,32 @@ Phần ngoài khung của clip đang chọn hiện mờ trên vùng tối; khung
 chỉ có clip đang chọn: bấm vào đó không chọn clip khác (chọn trên timeline). Nếu lăn chuột mà hình bị dời đi thay vì
 phóng to (vài loại chuột lăn mượt, không có nấc), giữ `Ctrl` rồi lăn.
 
-### Khói cốc cà phê, lửa nến
+### Khói, lửa nến
 
 Hai hiệu ứng này nằm ở một chỗ trong hình, không phủ cả khung. Khi chọn clip, hình có một **khung trắng**: kéo khung để
 dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong Bảng chỉnh hiệu ứng).
 
-**Khói cốc cà phê**
+**Khói** (hơi nóng cốc cà phê, trà; khói nhang; hơi nước nồi, ấm)
 
-1. Bấm **Tạo sẵn** → **Khói cốc cà phê**, kéo xuống một track trống (hàng ghi **trống**).
-2. Kéo khung trắng lên cốc: **vạch vàng** ở đáy khung nằm ngang miệng cốc. Kéo góc cho vạch dài bằng miệng cốc.
-3. Chọn **Kiểu**: hơi nóng nhẹ, khói đậm, khói lượn dài, khói bay nghiêng theo gió. Chỉnh thêm lượng khói, độ cao,
-   độ loe, uốn lượn, gió, màu khói.
-4. Bấm **Suốt video** để khói bay cả video.
+1. Bấm **Tạo sẵn** → **Khói**, kéo xuống một track trống (hàng ghi **trống**).
+2. Chọn **Kiểu khói**:
+   - **Hơi nóng cốc cà phê, trà**: vài làn hơi mảnh bốc lên từ mặt cốc, uốn lượn, xoắn lại rồi tan dần.
+   - **Khói nhang**: một sợi khói thật mảnh bốc thẳng lên từ đầu que nhang, lên cao mới gợn sóng, cuộn xoáy rồi tản ra.
+   - **Hơi nước nồi, ấm**: một lớp hơi mỏng phủ đều mặt nước, bốc lên thành từng đám cuộn rồi tan. Với ấm đun nước:
+     đặt hình vàng vào miệng vòi ấm, kéo góc khung cho hình vàng nhỏ bằng miệng vòi; hơi phụt nhanh ra, cách miệng
+     vòi một chút mới thấy (như hơi thật), rồi uốn lượn và tan.
+3. Kéo khung trắng đến chỗ khói bốc lên. Ở đáy khung có **hình bầu dục vàng** (ghi "chỗ khói bốc lên"): đặt nó trùng
+   miệng cốc (mặt nồi), rồi kéo góc khung cho hình vàng rộng bằng miệng cốc. Với khói nhang, hình vàng chỉ là một chấm:
+   đặt chấm vào đầu que nhang, rồi kéo góc khung cho khung cao bằng chỗ khói bay lên.
+4. Chọn **Dáng khói**: nhẹ nhàng, đậm, bay cao lượn dài, bay nghiêng theo gió. Chỉnh thêm lượng khói, độ cao, độ loe,
+   uốn lượn và cuộn xoáy, gió, độ đậm, màu khói.
+5. Khói tự sáng theo đèn trong cảnh: dưới đèn vàng thì khói ánh vàng, bên nào có đèn thì làn khói sáng hơn ở bên đó,
+   trước cửa sổ sáng thì khói sáng lên. Muốn khói chỉ một màu như trước: kéo **Sáng theo đèn trong cảnh** về 0.
+6. Bấm **Suốt video** để khói bay cả video.
+
+Dời khung khói sang chỗ sáng tối khác, app làm lại bản xem nhanh cho đúng ánh sáng chỗ mới (một lúc); trong lúc đó vẫn
+phát bản cũ. Dời nhích một chút để căn cho khớp thì không phải làm lại.
+Dự án cũ: khói cũ vẫn mở được, vẫn nằm đúng trên cốc, và đẹp hơn (vẽ theo cách mới).
 
 **Lửa nến** (sửa ngọn nến bị lỗi trong video gốc)
 
@@ -206,7 +220,7 @@ video gốc ở chỗ ngọn nến. Sau khi vẽ vùng đứng yên lên ngọn 
 
 ### Xoay 3D (ghép hiệu ứng vào ô cửa nhìn chéo)
 
-Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, hạt sáng, nước trên kính, khói cốc cà phê),
+Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, hạt sáng, nước trên kính, khói),
 xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng khi cần đặt mưa, ánh sáng…
 nằm đúng một ô cửa kính nhìn từ một góc. Riêng **lửa nến** không xoay: ngọn lửa luôn bốc thẳng lên.
 

@@ -97,11 +97,13 @@ class Jobs:
         return self._pending(mine) or self._failed_lately(mine) or self._new("librev", None, "prep", item=iid)
 
     def fx_clip(self, pid, lid, name, wanted):
-        """The preview clip `name` of built-in effect clip `lid`. Clips still waiting that no clip of the project
-        wants any more (`wanted`: the names its clips need now) are dropped."""
+        """The preview clip `name` of built-in effect clip `lid`. Clips waiting or being made that no clip of the
+        project wants any more (`wanted`: the names its clips need now: a clip moved again and again while it is lit by
+        the light where it stands) are dropped."""
         with self.lock:
             for j in self.items.values():
-                if j["kind"] == "fxclip" and j["project"] == pid and j["state"] == "queued" and j["name"] not in wanted:
+                if (j["kind"] == "fxclip" and j["project"] == pid and j["state"] in ("queued", "running")
+                        and j["name"] not in wanted):
                     j["cancel"] = True
         return self._pending(lambda j: j["kind"] == "fxclip" and j["project"] == pid and j["name"] == name) or \
             self._new("fxclip", pid, "prep", layer=lid, name=name)

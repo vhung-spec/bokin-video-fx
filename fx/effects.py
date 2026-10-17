@@ -96,6 +96,13 @@ def clean_params(kind, raw):
     return out
 
 
+def upgrade_in(kind, raw, w, h):
+    """The settings of a `kind` layer saved by an older version, read for a w x h video (an effect's upgrade_in():
+    settings whose meaning changed with the video's shape); as they are for the others."""
+    upgrade = getattr(KINDS.get(kind), "upgrade_in", None)
+    return upgrade(raw, w, h) if upgrade else raw
+
+
 def _rgb(hex_colour):
     return np.array([int(hex_colour[i:i + 2], 16) for i in (1, 3, 5)], np.float32) / 255.0
 
@@ -318,7 +325,9 @@ class Effect:
     TURNS = True
     # lit: drawn in the light of the scene it falls in (rain: a drop shows the light around it). Made with light=
     # the scene's light map over its own frame (light_map(), from the video: engine.scene_light), it stays an effect
-    # drawn over the picture, so its preview clip carries it; light=None: drawn in its own colour
+    # drawn over the picture, so its preview clip carries it; light=None: drawn in its own colour. A placed one (BOX:
+    # steam) is lit by the light where its box stands upright: its light_at(light, rect, w, h) makes that a few numbers,
+    # given as light= when it is drawn elsewhere than in the frame (placed_light(): its sheet, its preview clip)
     LIT = False
     PREVIEW = None  # a full-frame effect's sharper preview clip: as many pixels as a 16:9 one this wide (None:
     # engine.FX_CLIP_WIDTH wide)
@@ -514,6 +523,19 @@ def quad(kind, params, w, h):
     p = clean_params(kind, params)
     rect = sheet_rect(kind, p, w, h)
     return overlay.corners(overlay.homography(p, rect, w, h)[0], rect[2], rect[3])
+
+
+def placed_light(kind, light, params, w, h, rounded=False):
+    """The light a placed effect lit by the scene (BOX and LIT: steam) is drawn with anywhere but upright in its own
+    w x h frame (on its sheet, turned; in its preview clip, the box alone): the light where its box stands upright in
+    that frame (its light_at(), from the scene's light map over the frame); None without the scene's light.
+    `rounded`: a little rounded (its rounded_light()), the same for a box moved a little: its preview clip, named by
+    it, is not made again for every nudge."""
+    if light is None:
+        return None
+    cls = KINDS[kind]
+    tone = cls.light_at(light, place_box(cls.BOX, clean_params(kind, params), w, h), w, h)
+    return cls.rounded_light(tone) if rounded else tone
 
 
 def make(kind, params, seed, frames, fps, w, h, light=None):

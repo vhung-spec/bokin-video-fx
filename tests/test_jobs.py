@@ -24,6 +24,19 @@ class Queues(unittest.TestCase):
         fake(j, id="b", name="fx-1", layer="l2")
         self.assertEqual(j._pending(lambda x: x["name"] == "fx-1")["id"], "b")
 
+    def test_preview_clips_no_clip_wants_are_dropped(self):
+        """A preview clip waiting or being made that no clip of the project wants any more (a lit steam clip moved
+        again and again) is dropped, so the one wanted now does not wait behind it; another project's is kept."""
+        j = jobs.Jobs()
+        j.queues = {"export": queue.Queue(), "prep": queue.Queue()}  # nothing is run
+        waiting = fake(j, id="w", name="fx-old1", layer="l1")
+        running = fake(j, id="r", name="fx-old2", layer="l1", state="running")
+        kept = fake(j, id="k", name="fx-keep", layer="l2", state="running")
+        other = fake(j, id="o", name="fx-old3", layer="l1", project="q", state="running")
+        job = j.fx_clip("p", "l1", "fx-new", {"fx-new", "fx-keep"})
+        self.assertTrue(waiting["cancel"] and running["cancel"])
+        self.assertFalse(kept["cancel"] or other["cancel"] or job["cancel"])
+
     def test_a_failed_light_copy_is_not_retried_at_once(self):
         j = jobs.Jobs()
         fake(j, id="c", kind="libproxy", item="0123456789", state="error", finished=time.time())

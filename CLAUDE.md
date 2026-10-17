@@ -39,8 +39,24 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), hạt sáng, và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
-  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, lá rơi, nước trên kính, khói cốc cà phê,
-  lửa nến, mỗi cái một file. Lá rơi: chuyển động, thông số trong `fx/leaves.py`; hình lá trong `fx/leafshapes.py`:
+  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, lá rơi, nước trên kính, khói, lửa nến,
+  mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang, nồi;
+  hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
+  (streakline) theo luồng khí: điểm toả khói trên cả hình bầu dục, đi lang thang (không thành răng lược); luồng khí
+  gom về vài chỗ bốc mạnh đang trôi; sóng dài / vừa / ngắn; xoáy (`_whirls`: cột điểm trôi theo khí, sinh số nguyên
+  lần mỗi vòng; làm từ đầu thì làm xoáy trước một vòng đời, `_state`: một khung lẻ tốn bằng 10–15 khung liền nhau);
+  nhang có đoạn lặng (`calm`); nồi phả từng đợt, lúc đầu toả mỏng đều trên mặt nước (`vb`, `vt`: không thành hàng
+  răng), lượng hơi theo độ rộng mặt nồi (`dense`; hẹp như vòi ấm: luồng phụt nhanh, cách miệng vòi một đoạn mới hiện,
+  `jet`, `gap`). Mờ theo căn tuổi, bay hơi khi lên cao và trước hai bên khung (`edge`, mỗi vệt một chỗ); dày quá thì
+  phủ chậm dần (`KNEE`, tối đa 95% độ đậm: không thành mảng xám phẳng). Mảnh non nhất của vệt mọc ra từ chỗ toả giữa
+  hai tick, độ khói đi dần từ đầu này sang đầu kia mỗi mảnh: không nháy theo tick. Vẽ trên lưới cỡ khung (`GRID_MAX`,
+  nhang 1080), các lớp mờ trên lưới thô dần, chỉ phần có khói (`_splat`). Sáng theo cảnh (`LIT`, `light_at()`: 7
+  số, đèn chiếu vào (màu theo nguồn sáng, không theo vật sáng như nồi inox), ánh sáng phía sau, phía đèn; hiệu ứng
+  đặt một chỗ sáng theo chỗ khung đứng thẳng: `effects.placed_light`, cả tấm xoay và clip xem nhanh; tên clip xem
+  nhanh có ánh sáng đó làm tròn (`rounded_light`) khi `lit` > 0: nhích khung không làm lại clip; `Jobs.fx_clip` bỏ
+  cả clip đang làm mà không clip nào cần nữa). Hình bầu dục `mark` nằm trong khung ở đáy (`ratio`, `sits`); dự án
+  cũ có tâm hình ở đáy khung: `upgrade_in()` (gọi trong `projects.load`) dời khung để tâm hình mới nằm đúng chỗ tâm
+  cũ trên hình (cả khi khung đã xoay 3D: qua `overlay.homography`). Lá rơi: chuyển động, thông số trong `fx/leaves.py`; hình lá trong `fx/leafshapes.py`:
   chín kiểu dáng (`SHAPES`: phong 5 thuỳ, phong Nhật, bạch quả, sồi, bàng, bạch dương, liễu, hình tim, cánh hoa) vẽ bằng
   trường khoảng cách (`Lobe`: thuỳ, răng cưa; đầu tròn là nửa ellipse chỉ khi `round_end`: sồi, bàng, còn thuỳ phong
   luôn nhọn; quạt bạch quả; lá tim là đường viền theo góc `_heart_radius`: lệch, răng cưa quanh, mũi ngắn; gân), lỗ bị
@@ -70,7 +86,7 @@ hiệu ứng. Cách dùng: `README.md`.
   đổi theo video khi `lit` > 0. Mưa sáng theo cảnh đã dời / xoay: clip xem nhanh mang ánh sáng chỗ cũ, nên trang coi
   là gần đúng (`litMoved`, `liveIncomplete`: dừng hình thì hiện khung chính xác). Clip xem nhanh từng loại:
   `PREVIEW` (số điểm ảnh như clip 16:9 rộng chừng ấy, `engine.sharper_size`), `PREVIEW_CRF`
-  (mưa: 1280, CRF 42, mưa phùn 34; 30 giây khoảng 20 giây làm, 40 MB). Hiệu ứng `lens` (nước trên kính, lửa nến)
+  (mưa: 1280, CRF 42, mưa phùn 34; 30 giây khoảng 20 giây làm, 40 MB; khói nhang CRF 28). Hiệu ứng `lens` (nước trên kính, lửa nến)
   đổi cả hình bên dưới: `apply()` cho video xuất và khung chính xác; trang chỉ phát clip xem nhanh, nên xem nhanh gần đúng và dừng hình thì hiện khung chính xác
   (`liveIncomplete`).
 - Hiệu ứng đặt một chỗ (`BOX`: khói, nến): thông số `x`, `y`, `scale` (`_place()`), `box()` cùng công thức với clip
@@ -78,7 +94,7 @@ hiệu ứng. Cách dùng: `README.md`.
   chỉ giữ phần đổi (`change_rgba`: độ đục vừa đủ), trang đặt nó bằng Normal ngay trên video và vùng đứng yên, dưới
   mọi track (`underBox`), nên clip ở track dưới vẫn hiện (gần đúng). Tên clip đổi theo chỗ đặt, video, và phần vùng
   đứng yên mà mép mềm chạm hộp (`_under_key`, hash điểm ảnh mặt nạ quanh hộp). Clip làm cho chỗ khác thì trang không
-  hiện (`elsewhere`, server trả `at`); vẽ vùng đứng yên xong thì trang hỏi lại (`requestAllFx`). `mark` (miệng cốc),
+  hiện (`elsewhere`, server trả `at`); vẽ vùng đứng yên xong thì trang hỏi lại (`requestAllFx`). `mark` (chỗ khói bốc lên),
   `anchor` (đầu bấc) và `tip` (đỉnh lửa) là vạch vàng trên khung chỉnh clip; đổi cỡ hiệu ứng có `anchor` giữ yên điểm
   đó (`keepAnchor`).
 - `fx/sprites.py`: hình hạt vẽ bằng mã (chấm, quầng sáng). `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()`
