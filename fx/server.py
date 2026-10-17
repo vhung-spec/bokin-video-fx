@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import numpy as np
 from PIL import Image
 
-from . import effects, engine, jobs, library, overlay, paths, projects, timeline, video
+from . import effects, engine, jobs, keys, library, overlay, paths, projects, timeline, video
 
 UPLOAD_LIMITS = {"video": 4 << 30, "replace": 4 << 30, "library": 4 << 30, "still": 200 << 20}
 UPLOAD_TYPES = {"video": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
@@ -221,6 +221,11 @@ class Handler(BaseHTTPRequestHandler):
                                    "turns": {k: True for k, c in effects.KINDS.items() if c.TURNS},
                                    "sheet": {k: True for k, c in effects.KINDS.items() if c.TURNS and not c.BOX},
                                    "max_clips": projects.MAX_LAYERS, "max_tracks": projects.MAX_TRACKS})
+        if path == "/api/keys":
+            return self.send(200, keys.view())
+        if path == "/api/guide":  # the owner's guide (Markdown), shown in the page's Phím tắt window
+            with open(keys.guide_path(), "rb") as f:
+                return self.send(200, f.read(), "text/markdown; charset=utf-8")
         if path == "/api/project":
             return self.send(200, self.project_view(projects.load(q.get("id"))))
         if path == "/api/frame":  # a frame of the video at the masks' size, to paint on
@@ -367,6 +372,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def route_post(self, path, q):
         app = self.app
+        if path == "/api/keys":  # the owner's keyboard shortcuts
+            keys.save(self.body_json().get("keys"))
+            return self.send(200, keys.view())
         if path == "/api/upload":
             kind = q.get("kind")
             if kind not in UPLOAD_LIMITS:

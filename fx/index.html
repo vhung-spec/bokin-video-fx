@@ -601,6 +601,53 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
 .modal .acts { display: flex; justify-content: flex-end; align-items: center; gap: var(--s2); margin-top: var(--s4); }
 .modal .acts button { min-height: 32px; min-width: 84px; padding: 0 var(--s4); font-size: var(--fs); }
 .modal video { display: block; max-width: 86vw; max-height: 74vh; background: #000; border-radius: var(--r-sm); }
+/* the Phím tắt window: every action and its keys (changed by pressing a new one), and the guide (HUONG-DAN.md) */
+.modal .box:has(.kd) { display: flex; width: min(880px, 94vw); max-width: 94vw; height: min(780px, 90vh); padding: 0; overflow: hidden; }
+.kd { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.kd-head { display: flex; align-items: center; gap: var(--s3); padding: 14px var(--s5) 12px; border-bottom: 1px solid var(--line); }
+.kd-head h3 { margin: 0; }
+.kd-head .grow, .kd-foot .grow { flex: 1; }
+.kd .seg { display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: var(--field); border: 1px solid var(--line); }
+.kd .seg button { min-height: 24px; padding: 0 12px; border-radius: 5px; background: transparent; color: var(--text-2); font-size: var(--fs-sm); }
+.kd .seg button:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+.kd .seg button.on { background: var(--accent-fill); color: #fff; font-weight: 600; }
+.kd-tools { display: flex; align-items: center; gap: var(--s3); padding: 10px var(--s5); border-bottom: 1px solid var(--line); }
+.kd-tools input { flex: none; width: 240px; }
+.kd-note { margin: 0; color: var(--text-3); font-size: var(--fs-sm); line-height: 1.45; }
+.kd-body { flex: 1; min-height: 0; overflow: auto; padding: var(--s1) var(--s5) var(--s4); }
+.kd-foot { display: flex; align-items: center; gap: var(--s2); padding: 10px var(--s5); border-top: 1px solid var(--line); }
+.kd h4 { margin: var(--s4) 0 var(--s1); padding: 0 var(--s2); color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; }
+.kd h4 small { color: var(--text-3); font-size: var(--fs-sm); font-weight: 400; }
+.krow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: var(--s2); min-height: 36px;
+  padding: 4px var(--s2); border-radius: var(--r-sm); }
+.krow:hover { background: var(--field); }
+.krow.fixed { grid-template-columns: minmax(0, 1fr) auto; }
+.krow.wait { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-ring); }
+.krow .klabel { color: var(--text); font-size: var(--fs); }
+.krow .kchanged { margin-left: 6px; padding: 1px 7px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-text);
+  font-size: var(--fs-xs); font-style: normal; white-space: nowrap; }
+.krow .kkeys { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s1); }
+.krow kbd { display: inline-flex; align-items: center; gap: 2px; min-height: 24px; padding: 0 2px 0 8px; font-size: var(--fs-sm); line-height: 20px; }
+.krow.fixed kbd { padding-right: 8px; }
+.krow .kdel { min-height: 18px; width: 18px; padding: 0; border-radius: var(--r-xs); background: transparent; color: var(--text-3); font-size: 15px; line-height: 1; }
+.krow .kdel:hover:not(:disabled) { background: var(--bad-soft); color: var(--bad-text); }
+.krow .kwait { color: var(--accent-text); font-size: var(--fs-sm); font-weight: 600; }
+.krow .knone { color: var(--text-3); font-size: var(--fs-sm); }
+.krow .kmsg { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); padding: 6px 10px; border-radius: var(--r-sm);
+  background: rgba(245, 177, 76, .1); color: var(--warn); font-size: var(--fs-sm); }
+.krow .kmsg span { flex: 1; min-width: 200px; color: var(--text); }
+.kd-body.guide { padding-top: var(--s3); color: var(--text-2); font-size: var(--fs); line-height: 1.6; }
+.guide h2 { margin: var(--s2) 0 var(--s3); color: var(--text); font-size: var(--fs-xl); font-weight: 600; }
+.guide h3 { margin: var(--s5) 0 var(--s2); color: var(--text); font-size: var(--fs-lg); font-weight: 600; }
+.guide h4, .guide h5 { margin: var(--s4) 0 var(--s1); padding: 0; color: var(--text); font-size: var(--fs-md); }
+.guide p { font-size: var(--fs); }
+.guide ul, .guide ol { margin: var(--s2) 0; padding-left: 22px; }
+.guide li { margin: 3px 0; }
+.guide table { margin: var(--s2) 0 var(--s3); }
+.guide th { padding: var(--s2) var(--s4) var(--s2) 0; border-bottom: 1px solid var(--line-2); color: var(--text-3); font-size: var(--fs-sm); font-weight: 600; text-align: left; }
+.guide td:first-child { width: 28%; white-space: normal; color: var(--text); }
+.guide b { color: var(--text); font-weight: 600; }
+.guide kbd { margin: 0 1px; }
 .menu { position: fixed; z-index: 88; display: none; min-width: 210px; padding: var(--s1); background: #262a33; border: 1px solid #3a404c;
   border-radius: var(--r-lg); box-shadow: var(--shadow-pop); font-size: 12.5px; }
 .menu div { display: flex; justify-content: space-between; align-items: center; gap: var(--s5); padding: 6px 10px; border-radius: var(--r-sm); cursor: pointer; }
@@ -624,7 +671,8 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
     <div class="grow"></div>
     <span class="prep" id="prep"></span>
     <div class="update" id="update"><span id="updateText"></span><button class="small primary" id="updateBtn">Cập nhật ngay</button></div>
-    <button class="primary" id="exportBtn" data-icon="export" disabled title="Xuất video (Ctrl+M)">Xuất video</button>
+    <button id="keysBtn" data-icon="keyboard" data-tip="Xem và đổi phím tắt, đọc hướng dẫn ({keys})">Phím tắt</button>
+    <button class="primary" id="exportBtn" data-icon="export" disabled data-tip="Xuất video ({export})">Xuất video</button>
   </header>
   <div class="work" id="work">
     <section class="panel" id="controls">
@@ -662,18 +710,18 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
       </div>
       <div class="transport" id="transport">
         <span class="tc" id="tcNow">00:00:00</span>
-        <button class="icon" id="zOut" title="Thu nhỏ hình (Ctrl −, hoặc − khi chuột ở trên hình). Thu nhỏ hơn Vừa khung để thấy cả phần hiệu ứng nằm ngoài khung hình" data-icon="zoomOut"></button>
+        <button class="icon" id="zOut" data-tip="Thu nhỏ hình ({picOut}, hoặc {zoomOut} khi chuột ở trên hình). Thu nhỏ hơn Vừa khung để thấy cả phần hiệu ứng nằm ngoài khung hình" data-icon="zoomOut"></button>
         <select id="zoomSel">
           <option value="" hidden></option><option value="0.1">10%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="fit">Vừa khung</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option>
         </select>
-        <button class="icon" id="zIn" title="Phóng to hình (Ctrl +, hoặc + khi chuột ở trên hình)" data-icon="zoomIn"></button>
-        <button class="icon" id="handBtn" title="Bàn tay (H): kéo để dời cả hình đi, như Premiere. Esc hoặc V: thôi. Giữ H mà kéo: thả H là thôi. Lúc nào cũng dời được: giữ phím cách hoặc chuột phải rồi kéo" data-icon="hand"></button>
+        <button class="icon" id="zIn" data-tip="Phóng to hình ({picIn}, hoặc {zoomIn} khi chuột ở trên hình)" data-icon="zoomIn"></button>
+        <button class="icon" id="handBtn" data-tip="Bàn tay ({hand}): kéo để dời cả hình đi, như Premiere. Esc hoặc {selectTool}: thôi. Giữ {hand} mà kéo: thả {hand} là thôi. Lúc nào cũng dời được: giữ {playPause} hoặc chuột phải rồi kéo" data-icon="hand"></button>
         <div class="mid">
-          <button class="icon" id="tStart" title="Về đầu (Home)" data-icon="start"></button>
-          <button class="icon" id="tPrev" title="Khung trước (←)" data-icon="prev"></button>
-          <button class="icon primary" id="tPlay" title="Phát / dừng (Space)" data-icon="play"></button>
-          <button class="icon" id="tNext" title="Khung sau (→)" data-icon="next"></button>
-          <button class="icon" id="tEnd" title="Về cuối (End)" data-icon="end"></button>
+          <button class="icon" id="tStart" data-tip="Về đầu ({toStart})" data-icon="start"></button>
+          <button class="icon" id="tPrev" data-tip="Khung trước ({stepBack})" data-icon="prev"></button>
+          <button class="icon primary" id="tPlay" data-tip="Phát / dừng ({playPause})" data-icon="play"></button>
+          <button class="icon" id="tNext" data-tip="Khung sau ({stepFwd})" data-icon="next"></button>
+          <button class="icon" id="tEnd" data-tip="Về cuối ({toEnd})" data-icon="end"></button>
           <button class="icon on" id="tLoop" title="Phát lặp lại để xem chỗ nối loop" data-icon="loop"></button>
           <button class="icon" id="tExact" title="Khung chính xác: khi dừng hình, xem đúng như video sẽ xuất ra (app dựng mất chút thời gian)" data-icon="exact"></button>
         </div>
@@ -692,19 +740,19 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
       <div class="panel-head">
         <span class="tab on">Timeline</span>
         <div class="tl-tools" id="tlTools">
-          <button class="icon" id="undoBtn" title="Hoàn tác (Ctrl+Z)" data-icon="undo" disabled></button>
-          <button class="icon" id="redoBtn" title="Làm lại (Ctrl+Y hoặc Ctrl+Shift+Z)" data-icon="redo" disabled></button>
+          <button class="icon" id="undoBtn" data-tip="Hoàn tác ({undo})" data-icon="undo" disabled></button>
+          <button class="icon" id="redoBtn" data-tip="Làm lại ({redo+})" data-icon="redo" disabled></button>
           <span class="sep"></span>
-          <button class="icon on" data-tool="select" title="Chọn, kéo, kéo mép để cắt bớt (V)" data-icon="select"></button>
-          <button class="icon" data-tool="razor" title="Dao cắt: bấm vào clip để cắt đôi (C)" data-icon="razor"></button>
-          <button class="icon on" id="snapBtn" title="Bám dính vào đầu phát, mép clip, chỗ nối loop (S)" data-icon="magnet"></button>
+          <button class="icon on" data-tool="select" data-tip="Chọn, kéo, kéo mép để cắt bớt ({selectTool})" data-icon="select"></button>
+          <button class="icon" data-tool="razor" data-tip="Dao cắt: bấm vào clip để cắt đôi ({razorTool})" data-icon="razor"></button>
+          <button class="icon on" id="snapBtn" data-tip="Bám dính vào đầu phát, mép clip, chỗ nối loop ({snap})" data-icon="magnet"></button>
           <span class="sep"></span>
           <span style="color:var(--dim)">Độ dài video:</span>
           <div class="seg" id="lenSeg"><button data-len="30">30 giây</button><button data-len="60">1 phút</button></div>
           <div class="grow" style="flex:1"></div>
           <button class="small" id="addTrack" title="Thêm một track ở trên cùng" data-icon="plus">Track</button>
-          <button class="icon" id="tlFit" title="Xem cả timeline (\)" data-icon="fitWidth"></button>
-          <input type="range" id="tlZoom" min="0" max="1000" value="0" title="Phóng to timeline (+ / -)">
+          <button class="icon" id="tlFit" data-tip="Xem cả timeline ({zoomFit})" data-icon="fitWidth"></button>
+          <input type="range" id="tlZoom" min="0" max="1000" value="0" data-tip="Phóng to timeline ({zoomIn} / {zoomOut} khi chuột ở trên timeline)">
         </div>
       </div>
       <div class="tl-body" id="tlBody">
@@ -762,6 +810,7 @@ const ICONS = {
   eyeOff: '<path d="M2.5 10S5.2 5 10 5s7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5z"/><circle cx="10" cy="10" r="2.3"/><path d="M3.5 3.5l13 13"/>',
   trash: '<path d="M4 6h12M8 6V4.3h4V6M5.8 6l.8 10h6.8l.8-10M8.6 8.8v4.6M11.4 8.8v4.6"/>',
   mix: '<circle cx="7.5" cy="10" r="4.5"/><circle cx="12.5" cy="10" r="4.5"/>',
+  keyboard: '<rect x="2.5" y="5" width="15" height="10" rx="2"/><path d="M5.6 8h.01M8.5 8h.01M11.5 8h.01M14.4 8h.01M5.6 10.5h.01M8.5 10.5h.01M11.5 10.5h.01M14.4 10.5h.01M7.2 12.8h5.6"/>',
   more: '<circle class="f" cx="5" cy="10" r="1.3"/><circle class="f" cx="10" cy="10" r="1.3"/><circle class="f" cx="15" cy="10" r="1.3"/>',
   // states
   warn: '<path d="M10 3.2l7.3 12.8H2.7z"/><path d="M10 8v3.6"/><circle class="f" cx="10" cy="13.8" r=".9"/>',
@@ -888,7 +937,8 @@ const fail = e => toast(e.message || String(e), true, 7000);
 const S = {schema: null, state: null, project: null, lib: [], time: 0, playing: false, loop: true, sel: null,
   tool: "select", snap: true, pps: 40, fitTl: true, paint: null, brush: {tool: "brush", mode: "add", size: 60},
   zoom: "fit", scale: 1, panX: 0, panY: 0, masks: {}, fx: {}, hist: [], histAt: -1, edits: 0, saveTimer: 0,
-  jobsSeen: {}, bin: "lib", binSel: null, filter: "", els: {}, trackEls: {}, mixRole: {}, drag: null, dragItem: null, onlyBase: false};
+  jobsSeen: {}, bin: "lib", binSel: null, filter: "", els: {}, trackEls: {}, mixRole: {}, drag: null, dragItem: null, onlyBase: false,
+  keymap: null, keys: {}, keyAll: new Set(), keyWait: null, keyMsg: null, keyTab: "keys", keyFind: "", guide: null};
 
 function fpsValue(fps) { const [a, b] = String(fps).split("/"); return (+a) / (+b || 1); }
 function info() { return S.project.video; }
@@ -1461,8 +1511,8 @@ function zoomMenu(f) {  // the menu shows the zoom as it is: "Vừa khung", one 
   const o = S.zoom === "fit" ? null : [...zs.options].find(o => +o.value && Math.abs(+o.value / z - 1) < 0.01);
   if (zs.options[0].textContent !== pct) zs.options[0].textContent = pct;
   zs.value = S.zoom === "fit" ? "fit" : o ? o.value : "";
-  const tip = `Cỡ hình đang xem: ${pct} (100%: cỡ thật của video). Lăn chuột trên hình hoặc Ctrl + / Ctrl −: phóng to, ` +
-    "thu nhỏ. Ctrl 0: vừa khung, Ctrl 1: cỡ thật";
+  const tip = `Cỡ hình đang xem: ${pct} (100%: cỡ thật của video). Lăn chuột trên hình hoặc ${keyName("picIn")} / ` +
+    `${keyName("picOut")}: phóng to, thu nhỏ. ${keyName("picFit")}: vừa khung, ${keyName("pic100")}: cỡ thật`;
   if (zs.title !== tip) zs.title = tip;
 }
 function unfit() {  // moved off "Vừa khung": the picture keeps its size, now a zoom of its own
@@ -2237,24 +2287,24 @@ function renderTools() {  // the tool column at the right of the monitor: painti
     // the brush's size only for the brush; the polygon's steps (and "Khép vùng") in its place for the polygon
     const size = br.tool === "poly"
       ? `<h5>Khoanh vùng</h5>
-      ${S.poly.length >= 3 ? '<button class="small primary wide" data-pclose="1" title="Khép vùng (Enter)">Khép vùng</button>' : ""}
-      ${S.poly.length ? '<div class="btns"><button class="small" data-pback="1" title="Ctrl+Z hoặc Backspace">Bỏ điểm cuối</button><button class="small" data-pdrop="1" title="Esc">Bỏ đường đang khoanh</button></div>' : ""}
-      <p class="tip">Bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (vòng sáng), bấm đúp hoặc Enter. Ctrl+Z (hoặc Backspace): bỏ điểm vừa bấm, Ctrl+Y: lấy lại. Esc: bỏ cả đường đang khoanh, bấm Esc lần nữa để thôi vẽ.</p>`
+      ${S.poly.length >= 3 ? `<button class="small primary wide" data-pclose="1" title="Khép vùng (${keyName("polyClose")})">Khép vùng</button>` : ""}
+      ${S.poly.length ? `<div class="btns"><button class="small" data-pback="1" title="${keyName("undo")} hoặc ${keyName("polyBack")}">Bỏ điểm cuối</button><button class="small" data-pdrop="1" title="Esc">Bỏ đường đang khoanh</button></div>` : ""}
+      <p class="tip">Bấm từng điểm quanh vùng. Khép vùng: bấm lại điểm đầu (vòng sáng), bấm đúp hoặc ${keyName("polyClose")}. ${keyName("undo")} (hoặc ${keyName("polyBack")}): bỏ điểm vừa bấm, ${keyName("redo")}: lấy lại. Esc: bỏ cả đường đang khoanh, bấm Esc lần nữa để thôi vẽ.</p>`
       : `<h5 class="lab"><span>Cỡ cọ (điểm ảnh)</span><b id="brushSizeVal">${br.size}</b></h5>
-      <div class="size"><span><i id="sizeDot" style="width:${d}px;height:${d}px"></i></span><input type="range" id="brushSize" min="2" max="400" value="${br.size}" style="${rangeP(br.size, 2, 400)}" title="Phím [ và ] để đổi nhanh"></div>`;
+      <div class="size"><span><i id="sizeDot" style="width:${d}px;height:${d}px"></i></span><input type="range" id="brushSize" min="2" max="400" value="${br.size}" style="${rangeP(br.size, 2, 400)}" title="Phím ${keyName("brushSmaller")} và ${keyName("brushBigger")} để đổi nhanh"></div>`;
     el.innerHTML = `<div class="who" title="${esc(who)}"><i style="background:${COLORS[maskKind(S.paint)]}"></i><span>${esc(who)}</span></div>
       <h5>Công cụ</h5>
-      <div class="two"><button class="big ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ: kéo chuột để tô (B)"><b>${icon("brush")}</b>Cọ</button>
-        <button class="big ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh: bấm từng điểm, bấm lại điểm đầu để khép (L)"><b>${icon("poly")}</b>Khoanh</button></div>
+      <div class="two"><button class="big ${br.tool === "brush" ? "on" : ""}" data-ptool="brush" title="Cọ: kéo chuột để tô (${keyName("brushTool")})"><b>${icon("brush")}</b>Cọ</button>
+        <button class="big ${br.tool === "poly" ? "on" : ""}" data-ptool="poly" title="Khoanh: bấm từng điểm, bấm lại điểm đầu để khép (${keyName("polyTool")})"><b>${icon("poly")}</b>Khoanh</button></div>
       <h5>Chế độ</h5>
-      <div class="two"><button class="big ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (X để đổi)"><b>${icon("plus")}</b>Thêm</button>
-        <button class="big ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (X để đổi)"><b>${icon("minus")}</b>Bớt</button></div>
+      <div class="two"><button class="big ${br.mode === "add" ? "on" : ""}" data-mode="add" title="Thêm vào vùng (${keyName("brushMode")} để đổi)"><b>${icon("plus")}</b>Thêm</button>
+        <button class="big ${br.mode === "sub" ? "on" : ""}" data-mode="sub" title="Bớt khỏi vùng (${keyName("brushMode")} để đổi)"><b>${icon("minus")}</b>Bớt</button></div>
       ${size}
       <h5>Cả vùng</h5>
       <div class="three"><button class="small" data-fill="all" title="Tô kín cả khung hình">Tô hết</button><button class="small" data-fill="none" title="Xoá cả vùng">Xoá hết</button><button class="small" data-fill="invert" title="Đổi chỗ tô và chỗ trống">Đảo</button></div>
       <h5 class="lab"><span>Mép mềm (điểm ảnh)</span><b id="paintFeatherVal">${featherOf(S.paint)}</b></h5>
       <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}" style="${rangeP(featherOf(S.paint), 0, 200)}" title="Độ mềm của mép vùng">
-      <div class="two" style="margin-top:12px"><button class="small" data-pundo="1" title="Hoàn tác (Ctrl+Z)">${icon("undo", "lead")}Hoàn tác</button><button class="small" data-predo="1" title="Làm lại (Ctrl+Y)">${icon("redo", "lead")}Làm lại</button></div>
+      <div class="two" style="margin-top:12px"><button class="small" data-pundo="1" title="Hoàn tác (${keyName("undo")})">${icon("undo", "lead")}Hoàn tác</button><button class="small" data-predo="1" title="Làm lại (${keyName("redo")})">${icon("redo", "lead")}Làm lại</button></div>
       <label class="check"><input type="checkbox" id="onlyBase" ${S.onlyBase ? "checked" : ""}> Chỉ xem video gốc</label>
       <p class="tip">Lăn chuột trên hình: phóng to. Giữ chuột phải: kéo hình. Esc: xong.</p>
       <div class="donebar"><button class="primary done" data-done="1" title="Xong (Esc)">Xong</button></div>`;
@@ -2411,14 +2461,14 @@ function keepWhole(m) {  // a first stroke that missed the picture: the area sta
 function warnTakingAway() {  // "Bớt" on an area with nothing in it yet does nothing: say so
   const m = S.masks[S.paint];
   if (S.brush.mode !== "sub" || !m || !m.empty) return false;
-  toast('Đang ở chế độ "Bớt" (xoá vùng), mà vùng còn trống. Muốn tô hoặc khoanh vùng mới, bấm "Thêm" (phím X).', true, 7000);
+  toast(`Đang ở chế độ "Bớt" (xoá vùng), mà vùng còn trống. Muốn tô hoặc khoanh vùng mới, bấm "Thêm" (phím ${keyName("brushMode")}).`, true, 7000);
   return true;
 }
 function closePoly() {
   const m = S.masks[S.paint];
   if (!m || S.poly.length < 3) { S.poly = []; S.polyRedo = []; drawPoly(); renderTools(); return; }
   if (S.brush.mode === "sub" && m.empty) {  // kept: after "Thêm", Enter (or the first point) makes it the area
-    toast('Vòng này đang ở chế độ "Bớt" nên không thêm gì. Bấm "Thêm", rồi bấm Enter để dùng vòng vừa khoanh.', true, 8000);
+    toast(`Vòng này đang ở chế độ "Bớt" nên không thêm gì. Bấm "Thêm", rồi bấm ${keyName("polyClose")} để dùng vòng vừa khoanh.`, true, 8000);
     return;
   }
   rememberPaint(m); startArea(m);
@@ -3006,14 +3056,14 @@ tlLanes.addEventListener("contextmenu", e => {
   select(c.id);
   const fr = snapFrame(frameAtX(e.clientX), c.id);
   showMenu(e.clientX, e.clientY, [
-    ["Cắt đôi tại đây", () => splitClip(c, fr), "C", "razor"],
+    ["Cắt đôi tại đây", () => splitClip(c, fr), (S.keys.razorTool || []).length ? keyName("razorTool") : "", "razor"],
     ["Nhân đôi", () => duplicate(c), "Alt+kéo", "copy"],
     [c.on === false ? "Bật clip" : "Tắt clip", () => { c.on = c.on === false; edited(); }, "", c.on === false ? "eye" : "eyeOff"],
     ...(clipBefore(c) ? [[c.mix > 0 ? "Bỏ Mix với clip trước" : "Mix với clip trước", () => setMix(c, c.mix > 0 ? 0 : 0.5), "", "mix"]] : []),
     ...(clipAfter(c) ? [[clipAfter(c).mix > 0 ? "Bỏ Mix với clip sau" : "Mix với clip sau", () => { const b = clipAfter(c); setMix(b, b.mix > 0 ? 0 : 0.5); }, "", "mix"]] : []),
     ["Kéo dài suốt video", () => { if (overlaps(c.track, 0, total(), c.id)) toast("Track này còn clip khác: hãy chuyển clip sang track trống.", true); else { c.start = 0; c.end = total(); c.skip = 0; edited(); } }, "", "fitWidth"],
     null,
-    ["Xoá clip", () => deleteClip(c), "Delete", "trash", true]]);
+    ["Xoá clip", () => deleteClip(c), (S.keys.deleteClip || []).length ? keyName("deleteClip") : "", "trash", true]]);
 });
 function duplicate(c) {
   if (!roomFor(1)) return;
@@ -3188,7 +3238,8 @@ function renderControls() {
       2. Bấm vào clip trên timeline để chỉnh ở đây.<br>
       3. Bấm vào <b>V1 Video gốc</b> để vẽ vùng đứng yên và tiền cảnh.<br>
       4. Bấm <b>Xuất video</b> ở góc trên.<br><br>
-      Phím tắt: <kbd>Space</kbd> phát/dừng · <kbd>←</kbd> <kbd>→</kbd> từng khung · <kbd>C</kbd> dao cắt · <kbd>V</kbd> chọn · <kbd>Ctrl+K</kbd> cắt tại đầu phát · <kbd>Delete</kbd> xoá clip · <kbd>Ctrl+Z</kbd> hoàn tác.</div>`;
+      Phím tắt: ${kbd("playPause")} phát/dừng · ${kbd("stepBack")} ${kbd("stepFwd")} từng khung · ${kbd("razorTool")} dao cắt · ${kbd("selectTool")} chọn · ${kbd("split")} cắt tại đầu phát · ${kbd("deleteClip")} xoá clip · ${kbd("undo")} hoàn tác.
+      Xem và đổi mọi phím: nút <b>Phím tắt</b> ở góc trên.</div>`;
     return;
   }
   const f = fps(), sp = span(c), sch = S.schema.kinds[c.kind];
@@ -3258,7 +3309,7 @@ function renderControls() {
     <label class="check"><input type="checkbox" id="behind" ${c.behind ? "checked" : ""}> Bay ra sau tiền cảnh (bị tiền cảnh che)</label>
     <h4>Clip</h4>
     <div class="btns">
-      <button class="small" id="splitBtn" title="Cắt clip tại đầu phát (Ctrl+K)">${icon("razor", "lead")}Cắt tại đầu phát</button>
+      <button class="small" id="splitBtn" title="Cắt clip tại đầu phát (${keyName("split")})">${icon("razor", "lead")}Cắt tại đầu phát</button>
       <button class="small" id="dupBtn">${icon("copy", "lead")}Nhân đôi</button>
       <button class="small" id="onBtn">${c.on === false ? "Bật clip" : "Tắt clip"}</button>
       <button class="small danger" id="delBtn">${icon("trash", "lead")}Xoá clip</button>
@@ -3326,7 +3377,7 @@ $("#ec").addEventListener("click", e => {
   if (id === "paintFreeze") return S.paint === "freeze" ? exitPaint() : (enterPaint("freeze"), renderControls());
   if (id === "paintFg") return S.paint === "fg" ? exitPaint() : (enterPaint("fg"), renderControls());
   // cleared while painting it: Ctrl+Z (or the undo button) brings it back
-  const clear = (name, how) => { if (S.paint !== name) enterPaint(name); fillMask(name, how); renderControls(); toast("Đã xoá vùng. Bấm Ctrl+Z để lấy lại.", false, 3000); };
+  const clear = (name, how) => { if (S.paint !== name) enterPaint(name); fillMask(name, how); renderControls(); toast(`Đã xoá vùng. Bấm ${keyName("undo")} để lấy lại.`, false, 3000); };
   if (id === "clearFreeze") return clear("freeze", "none");
   if (id === "clearFg") return clear("fg", "none");
   if (id === "pickStill") return $("#fileStill").click();
@@ -3625,7 +3676,8 @@ $("#updateBtn").onclick = async () => {
   try { await post("/api/update", {}); $("#updateText").textContent = "Đang cập nhật… app sẽ tự mở lại."; $("#updateBtn").style.display = "none"; S.updating = true; }
   catch (e) { fail(e); }
 };
-$("#modal").addEventListener("click", e => { if (e.target.id === "modal" && !$("#modal").dataset.locked) { $("#modal").style.display = "none"; const v = $("#modal video"); if (v) v.pause(); } });
+function closeModal() { $("#modal").style.display = "none"; const v = $("#modal video"); if (v) v.pause(); S.keyWait = null; }
+$("#modal").addEventListener("click", e => { if (e.target.id === "modal" && !$("#modal").dataset.locked) closeModal(); });
 function renderJobs(list) {
   const el = $("#jobs");
   const names = Object.fromEntries(((S.state && S.state.projects) || []).map(p => [p.id, p.name]));
@@ -3659,6 +3711,175 @@ $("#jobs").addEventListener("click", e => {
     $("#mClose").onclick = () => { $("#modal").style.display = "none"; $("#modal video").pause(); };
   }
 });
+
+// --- the Phím tắt window: each action's keys, changed by pressing a new one; the guide (HUONG-DAN.md) ------------
+const clashes = (a, b) => a === b || a === "all" || b === "all";  // two actions that can work at the same time
+const fold = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase();  // (search without accents)
+function keysDialog(tab = "keys") {
+  pause();
+  S.keyTab = tab;
+  S.keyWait = S.keyMsg = null;
+  $("#modalBox").innerHTML = `<div class="kd" id="kd"></div>`;
+  $("#modal").style.display = "flex";
+  renderKeys();
+}
+function renderKeys() {
+  const el = $("#kd"); if (!el) return;
+  const tab = S.keyTab, on = t => t === tab ? "on" : "";
+  el.innerHTML = `<div class="kd-head"><h3>Phím tắt và hướng dẫn</h3>
+      <div class="seg"><button data-ktab="keys" class="${on("keys")}">Phím tắt</button><button data-ktab="guide" class="${on("guide")}">Hướng dẫn</button></div>
+      <div class="grow"></div><button id="kClose">Đóng</button></div>` + (tab === "guide"
+    ? `<div class="kd-body guide" id="kGuide">${S.guide || '<p class="kd-note">Đang mở hướng dẫn…</p>'}</div>`
+    : `<div class="kd-tools"><input type="text" id="kFind" placeholder="Tìm việc hoặc phím…" value="${esc(S.keyFind)}">
+        <p class="kd-note">Bấm <b>+ Phím</b> rồi bấm phím mới (có thể kèm Ctrl, Alt, Shift). Bấm × để bỏ một phím. Phím mới dùng được ngay.</p></div>
+      <div class="kd-body" id="kList"></div>
+      <div class="kd-foot"><span class="kd-note">Phím đã đổi được lưu lại, cả khi cập nhật app.</span><div class="grow"></div>
+        <button id="kResetAll" title="Mọi việc về phím mặc định">Đặt lại tất cả</button></div>`);
+  if (tab === "guide") loadGuide(); else renderKeyList();
+}
+function renderKeyList() {
+  const el = $("#kList"), km = S.keymap; if (!el || !km) return;
+  const find = fold(S.keyFind.trim());
+  const shown = a => !find || fold(a.label).includes(find) || (S.keys[a.id] || []).some(k => fold(comboName(k)).includes(find));
+  const row = a => {
+    const keys = S.keys[a.id] || [], changed = a.id in km.custom, wait = S.keyWait && S.keyWait.id === a.id;
+    const msg = S.keyMsg && S.keyMsg.id === a.id ? S.keyMsg : null;
+    const shownKeys = wait ? '<span class="kwait">Bấm phím mới… (Esc: thôi)</span>' : keys.length
+      ? keys.map(k => `<kbd>${esc(comboName(k))}<button class="kdel" data-kdel="${esc(k)}" title="Bỏ phím này">×</button></kbd>`).join("")
+      : '<span class="knone">chưa có phím</span>';
+    return `<div class="krow${wait ? " wait" : ""}" data-act="${a.id}">
+      <span class="klabel">${esc(a.label)}${changed ? '<i class="kchanged">đã đổi</i>' : ""}</span>
+      <span class="kkeys">${shownKeys}</span>
+      <button class="small" data-kadd="1" ${keys.length >= km.max ? "disabled" : ""} title="Thêm một phím cho việc này">+ Phím</button>
+      <button class="icon" data-kreset="1" ${changed ? "" : "disabled"} title="Về phím mặc định: ${esc(a.keys.map(comboName).join(" hoặc ") || "không có")}">${icon("undo")}</button>
+      ${msg ? `<div class="kmsg">${icon("warn")}<span>${esc(msg.text)}</span>${msg.other
+        ? '<button class="small primary" data-kmove="1">Dùng cho việc này</button><button class="small" data-kok="1">Thôi</button>'
+        : '<button class="small" data-kok="1">Đóng</button>'}</div>` : ""}
+    </div>`;
+  };
+  const groups = km.groups.map(g => {
+    const rows = km.actions.filter(a => a.group === g && shown(a));
+    const note = km.group_notes[g] ? ` <small>(${esc(km.group_notes[g])})</small>` : "";
+    return rows.length ? `<h4>${esc(g)}${note}</h4>` + rows.map(row).join("") : "";
+  }).join("");
+  const fixed = km.fixed.filter(([k, what]) => !find || fold(what).includes(find) || fold(k).includes(find));
+  el.innerHTML = (groups + (fixed.length ? "<h4>Phím cố định (không đổi được)</h4>" + fixed.map(([k, what]) =>
+    `<div class="krow fixed"><span class="klabel">${esc(what)}</span><span class="kkeys"><kbd>${esc(k)}</kbd></span></div>`).join("") : ""))
+    || '<p class="kd-note" style="padding:12px 8px">Không thấy việc hay phím nào như vậy.</p>';
+}
+function takeKey(id, combo) {  // the key just pressed for an action
+  const km = S.keymap, code = combo.split("+").pop(), keys = S.keys[id] || [], a = km.actions.find(x => x.id === id);
+  S.keyWait = S.keyMsg = null;
+  const say = text => { S.keyMsg = {id, text}; renderKeyList(); };
+  if (!km.names[code]) return say("Phím này không dùng được. Hãy chọn phím khác.");
+  if (km.reserved.includes(combo) || km.reserved_keys.includes(code)) return say(`${comboName(combo)} là phím riêng của Windows hoặc trình duyệt, không dùng được.`);
+  if (keys.includes(combo)) return renderKeyList();
+  const other = km.actions.find(x => x.id !== id && (S.keys[x.id] || []).includes(combo) && clashes(x.where, a.where));
+  if (other) {
+    S.keyMsg = {id, combo, other: other.id, text: `${comboName(combo)} đang dùng cho "${other.label}". Dùng nó cho việc này thì "${other.label}" không còn phím đó.`};
+    return renderKeyList();
+  }
+  changeKeys({[id]: [...keys, combo]});
+}
+function resetKey(id) {  // back to its default keys, taken from the actions given them since
+  const km = S.keymap, a = km.actions.find(x => x.id === id), change = {[id]: a.keys.slice()};
+  for (const x of km.actions) {
+    const ks = S.keys[x.id] || [], kept = ks.filter(k => !a.keys.includes(k));
+    if (x.id !== id && clashes(x.where, a.where) && kept.length !== ks.length) change[x.id] = kept;
+  }
+  changeKeys(change);
+}
+async function changeKeys(change) {  // null: every action back to its defaults
+  const mine = change ? {...S.keymap.custom, ...change} : {};
+  try { setKeys(await post("/api/keys", {keys: mine})); } catch (e) { fail(e); }
+  renderKeyList();
+  if (S.project) { renderTools(); renderControls(); }  // (their hints name the keys)
+}
+async function loadGuide() {
+  if (!S.guide) {
+    try {
+      const r = await fetch("/api/guide", {cache: "no-store"});
+      if (!r.ok) throw new Error(String(r.status));
+      S.guide = mdHtml(await r.text());
+    } catch (e) { const g = $("#kGuide"); if (g) g.innerHTML = '<p class="kd-note">Chưa mở được hướng dẫn. Hãy thử lại.</p>'; return; }
+  }
+  const g = $("#kGuide"); if (g) g.innerHTML = S.guide;
+}
+function mdHtml(md) {  // the guide (our own HUONG-DAN.md): headings, lists, tables, **bold**, `keys`; links as plain text
+  const inline = t => esc(t).replace(/``\s?(.+?)\s?``|`([^`]+)`/g, (_, a, b) => `<kbd>${a || b}</kbd>`)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+  // the block of default keys: the Phím tắt tab has the keys in use
+  const lines = md.replace(/<!-- keys:[\s\S]*?<!-- \/keys -->/, "@@keys@@").replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
+  const item = /^(\s*)([-*]|\d+\.)\s+(.*)$/, head = /^(#{1,5})\s+(.*)$/, out = [];
+  const special = l => !l.trim() || head.test(l) || l.startsWith("|") || item.test(l) || l.trim() === "@@keys@@";
+  for (let i = 0; i < lines.length;) {
+    const l = lines[i], h = head.exec(l);
+    if (!l.trim()) { i++; continue; }
+    if (h) { const n = Math.min(h[1].length + 1, 6); out.push(`<h${n}>${inline(h[2])}</h${n}>`); i++; continue; }
+    if (l.trim() === "@@keys@@") {
+      out.push(`<p><button class="small primary" data-ktab="keys">${icon("keyboard", "lead")}Xem và đổi phím tắt</button></p>`); i++; continue;
+    }
+    if (l.startsWith("|")) {
+      const rows = [];
+      while (i < lines.length && lines[i].startsWith("|")) rows.push(lines[i++].trim());
+      const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => inline(c.trim()));
+      const body = rows.slice(1).filter(r => !/^\|[\s:|-]+$/.test(r));
+      out.push(`<table><thead><tr>${cells(rows[0]).map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>` +
+        body.map(r => `<tr>${cells(r).map(c => `<td>${c}</td>`).join("")}</tr>`).join("") + "</tbody></table>");
+      continue;
+    }
+    if (item.test(l)) {
+      const items = [];
+      for (; i < lines.length && lines[i].trim(); i++) {
+        const x = item.exec(lines[i]);
+        if (x) items.push({indent: x[1].length, tag: /\d/.test(x[2]) ? "ol" : "ul", text: x[3]});
+        else if (/^\s/.test(lines[i]) && items.length) items[items.length - 1].text += " " + lines[i].trim();
+        else break;
+      }
+      let html = ""; const open = [];
+      for (const it of items) {
+        while (open.length && it.indent < open[open.length - 1].indent) html += `</li></${open.pop().tag}>`;
+        if (!open.length || it.indent > open[open.length - 1].indent) { open.push(it); html += `<${it.tag}><li>`; } else html += "</li><li>";
+        html += inline(it.text);
+      }
+      while (open.length) html += `</li></${open.pop().tag}>`;
+      out.push(html);
+      continue;
+    }
+    const para = [];
+    while (i < lines.length && !special(lines[i])) para.push(lines[i++].trim());
+    out.push(`<p>${inline(para.join(" "))}</p>`);
+  }
+  return out.join("");
+}
+$("#keysBtn").onclick = () => keysDialog();
+$("#modalBox").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || !$("#kd")) return;
+  if (b.id === "kClose") return closeModal();
+  if (b.dataset.ktab) { S.keyTab = b.dataset.ktab; S.keyWait = S.keyMsg = null; return renderKeys(); }
+  if (b.id === "kResetAll") {  // a second press: (nothing is lost by a stray one)
+    if (!b.classList.contains("danger")) { b.classList.add("danger"); b.textContent = "Bấm lần nữa để đặt lại tất cả"; return; }
+    S.keyMsg = null; return changeKeys(null);
+  }
+  const id = (b.closest("[data-act]") || {dataset: {}}).dataset.act; if (!id) return;
+  if (b.dataset.kdel) { S.keyMsg = null; return changeKeys({[id]: S.keys[id].filter(k => k !== b.dataset.kdel)}); }
+  if (b.dataset.kadd) { b.blur(); S.keyWait = {id}; S.keyMsg = null; return renderKeyList(); }
+  if (b.dataset.kreset) { S.keyMsg = null; return resetKey(id); }
+  if (b.dataset.kmove) { const m = S.keyMsg; S.keyMsg = null; return changeKeys({[m.other]: S.keys[m.other].filter(k => k !== m.combo), [id]: [...S.keys[id], m.combo]}); }
+  if (b.dataset.kok) { S.keyMsg = null; return renderKeyList(); }
+});
+$("#modalBox").addEventListener("input", e => { if (e.target.id === "kFind") { S.keyFind = e.target.value; renderKeyList(); } });
+$("#modalBox").addEventListener("keydown", e => {  // Esc in the search field: empty it, then close
+  if (e.target.id !== "kFind" || e.key !== "Escape") return;
+  if (e.target.value) { e.target.value = S.keyFind = ""; renderKeyList(); } else closeModal();
+});
+window.addEventListener("keydown", e => {  // the window waiting for a new key takes every key (before the page's own)
+  if (!S.keyWait) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (e.repeat || ["Shift", "Control", "Alt", "Meta", "AltGraph", "CapsLock", "NumLock", "Process"].includes(e.key)) return;  // a modifier: the key comes next
+  if (e.code === "Escape") { S.keyWait = null; return renderKeyList(); }
+  takeKey(S.keyWait.id, comboOf(e));
+}, true);
 
 // --- polling the app ------------------------------------------------------------------------------------
 let pollTimer = 0, failures = 0, version = null;
@@ -3739,84 +3960,109 @@ async function poll() {
 }
 
 // --- keyboard, files, splitters ---------------------------------------------------------------------------
+// The keys of each action are the owner's (the Phím tắt window, fx/keys.py): act(e, id) asks if this is one of them.
+function comboOf(e, shift = e.shiftKey) {  // "Ctrl+Shift+KeyZ": the key's place on the keyboard (any layout, Unikey)
+  return (e.ctrlKey || e.metaKey ? "Ctrl+" : "") + (e.altKey ? "Alt+" : "") + (shift ? "Shift+" : "") + e.code;
+}
+function act(e, id) {  // (with Shift, a key no action has with Shift counts as without it: Shift+= is +)
+  const keys = S.keys[id] || [], c = comboOf(e);
+  return keys.includes(c) || (e.shiftKey && !S.keyAll.has(c) && keys.includes(comboOf(e, false)));
+}
+function released(e, id) { return (S.keys[id] || []).some(k => k.split("+").pop() === e.code); }  // (Ctrl may be up first)
+function comboName(k) { const p = k.split("+"), code = p.pop(); return [...p, (S.keymap && S.keymap.names[code]) || code].join("+"); }
+function keyName(id) { const k = (S.keys[id] || [])[0]; return k ? comboName(k) : "chưa có phím"; }
+function keyNames(id) { const ks = S.keys[id] || []; return ks.length ? ks.map(comboName).join(" hoặc ") : "chưa có phím"; }
+function kbd(id) { return `<kbd>${esc(keyName(id))}</kbd>`; }
+function keyTips() {  // the page's own buttons: data-tip is their title with {action} for its key ({action+}: all its keys)
+  for (const el of $$("[data-tip]")) el.title = el.dataset.tip.replace(/\{(\w+)(\+?)\}/g, (_, id, all) => all ? keyNames(id) : keyName(id));
+}
+function setKeys(km) { S.keymap = km; S.keys = km.keys; S.keyAll = new Set(Object.values(km.keys).flat()); keyTips(); }
+const PAGE_ZOOM = ["Equal", "Minus", "Digit0", "NumpadAdd", "NumpadSubtract", "Numpad0"];  // Ctrl + these: the window's zoom
 document.addEventListener("keydown", e => {
+  if (S.keyWait) return;  // the Phím tắt window is taking a new key
   const menu = $("#menu");  // a key closes the clip menu, as a native menu (its items would act on an old clip)
   if (menu && menu.style.display === "block") { menu.style.display = "none"; if (e.key === "Escape") return; }
-  const ctrlKey = e.ctrlKey || e.metaKey, zk = e.key;
-  if (ctrlKey && ["=", "+", "-", "_", "0", "1"].includes(zk) && S.project) {  // the picture's zoom (not the page's)
-    e.preventDefault();
-    if (zk === "0") zoomPicture("fit"); else if (zk === "1") zoomPicture("100"); else zoomKey(zk === "-" || zk === "_" ? 1 / 1.25 : 1.25);
-    return;
+  const ctrl = e.ctrlKey || e.metaKey, mod = ctrl || e.altKey;
+  const field = e.target.matches("input[type=text], input[type=number], textarea") || (e.target.matches("select") && !ctrl);
+  if (S.project && ctrl && PAGE_ZOOM.includes(e.code)) e.preventDefault();  // never the whole window's zoom
+  if (S.project && (mod || !field)) {  // the picture's zoom (a key with Ctrl works from a field too)
+    const z = act(e, "picIn") ? 1.25 : act(e, "picOut") ? 1 / 1.25 : act(e, "picFit") ? "fit" : act(e, "pic100") ? "100" : null;
+    if (z !== null) { e.preventDefault(); if (typeof z === "string") zoomPicture(z); else zoomKey(z); return; }
   }
   if (e.target.matches("input[data-num]")) {  // a number typed next to its slider (applied as it is typed)
     if (e.key === "Enter") { e.preventDefault(); e.target.blur(); return; }  // kept: the keys are the app's again
     // undo is the app's (the field's own text undo would turn the clip as it goes): the number is kept, then undone
-    if (ctrlKey && ["z", "y"].includes(zk.toLowerCase())) { e.preventDefault(); e.target.blur(); undo(zk.toLowerCase() === "y" || e.shiftKey); return; }
+    if (mod && (act(e, "undo") || act(e, "redo"))) { e.preventDefault(); e.target.blur(); undo(act(e, "redo")); return; }
   }
-  if (e.target.matches("input[type=text], input[type=number], textarea")) return;
-  if (e.target.matches("select") && !ctrlKey) return;  // (its own keys pick an option; Ctrl+Z still undoes)
+  if (field) return;  // (a select's own keys pick an option; Ctrl+Z still undoes)
   if (e.target.type === "range" && e.key.startsWith("Arrow")) return;  // the slider moves itself
-  if ($("#modal").style.display === "flex") { if (e.key === "Escape" && !$("#modal").dataset.locked) $("#modal").style.display = "none"; return; }
+  if ($("#modal").style.display === "flex") { if (e.key === "Escape" && !$("#modal").dataset.locked) closeModal(); return; }
   if (S.drag) {  // a clip is being dragged: only the snap switch (nothing redrawn or removed under it)
-    if (e.key === "s" || e.key === "S") { S.snap = !S.snap; $("#snapBtn").classList.toggle("on", S.snap); }
+    if (act(e, "snap")) { S.snap = !S.snap; $("#snapBtn").classList.toggle("on", S.snap); }
     return;
   }
-  const k = e.key, ctrl = e.ctrlKey || e.metaKey;
-  if (e.code === "Space") {  // held: the picture moves with a drag (as in Photoshop); let go without that: play / stop
+  const k = e.key, is = id => act(e, id);
+  if (is("playPause")) {  // held: the picture moves with a drag (as in Photoshop); let go without that: play / stop
     S.space = true; grabCursor();
     const here = e.target.tagName === "BUTTON" || e.target === document.body || e.target.type === "range" || e.target.type === "checkbox";
     if (here) e.preventDefault();  // (not a click on the button that has the focus)
     if (!e.repeat) S.spaceKey = {play: here && !S.paint, panned: false};
     return;
   }
-  if (ctrl && k.toLowerCase() === "z") { e.preventDefault(); undo(e.shiftKey); return; }
-  if (ctrl && k.toLowerCase() === "y") { e.preventDefault(); undo(true); return; }
-  if (ctrl && k.toLowerCase() === "k") { e.preventDefault(); splitAtPlayhead(); return; }
-  if (ctrl && k.toLowerCase() === "m") { e.preventDefault(); exportDialog(); return; }
-  if (ctrl || e.altKey || !S.project) return;
-  if (k === "ArrowLeft") { e.preventDefault(); step(e.shiftKey ? -5 : -1); return; }
-  if (k === "ArrowRight") { e.preventDefault(); step(e.shiftKey ? 5 : 1); return; }
-  if (k === "Home") { pause(); seek(0); return; }
-  if (k === "End") { pause(); seek(duration()); return; }
-  if (k === "ArrowUp" || k === "ArrowDown") {  // the previous / next edit point
+  const did = f => { e.preventDefault(); f(); };
+  if (is("undo")) return did(() => undo(false));
+  if (is("redo")) return did(() => undo(true));
+  if (is("split")) return did(splitAtPlayhead);
+  if (is("export")) return did(exportDialog);
+  if (is("keys")) return did(() => keysDialog());
+  if (!S.project) return;
+  if (is("stepBack5")) return did(() => step(-5));
+  if (is("stepFwd5")) return did(() => step(5));
+  if (is("stepBack")) return did(() => step(-1));
+  if (is("stepFwd")) return did(() => step(1));
+  if (is("toStart")) return did(() => { pause(); seek(0); });
+  if (is("toEnd")) return did(() => { pause(); seek(duration()); });
+  if (is("prevEdit") || is("nextEdit")) {  // the previous / next edit point
     e.preventDefault();
     const fr = curFrame(), pts = [...new Set(snapPoints(null))].sort((a, b) => a - b);
-    const to = k === "ArrowUp" ? pts.filter(x => x < fr).pop() : pts.find(x => x > fr);
+    const to = is("prevEdit") ? pts.filter(x => x < fr).pop() : pts.find(x => x > fr);
     if (to !== undefined) { pause(); seek(to / fps()); }
     return;
   }
-  if (k === "h" || k === "H") {  // the Hand tool, as in Premiere and Photoshop (a held key repeats: only the first)
+  if (is("hand")) {  // the Hand tool, as in Premiere and Photoshop (a held key repeats: only the first)
+    e.preventDefault();
     if (!e.repeat) { S.handKey = {was: S.hand, panned: false}; setHand(!S.hand); }
     return;
   }
-  if (S.hand && (k === "Escape" || k === "v" || k === "V")) { setHand(false); if (k === "Escape") return; }
+  if (S.hand && (k === "Escape" || is("selectTool"))) { setHand(false); if (k === "Escape") return; }
   if (S.paint) {
-    if (k === "Enter") closePoly();
+    const by = f => { e.preventDefault(); f(); renderTools(); drawPoly(); };
+    if (is("polyClose")) { e.preventDefault(); closePoly(); }
     else if (k === "Escape") { if (S.poly.length) { S.poly = []; S.polyRedo = []; S.hover = null; drawPoly(); renderTools(); } else exitPaint(); }
-    else if (k === "Backspace" && S.poly.length) polyStep(false);
-    else if (k === "x" || k === "X") { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; renderTools(); drawPoly(); }
-    else if (k === "b" || k === "B") { S.brush.tool = "brush"; S.poly = []; S.polyRedo = []; S.hover = null; setHand(false); renderTools(); drawPoly(); }
-    else if (k === "l" || k === "L") { S.brush.tool = "poly"; setHand(false); renderTools(); }
-    else if (k === "[" || k === "]") { S.brush.size = clamp(Math.round(S.brush.size * (k === "]" ? 1.2 : 1 / 1.2)), 2, 400); renderTools(); }
+    else if (is("polyBack")) { e.preventDefault(); if (S.poly.length) polyStep(false); }
+    else if (is("brushMode")) by(() => { S.brush.mode = S.brush.mode === "add" ? "sub" : "add"; });
+    else if (is("brushTool")) by(() => { S.brush.tool = "brush"; S.poly = []; S.polyRedo = []; S.hover = null; setHand(false); });
+    else if (is("polyTool")) by(() => { S.brush.tool = "poly"; setHand(false); });
+    else if (is("brushSmaller") || is("brushBigger")) by(() => { S.brush.size = clamp(Math.round(S.brush.size * (is("brushBigger") ? 1.2 : 1 / 1.2)), 2, 400); });
     return;
   }
-  if (k === "v" || k === "V") { S.tool = "select"; renderTimeline(); }
-  else if (k === "c" || k === "C") { S.tool = "razor"; renderTimeline(); }
-  else if (k === "s" || k === "S") { S.snap = !S.snap; renderTimeline(); }
-  else if (k === "Delete" || k === "Backspace") { const c = clipById(S.sel); if (c) deleteClip(c); }
+  if (is("selectTool")) { S.tool = "select"; renderTimeline(); }
+  else if (is("razorTool")) { S.tool = "razor"; renderTimeline(); }
+  else if (is("snap")) { S.snap = !S.snap; renderTimeline(); }
+  else if (is("deleteClip")) { e.preventDefault(); const c = clipById(S.sel); if (c) deleteClip(c); }
   else if (k === "Escape") { if (S.sel) select(null); }  // (its box and its picture outside the frame go too)
-  else if (k === "+" || k === "=") S.overStage ? zoomKey(1.25) : setPps(S.pps * 1.4, S.time);  // the panel under the mouse
-  else if (k === "-" || k === "_") S.overStage ? zoomKey(1 / 1.25) : setPps(S.pps / 1.4, S.time);
-  else if (k === "\\") { if (S.overStage) zoomPicture("fit"); else { S.fitTl = true; renderTimeline(); } }
-  else if (k === "k" || k === "K") pause();
-  else if (k === "l" || k === "L") play();
+  else if (is("zoomIn")) S.overStage ? zoomKey(1.25) : setPps(S.pps * 1.4, S.time);  // the panel under the mouse
+  else if (is("zoomOut")) S.overStage ? zoomKey(1 / 1.25) : setPps(S.pps / 1.4, S.time);
+  else if (is("zoomFit")) { if (S.overStage) zoomPicture("fit"); else { S.fitTl = true; renderTimeline(); } }
+  else if (is("pause")) pause();
+  else if (is("play")) play();
 });
 document.addEventListener("keyup", e => {
-  if (e.code === "Space") {
+  if (released(e, "playPause")) {
     const k = S.spaceKey; S.space = false; S.spaceKey = null; grabCursor();
     if (k && k.play && !k.panned) { e.preventDefault(); S.playing ? pause() : play(); }
   }
-  if (e.key === "h" || e.key === "H") {  // H held while the picture moved: only for that move (as Photoshop's tools)
+  if (released(e, "hand")) {  // the Hand key held while the picture moved: only for that move (as Photoshop's tools)
     const k = S.handKey; S.handKey = null;
     if (k && k.panned && !k.was && S.hand) setHand(false);
   }
@@ -3902,7 +4148,7 @@ window.addEventListener("resize", onResize);
 
 // --- start ----------------------------------------------------------------------------------------------
 (async function start() {
-  try { S.schema = await get("/api/schema"); } catch (e) { $("#offline").style.display = "flex"; return; }
+  try { S.schema = await get("/api/schema"); setKeys(await get("/api/keys")); } catch (e) { $("#offline").style.display = "flex"; return; }
   post("/api/update/check", {}).catch(() => {});  // each time the window opens
   await poll();
   let last = null;

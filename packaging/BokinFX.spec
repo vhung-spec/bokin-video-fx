@@ -8,7 +8,7 @@ from PyInstaller.utils.hooks import collect_data_files
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))  # noqa: F821 (SPECPATH is set by PyInstaller)
 FX = os.path.join(ROOT, "fx")
-datas = [(os.path.join(FX, "index.html"), ".")]
+datas = [(os.path.join(FX, "index.html"), "."), (os.path.join(ROOT, "HUONG-DAN.md"), ".")]  # the page, the guide
 if os.path.exists(os.path.join(FX, "version.txt")):
     datas.append((os.path.join(FX, "version.txt"), "."))
 

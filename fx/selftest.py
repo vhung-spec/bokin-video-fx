@@ -25,7 +25,7 @@ import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw
 
-from . import effects, engine, library, paths, projects, sheet, timeline, video
+from . import effects, engine, keys, library, paths, projects, sheet, timeline, video
 
 W, H, FPS, P = 1920, 1080, 24, 48
 RESULTS = []
@@ -150,6 +150,8 @@ def run():
     try:
         with open(os.path.join(paths.resource_dir(), "index.html"), encoding="utf-8") as f:
             check("page bundled", "Bokin FX" in f.read())
+        with open(keys.guide_path(), encoding="utf-8") as f:
+            check("guide bundled, with the default keys", keys.markdown() in f.read())
         encoders = subprocess.run([video.ffmpeg_exe(), "-hide_banner", "-encoders"], capture_output=True,
                                   stdin=subprocess.DEVNULL, **video.NO_WINDOW).stdout.decode("utf-8", "replace")
         check("ffmpeg with libx264", "libx264" in encoders)

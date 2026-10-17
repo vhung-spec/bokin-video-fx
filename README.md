@@ -49,6 +49,8 @@ Premiere Pro:
   - **Lá cây lay động**: bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió (xem mục **Lá cây lay động**
     bên dưới).
 
+Mọi thao tác chuột và phím tắt: [HUONG-DAN.md](HUONG-DAN.md) (trong app: nút **Phím tắt**, thẻ **Hướng dẫn**).
+
 ## Cài đặt
 
 1. Vào trang [Releases](https://github.com/vhung-spec/bokin-video-fx/releases), tải file `BokinFX-Setup-<phiên bản>.exe` mới nhất.
@@ -150,10 +152,14 @@ hiện trong cột đó, hình không bị thu nhỏ.
 Vùng của một clip lúc đầu là cả khung hình. Nét tô (hoặc vùng khoanh) đầu tiên thay cả khung hình bằng chỗ bạn tô.
 Mép mềm của vùng clip nằm bên trong đường viền xanh: ra ngoài đường viền là không còn gì của clip.
 
-### Phím tắt khác
+### Phím tắt
 
 `Space` phát/dừng · `←` `→` khung trước/sau (`Shift`: 5 khung) · `↑` `↓` về mép clip trước/sau · `Home` `End`
-về đầu/cuối · `Ctrl+M` xuất video.
+về đầu/cuối · `Ctrl+M` xuất video. Đủ mọi phím: [HUONG-DAN.md](HUONG-DAN.md).
+
+**Đổi phím tắt**: bấm nút **Phím tắt** ở góc trên bên phải (cạnh **Xuất video**). Bấm **+ Phím** ở một việc rồi bấm
+phím mới; bấm × để bỏ một phím; **Đặt lại tất cả** để về phím mặc định. Phím đang dùng cho việc khác thì app hỏi lại.
+Phím đã đổi được lưu lại, cả khi cập nhật app. Thẻ **Hướng dẫn** trong đó là file HUONG-DAN.md.
 
 ### Phóng to, thu nhỏ, dời hình
 

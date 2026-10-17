@@ -7,7 +7,8 @@ and a picture into the library, drags the effect onto the timeline, adds snow, p
 clips, undoes, paints a still area, zooms and moves the picture (a clip outside the frame grabbed there) and exports a
 30-second video. It checks the timeline the page saved, that the live preview plays the light copies (H.264 and
 transparent WebM), the falling leaves' settings (each shape a checkbox, "Loại lá" following them), rustling leaves
-painted into their area (their live preview against the exact frame), and that the page reports no script errors.
+painted into their area (their live preview against the exact frame), the Phím tắt window (a key changed, taken from
+another action, refused; the guide), and that the page reports no script errors.
 Screenshots of each step go to the folder given (default: page-test).
 
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
@@ -493,6 +494,81 @@ def foliage(page, shot):
     shot("05h-foliage")
 
 
+def shortcuts(page, shot):
+    """The Phím tắt window: a key changed, taken from another action, refused, searched; the guide; all back."""
+    def row(i):
+        return f'.krow[data-act="{i}"]'
+
+    def take(i, key):  # "+ Phím" on the row, then the key
+        page.click(f"{row(i)} [data-kadd]")
+        page.wait_for_selector(f"{row(i)}.wait")
+        page.keyboard.press(key)
+        page.wait_for_timeout(300)
+
+    check("key names in the buttons' tips", "Phím cách" in page.get_attribute("#tPlay", "title") and
+          "Ctrl+Z" in page.get_attribute("#undoBtn", "title"), page.get_attribute("#tPlay", "title"))
+    page.click("#keysBtn")
+    page.wait_for_selector("#kList .krow")
+    n = page.evaluate("S.keymap.actions.length")
+    check("the Phím tắt window lists every action", page.locator(".krow[data-act]").count() == n and n > 30, str(n))
+    take("razorTool", "d")
+    check("a new key for the razor", page.evaluate("S.keys.razorTool") == ["KeyC", "KeyD"] and
+          "đã đổi" in page.inner_text(row("razorTool")), str(page.evaluate("S.keys.razorTool")))
+    take("razorTool", "v")  # the select tool's: asked first
+    check("a key in use: asked first", "Công cụ chọn" in page.inner_text(f"{row('razorTool')} .kmsg") and
+          page.evaluate("S.keys.selectTool") == ["KeyV"])
+    page.click(f"{row('razorTool')} [data-kmove]")
+    page.wait_for_timeout(300)
+    check("a key taken from another action", page.evaluate("S.keys.razorTool") == ["KeyC", "KeyD", "KeyV"] and
+          page.evaluate("S.keys.selectTool") == [], str(page.evaluate("[S.keys.razorTool, S.keys.selectTool]")))
+    page.click(f'{row("razorTool")} .kdel[data-kdel="KeyC"]')
+    page.wait_for_timeout(300)
+    check("a key taken away", page.evaluate("S.keys.razorTool") == ["KeyD", "KeyV"])
+    take("export", "Tab")
+    check("a key the app cannot use: said so", "không dùng được" in page.inner_text(f"{row('export')} .kmsg") and
+          page.evaluate("S.keys.export") == ["Ctrl+KeyM"])
+    page.click(f"{row('export')} [data-kok]")
+    page.click(f"{row('split')} [data-kadd]")
+    page.keyboard.press("Escape")  # changed one's mind: the window stays
+    page.wait_for_timeout(200)
+    check("Esc while waiting: nothing changed", page.evaluate("S.keyWait") is None and page.is_visible("#kd") and
+          page.evaluate("S.keys.split") == ["Ctrl+KeyK"])
+    page.fill("#kFind", "xuat video")  # (without accents too)
+    page.wait_for_timeout(200)
+    check("search the actions", page.locator(".krow[data-act]").count() == 1 and page.is_visible(row("export")))
+    page.fill("#kFind", "")
+    shot("05i-keys")
+    page.click('[data-ktab="guide"]')
+    page.wait_for_selector("#kGuide h3")
+    text = page.inner_text("#kGuide")
+    check("the guide in the window", page.locator("#kGuide h3").count() >= 5 and page.locator("#kGuide table").count() >= 5
+          and "**" not in text and "|---" not in text and "<!--" not in text and
+          page.locator('#kGuide [data-ktab="keys"]').count() == 1, text[:300])
+    shot("05i-guide")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    check("Esc closes the window", not page.is_visible("#modal"))
+    saved = page.evaluate("get('/api/keys')")
+    check("the keys are kept by the app", saved["custom"].get("razorTool") == ["KeyD", "KeyV"] and
+          saved["custom"].get("selectTool") == [], str(saved["custom"]))
+    page.evaluate("S.tool = 'select'; renderTimeline()")
+    page.keyboard.press("d")
+    on_d = page.evaluate("S.tool")
+    page.evaluate("S.tool = 'select'; renderTimeline()")
+    page.keyboard.press("v")
+    check("the new keys work at once", on_d == "razor" and page.evaluate("S.tool") == "razor", on_d)
+    page.keyboard.press("Shift+Slash")  # the window's own key
+    page.wait_for_selector("#kList .krow")
+    page.click("#kResetAll")
+    page.click("#kResetAll")  # (a second press)
+    page.wait_for_timeout(300)
+    check("all back to the defaults", page.evaluate("S.keymap.custom") == {} and page.evaluate("S.keys.selectTool") == ["KeyV"]
+          and page.evaluate("S.keys.razorTool") == ["KeyC"])
+    page.click("#kClose")
+    page.keyboard.press("v")
+    check("the default keys again", page.evaluate("S.tool") == "select")
+
+
 def disc(png):
     """Where the loop's yellow disc is in a screenshot (x, y), or None."""
     import io
@@ -914,6 +990,7 @@ def run(page, folder, edge):
     page.keyboard.press("Control+Shift+z")
     page.wait_for_timeout(200)
     check("redo", len([x for x in clips() if x["kind"] == "snow"]) == 2)
+    shortcuts(page, shot)
 
     page.click(".clip.base >> nth=0")
     page.click("#paintFreeze")

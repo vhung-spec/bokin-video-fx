@@ -28,6 +28,14 @@ hiệu ứng. Cách dùng: `README.md`.
   màu, bo góc, khoảng cách, cỡ chữ là token trên `:root` (`--bg`, `--panel`, `--accent`…; màu clip `--k-<loại>` theo
   `data-kind`; thước timeline vẽ canvas đọc `--ruler-*`), biểu tượng nét mảnh tự vẽ trong `ICONS` (`icon()`, nút có
   `data-icon`), không font hay ảnh ngoài.
+- Phím tắt: `fx/keys.py` (`ACTIONS`: mã việc, nhóm, nhãn, phím mặc định là `KeyboardEvent.code` sau Ctrl/Alt/Shift,
+  `where`: all / edit / paint, hai việc chỉ dùng chung phím khi một cái `edit`, cái kia `paint`). Phím chủ đổi lưu
+  trong `keys.json` (chỉ việc đã đổi; phím mặc định trùng phím chủ chọn thì bỏ: `effective`). `/api/keys` (GET, POST),
+  bảng **Phím tắt** trên trang (`keysDialog`, `takeKey`); trang hỏi `act(e, id)`, không so phím trực tiếp; nút ghi
+  phím bằng `data-tip` (`{id}`), chữ trên trang bằng `keyName(id)`. Thêm việc có phím: thêm vào `ACTIONS`, xử lý trong
+  `keydown` của trang, rồi `python -m fx.keys` ghi lại bảng phím mặc định trong `HUONG-DAN.md` (test kiểm).
+  `HUONG-DAN.md` (hướng dẫn thao tác cho chủ, đi kèm bản cài, `/api/guide`) hiện ở thẻ Hướng dẫn (`mdHtml`: tiêu đề,
+  danh sách, bảng, **đậm**, `phím`). Sửa thao tác trên trang thì sửa cả file đó.
 - `fx/timeline.py`: luật thời gian của clip (độ dài 30/60 giây, `Span`: bắt đầu, kết thúc, mờ dần). `index.html` có
   bản sao bằng JavaScript (`span`, `weight`, `plan`, `fileTime`): sửa một bên thì sửa cả bên kia.
 - `fx/projects.py`: dự án trong `%APPDATA%\Bokin\FX\projects\<id>` (project.json, input.*, proxy.mp4, still.png,

@@ -57,6 +57,26 @@ class Server(unittest.TestCase):
         self.assertEqual(request(self.base + "/api/export", b"{}", {"Content-Type": "application/json"}, "POST")[0], 403)
         self.assertEqual(self.post("/api/open", {})[0], 400)  # not on a server
 
+    def test_keys_and_guide(self):
+        code, body, _ = request(self.base + "/api/keys")
+        self.assertEqual(code, 200)
+        v = json.loads(body)
+        self.assertEqual(v["keys"]["undo"], ["Ctrl+KeyZ"])
+        self.assertIn("names", v)
+        self.assertEqual(request(self.base + "/api/keys", json.dumps({"keys": {}}).encode(),
+                                 {"Content-Type": "application/json"}, "POST")[0], 403)  # (no X-Bokin header)
+        code, body, _ = self.post("/api/keys", {"keys": {"razorTool": ["KeyD", "Ctrl+KeyW"], "x": ["KeyQ"]}})
+        self.assertEqual(code, 200)
+        v = json.loads(body)
+        self.assertEqual(v["custom"], {"razorTool": ["KeyD"]})
+        self.assertEqual(json.loads(request(self.base + "/api/keys")[1])["keys"]["razorTool"], ["KeyD"])
+        self.assertEqual(json.loads(self.post("/api/keys", {"keys": {}})[1])["custom"], {})
+        self.assertEqual(self.post("/api/keys", raw=b"[1]")[0], 400)
+        code, body, headers = request(self.base + "/api/guide")
+        self.assertEqual(code, 200)
+        self.assertTrue(headers["Content-Type"].startswith("text/markdown"))
+        self.assertIn("Phím tắt", body.decode("utf-8"))
+
     def test_project_flow(self):
         clip = helpers.make_loop(os.path.join(helpers.ROOT, "server.mp4"), 160, 90, 12)
         with open(clip, "rb") as f:
