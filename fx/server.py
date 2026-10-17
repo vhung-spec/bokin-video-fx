@@ -215,6 +215,8 @@ class Handler(BaseHTTPRequestHandler):
                                    "lit": {k: True for k, c in effects.KINDS.items() if c.LIT},
                                    "placed": {k: list(c.BOX) for k, c in effects.KINDS.items() if c.BOX},
                                    "under": {k: True for k, c in effects.KINDS.items() if c.UNDER},
+                                   # only inside the clip's painted area (no area: nothing)
+                                   "area": {k: True for k, c in effects.KINDS.items() if c.AREA},
                                    # turned in 3D like a file clip; on a sheet of the frame's shape (not a box)
                                    "turns": {k: True for k, c in effects.KINDS.items() if c.TURNS},
                                    "sheet": {k: True for k, c in effects.KINDS.items() if c.TURNS and not c.BOX},
@@ -432,7 +434,7 @@ class Handler(BaseHTTPRequestHandler):
             name = engine.fx_clip_name(project, layer)
             length = project.get("length") or timeline.DEFAULT_LENGTH  # the page drops a clip of another length
             at = None  # where a clip made from the picture under its box was made for (it shows only there)
-            if effects.KINDS[layer["kind"]].UNDER:
+            if effects.KINDS[layer["kind"]].UNDER and effects.KINDS[layer["kind"]].BOX:  # (under an area: anywhere)
                 p = effects.clean_params(layer["kind"], layer.get("params"))
                 at = [p["x"], p["y"], p["scale"]]
             if os.path.exists(os.path.join(projects.folder(project["id"]), "clips", name)):

@@ -270,9 +270,12 @@ class ClipWriter:
     """A small clip for the page's live preview: RGBA frames into WebM (VP9 keeps the transparency), or RGB
     frames into H.264."""
 
-    def __init__(self, path, w, h, fps, alpha, crf=None):
+    def __init__(self, path, w, h, fps, alpha, crf=None, bt709=False):
+        """`bt709`: a see-through clip converted to BT.709 and tagged so (the page then reads its colours exactly as
+        the video's: a clip of the picture's own colours, laid on it)."""
         self.err = tempfile.TemporaryFile()
-        codec = (["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-deadline", "realtime",
+        codec = ((["-vf", TO_BT709.replace("yuv420p", "yuva420p")] + BT709 if bt709 else []) +
+                 ["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-deadline", "realtime",
                   "-cpu-used", "8", "-b:v", "0", "-crf", str(crf or 34), "-row-mt", "1"] if alpha else
                  ["-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf or 24), "-pix_fmt", "yuv420p", "-vf",
                   TO_BT709])

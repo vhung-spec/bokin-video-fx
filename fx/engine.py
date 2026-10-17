@@ -584,22 +584,60 @@ def _folder_of(project):
     return os.path.join(paths.projects_dir(), project.get("id") or "-")
 
 
+AREA_REACH = 16  # how far beyond its area an effect made from the picture under its area reads it (1080-line px)
+
+
+def _area_painted(folder, name):
+    """(a short hash of what a clip's area mask has painted, its painted box as fractions of the mask's size), or
+    None when the area leaves nothing to change: no area (the whole frame), nothing painted, or painted all over (as
+    Scene reads it: the whole frame). Kept for the file's stamp."""
+    path = mask_path(folder, name)
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    key = (path, (st.st_mtime_ns, st.st_size), "area")
+    if key not in _near:
+        try:
+            with Image.open(path) as im:
+                im.load()
+                m = im.getchannel("A") if "A" in im.getbands() else im.convert("L")
+        except (OSError, ValueError):
+            return "unreadable", (0.0, 0.0, 1.0, 1.0)  # (as if painted: the clip is made again when it can be read)
+        box = m.getbbox()
+        if len(_near) > 256:
+            _near.clear()
+        _near[key] = None if box is None or m.getextrema() == (255, 255) else (
+            hashlib.sha1(m.tobytes()).hexdigest()[:12],
+            (box[0] / m.width, box[1] / m.height, box[2] / m.width, box[3] / m.height))
+    return _near[key]
+
+
 def _under_key(project, layer):
-    """What the picture under a placed effect's box is made of: the video, and the still area where its soft edge
-    can reach the box (its softness, what is painted there, its picture). A still area elsewhere (painted, changed
-    or undone) does not make the clip again."""
+    """What the picture under a placed effect's box (or a full-frame one's area: what is painted, how soft) is made
+    of: the video, and the still area where its soft edge can reach the box (its softness, what is painted there,
+    its picture). A still area elsewhere (painted, changed or undone) does not make the clip again."""
     key = [project["video"].get("file")]
     folder = _folder_of(project)
+    info = project["video"]
+    w, h = info["w"], info["h"]
+    if effects.KINDS[layer["kind"]].BOX:
+        x0, y0, bw, bh = effects.box_of(layer["kind"], layer.get("params"), w, h)
+    else:  # its own area (the page lays the clip's area and the foreground over it, as over any clip)
+        area = _area_painted(folder, layer["id"])
+        if area is None:
+            return key + ["nowhere"]  # (it changes nothing: an empty clip)
+        painted, (ax0, ay0, ax1, ay1) = area
+        key += ["area", painted, float(layer.get("feather", 0) or 0)]
+        reach = AREA_REACH * h / 1080
+        x0, y0, bw, bh = ax0 * w - reach, ay0 * h - reach, (ax1 - ax0) * w + 2 * reach, (ay1 - ay0) * h + 2 * reach
     path = mask_path(folder, "freeze")
     try:
         st = os.stat(path)
     except OSError:
         return key
-    info = project["video"]
-    w, h = info["w"], info["h"]
     feather = float((project.get("freeze") or {}).get("feather", 0) or 0)
     grow = 3 * feather + 2  # (a Gaussian blur of radius r spreads about 2.5 r)
-    x0, y0, bw, bh = effects.box_of(layer["kind"], layer.get("params"), w, h)
     painted = _painted_near(path, (st.st_mtime_ns, st.st_size),
                             ((x0 - grow) / w, (y0 - grow) / h, (x0 + bw + grow) / w, (y0 + bh + grow) / h))
     if not painted:
@@ -659,6 +697,8 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
     total = project_frames(project)
     if effects.KINDS[layer["kind"]].LIT:  # (the video's light, read here: the workers read nothing)
         project = dict(project, _light=scene_light(folder, project))
+    if effects.KINDS[layer["kind"]].AREA:  # (the masks read once, here: every piece is made with the same area)
+        project = dict(project, _masks={n: _read(mask_path(folder, n)) for n in ("freeze", "fg", layer_id)})
     count = max(1, min(processes or workers(False), total // 48))
     work = os.path.join(folder, "render-" + secrets.token_hex(3))
     os.makedirs(work)
@@ -677,25 +717,107 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
         shutil.rmtree(work, ignore_errors=True)
 
 
+def max5(a):
+    """The largest value within 5 x 5 pixels of each pixel of a 2-D uint8 array, the edge repeated beyond it: the
+    same as Pillow's MaxFilter(5), many times faster (a square's maximum is a row's maximum of column maxima)."""
+    h, w = a.shape
+    p = np.pad(a, ((0, 0), (2, 2)), mode="edge")
+    rows = p[:, 0:w].copy()
+    for i in range(1, 5):
+        np.maximum(rows, p[:, i:i + w], out=rows)
+    p = np.pad(rows, ((2, 2), (0, 0)), mode="edge")
+    out = p[0:h].copy()
+    for i in range(1, 5):
+        np.maximum(out, p[i:i + h], out=out)
+    return out
+
+
 def change_rgba(before, after, fade):
     """An RGBA picture (uint8) that, laid with Normal blend over `before`, gives `after` (both float RGB in 0..1),
     its change faded out by `fade` (h, w, 1). Its alpha is no more than the change needs (softly spread a little),
     so wherever the picture is not changed, what the page lays under it (other clips) shows through."""
     d = (np.clip(after, 0.0, 1.0) - before) * fade
     # the least alpha that reaches before + d with a colour in 0..1: d / (1 - before) up, -d / before down
-    need = np.where(d > 0, d / np.maximum(1.0 - before, 1e-4), -d / np.maximum(before, 1e-4)).max(axis=2)
-    a = Image.fromarray((np.clip(need, 0.0, 1.0) * 255.0 + 0.999).astype(np.uint8))
+    need = np.where(d > 0, d / np.maximum(1.0 - before, 1e-4), -d / np.maximum(before, 1e-4))
+    need = np.maximum(np.maximum(need[..., 0], need[..., 1]), need[..., 2])
+    a = (np.clip(need, 0.0, 1.0) * 255.0 + 0.999).astype(np.uint8)
     # spread a little: a gentler alpha keeps the colours tame where it changes fast (the clip's colour is halved)
-    a = np.maximum(np.asarray(a), np.asarray(a.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(2))))
+    a = np.maximum(a, np.asarray(Image.fromarray(max5(a)).filter(ImageFilter.GaussianBlur(2))))
     k = np.where(a > 0, 255.0 / np.maximum(a, 1), 0.0).astype(np.float32)[..., None]
     colour = np.clip(before + d * k, 0.0, 1.0)
     return np.concatenate([(colour * 255.0 + 0.5).astype(np.uint8), a[..., None]], 2)
 
 
+def _bands_of(where, grow, step=32):
+    """Rectangles (x0, y0, x1, y1), bands of `step` rows each as wide as `where` (a 2-D bool array) is within `grow`
+    pixels of them, that together cover every pixel within `grow` of a true one."""
+    h, w = where.shape
+    cols = np.flatnonzero(where.any(axis=0))
+    rows = where.any(axis=1)
+    out = []
+    for y0 in range(0, h, step):
+        y1 = min(h, y0 + step)
+        near = slice(max(0, y0 - grow), min(h, y1 + grow))
+        if not rows[near].any():
+            continue
+        used = cols[where[near][:, cols].any(axis=0)]
+        out.append((max(0, int(used[0]) - grow), y0, min(w, int(used[-1]) + 1 + grow), y1))
+    return out
+
+
+def _area_part(project, layer, total, folder, start, end, path):
+    """fx_part of a full-frame effect made from the picture under the clip's area (Effect.UNDER without a box:
+    rustling leaves): the video and its still area at the preview clip's size, the effect applied there inside the
+    clip's own area, as Scene does; only its change is kept (change_rgba), so it sits on the video the page plays
+    under it, and lets the clips of lower tracks show where nothing changes."""
+    info = project["video"]
+    kind = layer["kind"]
+    size = cw, ch = fx_clip_frame(info, kind)
+    area = mask_image(folder, layer["id"], size, layer.get("feather", 0), info["h"], project.get("_masks"), inside=True)
+    rects = []
+    if area is not None and area.getextrema() != (255, 255):  # (as Scene: painted all over is the whole frame)
+        area = np.asarray(area, np.float32) * (1 / 255.0)
+        rects = _bands_of(area > 0, 8)  # (change_rgba spreads its alpha a little)
+    fx = effects.make(kind, fx_clip_params(kind, layer.get("params")), layer.get("seed", 1), total,
+                      video.fps_value(info["fps"]), cw, ch)
+    # the video with its still area, no clips (nothing painted: an empty clip, the video not even read)
+    under = Scene(folder, dict(project, layers=[]), size, total) if rects else None
+    writer = video.ClipWriter(path, cw, ch, info["fps"], True, getattr(fx, "PREVIEW_CRF", None), bt709=True)
+    out = np.zeros((ch, cw, 4), np.uint8)  # (nothing changes outside the area: there it stays see-through)
+    bases = base_frames(folder, project, size, start, end) if rects else (None for _ in range(start, end))
+    try:
+        for t, base in zip(range(start, end), bases):
+            if _stopped():
+                writer.abort()
+                return False
+            if rects:
+                picture = np.asarray(under.image(t, base), np.float32) * (1 / 255.0)
+                # each band worked out with 8 rows round it (the alpha's spread reaches across bands), its own kept
+                before = [picture[max(0, y0 - 8):y1 + 8, x0:x1].copy() for x0, y0, x1, y1 in rects]
+                fx.apply(t, picture, area, 1.0)
+                for (x0, y0, x1, y1), was in zip(rects, before):
+                    a = max(0, y0 - 8)
+                    change = change_rgba(was, picture[a:y1 + 8, x0:x1], 1.0)
+                    out[y0:y1, x0:x1] = change[y0 - a:y1 - a]
+            writer.write(out)
+            _count_frame()
+        writer.close()
+        return True
+    except BaseException:
+        writer.abort()
+        raise
+    finally:
+        if under is not None:
+            under.close()
+
+
 def _under_part(project, layer, total, folder, start, end, path):
     """fx_part of an effect made from the picture under its box (Effect.UNDER): the video and its still area there,
     the box alone applied to it; only its change is kept (change_rgba), fading out toward the box's edges, so it
-    sits on the video the page plays under it and lets the clips of lower tracks show where nothing changes."""
+    sits on the video the page plays under it and lets the clips of lower tracks show where nothing changes. A
+    full-frame one: under its area (_area_part)."""
+    if not effects.KINDS[layer["kind"]].BOX:
+        return _area_part(project, layer, total, folder, start, end, path)
     info = project["video"]
     fps, kind, seed = video.fps_value(info["fps"]), layer["kind"], layer.get("seed", 1)
     w, h = info["w"], info["h"]
@@ -724,6 +846,7 @@ def _under_part(project, layer, total, folder, start, end, path):
             before = picture.copy()
             alone.apply(t, picture, None, 1.0)
             writer.write(change_rgba(before, picture, fade))
+            _count_frame()
         writer.close()
         return True
     except BaseException:

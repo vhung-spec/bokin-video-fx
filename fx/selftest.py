@@ -79,11 +79,14 @@ def periodic_checks():
     yy, xx = np.mgrid[0:360, 0:640]
     scene = np.dstack([0.2 + 0.5 * (((xx // 16) + (yy // 16)) % 2), 0.3 + 0.4 * xx / 640, 0.25 + 0.5 * yy / 360])
     light = effects.light_map([(scene * 255 + 0.5).astype(np.uint8)])  # (rain lit by the scene)
+    area = ((((xx - 300) / 220) ** 2 + ((yy - 200) / 130) ** 2) < 1).astype(np.float32)  # (rustling leaves' area)
     for kind in effects.KINDS:
         third = {"style": "dust"} if kind == "glow" else {"wind": 60}
         if kind == "leaves":  # every way a leaf falls, every shape of leaf, lit from behind
             third = {"wind": 60, "gust": 80, "spin": 100, "glow": 100,
                      **{p["key"]: True for p in effects.SCHEMA["leaves"]["params"] if p["type"] == "toggle"}}
+        if kind == "foliage":  # a strong breeze from the right, gusting
+            third = {**effects.SCHEMA["foliage"]["params"][0]["presets"]["strong"], "direction": "left"}
         for extra in ({}, {"wind": -80, "speed": 100}, third):
             fx = effects.make(kind, extra, 5, P, FPS, 640, 360, light)
             canvas = effects.Canvas(640, 360)
@@ -91,7 +94,7 @@ def periodic_checks():
             for t in (0, P):
                 pic = scene.astype(np.float32)  # (a lens effect changes the picture under it: something to see)
                 if fx.lens:
-                    fx.apply(t, pic, None, 1.0)
+                    fx.apply(t, pic, area if fx.AREA else None, 1.0)
                 else:
                     fx.draw(t, canvas, None)
                     canvas.flush(pic, fx.blend)
@@ -204,13 +207,17 @@ def run():
                    "params": {"scale": 45, "x": 22, "y": -12, "rot_x": 10, "rot_y": -35, "rot_z": 4, "persp": 70}},
                   {"id": "steam01", "kind": "steam", "seed": 10, "track": tracks[1] + "y",
                    "params": {"scale": 40, "x": -25, "y": 20, "rot_y": 25, "rot_z": 5}, "start": 30, "end": 80,
-                   "fade_in": 0.3, "fade_out": 0.3}]
+                   "fade_in": 0.3, "fade_out": 0.3},
+                  # leaves rustling in their painted area (a lens on the bottom track: under every other clip)
+                  {"id": "bush01", "kind": "foliage", "seed": 11, "track": tracks[0] + "z",
+                   "params": effects.SCHEMA["foliage"]["params"][0]["presets"]["medium"]}]
         extra = ["x", "y"]
-        project = projects.apply(project, {"tracks": project["tracks"] + [{"id": tracks[i] + k} for k in extra
-                                                                          for i in range(3) if (i, k) != (2, "y")],
-                                           "layers": layers})
+        project = projects.apply(project, {"tracks": [{"id": tracks[0] + "z"}] + project["tracks"] + [
+            {"id": tracks[i] + k} for k in extra for i in range(3) if (i, k) != (2, "y")], "layers": layers})
         project = projects.save_mask(project, "snow01",
                                      png_bytes(lambda d: d.rectangle([mw // 3, 0, mw, mh // 2], fill=255), (mw, mh)))
+        project = projects.save_mask(project, "bush01", png_bytes(  # over the disc's path, right of the still area
+            lambda d: d.ellipse([int(mw * 0.45), int(mh * 0.2), int(mw * 0.85), int(mh * 0.8)], fill=255), (mw, mh)))
         check("timeline saved", [lay["track"] for lay in project["layers"]][5:7] == [tracks[0] + "x", tracks[1] + "x"])
         small = engine.Scene(folder, project, (64, 36))
         check("built-in effects turned in 3D: drawn on their sheets",

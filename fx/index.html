@@ -46,7 +46,7 @@
   --good: #3fcf8e; --warn: #f5b14c; --bad: #ff7b7b; --bad-text: #ff8f8f; --bad-soft: rgba(255, 107, 107, .14);
   /* clips: one colour per kind, white text on each >= 5 : 1 */
   --k-file: #6b52c8; --k-snow: #2c7299; --k-rain: #3d5fa8; --k-glass: #1a7375; --k-steam: #7d5f4a;
-  --k-candle: #9f5417; --k-leaves: #4f7a32; --k-glow: #9e4686; --k-base: #2c4a70;
+  --k-candle: #9f5417; --k-leaves: #4f7a32; --k-foliage: #2b7649; --k-glow: #9e4686; --k-base: #2c4a70;
   --c-base: var(--k-base); --c-file: var(--k-file); --c-fx: var(--k-snow);   /* (old names) */
   --mix: #7257e6; --mix-line: #c2b4ff; --mix-band: rgba(185, 168, 255, .32); --mix-band-2: rgba(185, 168, 255, .1);
   --playhead: var(--accent);
@@ -517,6 +517,7 @@ header .prep .ic { color: var(--warn); }
 :is(.clip, .tile)[data-kind=steam] { --k: var(--k-steam); }
 :is(.clip, .tile)[data-kind=candle] { --k: var(--k-candle); }
 :is(.clip, .tile)[data-kind=leaves] { --k: var(--k-leaves); }
+:is(.clip, .tile)[data-kind=foliage] { --k: var(--k-foliage); }
 :is(.clip, .tile)[data-kind=glow] { --k: var(--k-glow); }
 .clip:not(.off):not(.sel):hover { filter: brightness(1.1); }
 .clip.base { --k: var(--k-base); background: var(--k-base) center/auto 100% repeat-x; cursor: pointer; border-radius: var(--r-xs); }
@@ -785,6 +786,7 @@ const ICONS = {
   steam: '<path d="M4 9.5h10v2.5a4.5 4.5 0 0 1-4.5 4.5h-1A4.5 4.5 0 0 1 4 12z"/><path d="M14 10.5h1a2 2 0 0 1 0 4h-1.4"/><path d="M7.5 3c-.9 1 .9 2.2 0 3.6M11 3c-.9 1 .9 2.2 0 3.6"/>',
   candle: '<rect x="7.3" y="10" width="5.4" height="7.5" rx="1"/><path d="M10 10V8.7"/><path d="M10 2.5c1.7 1.9 2.2 3.1 2.2 4a2.2 2.2 0 0 1-4.4 0c0-.9.5-2.1 2.2-4z"/>',
   leaves: '<path d="M4.5 15.5C4.5 8 9 4 16 4c0 7-4.2 11.5-11.5 11.5z"/><path d="M4.5 15.5l7-7"/>',
+  foliage: '<path d="M6 14.5a3.1 3.1 0 0 1-1.3-5.9 3.5 3.5 0 0 1 5-4.3 3.6 3.6 0 0 1 6 2.3 3.1 3.1 0 0 1-.9 6 2.6 2.6 0 0 1-2.3 1.9z"/><path d="M10 14.5v3M8.5 17.5h3"/><path d="M7.5 10.2c.8-.7 1.7-.7 2.5 0M10.6 7.6c.8-.7 1.7-.7 2.5 0"/>',  // a bush, its leaves stirring
   glow: '<path d="M8.5 3c.5 3.3 1.8 4.7 5 5.3-3.2.6-4.5 2-5 5.2-.5-3.2-1.8-4.6-5-5.2 3.2-.6 4.5-2 5-5.3z"/><path d="M15 12c.2 1.4.8 2 2 2.2-1.2.2-1.8.8-2 2.3-.2-1.5-.8-2.1-2-2.3 1.2-.2 1.8-.8 2-2.2z"/>',
   film: '<rect x="3" y="4" width="14" height="12" rx="1.8"/><path d="M6.5 4v12M13.5 4v12M3 8h3.5M3 12h3.5M13.5 8H17M13.5 12H17"/>',
 };
@@ -792,7 +794,7 @@ function icon(name, cls = "") {
   return `<svg class="ic ic-${name}${cls ? " " + cls : ""}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" ` +
     `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name] || ""}</svg>`;
 }
-const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", candle: "candle", file: "film"};
+const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", candle: "candle", foliage: "foliage", file: "film"};
 function kindIcon(kind, cls) { return icon(KIND_ICON[kind] || "glow", cls); }  // (an effect with no drawing of its own: a sparkle)
 // the buttons of the page's own markup: data-icon names their icon (before their label, if they have one)
 for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.dataset.icon, el.textContent.trim() ? "lead" : ""));
@@ -800,7 +802,7 @@ for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.
 function rangeP(v, min, max) { const k = (+v - min) / ((max - min) || 1); return `--p:${(100 * (k > 0 ? Math.min(k, 1) : 0)).toFixed(1)}%`; }
 function fillRange(r) { const a = +r.min || 0, b = r.max === "" ? 100 : +r.max; r.style.setProperty("--p", rangeP(r.value, a, b).slice(4)); }
 document.addEventListener("input", e => { if (e.target.type === "range") fillRange(e.target); }, true);
-const FX_KINDS = ["snow", "rain", "glass", "steam", "candle", "leaves", "glow"];  // the Tạo sẵn tab, in this order
+const FX_KINDS = ["snow", "rain", "glass", "steam", "candle", "leaves", "foliage", "glow"];  // the Tạo sẵn tab, in this order
 const BLEND_CSS = {normal: "normal", screen: "screen", add: "plus-lighter", multiply: "multiply"};
 const COLOUR_KEYS = ["bright", "contrast", "sat", "hue", "temp", "tint_amt", "tint"], TONE_POINTS = 33, LUMA = [0.2126, 0.7152, 0.0722];
 function colourOps(p) {  // as overlay.colour_ops: {curve, mat} for a file clip's colours, or null when they change nothing
@@ -1322,6 +1324,7 @@ async function sendMask(name, m) {
     if (S.project !== p) return true;
     if (keep !== had) { bgControls(); renderTimeline(); }  // "vùng đã vẽ" / "cả khung hình"
     if (name === "freeze") requestAllFx();  // a clip made from the picture under its box shows it
+    else if (areaKind(clipById(name))) requestFx(clipById(name));  // (rustling leaves: its preview clip is its area's)
     refreshExact();
     return true;
   } catch (e) {
@@ -1604,6 +1607,11 @@ function onlyBase() { return !!S.paint && S.onlyBase; }
 const xform = $("#xform");
 // a built-in effect drawn over the whole frame lies on a sheet of the frame's shape, placed and turned as a file clip
 function sheetKind(c) { return !!(S.schema.sheet || {})[c.kind]; }
+// an effect that works only inside the clip's area (rustling leaves): its preview clip is the picture under that area
+// with the effect applied, made again when the area is painted; once made for the area as it is, the live preview
+// shows just what the export does (a pause keeps it, no exact frame needed)
+function areaKind(c) { return !!c && !!(S.schema.area || {})[c.kind]; }
+function areaLive(c) { const fx = S.fx[c.id]; return areaKind(c) && !!fx && fx.ready && !!fx.shown && fx.shown === fx.want; }
 function placeable(c) { return c.kind === "file" || !!S.schema.placed[c.kind] || sheetKind(c); }  // has a box on the picture
 function placed(c, inf) {  // where a file clip (or an effect's sheet or box) lies in the video, in its pixels
   // (as overlay.Overlay places a file, and effects.sheet_rect an effect: its box, or the frame's shape; fit "contain")
@@ -2090,7 +2098,7 @@ function liveIncomplete() {  // something that shows now has no light copy ready
   const t = curFrame();
   return clipOrder().some(c => {
     if (weight(span(c), t) <= 0) return false;
-    if (S.schema.lens[c.kind] || litMoved(c)) return true;  // the live preview is only close: see litMoved
+    if (S.schema.lens[c.kind] && !areaLive(c) || litMoved(c)) return true;  // the live preview is only close: see litMoved
     const el = S.els[c.id];
     return !el || (el.media.tagName === "VIDEO" ? blank(el.media) : !el.media.complete);
   });
@@ -3200,7 +3208,7 @@ function renderControls() {
     source = `<div class="file">${fi ? `<b>${esc(c.file.name)}</b><br>${fi.image ? "Ảnh" : "Video"} ${fi.w}×${fi.h}${fi.image ? "" : `, ${fi.seconds} giây, ${fi.fps} khung/giây, ${esc(codecName(fi))}`}${fi.alpha ? ", nền trong suốt" : ""}${alphaNote(c, fi)}${it && !it.proxy ? (S.failed && S.failed[it.id] ? `<br>${icon("warn", "lead")}Không làm được bản xem nhanh. Dừng hình để xem khung chính xác.` : `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh…`) : ""}${!it && c.file && c.file.lib ? `<br>${icon("warn", "lead")}File đã bị xoá khỏi thư viện.` : ""}` : c.file && c.file.lib && !it ? `<b>${esc(c.file.name)}</b><br>${icon("warn", "lead")}File đã bị xoá khỏi thư viện: clip này không hiện gì. Hãy xoá clip.` : "Chưa có file."}</div>`;
   } else {
     const fx = S.fx[c.id];
-    source = `<div class="file"><b>${kindIcon(c.kind, "lead")}${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác.` : ""}${S.schema.lens[c.kind] || litMoved(c) ? "<br>Lúc phát chỉ xem gần đúng; dừng hình để thấy đúng như video xuất ra." : ""}</div>
+    source = `<div class="file"><b>${kindIcon(c.kind, "lead")}${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác.` : ""}${S.schema.lens[c.kind] && !areaKind(c) || litMoved(c) ? "<br>Lúc phát chỉ xem gần đúng; dừng hình để thấy đúng như video xuất ra." : ""}</div>
       ${sch.note ? `<p class="note">${esc(sch.note)}</p>` : ""}
       <div class="btns"><button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">${icon("dice", "lead")}Đổi kiểu ngẫu nhiên</button></div>`;
   }
@@ -3228,6 +3236,9 @@ function renderControls() {
     return head + numSlider(d, c.params[d.key]) + (last ? turnTail(c) : "");
   }).join("");
   const hasArea = p.masks.includes(c.id) || (S.masks[c.id] && !S.masks[c.id].full);
+  // (rustling leaves move only inside a painted area: none painted, nothing moves)
+  const am = S.masks[c.id], painted = am ? !am.full && !am.empty : p.masks.includes(c.id);
+  const where = !areaKind(c) ? (hasArea ? "vùng đã vẽ" : "cả khung hình") : painted ? "vùng đã tô" : "chưa tô vùng";
   const mixRow = (b, label) => {  // the Mix of b with the clip before it
     const most = mixMost(b), v = Math.min(b.mix || 0, most);
     return `<label class="check"><input type="checkbox" data-mix="${b.id}" ${b.mix > 0 ? "checked" : ""}> ${label}</label>
@@ -3240,8 +3251,9 @@ function renderControls() {
   el.innerHTML = `<div data-for="${c.id}"><div class="title"><span>${kindIcon(c.kind)}</span><input type="text" id="clipName" value="${esc(c.name)}" maxlength="60" title="Tên clip: bấm để đổi"></div>
     ${source}${timing}${transition}${fileParams}
     <h4>Vùng</h4>
-    <div class="row"><div class="lab"><span>Hiệu ứng hiện ở</span><b>${hasArea ? "vùng đã vẽ" : "cả khung hình"}</b></div></div>
-    <div class="btns"><button class="small ${S.paint === c.id ? "on" : ""}" id="paintArea">${icon("pencil", "lead")}Vẽ vùng</button>${hasArea ? '<button class="small" id="clearArea">Cả khung hình</button>' : ""}</div>
+    <div class="row"><div class="lab"><span>Hiệu ứng hiện ở</span><b>${where}</b></div></div>
+    ${areaKind(c) && !painted ? `<p class="warn">${icon("warn", "lead")}Chưa tô vùng nên chưa có lá nào lay động. Bấm <b>Vẽ vùng</b> rồi tô lên bụi cây, tán lá.</p>` : ""}
+    <div class="btns"><button class="small ${S.paint === c.id ? "on" : ""}" id="paintArea">${icon("pencil", "lead")}Vẽ vùng</button>${hasArea && !areaKind(c) ? '<button class="small" id="clearArea">Cả khung hình</button>' : ""}</div>
     ${slider("feather", "Độ mềm mép vùng (điểm ảnh)", c.feather || 0, 0, 200, 1, 'data-clipnum="feather"')}
     <label class="check"><input type="checkbox" id="behind" ${c.behind ? "checked" : ""}> Bay ra sau tiền cảnh (bị tiền cảnh che)</label>
     <h4>Clip</h4>
