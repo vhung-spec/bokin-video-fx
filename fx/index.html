@@ -1647,7 +1647,7 @@ function styleLayer(c, el) {
   const masks = [];
   const again = () => { const e = S.els[c.id]; if (e && clipById(c.id) === c) styleLayer(c, e); };
   const am = S.masks[c.id];
-  const area = am && !am.full ? maskURL(c.id, c.feather || 0, false, again) : null;
+  const area = am && !am.full ? maskURL(c.id, areaKind(c) ? 0 : c.feather || 0, false, again) : null;  // (engine.area_feather)
   if (area) masks.push(`url(${area})`);
   const fg = S.masks.fg;
   const hide = c.behind && fg && !fg.empty ? maskURL("fg", p.fg.feather, true, again) : null;
@@ -2315,8 +2315,8 @@ function renderTools() {  // the tool column at the right of the monitor: painti
       ${size}
       <h5>Cả vùng</h5>
       <div class="three"><button class="small" data-fill="all" title="Tô kín cả khung hình">Tô hết</button><button class="small" data-fill="none" title="Xoá cả vùng">Xoá hết</button><button class="small" data-fill="invert" title="Đổi chỗ tô và chỗ trống">Đảo</button></div>
-      <h5 class="lab"><span>Mép mềm (điểm ảnh)</span><b id="paintFeatherVal">${featherOf(S.paint)}</b></h5>
-      <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}" style="${rangeP(featherOf(S.paint), 0, 200)}" title="Độ mềm của mép vùng">
+      ${areaKind(clipById(S.paint)) ? `<p class="tip">Lá động khắp vùng tô, tới sát mép. Viền đứng yên: chỉnh <b>Giữ yên viền</b> trong Bảng chỉnh hiệu ứng.</p>` : `<h5 class="lab"><span>Mép mềm (điểm ảnh)</span><b id="paintFeatherVal">${featherOf(S.paint)}</b></h5>
+      <input type="range" id="paintFeather" min="0" max="200" value="${featherOf(S.paint)}" style="${rangeP(featherOf(S.paint), 0, 200)}" title="Độ mềm của mép vùng">`}
       <div class="two" style="margin-top:12px"><button class="small" data-pundo="1" title="Hoàn tác (${keyName("undo")})">${icon("undo", "lead")}Hoàn tác</button><button class="small" data-predo="1" title="Làm lại (${keyName("redo")})">${icon("redo", "lead")}Làm lại</button></div>
       <label class="check"><input type="checkbox" id="onlyBase" ${S.onlyBase ? "checked" : ""}> Chỉ xem video gốc</label>
       <p class="tip">Lăn chuột trên hình: phóng to. Giữ chuột phải: kéo hình. Esc: xong.</p>
@@ -3318,7 +3318,7 @@ function renderControls() {
     <div class="row"><div class="lab"><span>Hiệu ứng hiện ở</span><b>${where}</b></div></div>
     ${areaKind(c) && !painted ? `<p class="warn">${icon("warn", "lead")}Chưa tô vùng nên chưa có lá nào lay động. Bấm <b>Vẽ vùng</b> rồi tô lên bụi cây, tán lá.</p>` : ""}
     <div class="btns"><button class="small ${S.paint === c.id ? "on" : ""}" id="paintArea">${icon("pencil", "lead")}Vẽ vùng</button>${hasArea && !areaKind(c) ? '<button class="small" id="clearArea">Cả khung hình</button>' : ""}</div>
-    ${slider("feather", "Độ mềm mép vùng (điểm ảnh)", c.feather || 0, 0, 200, 1, 'data-clipnum="feather"')}
+    ${areaKind(c) ? "" : slider("feather", "Độ mềm mép vùng (điểm ảnh)", c.feather || 0, 0, 200, 1, 'data-clipnum="feather"')}
     <label class="check"><input type="checkbox" id="behind" ${c.behind ? "checked" : ""}> Bay ra sau tiền cảnh (bị tiền cảnh che)</label>
     <h4>Clip</h4>
     <div class="btns">

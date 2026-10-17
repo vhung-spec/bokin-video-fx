@@ -70,6 +70,13 @@ def mask_image(folder, name, size, feather, video_h, saved=None, inside=False):
     return m
 
 
+def area_feather(layer):
+    """The softness of a clip's area as laid: an effect that works only in its area (rustling leaves) takes it as
+    painted and fades in from its outline itself."""
+    cls = effects.KINDS.get(layer.get("kind"))
+    return 0 if cls is not None and cls.AREA else layer.get("feather", 0)
+
+
 def load_mask(folder, name, size, feather, video_h):
     """The same mask as float32 (h, w) in 0..1; None if none."""
     m = mask_image(folder, name, size, feather, video_h)
@@ -212,7 +219,7 @@ class Scene:
                 span = timeline.Span(layer, self.frames, fps, mixes.get(layer["id"], (0.0, 0.0)))
                 if span.empty:
                     continue
-                area = mask_image(folder, layer["id"], size, layer.get("feather", 0), vh, saved, inside=True)
+                area = mask_image(folder, layer["id"], size, area_feather(layer), vh, saved, inside=True)
                 if layer.get("behind") and fg is not None:
                     hidden = ImageChops.invert(fg)
                     area = hidden if area is None else ImageChops.multiply(area, hidden)
@@ -628,7 +635,7 @@ def _under_key(project, layer):
         if area is None:
             return key + ["nowhere"]  # (it changes nothing: an empty clip)
         painted, (ax0, ay0, ax1, ay1) = area
-        key += ["area", painted, float(layer.get("feather", 0) or 0)]
+        key += ["area", painted, float(area_feather(layer) or 0)]
         reach = AREA_REACH * h / 1080
         x0, y0, bw, bh = ax0 * w - reach, ay0 * h - reach, (ax1 - ax0) * w + 2 * reach, (ay1 - ay0) * h + 2 * reach
     path = mask_path(folder, "freeze")
@@ -773,7 +780,7 @@ def _area_part(project, layer, total, folder, start, end, path):
     info = project["video"]
     kind = layer["kind"]
     size = cw, ch = fx_clip_frame(info, kind)
-    area = mask_image(folder, layer["id"], size, layer.get("feather", 0), info["h"], project.get("_masks"), inside=True)
+    area = mask_image(folder, layer["id"], size, area_feather(layer), info["h"], project.get("_masks"), inside=True)
     rects = []
     if area is not None and area.getextrema() != (255, 255):  # (as Scene: painted all over is the whole frame)
         area = np.asarray(area, np.float32) * (1 / 255.0)

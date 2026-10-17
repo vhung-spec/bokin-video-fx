@@ -145,12 +145,13 @@ class Area(unittest.TestCase):
                 self.assertFalse(np.array_equal(out, pic), (look, gain))
 
     def test_motion_fades_toward_the_outline(self):
-        """With "Giữ yên viền" the outline does not move: the motion fades in from it (at the default, fully about
-        12 pixels of a 1080-line frame in); at 0 it reaches the outline."""
+        """With "Giữ yên viền" a thin rim along the outline does not move: at the default the outermost 2 pixels of a
+        1080-line frame, the motion full 10 pixels in; at 100 a wider rim; at 0 the leaves move up to the outline."""
         w, h = 1920, 1080
         mask = ellipse(w, h)
         band = (mask > 0) & ~inside(mask, 2)  # the outermost 2 pixels of the area
         mid = inside(mask, 5) & ~inside(mask, 7)
+        ten = inside(mask, 10) & ~inside(mask, 12)
         deep = inside(mask, 40)
 
         def mean_moved(params):
@@ -158,16 +159,30 @@ class Area(unittest.TestCase):
             out = []
             for t in range(0, 300, 60):
                 d = np.hypot(*moved(fx, t, mask))
-                out.append([float(d[band].mean()), float(d[mid].mean()), float(d[deep].mean())])
+                out.append([float(d[band].mean()), float(d[mid].mean()), float(d[ten].mean()), float(d[deep].mean())])
             return np.mean(out, axis=0)
-        near, between, far = mean_moved({"edge": 40})
-        self.assertLess(near, 0.06 * far)
-        self.assertLess(between, 0.6 * far)
-        self.assertGreater(between, 0.1 * far)
-        near, between, far = mean_moved({"edge": 100})
+        near, between, tens, far = mean_moved({"edge": 40})
+        self.assertLess(near, 0.1 * far)
+        self.assertGreater(between, 0.4 * far)
+        self.assertGreater(tens, 0.85 * far)
+        near, between, tens, far = mean_moved({"edge": 100})
         self.assertLess(between, 0.1 * far)
-        near, between, far = mean_moved({"edge": 0})
+        near, between, tens, far = mean_moved({"edge": 0})
         self.assertGreater(near, 0.5 * far)
+
+    def test_moves_all_over_a_narrow_bush(self):
+        """A bush painted as a strip 60 pixels tall (1080p) rustles all over it, not only in its middle: 8 pixels in
+        from its outline the leaves move nearly as much as with no still rim at all."""
+        w, h = 1920, 1080
+        mask = np.zeros((h, w), np.float32)
+        mask[500:560, 200:1700] = 1
+        rows = np.zeros((h, w), bool)
+        rows[508:552, 400:1500] = True
+
+        def mean_moved(params):
+            fx = make({"shimmer": 0, **params}, w=w, h=h, look="strong")
+            return np.mean([float(np.hypot(*moved(fx, t, mask))[rows].mean()) for t in range(0, 300, 50)])
+        self.assertGreater(mean_moved({}), 0.9 * mean_moved({"edge": 0}))
 
     def test_outline_of_a_bush_stays_still(self):
         """A bright bush on a dark ground, its area painted along its outline: the outline does not move (its
@@ -417,8 +432,9 @@ class Preview(unittest.TestCase):
         self.assertEqual(engine._bands_of(np.zeros((10, 10), bool), 8), [])
 
     def test_name_follows_the_area(self):
-        """The preview clip is made again when the clip's area is painted differently or softened, or a still area
-        is painted near it; not for a still area elsewhere, nor when nothing is painted (an empty clip)."""
+        """The preview clip is made again when the clip's area is painted differently, or a still area is painted
+        near it; not for a still area elsewhere, nor when nothing is painted (an empty clip), nor for the clip's
+        "Mép mềm" (the area is taken as painted: engine.area_feather)."""
         info = {"w": 480, "h": 270, "fps": "24", "frames": 144, "seconds": 6.0, "file": "input.mp4"}
         project = {"id": "f0l1agetest", "video": info, "length": 30, "freeze": {"feather": 6},
                    "still": {"source": "frame", "frame": 0}}
@@ -445,7 +461,9 @@ class Preview(unittest.TestCase):
         self.assertNotEqual(bush, nowhere)
         self.assertNotEqual(paint("leaf01", (300, 150, 121, 80)), bush)
         self.assertEqual(paint("leaf01", (300, 150, 120, 80)), bush)  # (undone: the clip made before)
-        self.assertNotEqual(engine.fx_clip_name(project, dict(layer, feather=12)), bush)
+        self.assertEqual(engine.fx_clip_name(project, dict(layer, feather=12)), bush)
+        self.assertEqual((engine.area_feather(dict(layer, feather=12)), engine.area_feather({"kind": "snow", "feather": 12}),
+                          engine.area_feather({"kind": "file", "feather": 7})), (0, 12, 7))
         self.assertNotEqual(engine.fx_clip_name(project, dict(layer, params={"amount": 70})), bush)
         self.assertEqual(paint("freeze", (10, 10, 40, 40)), bush)  # a still area far away
         self.assertNotEqual(paint("freeze", (290, 160, 20, 20)), bush)  # one on the bush

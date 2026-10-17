@@ -111,11 +111,13 @@ hiệu ứng. Cách dùng: `README.md`.
 - Lá cây lay động (`fx/foliage.py`): lens chỉ trong vùng của clip (`AREA`; không vùng thì không làm gì, không bao giờ cả
   hình), không đặt chỗ, không xoay. Nắn hình (bilinear) bằng trường dời mượt: vài tầng value noise (lưới cỡ chùm lá,
   theo điểm ảnh khung 1080), mỗi tần số số nguyên vòng mỗi loop; gió từng cơn một hướng (trung bình 0), lá lấp lánh;
-  mờ dần vào từ viền vùng (`edge`: viền đứng yên); chỉ làm trong dải hàng có vùng (`bands`). Thông số khớp video mẫu
+  lá động khắp vùng đã tô, chỉ một viền mỏng đứng yên (`edge`: mặc định 2 px của khung 1080, đủ mạnh từ 10 px vào;
+  vùng lấy như đã tô, "Mép mềm" của clip không dùng: `engine.area_feather`, trang cũng vậy); chỉ làm trong dải hàng
+  có vùng (`bands`). Thông số khớp video mẫu
   (bụi cây 1080p: lệch 0,5–1,5 px, chùm cách trên 30 px gần như độc lập, chu kỳ 2–6 giây). `UNDER` không hộp: clip xem
   nhanh là video + vùng đứng yên cỡ 1280 (`PREVIEW`), hiệu ứng trong vùng của clip, chỉ giữ phần đổi (`change_rgba`
-  theo dải `_bands_of`, WebM có thẻ BT.709); tên theo hash vùng của clip (`_area_painted`), độ mềm, vùng đứng yên gần
-  đó; trang hỏi lại khi tô vùng của clip, đặt nó trong `underBox`; clip làm cho đúng vùng hiện tại thì xem nhanh là
+  theo dải `_bands_of`, WebM có thẻ BT.709); tên theo hash vùng của clip (`_area_painted`), vùng đứng yên gần đó;
+  trang hỏi lại khi tô vùng của clip, đặt nó trong `underBox`; clip làm cho đúng vùng hiện tại thì xem nhanh là
   chính xác (`areaLive`: dừng hình không cần khung chính xác).
 - `fx/sprites.py`: hình hạt vẽ bằng mã (chấm, quầng sáng). `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()`
   cho clip suốt video, `playing()` cho clip ngắn hơn, xoay 3D: `homography()`, `quad()`).

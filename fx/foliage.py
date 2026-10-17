@@ -20,9 +20,11 @@ and everything drifts slowly.
   over the loop: on average the picture is where it was.
 - Leaves catching the light (optional): a cluster swaying toward the light gets a little brighter (a few percent at
   most), and a gust shows the paler backs of the leaves.
-- The outline stays still: the motion fades out toward the edge of the area (the clip's area, blurred: "Giữ yên
-  viền"), so a bush's silhouette against the sky does not move. Without an area the effect changes nothing: it is
-  meant for the leaves only, never the whole picture.
+- The leaves move all over the area painted, right up to a thin rim along its outline that stays still ("Giữ yên
+  viền": at the default the outermost 2 pixels of a 1080-line frame, the motion full 10 pixels in), so a bush's
+  silhouette against the sky does not swim. The area is taken as painted: the clip's "Mép mềm" does not narrow it
+  (engine.area_feather), the rim is the effect's own. Without an area the effect changes nothing: it is meant for
+  the leaves only, never the whole picture.
 
 Lengths are pixels of a 1080-line frame and the lattices lie over the frame in those units, so the effect looks the
 same at any size: the preview clip, made from the picture under the area at the preview's size (Effect.UNDER), moves
@@ -58,7 +60,8 @@ SCHEMA = {"label": "Lá cây lay động", "params": [
     "note": "Làm lá cây lay động nhẹ như có gió (bụi cây, tán cây, giỏ hoa); chỉ lá trong vùng của clip động. "
             "(1) Bấm Suốt video. (2) Bấm Vẽ vùng (hoặc Vùng của clip đang chọn) rồi tô lên bụi cây, tán lá; "
             "không tô lên nhà, xe, bầu trời. Chưa tô vùng thì chưa có gì lay động. (3) Chọn Kiểu: gió nhẹ, vừa, lớn. "
-            "Viền của vùng luôn đứng yên (Giữ yên viền), nên tô sát mép bụi cây cũng được. Hiệu ứng này không xoay 3D."}
+            "Lá động khắp vùng đã tô, chỉ một viền mỏng sát mép đứng yên (Giữ yên viền: kéo lên nếu thấy viền bụi cây "
+            "rung), nên hãy tô sát mép bụi cây. Hiệu ứng này không xoay 3D."}
 
 TAU = 2 * math.pi
 # the octaves of the rustling: (lattice spacing, in cluster sizes; share of the motion; frequencies, Hz at speed 50)
@@ -72,7 +75,8 @@ SHINE = 0.0007  # brightness swing (a share, one standard deviation), per point 
 # patches of leaves catching the light together: (lattice spacing, in cluster sizes; share of the shimmer;
 # frequencies, Hz at speed 50)
 PATCHES = (5.0, 1.0, (0.07, 0.12, 0.19))
-EDGE_PX = 0.3  # how far in from the area's outline the motion fades in (blur radius), per point of "edge"
+EDGE_PX = 0.15  # the rim along the area's outline (a blur radius), per point of "edge": still for a third of it,
+# the motion full 1.6 radii in
 GUST_SPEED = 0.7  # how fast a gust crosses the frame, frame heights a second
 MARGIN = 4  # lattice nodes beyond each edge of the frame
 
@@ -89,6 +93,7 @@ class Foliage(Effect):
     TURNS = False  # it moves the picture's own leaves where they are: nothing to place or turn
     PREVIEW = 1280  # sub-pixel motion needs a sharp preview clip (at 640 a 1-pixel sway is a third of a pixel)
     PREVIEW_CRF = 30
+    VERSION = 2  # 2: the motion all over the area, a thin still rim (it faded in over 50 pixels and more)
 
     def __init__(self, *a):
         super().__init__(*a)
@@ -226,15 +231,15 @@ class Foliage(Effect):
         x0, y0, x1, y1 = int(cols[0]), int(rows[0]), int(cols[-1]) + 1, int(rows[-1]) + 1
         m = mask[y0:y1, x0:x1]
         if self.edge >= 0.3:
-            # the area blurred: about 0.5 at its outline, 1 well inside it; the motion fades in from just inside the
-            # outline (the outermost pixels stay still), fully there 1.6 blur radii in (where the area meets the
+            # the area blurred: about 0.5 at its outline, 1 well inside it; the motion fades in from a third of a blur
+            # radius inside the outline (the rim stays still), fully there 1.6 radii in (where the area meets the
             # frame's edge it goes on beyond it: a crown cut by the frame moves there)
             r = int(math.ceil(3 * self.edge)) + 1
             ex0, ey0, ex1, ey1 = max(0, x0 - r), max(0, y0 - r), min(self.w, x1 + r), min(self.h, y1 + r)
             m8 = Image.fromarray((np.clip(mask[ey0:ey1, ex0:ex1], 0, 1) * 255 + 0.5).astype(np.uint8))
             soft = np.asarray(m8.filter(ImageFilter.GaussianBlur(self.edge)), np.float32)[
                 y0 - ey0:y1 - ey0, x0 - ex0:x1 - ex0] * (1 / 255.0)
-            weight = m * _smooth((soft - 0.55) / 0.4)
+            weight = m * _smooth((soft - 0.63) / 0.32)
         else:
             weight = m.copy()
         weight = weight.astype(np.float32)

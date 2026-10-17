@@ -237,11 +237,12 @@ viền bụi cây đứng yên. Chỉ chỗ bạn tô mới động, cả bức 
 1. Bấm **Tạo sẵn** → **Lá cây lay động**, kéo xuống một track trống (hàng ghi **trống**).
 2. Bấm **Suốt video**.
 3. Bấm **Vẽ vùng** (nút có hình bút chì; hoặc **Vùng của clip đang chọn**), tô lên các bụi cây, tán lá cần lay. Không tô
-   lên nhà, xe, bầu trời. Tô sát mép bụi cây cũng được: viền của vùng luôn đứng yên. Bấm **Xong**.
+   lên nhà, xe, bầu trời. Lá động khắp vùng đã tô, tới sát mép; chỉ một viền mỏng (khoảng 2 điểm ảnh) đứng yên, nên
+   hãy tô sát mép bụi cây. **Mép mềm** không dùng cho hiệu ứng này. Bấm **Xong**.
 4. Chọn **Kiểu**: **Gió nhẹ** (lá rung khẽ, như video quay thật), **Gió vừa**, **Gió lớn** (thêm từng cơn gió thổi một
    hướng). Chỉnh thêm nếu cần: **Lay mạnh**, **Cỡ chùm lá** (lá nhỏ li ti: kéo nhỏ; cây lá to: kéo to), **Nhịp lay**,
    **Gió thổi một hướng** và **Hướng gió**, **Lá lấp lánh** (lá sáng tối khẽ theo nắng), **Giữ yên viền** (dải đứng yên
-   quanh viền rộng hay hẹp).
+   quanh viền: 0 là lá động tới tận mép; kéo lên nếu thấy viền bụi cây trên nền trời rung).
 
 Chưa tô vùng thì chưa có gì lay động. Sau khi tô, app cần một lúc (khoảng nửa phút cho 30 giây video) để làm bản xem
 nhanh; xong rồi thì lúc phát thấy đúng như video xuất ra. Tô lại vùng (hoặc vẽ vùng đứng yên ngay đó) thì app làm lại bản
