@@ -310,9 +310,13 @@ class Effect:
     # Inside the box every size is relative to the box, so the preview clip is the box alone (rendered with x, y 0
     # and scale 100 on a canvas of the box's shape) and the page lays it where the box is.
     BOX = None
-    # under: a placed lens effect whose preview clip is made from the picture under its box (the video and its
-    # still area there, with the effect applied), laid with Normal: the live preview then shows what it does
+    # under: a lens effect whose preview clip is made from the picture under it (the video and its still area there,
+    # with the effect applied; only its change kept), laid with Normal: the live preview then shows what it does. A
+    # placed one: the picture under its box; a full-frame one: the frame, the effect inside the clip's area (AREA)
     UNDER = False
+    # area: it works inside the clip's painted area only (rustling leaves: never the whole picture); with no area
+    # (None: the whole frame) it changes nothing
+    AREA = False
     # turns: placed and turned in 3D as a file clip is (sheet.Sheet): a full-frame effect on a sheet of the frame's
     # shape, a placed one in its box. A candle's flame does not turn (it always rises straight up).
     TURNS = True
@@ -453,12 +457,12 @@ class Glow(Effect):
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)
 
 
-from . import candle, glass, leaves, rain, snow, steam  # (here: they build on the classes above)
+from . import candle, foliage, glass, leaves, rain, snow, steam  # (here: they build on the classes above)
 
 SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "steam": steam.SCHEMA,
-          "candle": candle.SCHEMA, "leaves": leaves.SCHEMA, **SCHEMA}
+          "candle": candle.SCHEMA, "leaves": leaves.SCHEMA, "foliage": foliage.SCHEMA, **SCHEMA}
 KINDS = {"snow": snow.Snow, "leaves": leaves.Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
-         "steam": steam.Steam, "candle": candle.Candle}
+         "steam": steam.Steam, "candle": candle.Candle, "foliage": foliage.Foliage}
 
 # Placed and turned like a file clip (Effect.TURNS): the same settings as a file clip's, under the same headings,
 # after the effect's own. A full-frame effect gets a place and a size (at 100 and in the middle: the frame itself, as

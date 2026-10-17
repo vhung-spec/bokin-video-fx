@@ -6,8 +6,8 @@ Starts the app's server on test data, then works the page as a person would: ope
 and a picture into the library, drags the effect onto the timeline, adds snow, plays, cuts a clip, moves and trims
 clips, undoes, paints a still area, zooms and moves the picture (a clip outside the frame grabbed there) and exports a
 30-second video. It checks the timeline the page saved, that the live preview plays the light copies (H.264 and
-transparent WebM), the falling leaves' settings (each shape a checkbox, "Loại lá" following them), and that the page
-reports no script errors.
+transparent WebM), the falling leaves' settings (each shape a checkbox, "Loại lá" following them), rustling leaves
+painted into their area (their live preview against the exact frame), and that the page reports no script errors.
 Screenshots of each step go to the folder given (default: page-test).
 
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
@@ -420,6 +420,79 @@ def effects_turned(page, drag):
           str([(i, p, now.get(i)) for i, p in kept if now.get(i) != p]))
 
 
+def foliage(page, shot):
+    """Rustling leaves: they move only inside the clip's painted area (none painted: the panel says so, nothing
+    moves); its preview clip is the picture under that area with the leaves moving, made again when the area is
+    painted, laid just over the video (under every track); once made, the live preview is what the export shows: the
+    change it makes matches the exact frame's (the other clips switched off, the leaves' clip shown and hidden)."""
+    page.click('.tab[data-bin="fx"]')
+    page.evaluate("seek(2)")  # (the disc of the test loop at its right-most place, inside the area painted below)
+    page.dblclick('.tile[data-kind="foliage"]')
+    fid = page.evaluate("S.project.layers.find(l => l.kind === 'foliage').id")
+    page.click("#fullBtn")
+    page.select_option('#ec select[data-param="look"]', "strong")
+    page.wait_for_timeout(300)
+    ui = page.evaluate("""[$('#ec').textContent.includes('chưa tô vùng'), !!$('#ec .warn'), !!$('#clearArea'),
+        $('#xform').style.display, !!$('#ec [data-num="rot_x"]'), !!$('#ec [data-param="x"]'),
+        clipById(S.sel).params.breeze > 0]""")
+    check("rustling leaves: no area yet: the panel says nothing moves until it is painted; no box, no turn",
+          ui == [True, True, False, "none", False, False, True], str(ui))
+    page.wait_for_function(f"S.fx['{fid}'] && S.fx['{fid}'].ready && S.fx['{fid}'].shown", timeout=300000)
+    empty = page.evaluate(f"S.fx['{fid}'].shown")
+    page.click("#paintArea")  # an outline round where the disc is at 2 s (in a real video: a bush)
+    page.keyboard.press("l")
+    box = page.locator("#screen").bounding_box()
+    vw, vh = page.evaluate("[info().w, info().h]")
+    outline = [(0.68, 0.3), (0.94, 0.31), (0.95, 0.72), (0.67, 0.7)]
+    for fx_, fy_ in outline:
+        page.mouse.click(box["x"] + box["width"] * fx_, box["y"] + box["height"] * fy_)
+        page.wait_for_timeout(150)
+    page.click("[data-done]")  # Xong: the outline is closed and kept
+    page.evaluate("S.brush.tool = 'brush'")  # (the brush again, as the later steps expect)
+    page.wait_for_function(f"S.project.masks.includes('{fid}') && S.fx['{fid}'].want !== {json.dumps(empty)}",
+                           timeout=30000)
+    painted = page.evaluate("[$('#ec').textContent.includes('vùng đã tô'), !!$('#ec .warn')]")
+    page.wait_for_function(f"S.fx['{fid}'].ready && S.fx['{fid}'].shown === S.fx['{fid}'].want && S.els['{fid}'] && "
+                           f"S.els['{fid}'].media.readyState >= 2", timeout=300000)
+    laid = page.evaluate(f"""(() => {{ const c = clipById('{fid}'), e = S.els['{fid}'];
+        return [e.wrap.parentNode === $('#layers').firstChild, e.media.getAttribute('src').includes('.webm'),
+                e.wrap.style.mixBlendMode, areaLive(c), !!(S.schema.lens[c.kind] && !areaLive(c)),
+                $('#ec').textContent.includes('gần đúng')]; }})()""")
+    check("rustling leaves: painting its area makes its preview clip, laid just over the video (under every "
+          "track); then the live preview counts as exact", painted == [True, False] and
+          laid == [True, True, "normal", True, False, False], str([painted, laid]))
+    # the change the leaves make, live and exact (every other clip off; the leaves' clip on, then off)
+    others = page.evaluate(f"S.project.layers.filter(c => c.id !== '{fid}' && c.on !== false).map(c => c.id)")
+
+    def switch(on):
+        page.evaluate(f"""(() => {{ for (const c of S.project.layers) c.on = {json.dumps(on)}.includes(c.id);
+            edited(); }})()""")
+        page.wait_for_timeout(600)
+    switch([fid])
+    page.wait_for_function(f"S.els['{fid}'] && S.els['{fid}'].media.readyState >= 2", timeout=60000)
+    on = live_and_exact(page, "05h-foliage-on")
+    switch([])
+    off = live_and_exact(page, "05h-foliage-off")
+    switch(others + [fid])
+    shots = [np.asarray(Image.open(io.BytesIO(png)).convert("RGB"), np.float32) @ np.array([0.2126, 0.7152, 0.0722])
+             for png in (*on, *off)]
+    live_on, exact_on, live_off, exact_off = shots
+    sh, sw = live_on.shape
+    area = Image.new("L", (sw, sh), 0)
+    ImageDraw.Draw(area).polygon([(x * sw, y * sh) for x, y in outline], fill=255)
+    from PIL import ImageFilter
+    inner = np.asarray(area.filter(ImageFilter.MinFilter(9))) > 0
+    live, exact = (live_on - live_off)[inner], (exact_on - exact_off)[inner]
+    corr = float(np.corrcoef(live, exact)[0, 1])
+    amp = float(live.std() / max(exact.std(), 1e-6))
+    near, far = (np.asarray(area.filter(ImageFilter.MaxFilter(k))) > 0 for k in (9, 61))
+    outside = float(np.abs(live_on - live_off)[far & ~near].max())  # (round the area: nothing changes there)
+    check("rustling leaves: the live preview moves the picture as the exact frame does (only inside the area)",
+          exact.std() > 1.0 and corr > 0.7 and 0.6 < amp < 1.6 and outside < 3,
+          f"corr {corr:.3f}, live/exact {amp:.2f}, exact change {exact.std():.2f}, outside {outside:.1f}")
+    shot("05h-foliage")
+
+
 def disc(png):
     """Where the loop's yellow disc is in a screenshot (x, y), or None."""
     import io
@@ -785,8 +858,8 @@ def run(page, folder, edge):
           str([snow["start"], snow["end"]]))
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
-    check("the built-in effects offered", glass == ["snow", "rain", "glass", "steam", "candle", "leaves", "glow"],
-          str(glass))
+    check("the built-in effects offered",
+          glass == ["snow", "rain", "glass", "steam", "candle", "leaves", "foliage", "glow"], str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
     check("snow over the whole video, with its preview clip", True)
@@ -1297,6 +1370,7 @@ def run(page, folder, edge):
             page.keyboard.press("Control+z")
             page.wait_for_timeout(200)
     shot("05b-steam-candle")
+    foliage(page, shot)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

@@ -13,8 +13,8 @@ Premiere Pro:
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
   khoanh cho kỹ.
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
-- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói cốc cà phê, lửa nến, lá rơi, đom đóm / bụi sáng. App tự
-  vẽ, chỉnh được mật độ, cỡ, gió…
+- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói cốc cà phê, lửa nến, lá rơi, lá cây lay động, đom đóm / bụi
+  sáng. App tự vẽ, chỉnh được mật độ, cỡ, gió…
   - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
     dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt xa mảnh và rơi
     chậm, hạt gần to, nhanh và nhoè), màn mưa bay theo gió, hơi nước, chớp sáng. Khi có mặt đất trong hình (mục **Mặt
@@ -46,6 +46,8 @@ Premiere Pro:
     **Mưa** ở track dưới, cũng khoanh vùng ô kính. Lúc phát chỉ xem gần đúng; độ nhoè và cảnh trong giọt nước thấy khi
     dừng hình và trong video xuất ra.
   - **Khói cốc cà phê** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói cốc cà phê, lửa nến** bên dưới).
+  - **Lá cây lay động**: bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió (xem mục **Lá cây lay động**
+    bên dưới).
 
 ## Cài đặt
 
@@ -204,11 +206,30 @@ Lúc phát, lửa nến chỉ xem gần đúng (ánh nến hắt ra ngoài khung
 xuất ra. Sau khi dời khung, app cần một lúc để làm lại bản xem nhanh của lửa nến; trong lúc đó, khi phát chỉ thấy
 video gốc ở chỗ ngọn nến. Sau khi vẽ vùng đứng yên lên ngọn nến, bản xem nhanh cũ vẫn phát cho đến khi bản mới xong.
 
+### Lá cây lay động
+
+Làm lá của bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió: mỗi chùm lá lay một chút theo nhịp riêng,
+viền bụi cây đứng yên. Chỉ chỗ bạn tô mới động, cả bức hình không bị cong.
+
+1. Bấm **Tạo sẵn** → **Lá cây lay động**, kéo xuống một track trống (hàng ghi **trống**).
+2. Bấm **Suốt video**.
+3. Bấm **Vẽ vùng** (nút có hình bút chì; hoặc **Vùng của clip đang chọn**), tô lên các bụi cây, tán lá cần lay. Không tô
+   lên nhà, xe, bầu trời. Tô sát mép bụi cây cũng được: viền của vùng luôn đứng yên. Bấm **Xong**.
+4. Chọn **Kiểu**: **Gió nhẹ** (lá rung khẽ, như video quay thật), **Gió vừa**, **Gió lớn** (thêm từng cơn gió thổi một
+   hướng). Chỉnh thêm nếu cần: **Lay mạnh**, **Cỡ chùm lá** (lá nhỏ li ti: kéo nhỏ; cây lá to: kéo to), **Nhịp lay**,
+   **Gió thổi một hướng** và **Hướng gió**, **Lá lấp lánh** (lá sáng tối khẽ theo nắng), **Giữ yên viền** (dải đứng yên
+   quanh viền rộng hay hẹp).
+
+Chưa tô vùng thì chưa có gì lay động. Sau khi tô, app cần một lúc (khoảng nửa phút cho 30 giây video) để làm bản xem
+nhanh; xong rồi thì lúc phát thấy đúng như video xuất ra. Tô lại vùng (hoặc vẽ vùng đứng yên ngay đó) thì app làm lại bản
+xem nhanh; trong lúc chờ, bản cũ vẫn phát.
+
 ### Xoay 3D (ghép hiệu ứng vào ô cửa nhìn chéo)
 
 Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, hạt sáng, nước trên kính, khói cốc cà phê),
 xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng khi cần đặt mưa, ánh sáng…
-nằm đúng một ô cửa kính nhìn từ một góc. Riêng **lửa nến** không xoay: ngọn lửa luôn bốc thẳng lên.
+nằm đúng một ô cửa kính nhìn từ một góc. Riêng **lửa nến** không xoay: ngọn lửa luôn bốc thẳng lên. **Lá cây lay động**
+cũng không xoay, không dời: nó làm động chính lá cây trong video, ngay tại chỗ.
 
 Hiệu ứng tạo sẵn phủ cả hình (tuyết, mưa, lá, hạt sáng, nước trên kính) giống như một tấm phim bằng đúng khung hình:
 chọn clip là thấy khung trắng quanh cả khung hình. Cỡ 100%, ở giữa, không xoay: y như trước. Thu nhỏ, dời, xoay tấm

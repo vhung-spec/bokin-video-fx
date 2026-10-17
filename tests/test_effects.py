@@ -12,12 +12,14 @@ KINDS = list(effects.KINDS)
 _yy, _xx = np.mgrid[0:H, 0:W]
 SCENE = np.dstack([0.2 + 0.5 * (((_xx // 16) + (_yy // 16)) % 2), 0.3 + 0.4 * _xx / W, 0.25 + 0.5 * _yy / H]).astype(
     np.float32)  # something to blur and see through (a lens effect changes the picture under it)
+# an area painted over most of the frame, for the effects that work only inside one (Effect.AREA: rustling leaves)
+AREA = (((_xx - W * 0.45) / (W * 0.42)) ** 2 + ((_yy - H * 0.55) / (H * 0.42)) ** 2 < 1).astype(np.float32)
 
 
 def frame(fx, t, base=0.3, mask=None):
     pic = np.full((H, W, 3), base, np.float32) if base is not None else SCENE.copy()
     if fx.lens:
-        fx.apply(t, pic, mask, 1.0)
+        fx.apply(t, pic, AREA if mask is None and fx.AREA else mask, 1.0)
         return pic
     canvas = effects.Canvas(W, H)
     fx.draw(t, canvas, mask)
@@ -82,6 +84,18 @@ class Periodic(unittest.TestCase):
             fx = effects.make(kind, {"amount": 100}, 3, 144, 24, W, H)
             pic = frame(fx, 7, None, mask)
             self.assertLess(float(np.abs(pic[:, :W // 2] - SCENE[:, :W // 2]).max()), 1e-5, kind)  # (float rounding)
+
+    def test_an_area_effect_needs_its_area(self):
+        """An effect that works only inside the clip's area (rustling leaves) changes nothing without one: never the
+        whole picture."""
+        for kind, cls in effects.KINDS.items():
+            if cls.AREA:
+                fx = effects.make(kind, {"amount": 100}, 3, 144, 24, W, H)
+                pic = SCENE.copy()
+                fx.apply(7, pic, None, 1.0)
+                self.assertTrue(np.array_equal(pic, SCENE), kind)
+                fx.apply(7, pic, AREA, 1.0)
+                self.assertFalse(np.array_equal(pic, SCENE), kind)
 
     def test_mask_limits_the_effect(self):
         fx = effects.make("snow", {"amount": 100, "size": 100}, 3, 144, 24, W, H)
