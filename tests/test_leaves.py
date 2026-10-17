@@ -454,8 +454,8 @@ class Settings(unittest.TestCase):
         self.assertEqual(engine.fx_clip_frame(info, "rain"), (1280, 720))  # (thin streaks: its own PREVIEW)
         project = {"id": "names", "video": info, "length": 30, "layers": []}
         names = {"snow": "fx-2a4ed27c4984.webm", "glow": "fx-15f81175c33d.mp4",
-                 "glass": "fx-c4e2c2d87bcc.webm", "steam": "fx-3f939fe36c86.webm", "candle": "fx-273a3828f2a8.webm"}
-        for kind, name in names.items():  # (measured before the leaves' shapes; rain was remade since)
+                 "glass": "fx-c4e2c2d87bcc.webm", "candle": "fx-273a3828f2a8.webm"}
+        for kind, name in names.items():  # (measured before the leaves' shapes; rain and steam were remade since)
             self.assertEqual(engine.fx_clip_name(project, {"id": "x1", "kind": kind, "params": {}, "seed": 5}), name)
         self.assertNotEqual(engine.fx_clip_name(project, {"id": "x1", "kind": "leaves", "params": {}, "seed": 5}),
                             "fx-203e86c65a77.webm")

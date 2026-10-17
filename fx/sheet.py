@@ -16,7 +16,8 @@ its area and foreground masks in frame space, after the warp. What would be cut 
 turned edge. The turn does not move, so the effect loops as it does upright.
 
 An effect lit by the scene (rain: Effect.LIT) gets the scene's light as it falls on the sheet (_lit()): a turned drop
-still shows the light of the place on the frame it is drawn over.
+still shows the light of the place on the frame it is drawn over. A placed one (steam) is lit by the light where its box
+stands upright (effects.placed_light: a few numbers), as its preview clip is, however it is turned.
 
 A lens (water on glass) changes the picture under it. The picture under the sheet is brought onto the sheet (the inverse
 warp; past the frame's edge, its edge repeated, as a blur at the frame's edge does) and the effect applied there. It
@@ -101,7 +102,9 @@ class Sheet(overlay.Laid):
         self.part = (max(0, math.floor(bu.min()) - 2), max(0, math.floor(bv.min()) - 2),
                      min(cw, math.ceil(bu.max()) + 2), min(ch, math.ceil(bv.max()) + 2))
         shape = cls.BOX[0] / cls.BOX[1] if cls.BOX else (aspect or sw / sh)
-        lit = {"light": None if light is None else self._lit(light, hm, sw, sh)} if cls.LIT else {}
+        if cls.LIT and light is not None:  # (a placed one: lit where its box stands upright, as its preview clip)
+            light = effects.placed_light(kind, light, p, w, h) if cls.BOX else self._lit(light, hm, sw, sh)
+        lit = {"light": light} if cls.LIT else {}
         self.fx = cls(effects.clean_params(kind, effects.sheet_params(kind, p)), seed, frames, fps, cw, ch, shape,
                       **lit)
         if self.lens:

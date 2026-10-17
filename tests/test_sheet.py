@@ -113,9 +113,16 @@ class Plain(unittest.TestCase):
             _, again = scene_frames(kind, p, (0, 31, 117))
             self.assertTrue(all(a.tobytes() == b.tobytes() for a, b in zip(got, again)), kind)
             project = {"video": info, "length": 30}
+            cls = effects.KINDS[kind]
+            turn = {k: v for k, v in TURN.items() if not cls.BOX or k not in ("x", "y", "scale")}
             names = {engine.fx_clip_name(project, {"kind": kind, "params": q, "seed": 5})
-                     for q in (old, p, dict(p, **TURN))}
-            self.assertEqual(len(names), 1, kind)  # the preview clip never depends on the place or the turn
+                     for q in (old, p, dict(p, **turn))}
+            self.assertEqual(len(names), 1, kind)  # the preview clip never depends on the turn (nor the place...)
+            if cls.BOX and cls.LIT:  # (...but a placed effect lit by the scene is lit by the light where it stands)
+                moved = {engine.fx_clip_name(project, {"kind": kind, "params": dict(q, x=10), "seed": 5})
+                         for q in (p, dict(p, lit=0))}
+                self.assertNotIn(names.pop(), moved, kind)
+                self.assertIn(engine.fx_clip_name(project, {"kind": kind, "params": dict(p, lit=0), "seed": 5}), moved)
 
     def test_settings(self):
         """Every effect but the candle has a file clip's place and turn settings, under the same headings; the

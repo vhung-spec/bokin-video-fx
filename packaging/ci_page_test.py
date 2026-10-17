@@ -1195,8 +1195,9 @@ def run(page, folder, edge):
           r == [False, True, False, True], str(r))
 
     # a cup's steam and a candle's flame sit in a box on the picture, with a yellow mark where the cup's mouth or the
-    # wick goes. Steam's preview clip is its box alone (moving the box keeps it); the candle's is made from the picture
-    # under its box (moving the box makes a new one). Both stay on for the export.
+    # wick goes. Steam's preview clip is its box alone, lit by the light where the box stands (moving the box makes a
+    # new one, the old one shows meanwhile); the candle's is made from the picture under its box (moving the box makes
+    # a new one, the old one hides). Both stay on for the export.
     page.click('.tab[data-bin="fx"]')
     page.evaluate("seek(2)")
     for kind, mark in (("steam", "xmark dot"), ("candle", "xmark")):
@@ -1209,6 +1210,15 @@ def run(page, folder, edge):
         tip = "block" if kind == "candle" else "none"  # (the candle: the wick, and the flame's tip)
         check(f"{kind}: its box on the picture, with the yellow marks", mk[:4] == ["block", "block", mark, tip]
               and bool(mk[4]), str(mk))
+        if kind == "steam":  # the place it rises from: an ellipse sitting inside the box on its bottom edge
+            sits = page.evaluate("(() => { const m = $('#xformMark').getBoundingClientRect(), "
+                                 "b = $('#xform').getBoundingClientRect(); return [m.bottom - b.bottom, "
+                                 "m.height / m.width, b.bottom - m.top]; })()")
+            check("steam: its mark sits inside the box on its bottom edge", abs(sits[0]) < 3 and 0.15 < sits[1] < 0.4
+                  and sits[2] > 4, str(sits))
+            styles = page.evaluate("[...$('#ec select[data-param=\"style\"]').options].map(o => o.value)")
+            check("steam: its styles to choose from", styles == ["cup", "incense", "pot"], str(styles))
+            shot("05b-steam")
         spin = page.evaluate("[$('#xformRot').style.display, $('#xform3d').style.display, !!$('#ec [data-num=\"rot_x\"]')]")
         if kind == "steam":  # turned as a file clip, its box the sheet; a flame always rises straight up
             window = "ô cửa nhìn chéo" in page.evaluate("$('#ec').textContent")  # (an example for full-frame effects)
@@ -1246,15 +1256,20 @@ def run(page, folder, edge):
               mid == ("none" if kind == "candle" else ""), mid)
         page.evaluate("saveNow()")
         page.wait_for_timeout(1500)
-        if kind == "candle":  # asked for once the app has the new place
-            try:
-                page.wait_for_function(f"S.fx['{cid}'].want !== {json.dumps(before[0])}", timeout=20000)
-            except Exception:
-                pass
+        try:  # (asked for once the app has the new place: both are made for where they stand)
+            page.wait_for_function(f"S.fx['{cid}'].want !== {json.dumps(before[0])}", timeout=20000)
+        except Exception:
+            pass
         after = page.evaluate(f"[S.fx['{cid}'].want, clipById('{cid}').params.x]")
         made_again = after[0] != before[0]
-        check(f"{kind}: dragging its box moves it" + (", with a new preview clip" if kind == "candle" else ""),
-              after[1] > before[1] + 1 and made_again == (kind == "candle"), f"{before} -> {after}")
+        check(f"{kind}: dragging its box moves it, with a new preview clip" +
+              (" (the steam is lit by the light where it stands)" if kind == "steam" else ""),
+              after[1] > before[1] + 1 and made_again, f"{before} -> {after}")
+        if kind == "steam":  # the old clip goes on showing, in the box, until the new one is made
+            shown = page.evaluate(f"[S.fx['{cid}'].shown === {json.dumps(before[0])} || S.fx['{cid}'].ready, "
+                                  f"S.els['{cid}'].wrap.style.display]")
+            check("steam: its old preview clip shows in the box until the new one is made", shown == [True, ""],
+                  str(shown))
         if kind == "candle":  # the old clip is not laid at the new place; the new one is, once made
             hidden = page.evaluate(f"S.fx['{cid}'].ready || S.els['{cid}'].wrap.style.display === 'none'")
             page.wait_for_function(f"S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want", timeout=300000)

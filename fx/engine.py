@@ -624,13 +624,15 @@ def fx_clip_name(project, layer):
     info = project["video"]
     cls = effects.KINDS[layer["kind"]]
     # (made from the picture under its box: the box's place too, 2: only its change kept, see change_rgba; lit by the
-    # video's light: the video too)
-    lit = cls.LIT and effects.clean_params(layer["kind"], layer.get("params")).get("lit", 1) > 0
+    # video's light: the video too, and a placed one the place of its box, lit by the light there)
+    p = effects.clean_params(layer["kind"], layer.get("params"))
+    lit = cls.LIT and p.get("lit", 1) > 0
+    at = [["at", p["x"], p["y"], p["scale"], info["w"], info["h"]]] if lit and cls.BOX else []
     key = json.dumps([layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1),
                       project_frames(project), info["fps"],
                       fx_clip_frame(info, layer["kind"], layer)] + [cls.VERSION] * (cls.VERSION > 1)  # (1: as before)
-                     + ([effects.clean_params(layer["kind"], layer.get("params")), _under_key(project, layer), 2]
-                        if cls.UNDER else []) + [["light", info.get("file")]] * lit, sort_keys=True)
+                     + ([p, _under_key(project, layer), 2] if cls.UNDER else [])
+                     + [["light", info.get("file")]] * lit + at, sort_keys=True)
     alpha = cls.blend != "screen" or cls.UNDER  # (made from the picture under its box: soft edges)
     return f"fx-{hashlib.sha1(key.encode()).hexdigest()[:12]}" + (".webm" if alpha else ".mp4")
 
@@ -729,8 +731,11 @@ def fx_part(project, layer, total, folder, start, end, path):
         return _under_part(project, layer, total, folder, start, end, path)
     info = project["video"]
     w, h = fx_clip_frame(info, layer["kind"])
+    light, cls = project.get("_light"), effects.KINDS[layer["kind"]]
+    if cls.BOX and cls.LIT:  # (lit where its box stands in the video, not in the clip's own frame)
+        light = effects.placed_light(layer["kind"], light, layer.get("params"), info["w"], info["h"])
     fx = effects.make(layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1), total,
-                      video.fps_value(info["fps"]), w, h, project.get("_light"))
+                      video.fps_value(info["fps"]), w, h, light)
     alpha = fx.blend != "screen"
     writer = video.ClipWriter(path, w, h, info["fps"], alpha, getattr(fx, "PREVIEW_CRF", None))
     canvas = effects.Canvas(w, h)

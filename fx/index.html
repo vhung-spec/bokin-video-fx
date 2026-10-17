@@ -1730,9 +1730,9 @@ function showXform() {  // the box of the selected clip (a file, an effect's she
     el.title = hint || ""; if (lab) el.dataset.lab = lab; else delete el.dataset.lab;
   };
   tip.style.display = "none";
-  if (sch.mark) {
-    const w = bw * clamp(+c.params[sch.mark.width] || 0, 0, 100) / 100, h = Math.max(6, 0.22 * w);
-    Object.assign(mk.style, {display: "block", left: (bw - w) / 2 - 1 + "px", width: w + "px", height: h + "px", top: "", bottom: -h / 2 - 1 + "px"});
+  if (sch.mark) {  // (a flat ellipse `ratio` as high as wide; it sits inside the box on its bottom edge, or is centred on it)
+    const w = Math.max(6, bw * clamp(+c.params[sch.mark.width] || 0, 0, 100) / 100), h = Math.max(6, (sch.mark.ratio || 0.22) * w);
+    Object.assign(mk.style, {display: "block", left: (bw - w) / 2 - 1 + "px", width: w + "px", height: h + "px", top: "", bottom: (sch.mark.sits ? 0 : -h / 2) - 1 + "px"});
     mk.className = "xmark dot"; mk.title = sch.mark.tip;
     if (sch.mark.label) mk.dataset.lab = sch.mark.label; else delete mk.dataset.lab;
   } else if (sch.anchor) {

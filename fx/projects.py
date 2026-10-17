@@ -63,7 +63,21 @@ def load(pid):
             project = json.load(f)
         if project.get("proxy") and project.get("proxy_v") != video.PROXY_V:
             project["proxy"] = None  # made by an older version (timed or coloured unlike the renderer): made again
-        return upgrade(project)  # (closed first: Windows cannot replace a file that is open)
+        return upgrade_layers(upgrade(project))  # (closed first: Windows cannot replace a file that is open)
+
+
+def upgrade_layers(project):
+    """Settings of built-in effects saved by an older version that need the video's shape to be read as they were
+    meant (effects.upgrade_in: steam's mark, once centred on its box's bottom edge, now sits inside the box). Done on
+    every load until the project is saved again (each effect knows its old settings: the same result each time)."""
+    info = project.get("video") or {}
+    w, h = info.get("w"), info.get("h")
+    if not w or not h:
+        return project
+    for layer in project.get("layers", []):
+        if isinstance(layer, dict) and layer.get("kind") in effects.KINDS:
+            layer["params"] = effects.upgrade_in(layer["kind"], layer.get("params"), w, h)
+    return project
 
 
 def upgrade(project):
