@@ -116,6 +116,9 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
    Muốn xem đúng như video sẽ xuất ra, bật nút **Khung chính xác** (hình ô ngắm) rồi dừng hình (app dựng khung đó, mất
    chút thời gian).
 8. **Xuất video**: bấm **Xuất video** ở góc trên bên phải. Video nằm trong thư mục **Videos\Bokin FX**.
+9. **Lưu**: app tự lưu mỗi lần bạn chỉnh; nút **Lưu** cạnh tên dự án (hoặc `Ctrl+S`) lưu ngay và dòng bên cạnh ghi
+   **Đã lưu lúc …**. Mũi tên cạnh nút **Lưu**: **Lưu thành bản khác…** (làm tiếp trên một bản sao, bản cũ giữ
+   nguyên), **Đổi tên dự án…**. Lần sau mở app, dự án đang làm dở tự mở lại; các dự án khác ở thẻ **Dự án**.
 
 ### Timeline
 

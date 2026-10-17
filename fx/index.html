@@ -172,6 +172,12 @@ header .proj:empty { border: 0; }
 header .proj b { color: var(--text); font-weight: 600; font-size: var(--fs); cursor: text; padding: 2px 4px; margin-left: -4px; border-radius: var(--r-xs); }
 header .proj b:hover { background: var(--raised); }
 header .grow { flex: 1; }
+header .savebox { display: none; align-items: center; gap: 2px; }
+header .savebox.on { display: inline-flex; }
+#saveMore { min-width: 22px; padding: 0 3px; }
+header .savestate { margin-left: 6px; color: var(--text-3); font-size: var(--fs-sm); white-space: nowrap; }
+header .savestate.busy { color: var(--text-2); }
+header .savestate.bad { color: var(--bad-text); }
 header .prep { display: inline-flex; align-items: center; color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
 header .prep:not(:empty) { padding: 3px 10px; border-radius: var(--r-pill); background: var(--panel); }
 header .prep .ic { color: var(--warn); }
@@ -668,6 +674,7 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
     <div class="logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#4f8cff"/><g stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20"/></g></svg>Bokin FX</div>
     <button id="newBtn" data-icon="plus" title="Mở một video loop thành dự án mới">Video mới…</button>
     <span class="proj" id="projName"></span>
+    <div class="savebox" id="saveBox"><button class="small" id="saveBtn" data-icon="save" data-tip="Lưu dự án ({save}). App cũng tự lưu mỗi lần bạn chỉnh">Lưu</button><button class="small icon" id="saveMore" data-icon="chevron" title="Lưu thành bản khác, đổi tên dự án"></button><span class="savestate" id="saveState"></span></div>
     <div class="grow"></div>
     <span class="prep" id="prep"></span>
     <div class="update" id="update"><span id="updateText"></span><button class="small primary" id="updateBtn">Cập nhật ngay</button></div>
@@ -811,6 +818,8 @@ const ICONS = {
   trash: '<path d="M4 6h12M8 6V4.3h4V6M5.8 6l.8 10h6.8l.8-10M8.6 8.8v4.6M11.4 8.8v4.6"/>',
   mix: '<circle cx="7.5" cy="10" r="4.5"/><circle cx="12.5" cy="10" r="4.5"/>',
   keyboard: '<rect x="2.5" y="5" width="15" height="10" rx="2"/><path d="M5.6 8h.01M8.5 8h.01M11.5 8h.01M14.4 8h.01M5.6 10.5h.01M8.5 10.5h.01M11.5 10.5h.01M14.4 10.5h.01M7.2 12.8h5.6"/>',
+  save: '<path d="M4.5 3.5h9l3 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z"/><path d="M7 3.5v4h6v-4M7 16.5v-5h6v5"/>',
+  chevron: '<path d="M6 8.5l4 4 4-4"/>',
   more: '<circle class="f" cx="5" cy="10" r="1.3"/><circle class="f" cx="10" cy="10" r="1.3"/><circle class="f" cx="15" cy="10" r="1.3"/>',
   // states
   warn: '<path d="M10 3.2l7.3 12.8H2.7z"/><path d="M10 8v3.6"/><circle class="f" cx="10" cy="13.8" r=".9"/>',
@@ -938,7 +947,7 @@ const S = {schema: null, state: null, project: null, lib: [], time: 0, playing: 
   tool: "select", snap: true, pps: 40, fitTl: true, paint: null, brush: {tool: "brush", mode: "add", size: 60},
   zoom: "fit", scale: 1, panX: 0, panY: 0, masks: {}, fx: {}, hist: [], histAt: -1, edits: 0, saveTimer: 0,
   jobsSeen: {}, bin: "lib", binSel: null, filter: "", els: {}, trackEls: {}, mixRole: {}, drag: null, dragItem: null, onlyBase: false,
-  keymap: null, keys: {}, keyAll: new Set(), keyWait: null, keyMsg: null, keyTab: "keys", keyFind: "", guide: null};
+  savedAt: 0, saveFailed: false, keymap: null, keys: {}, keyAll: new Set(), keyWait: null, keyMsg: null, keyTab: "keys", keyFind: "", guide: null};
 
 function fpsValue(fps) { const [a, b] = String(fps).split("/"); return (+a) / (+b || 1); }
 function info() { return S.project.video; }
@@ -1066,6 +1075,7 @@ async function openProject(id) {
     p.saved = new Set(p.layers.map(l => l.id));
     S.project = p; S.masks = {}; S.fx = {}; S.sel = null; S.paint = null; S.time = 0; S.hist = []; S.histAt = -1;
     S.fitTl = true; S.zoom = "fit"; S.panX = S.panY = 0;
+    S.savedAt = (p.updated || 0) * 1000; S.saveFailed = false;  // (as the app last saved it)
     try { localStorage.setItem("fx.last", id); } catch (e) { /* storage blocked */ }
     clearLayers();
     await Promise.all(["freeze", "fg", ...p.layers.map(l => l.id)].map(loadMask));
@@ -1112,6 +1122,7 @@ async function sendSave(p) {  // the project as it is now, not as it was when th
   try {
     const fresh = await post("/api/save", body);
     S.saveOut = false;  // (a failed one stays: closing the window sends it again)
+    if (S.project === p) S.saveFailed = false;
     p.rev = fresh.rev; p.masks = fresh.masks;
     p.saved = new Set(fresh.layers.map(l => l.id));
     const quiet = S.edits === mark;  // nothing changed on the page while this was being saved
@@ -1131,7 +1142,7 @@ async function sendSave(p) {  // the project as it is now, not as it was when th
       refreshExact();
     }
     return true;
-  } catch (e) { fail(e); return false; }
+  } catch (e) { if (S.project === p) S.saveFailed = true; fail(e); return false; }
 }
 
 // undo / redo: S.hist holds {tl: the timeline (snapshot), paint: null or a painting session's mask before and after};
@@ -1367,6 +1378,7 @@ async function sendMask(name, m) {
   try {
     const r = await call("POST", `/api/mask?id=${p.id}&name=${name}`, null, body);
     m.posted = Math.max(m.posted, ver);  // the app has it (until then, closing the window sends it again)
+    m.failed = false;
     p.rev = Math.max(p.rev, r.rev);
     const list = p.masks.filter(n => n !== name);
     if (keep) list.push(name);
@@ -1380,6 +1392,7 @@ async function sendMask(name, m) {
   } catch (e) {
     if (gone()) return true;
     if (maskKind(name) === "area" && /Không tìm thấy lớp/.test(e.message)) { m.afterSave = true; scheduleSave(0); return true; }
+    m.failed = true;  // (shown by saveState until a send of it goes through)
     fail(e);
     return false;
   }
@@ -3508,7 +3521,7 @@ function renderBin() {
     tools.innerHTML = `<button class="small" id="newBtn2" title="Mở một video loop thành dự án mới">${icon("plus", "lead")}Video mới…</button><span style="color:var(--dim)">Các dự án đã mở</span>`;
     const list = (S.state && S.state.projects) || [];
     body.innerHTML = `<div class="plist">${list.map(p => `<div class="item${S.project && S.project.id === p.id ? " cur" : ""}" data-open="${p.id}"><img src="/api/thumb?id=${p.id}" alt="">
-      <div class="txt"><div>${esc(p.name)}</div><small>${p.w}×${p.h} · loop ${p.seconds} giây · xuất ${p.length === 60 ? "1 phút" : "30 giây"}</small></div>
+      <div class="txt"><div>${esc(p.name)}</div><small>${p.w}×${p.h} · loop ${p.seconds} giây · xuất ${p.length === 60 ? "1 phút" : "30 giây"}${p.updated ? ` · lưu ${when(p.updated * 1000)}` : ""}</small></div>
       <button class="small danger" data-del="${p.id}" title="Xoá dự án">Xoá</button></div>`).join("") || '<div class="bin-empty">Chưa có dự án nào.</div>'}</div>`;
   }
 }
@@ -3600,6 +3613,7 @@ function renderAll() {
   screenEl.style.display = frameEl.style.display = has ? "block" : "none";
   $("#transport").style.display = has ? "" : "none";  // no empty bar under the start screen
   $("#exportBtn").disabled = !has;
+  $("#saveBox").classList.toggle("on", has);
   $("#projName").innerHTML = has ? `<b id="projTitle" title="Bấm đúp để đổi tên">${esc(p.name)}</b> · ${p.video.w}×${p.video.h} · loop ${p.video.seconds} giây` : "";
   $("#monName").textContent = has ? p.name : "";
   $("#monInfo").textContent = has ? `${p.video.w}×${p.video.h} · ${p.video.fps} khung/giây` : "";
@@ -3609,11 +3623,12 @@ function renderAll() {
   if (!has) renderRecent();
   updateWaiting();
 }
-$("#projName").addEventListener("dblclick", e => {
-  if (!S.project || e.target.id !== "projTitle") return;
+$("#projName").addEventListener("dblclick", e => { if (e.target.id === "projTitle") renameProject(); });
+function renameProject() {
+  if (!S.project) return;
   const n = (prompt("Tên dự án:", S.project.name) || "").trim();
   if (n) { S.project.name = n; saveNow().then(() => { poll(); renderAll(); }); }
-});
+}
 function renderRecent() {
   const list = ((S.state && S.state.projects) || []).slice(0, 8);
   $("#recent").innerHTML = list.length ? `<div class="recent-title">Mở lại dự án gần đây</div>` +
@@ -3881,6 +3896,59 @@ window.addEventListener("keydown", e => {  // the window waiting for a new key t
   takeKey(S.keyWait.id, comboOf(e));
 }, true);
 
+// --- saving: every change goes to the app by itself (scheduleSave, the masks); "Lưu" sends what is left now and
+// says so, "Lưu thành bản khác" goes on in a copy of the project --------------------------------------------------
+function when(ms) {  // "14:05" today, else "16/10 14:05"
+  const d = new Date(ms), now = new Date(), two = n => String(n).padStart(2, "0"), hm = `${two(d.getHours())}:${two(d.getMinutes())}`;
+  return d.toDateString() === now.toDateString() ? hm : `${two(d.getDate())}/${two(d.getMonth() + 1)} ${hm}`;
+}
+function saveState() {  // the words by the Lưu button: still saving, saved (when), or not saved
+  const el = $("#saveState"), p = S.project; if (!el) return;
+  const masks = Object.values(S.masks).filter(m => m.project === p);
+  const busy = p && (S.saveTimer || S.saveQueued || S.saveOut || masks.some(m => m.timer || m.busy || unsentMask(m)));
+  const bad = p && (S.saveFailed || masks.some(m => m.failed));
+  if (p && !busy && !bad && S.saveBusy) S.savedAt = Date.now();  // just now
+  S.saveBusy = !!busy;
+  const text = !p ? "" : bad ? "Chưa lưu được" : busy ? "Đang lưu…" : S.savedAt ? `Đã lưu lúc ${when(S.savedAt)}` : "Đã lưu";
+  const cls = "savestate" + (bad ? " bad" : busy ? " busy" : "");
+  if (el.textContent !== text) el.textContent = text;
+  if (el.className !== cls) el.className = cls;
+  el.title = bad ? "Thay đổi mới nhất chưa vào được app. Bấm Lưu để thử lại." : "App tự lưu mỗi lần bạn chỉnh. Lần sau mở app, dự án này tự mở lại.";
+}
+setInterval(saveState, 400);
+async function saveProject() {
+  const p = S.project; if (!p) return false;
+  S.saveFailed = false;  // (tried again)
+  const ok = await readyToRender();
+  saveState();
+  if (!ok) { toast("Chưa lưu được: app chưa nhận được thay đổi mới nhất. Hãy bấm Lưu lần nữa.", true, 7000); return false; }
+  S.savedAt = Date.now(); saveState();
+  toast(`Đã lưu dự án "${p.name}". Lần sau mở app, dự án này tự mở lại (hoặc chọn ở thẻ Dự án).`, false, 5000);
+  return true;
+}
+async function saveAsCopy() {
+  const p = S.project; if (!p) return;
+  const m = /^(.*) - bản (\d+)$/.exec(p.name), guess = m ? `${m[1]} - bản ${+m[2] + 1}` : `${p.name} - bản 2`;
+  const name = (prompt("Lưu thành bản khác. Tên của bản mới:", guess) || "").trim(); if (!name) return;
+  pause(); exitPaint();
+  if (!(await saveProject())) return;
+  toast("Đang lưu thành bản mới…", false, 15000);
+  try {
+    const copy = await post("/api/project/copy", {id: p.id, name});
+    await openProject(copy.id);
+    pollSoon();
+    toast(`Đã lưu thành dự án mới "${copy.name}". Bạn đang làm tiếp trên bản mới. Bản cũ "${p.name}" vẫn ở thẻ Dự án.`, false, 9000);
+  } catch (e) { fail(e); }
+}
+$("#saveBtn").onclick = () => saveProject();
+$("#saveMore").onclick = () => {
+  const r = $("#saveMore").getBoundingClientRect();
+  showMenu(r.left, r.bottom + 2, [
+    ["Lưu", saveProject, (S.keys.save || []).length ? keyName("save") : "", "save"],
+    ["Lưu thành bản khác…", saveAsCopy, "", "copy"],
+    ["Đổi tên dự án…", renameProject, "", "pencil"]]);
+};
+
 // --- polling the app ------------------------------------------------------------------------------------
 let pollTimer = 0, failures = 0, version = null;
 function pollSoon() { clearTimeout(pollTimer); pollTimer = setTimeout(poll, 300); }
@@ -3985,6 +4053,11 @@ document.addEventListener("keydown", e => {
   const ctrl = e.ctrlKey || e.metaKey, mod = ctrl || e.altKey;
   const field = e.target.matches("input[type=text], input[type=number], textarea") || (e.target.matches("select") && !ctrl);
   if (S.project && ctrl && PAGE_ZOOM.includes(e.code)) e.preventDefault();  // never the whole window's zoom
+  if (ctrl && e.code === "KeyS") e.preventDefault();  // never the browser's "save this page"
+  if (act(e, "save") && (mod || !field)) {  // (from a field too: what was typed is kept first)
+    e.preventDefault(); if (field) e.target.blur();
+    return saveProject();
+  }
   if (S.project && (mod || !field)) {  // the picture's zoom (a key with Ctrl works from a field too)
     const z = act(e, "picIn") ? 1.25 : act(e, "picOut") ? 1 / 1.25 : act(e, "picFit") ? "fit" : act(e, "pic100") ? "100" : null;
     if (z !== null) { e.preventDefault(); if (typeof z === "string") zoomPicture(z); else zoomKey(z); return; }

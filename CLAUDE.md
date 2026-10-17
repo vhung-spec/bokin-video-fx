@@ -41,6 +41,9 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/projects.py`: dự án trong `%APPDATA%\Bokin\FX\projects\<id>` (project.json, input.*, proxy.mp4, still.png,
   masks/, clips/). `layers` là các clip; `tracks` từ dưới lên; `upgrade()` chuyển dự án của bản cũ (một lần);
   `replace_video()` đổi video V1 (file mới tên `input-<x>`, bản nhẹ `proxy-<x>`; thời gian clip giữ theo giây).
+  Mọi file của dự án ghi ra file mới rồi đổi chỗ (không sửa tại chỗ), nên `copy()` ("Lưu thành bản khác",
+  `/api/project/copy`) dùng hard link được (không được thì chép). Trang tự lưu (`scheduleSave`, mặt nạ); nút **Lưu** /
+  Ctrl+S (`saveProject`: `readyToRender`) và dòng `#saveState` ("Đang lưu…", "Đã lưu lúc …", "Chưa lưu được").
 - `fx/library.py`: thư viện hiệu ứng dùng chung trong `%APPDATA%\Bokin\FX\library\<id>` (file gốc, ảnh nhỏ, bản nhẹ).
 - `fx/engine.py`: ghép một khung (video → vùng đứng yên → các clip theo track, mờ dần), kết xuất song song nhiều đoạn,
   khung chính xác cho trang (`Looks`), clip xem nhanh của hiệu ứng tạo sẵn (`fx_clip`), bản nhẹ của video gốc.

@@ -8,7 +8,7 @@ clips, undoes, paints a still area, zooms and moves the picture (a clip outside 
 30-second video. It checks the timeline the page saved, that the live preview plays the light copies (H.264 and
 transparent WebM), the falling leaves' settings (each shape a checkbox, "Loại lá" following them), rustling leaves
 painted into their area (their live preview against the exact frame), the Phím tắt window (a key changed, taken from
-another action, refused; the guide), and that the page reports no script errors.
+another action, refused; the guide), saving (Ctrl+S, "Lưu thành bản khác"), and that the page reports no script errors.
 Screenshots of each step go to the folder given (default: page-test).
 
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
@@ -1517,7 +1517,40 @@ def run(page, folder, edge):
         check("replace V1: the new video plays", state["base"] >= 2 and state["cur"] > 0, str(state))
     check("replace V1: its light copy", "proxy-" in state["src"], str(state))
     shot("07-replaced")
+    save_project(page, shot)
     check("no script errors on the page", not errors, "\n".join(errors[:10]))
+
+
+def save_project(page, shot):
+    """Lưu (Ctrl+S): the state by the button says saved; "Lưu thành bản khác": the work goes on in a copy, the old
+    project stays as it was."""
+    page.wait_for_function("document.querySelector('#saveState').textContent.startsWith('Đã lưu')", timeout=30000)
+    page.evaluate("(() => { S.project.layers[0].name = 'Lưu thử 1'; edited(); })()")  # a change...
+    page.keyboard.press("Control+s")  # ...saved at once
+    page.wait_for_function("document.querySelector('#toast').textContent.includes('Đã lưu dự án')", timeout=30000)
+    saved = page.evaluate("get('/api/project?id=' + S.project.id)")
+    check("Ctrl+S saves the project", saved["layers"][0]["name"] == "Lưu thử 1" and
+          page.inner_text("#saveState").startswith("Đã lưu lúc"), page.inner_text("#saveState"))
+    old = page.evaluate("({id: S.project.id, name: S.project.name, layers: S.project.layers.length, "
+                        "masks: S.project.masks.slice().sort()})")
+    page.once("dialog", lambda d: d.accept(old["name"] + " - bản 2"))
+    page.click("#saveMore")
+    page.click("#menu >> text=Lưu thành bản khác")
+    page.wait_for_function(f"S.project && S.project.id !== '{old['id']}' && S.project.masks", timeout=60000)
+    now = page.evaluate("({id: S.project.id, name: S.project.name, layers: S.project.layers.length, "
+                        "masks: S.project.masks.slice().sort()})")
+    check("save as another project: the work goes on in the copy", now["name"] == old["name"] + " - bản 2" and
+          now["layers"] == old["layers"] and now["masks"] == old["masks"], f"{old} -> {now}")
+    page.evaluate("(() => { S.project.layers[0].name = 'Lưu thử 2'; edited(); })()")
+    page.keyboard.press("Control+s")
+    page.wait_for_function("document.querySelector('#toast').textContent.includes('Đã lưu dự án')", timeout=30000)
+    kept = page.evaluate(f"get('/api/project?id={old['id']}')")
+    names = page.evaluate("(S.state.projects || []).map(p => p.name)")
+    check("the old project stays as it was", kept["layers"][0]["name"] == "Lưu thử 1" and
+          old["name"] in names, str(names))
+    page.click('.tab[data-bin="proj"]')
+    page.wait_for_function(f"document.querySelectorAll('#binBody [data-open]').length >= 2", timeout=15000)
+    shot("08-saved-copy")
 
 
 def main():

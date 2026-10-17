@@ -372,6 +372,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def route_post(self, path, q):
         app = self.app
+        if path == "/api/project/copy":  # "Lưu thành bản khác"
+            data = self.body_json()
+            project = projects.copy(data.get("id"), data.get("name"))
+            return self.send(200, {"id": project["id"], "name": project["name"]})
         if path == "/api/keys":  # the owner's keyboard shortcuts
             keys.save(self.body_json().get("keys"))
             return self.send(200, keys.view())

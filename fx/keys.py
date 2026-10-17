@@ -63,6 +63,7 @@ ACTIONS = [
     _a("brushBigger", "Vẽ vùng", "Cọ to lên", ["BracketRight"], "paint"),
     _a("polyClose", "Vẽ vùng", "Khép vùng đang khoanh", ["Enter"], "paint"),
     _a("polyBack", "Vẽ vùng", "Bỏ điểm vừa khoanh", ["Backspace"], "paint"),
+    _a("save", "Chung", "Lưu dự án (app cũng tự lưu mỗi lần chỉnh)", ["Ctrl+KeyS"]),
     _a("export", "Chung", "Xuất video", ["Ctrl+KeyM"]),
     _a("keys", "Chung", "Mở bảng Phím tắt và hướng dẫn", ["Shift+Slash"]),
 ]

@@ -30,6 +30,21 @@ Kéo đường kẻ giữa các vùng để đổi cỡ vùng. App nhớ cỡ đ
 5. Bấm vào clip trên timeline, chỉnh ở **Bảng chỉnh hiệu ứng** và kéo khung trắng trên hình.
 6. Bấm nút phát để xem. Xong thì bấm **Xuất video**. Video nằm trong thư mục **Videos\Bokin FX**.
 
+## Lưu dự án
+
+App **tự lưu** mỗi lần bạn chỉnh: không cần làm gì, tắt app lúc nào cũng được. Cạnh tên dự án ở thanh trên cùng có
+dòng báo: **Đang lưu…** (vừa chỉnh), **Đã lưu lúc 14:05** (đã lưu xong), **Chưa lưu được** (bấm **Lưu** để thử lại).
+
+| Thao tác | Cách làm |
+|---|---|
+| Lưu ngay | Bấm nút **Lưu** cạnh tên dự án (hoặc `Ctrl+S`) |
+| Lưu thành bản khác | Bấm mũi tên nhỏ cạnh nút **Lưu**, chọn **Lưu thành bản khác…**, gõ tên rồi bấm OK. App lưu một bản sao và bạn làm tiếp trên bản sao; bản cũ giữ nguyên như lúc lưu |
+| Đổi tên dự án | Mũi tên nhỏ cạnh nút **Lưu**, chọn **Đổi tên dự án…** (hoặc bấm đúp vào tên dự án) |
+| Làm tiếp lần sau | Mở app: dự án đang làm dở tự mở lại. Dự án khác: thẻ **Dự án**, bấm vào dự án (mỗi dự án ghi lúc lưu gần nhất) |
+
+Dùng **Lưu thành bản khác** khi muốn thử một hướng mới mà vẫn giữ bản đang đẹp: hai bản là hai dự án riêng, chỉnh bản
+này không đổi bản kia.
+
 ## Thư viện, Tạo sẵn, Dự án
 
 | Thao tác | Cách làm |
@@ -181,6 +196,7 @@ Phím nhóm này chỉ khi đang vẽ vùng. Lúc đó các phím chỉ dùng ng
 
 | Việc | Phím |
 |---|---|
+| Lưu dự án (app cũng tự lưu mỗi lần chỉnh) | `Ctrl+S` |
 | Xuất video | `Ctrl+M` |
 | Mở bảng Phím tắt và hướng dẫn | `Shift+/` |
 

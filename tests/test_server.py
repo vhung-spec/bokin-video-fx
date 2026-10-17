@@ -102,6 +102,16 @@ class Server(unittest.TestCase):
         self.assertEqual(request(self.base + f"/media/fx?id={pid}&name=..%2Finput.mp4")[0], 404)
         self.assertEqual(request(self.base + "/media/lib?id=..%2F..&what=thumb")[0], 400)
 
+        # "Lưu thành bản khác": a new project, the old one as it was
+        self.assertEqual(self.post("/api/project/copy", {"id": "../x", "name": "a"})[0], 400)
+        code, body, _ = self.post("/api/project/copy", {"id": pid, "name": "Quán cà phê - bản 2"})
+        self.assertEqual(code, 200, body)
+        copy = json.loads(body)
+        self.assertEqual(copy["name"], "Quán cà phê - bản 2")
+        self.assertEqual([lay["id"] for lay in json.loads(request(self.base + f"/api/project?id={copy['id']}")[1])["layers"]],
+                         ["snow1"])
+        self.assertEqual(self.post("/api/delete", {"id": copy["id"]})[0], 200)
+
         # the light copy of the video, made in the background after the upload
         self.wait_for(lambda: json.loads(request(self.base + f"/api/project?id={pid}")[1])["proxy"])
         code, body, headers = request(self.base + f"/media/base?id={pid}", headers={"Range": "bytes=0-99"})

@@ -279,6 +279,40 @@ def replace_video(project, upload, original_name):
         return saved, notes
 
 
+def copy(pid, name):
+    """"Lưu thành bản khác": a new project with everything `pid` has as saved now (its video, areas, clips and their
+    preview clips) under a new name. The files are hard links where the disk allows (every file of a project is
+    written whole to a new file and swapped in, never changed in place, so neither project sees the other's later
+    changes), else copies."""
+    with LOCK:
+        src, project = folder(pid), load(pid)
+        new = secrets.token_hex(6)
+        dst = os.path.join(paths.projects_dir(), new)
+        try:
+            for root, dirs, files in os.walk(src):
+                dirs[:] = [d for d in dirs if not d.startswith("render-")]  # (a render going on: its pieces)
+                here = os.path.join(dst, os.path.relpath(root, src))
+                os.makedirs(here, exist_ok=True)
+                for f in files:
+                    if f != "project.json" and ".tmp" not in f and ".part" not in f:  # (not a file being written)
+                        _link_or_copy(os.path.join(root, f), os.path.join(here, f))
+            project.update({"id": new, "name": clean_title(name, project["name"]), "created": time.time(), "rev": 0})
+            return save(project)  # project.json last: until then the folder is no project
+        except OSError as e:
+            shutil.rmtree(dst, ignore_errors=True)
+            raise UserError("Chưa lưu được bản mới: ổ đĩa đầy hoặc không ghi được.") from e
+        except BaseException:
+            shutil.rmtree(dst, ignore_errors=True)
+            raise
+
+
+def _link_or_copy(src, dst):
+    try:
+        os.link(src, dst)
+    except OSError:  # (another disk, or one with no hard links)
+        shutil.copy2(src, dst)
+
+
 def delete(pid):
     path = folder(pid)
     with LOCK:
