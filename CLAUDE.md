@@ -5,12 +5,16 @@ vẫn loop liền mạch. Giao diện giống Premiere: thư viện hiệu ứng
 timeline có track và clip, xem nhanh ngay trong trình duyệt, vùng đứng yên, vùng riêng cho từng clip, tiền cảnh che
 hiệu ứng. Cách dùng: `README.md`.
 
-## Repo này công khai
+## Repo này riêng tư (từ 2026-10-18)
 
-- Không đưa vào đây bất cứ gì từ các repo riêng tư của công ty: mã, tài liệu, thông tin nội bộ, tên miền, email, IP,
-  token. Đọc chúng chỉ để hiểu cách làm, rồi tự viết. Cũng không nêu tên hay chi tiết của chúng ở đây.
-- Không commit khoá, mật khẩu, token. App tự cập nhật từ Releases công khai, không cần khoá.
-- Bản cài trên Releases ai cũng tải được.
+- Kho này công khai tới 2026-10-18; chủ chuyển sang riêng tư để chứa thư viện bản quyền. Vẫn không commit khoá,
+  mật khẩu, token, khoá ký hay mã cài đặt của Bokin License.
+- `bokin_license/` là thư viện bản quyền chung của các app Bokin, chép nguyên từ kho Bokin License (`VENDORED.txt`:
+  phiên bản, commit). Không sửa bản chép ở đây (sửa ở kho đó rồi chép lại). Chỉ phần kiểm tra key và khoá công khai;
+  khoá ký và mã cài đặt chỉ nằm trên máy của chủ dự án, không bao giờ vào kho này, bộ cài hay chat.
+- Mã hay tài liệu của các kho khác của công ty: chỉ chép vào đây khi chủ đồng ý.
+- Releases của kho riêng tư chỉ người đăng nhập GitHub tải được, nên app (đọc Releases không đăng nhập,
+  `fx/updater.py`) không thấy bản mới: cần một kênh phát hành khác (chủ chọn). Đến lúc đó, cài bản mới bằng tay.
 - Hình hạt (lá, tuyết…) đều vẽ bằng mã. Chỉ thêm hình/video mà công ty sở hữu hoặc có giấy phép.
 - Học ý tưởng từ dự án mở thì được. Mã GPL (Shotcut, Kdenlive, OpenShot…) không chép vào đây. Mã MIT/Apache chỉ dùng
   khi ghi kèm giấy phép.
@@ -23,6 +27,13 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/server.py`: máy chủ `ThreadingHTTPServer`, API JSON `/api/...`, file cho xem nhanh `/media/...`. Chỉ nhận Host
   127.0.0.1/localhost. Mọi POST cần header `X-Bokin: 1`. Trang không bao giờ đưa đường dẫn: chỉ có mã dự án, clip,
   mục thư viện, kiểm theo mẫu.
+- Bản quyền: `fx/licensing.py` (sản phẩm `fx` của `bokin_license`: key Ed25519 gắn Mã máy, có thể có hạn, lưu chung
+  `%APPDATA%\BokinLicense\keys.txt`; đọc lại mỗi phút, xuất video thì đọc ngay). Chưa kích hoạt: máy chủ chỉ trả trang,
+  `/api/ping`, `/api/license`, `/api/state` và các lệnh của bộ cài / tự cập nhật (`FREE_GET`, `FREE_POST`), còn lại 403
+  `{"license": true}`; trang chỉ hiện màn hình kích hoạt (`#lic`, `licenseScreen`; 403 đó giữa chừng: `licenseLost`),
+  chân trang `#licChip` (gia hạn). Không thêm cờ hay biến môi trường bỏ qua kiểm tra. Bài thử, selftest, CI giao diện
+  tự làm "key center" riêng (khoá ký tạo lúc chạy, thay khoá công khai trong chính tiến trình đó, thư mục key riêng:
+  `tests/helpers.py`), không bao giờ dùng khoá thật.
 - `fx/index.html`: toàn bộ giao diện (JavaScript thuần, không framework, không bước build), tiếng Việt. Bốn vùng như
   Premiere: Bảng chỉnh hiệu ứng, Chương trình (xem nhanh), Thư viện/Tạo sẵn/Dự án, Timeline. Giao diện tối, nhấn xanh:
   màu, bo góc, khoảng cách, cỡ chữ là token trên `:root` (`--bg`, `--panel`, `--accent`…; màu clip `--k-<loại>` theo

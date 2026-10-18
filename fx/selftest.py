@@ -112,8 +112,15 @@ def periodic_checks():
             return
 
 
-def server_checks():
-    from . import server
+def server_checks(work):
+    """The server: who may ask, the licence (the work refused until a key is activated, a key not from the seller
+    refused), no path tricks. For the self-test only, a signing key made now stands in for the seller's (in this
+    process, with its own empty key folder): the computer running it needs no key and its own key is not touched."""
+    from bokin_license import ed25519, keys as license_keys, store as license_store
+    from . import licensing, server
+    kept = license_keys.PUBLIC_KEY, license_store.default_folder
+    license_store.default_folder = lambda: os.path.join(work, "license")
+    licensing.status(fresh=True)
     app = server.App(desktop=False)
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -137,9 +144,23 @@ def server_checks():
               status(urllib.request.Request(base + "/api/export", data=b"{}", method="POST")) == 403)
         check("server: other host names refused",
               status(urllib.request.Request(base + "/api/state", headers={"Host": "example.com"})) == 403)
+        check("server: the work refused before activation", status(base + "/api/schema") == 403 and
+              status(base + "/media/out?name=a.mp4") == 403)
+        secret = os.urandom(32)
+        machine = licensing.status()["machine"]
+
+        def activate(key):
+            return status(urllib.request.Request(base + "/api/license", data=json.dumps({"key": key}).encode(),
+                                                 headers={"X-Bokin": "1", "Content-Type": "application/json"}))
+        check("server: a key not from the seller refused", activate(license_keys.make_key(secret, machine, ["fx"])) == 400)
+        license_keys.PUBLIC_KEY = ed25519.public_key(secret)
+        check("server: a key for this computer activates the app", activate(license_keys.make_key(secret, machine, ["fx"]))
+              == 200 and status(base + "/api/schema") == 200)
         check("server: no path tricks", status(base + "/media/out?name=..%2F..%2Fx.mp4") == 404)
     finally:
         srv.shutdown()
+        license_keys.PUBLIC_KEY, license_store.default_folder = kept
+        licensing.status(fresh=True)
 
 
 def run():
@@ -270,7 +291,7 @@ def run():
 
         look = engine.Looks().frame(folder, project, 10, 640)
         check("single-frame look", look.shape == (360, 640, 3))
-        server_checks()
+        server_checks(work)
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         check("self-test ran to the end", False)

@@ -590,6 +590,32 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
 .toast.bad::before { background: var(--bad);
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 3.2l7.3 12.8H2.7z'/%3E%3Cpath d='M10 8v3.8'/%3E%3Ccircle cx='10' cy='13.9' r='.6' fill='black'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 3.2l7.3 12.8H2.7z'/%3E%3Cpath d='M10 8v3.8'/%3E%3Ccircle cx='10' cy='13.9' r='.6' fill='black'/%3E%3C/svg%3E"); }
+/* the activation screen (fx/licensing.py): the machine code to send to the seller, a field for the key */
+.lic { position: fixed; inset: 0; z-index: 93; display: none; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
+.lic.over { background: rgba(8, 9, 11, .72); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.lic-card { width: min(520px, 100%); padding: 28px 28px 22px; background: var(--panel); border: 1px solid #343944; border-radius: var(--r-xl);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .6), 0 0 0 1px rgba(0, 0, 0, .5); }
+.lic-card .lic-logo { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s4); font-size: var(--fs-md); font-weight: 650; }
+.lic-card .lic-logo svg { width: 26px; height: 26px; }
+.lic-card .lic-logo svg rect { fill: var(--accent); }
+.lic-card h2 { margin: 0 0 var(--s1); font-size: var(--fs-xl); font-weight: 600; }
+.lic-msg { margin: 0 0 var(--s3); color: var(--text-2); font-size: var(--fs); }
+.lic-msg.ok { color: var(--good); }
+.lic-steps { margin: 0 0 var(--s4); padding-left: 20px; color: var(--text-2); font-size: var(--fs); line-height: 1.6; }
+.lic-code { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s3); padding: 10px 12px; border-radius: var(--r);
+  background: var(--field); border: 1px solid var(--line-2); }
+.lic-code span { color: var(--text-3); font-size: var(--fs-sm); }
+.lic-code b { flex: 1; font: 600 17px/1.2 Consolas, "Cascadia Mono", monospace; letter-spacing: .06em; color: var(--text); user-select: all; }
+.lic textarea { display: block; width: 100%; min-height: 76px; padding: 8px 10px; resize: vertical; background: var(--field); color: var(--text);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm); font: 13px/1.45 Consolas, "Cascadia Mono", monospace; }
+.lic textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.lic-err { min-height: 18px; margin: var(--s2) 0 0; color: var(--bad-text); font-size: var(--fs-sm); }
+.lic .acts { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s2); }
+.lic .acts button { min-height: 32px; min-width: 96px; padding: 0 var(--s4); font-size: var(--fs); }
+.lic-note { margin: var(--s4) 0 0; color: var(--text-3); font-size: var(--fs-sm); line-height: 1.5; }
+#licChip { padding: 2px 6px; border-radius: var(--r-xs); color: var(--text-3); font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+#licChip:hover { background: var(--raised); color: var(--text-2); }
+#licChip.soon { color: var(--warn); }
 .offline { position: fixed; inset: 0; z-index: 95; display: none; align-items: center; justify-content: center; padding: 30px; text-align: center;
   background: rgba(8, 9, 11, .85); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); font-size: var(--fs-lg); line-height: 1.6; }
 .offline small { color: var(--text-2); font-size: var(--fs); }
@@ -772,7 +798,7 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
       </div>
     </section>
   </div>
-  <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn" data-icon="folder" title="Mở thư mục chứa các video đã xuất">Mở thư mục video</button><span id="ver" title="Bấm để kiểm tra bản mới"></span></footer>
+  <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn" data-icon="folder" title="Mở thư mục chứa các video đã xuất">Mở thư mục video</button><span id="licChip" title="Bản quyền: bấm để xem Mã máy hoặc nhập key mới"></span><span id="ver" title="Bấm để kiểm tra bản mới"></span></footer>
 </div>
 <input type="file" id="fileVideo" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
 <input type="file" id="fileReplace" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
@@ -780,6 +806,17 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
 <input type="file" id="fileLib" multiple accept="video/*,image/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.gif,.png,.jpg,.jpeg,.webp,.bmp" hidden>
 <div class="menu" id="menu"></div>
 <div class="toast" id="toast"></div>
+<div class="lic" id="lic"><div class="lic-card">
+  <div class="lic-logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14"/><g stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M32 12v40M14.7 22l34.6 20M14.7 42l34.6-20"/></g></svg>Bokin FX</div>
+  <h2 id="licTitle">Kích hoạt Bokin FX</h2>
+  <p class="lic-msg" id="licMsg"></p>
+  <ol class="lic-steps" id="licSteps"><li>Bấm <b>Chép</b> rồi gửi <b>Mã máy</b> dưới đây cho người bán.</li><li>Dán key nhận được vào ô bên dưới, bấm <b>Kích hoạt</b>.</li></ol>
+  <div class="lic-code"><span>Mã máy</span><b id="licMachine"></b><button class="small" id="licCopy" data-icon="copy">Chép</button></div>
+  <textarea id="licKey" rows="3" spellcheck="false" autocomplete="off" placeholder="Dán key vào đây (BOKIN-…)"></textarea>
+  <p class="lic-err" id="licErr"></p>
+  <div class="acts"><button id="licClose" style="display:none">Đóng</button><button class="primary" id="licGo">Kích hoạt</button></div>
+  <p class="lic-note">Key gắn với máy tính này. Key mua chung cho nhiều app Bokin: kích hoạt ở một app là các app kia trên máy này cùng mở.</p>
+</div></div>
 <div class="offline" id="offline"><div>Mất kết nối với app Bokin FX.<br><small>Nếu đã đóng app, hãy mở lại từ menu Start.</small></div></div>
 <div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
 <script>
@@ -911,6 +948,7 @@ async function call(method, path, body, raw) {
   try { r = await fetch(path, opt); } catch (e) { throw new Error("Không kết nối được với app."); }
   const ct = r.headers.get("Content-Type") || "";
   const data = ct.includes("json") ? await r.json() : await r.blob();
+  if (r.status === 403 && data && data.license) licenseLost();  // (a key with an end date ran out while the app was open)
   if (!r.ok) throw new Error((data && data.error) || ("Lỗi " + r.status));
   return data;
 }
@@ -3949,6 +3987,66 @@ $("#saveMore").onclick = () => {
     ["Đổi tên dự án…", renameProject, "", "pencil"]]);
 };
 
+// --- the licence (fx/licensing.py): the activation screen, and the footer's word on it ---------------------------
+function dmy(iso) { const [y, m, d] = String(iso).split("-"); return `${d}/${m}/${y}`; }
+function daysLeft(iso) { return Math.floor((new Date(iso + "T23:59:59") - new Date()) / 86400000); }
+function licenseScreen(open) {  // open: the app runs (to see the machine code, or to paste a new key); else it waits
+  const L = S.license || {}, box = $("#lic");
+  box.classList.toggle("over", !!open);
+  $("#licTitle").textContent = open ? "Bản quyền Bokin FX" : "Kích hoạt Bokin FX";
+  const msg = $("#licMsg");
+  msg.textContent = L.licensed ? `Đã kích hoạt ${L.expires ? "đến " + dmy(L.expires) : "vĩnh viễn"}` +
+    (L.products && L.products.length > 1 ? ` (key mở: ${L.products.join(", ")}).` : ".") : (L.message || "Chưa kích hoạt.");
+  msg.classList.toggle("ok", !!L.licensed);
+  $("#licSteps").style.display = L.licensed ? "none" : "";
+  $("#licMachine").textContent = L.machine || "";
+  $("#licKey").value = ""; $("#licKey").placeholder = L.licensed ? "Dán key mới vào đây để gia hạn (BOKIN-…)" : "Dán key vào đây (BOKIN-…)";
+  $("#licErr").textContent = "";
+  $("#licClose").style.display = open ? "" : "none";
+  $("#licGo").textContent = L.licensed ? "Nhập key mới" : "Kích hoạt";
+  box.style.display = "flex";
+  if (!open) $("#licKey").focus();
+}
+function licenseChip() {
+  const L = S.license, el = $("#licChip"); if (!L) return;
+  const left = L.expires ? daysLeft(L.expires) : null, soon = left !== null && left <= L.soon;
+  el.textContent = !L.licensed ? "Chưa kích hoạt" : soon ? `Key còn ${Math.max(0, left)} ngày` : "Đã kích hoạt";
+  el.classList.toggle("soon", soon);
+  el.title = `${L.message || ""} Mã máy: ${L.machine || ""}. Bấm để xem hoặc nhập key mới.`;
+}
+let licenseGone = false;
+function licenseLost() {  // the server refused for want of a key: the activation screen, once
+  if (licenseGone) return;
+  licenseGone = true;
+  pause();
+  get("/api/license").then(v => { S.license = v; licenseScreen(false); }).catch(() => licenseScreen(false));
+}
+$("#licChip").onclick = () => licenseScreen(true);
+$("#licClose").onclick = () => { $("#lic").style.display = "none"; };
+$("#licCopy").onclick = async () => {
+  const code = $("#licMachine").textContent;
+  try { await navigator.clipboard.writeText(code); }
+  catch (e) {  // (no clipboard access: the old way)
+    const t = document.createElement("textarea"); t.value = code; document.body.appendChild(t); t.select();
+    document.execCommand("copy"); t.remove();
+  }
+  $("#licCopy").lastChild.textContent = "Đã chép";
+  setTimeout(() => { $("#licCopy").lastChild.textContent = "Chép"; }, 1600);
+};
+$("#licGo").onclick = async () => {
+  const key = $("#licKey").value.trim(), was = !!(S.license && S.license.licensed) && $("#lic").classList.contains("over");
+  if (!key) { $("#licErr").textContent = "Hãy dán key nhận được từ người bán."; return; }
+  $("#licGo").disabled = true;
+  try {
+    S.license = await post("/api/license", {key});
+    if (!was) { location.reload(); return; }  // the app starts now
+    licenseChip(); licenseScreen(true);
+    toast(`Đã nhập key mới: ${S.license.message}`);
+  } catch (e) { $("#licErr").textContent = e.message; }
+  finally { $("#licGo").disabled = false; }
+};
+$("#licKey").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#licGo").click(); } });
+
 // --- polling the app ------------------------------------------------------------------------------------
 let pollTimer = 0, failures = 0, version = null;
 function pollSoon() { clearTimeout(pollTimer); pollTimer = setTimeout(poll, 300); }
@@ -4221,6 +4319,9 @@ window.addEventListener("resize", onResize);
 
 // --- start ----------------------------------------------------------------------------------------------
 (async function start() {
+  try { S.license = await get("/api/license"); } catch (e) { $("#offline").style.display = "flex"; return; }
+  if (!S.license.licensed) return licenseScreen(false);  // (activated: the page starts again, licenseScreen)
+  licenseChip();
   try { S.schema = await get("/api/schema"); setKeys(await get("/api/keys")); } catch (e) { $("#offline").style.display = "flex"; return; }
   post("/api/update/check", {}).catch(() => {});  // each time the window opens
   await poll();

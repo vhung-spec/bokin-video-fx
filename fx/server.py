@@ -22,7 +22,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import numpy as np
 from PIL import Image
 
-from . import effects, engine, jobs, keys, library, overlay, paths, projects, timeline, video
+import bokin_license
+
+from . import effects, engine, jobs, keys, library, licensing, overlay, paths, projects, timeline, video
 
 UPLOAD_LIMITS = {"video": 4 << 30, "replace": 4 << 30, "library": 4 << 30, "still": 200 << 20}
 UPLOAD_TYPES = {"video": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
@@ -36,7 +38,11 @@ FX_NAME = re.compile(r"^fx-[0-9a-f]{12}\.(webm|mp4)$")
 PROXY_NAME = re.compile(r"^proxy\.(mp4|webm|png)$")  # a library item's
 REV_PROXY_NAME = re.compile(r"^proxy-rev\.(mp4|webm)$")  # its played-backwards light copy
 MEDIA_TYPES = {".mp4": "video/mp4", ".webm": "video/webm", ".png": "image/png", ".jpg": "image/jpeg"}
-ERRORS = (projects.UserError, video.VideoError, library.LibraryError)
+ERRORS = (projects.UserError, video.VideoError, library.LibraryError, bokin_license.LicenseError)
+# What answers before the app is activated (licensing): the page and its activation screen, the installer's and the
+# updater's questions. Everything else is refused.
+FREE_GET = {"/", "/index.html", "/api/ping", "/api/license", "/api/state"}
+FREE_POST = {"/api/license", "/api/update/check", "/api/update", "/api/quit"}
 
 
 class App:
@@ -119,6 +125,11 @@ class Handler(BaseHTTPRequestHandler):
     def fail(self, code, message):
         # close the connection: a body left unread must never be read as a second request
         self.send(code, {"error": message}, headers=(("Connection", "close"),))
+
+    def refused(self):
+        """Not activated (or the key ran out meanwhile): the page shows its activation screen."""
+        self.send(403, {"error": "Bokin FX chưa được kích hoạt trên máy này.", "license": True},
+                  headers=(("Connection", "close"),))
 
     def send_file(self, path, kind):
         """A file, with byte ranges (the video player asks for parts)."""
@@ -204,6 +215,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, {"app": paths.APP_ID, "version": paths.version(), "owner": paths.owner()})
         if path.startswith("/api/"):
             self.app.seen = time.time()
+        if path not in FREE_GET and not licensing.licensed():
+            return self.refused()
+        if path == "/api/license":
+            return self.send(200, licensing.view())
         if path == "/api/state":
             return self.send(200, self.app.state())
         if path == "/api/schema":
@@ -372,6 +387,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def route_post(self, path, q):
         app = self.app
+        if path not in FREE_POST and not licensing.licensed():
+            return self.refused()
+        if path == "/api/license":  # a key pasted on the activation screen (or a new one, to renew)
+            return self.send(200, licensing.activate(self.body_json().get("key")))
         if path == "/api/project/copy":  # "Lưu thành bản khác"
             data = self.body_json()
             project = projects.copy(data.get("id"), data.get("name"))
@@ -433,6 +452,8 @@ class Handler(BaseHTTPRequestHandler):
             project = projects.apply(project, data)
             return self.send(200, self.project_view(project))
         if path == "/api/export":
+            if not licensing.licensed(fresh=True):  # (a key with an end date: checked again before the work)
+                return self.refused()
             app.looks.release(projects.folder(data.get("id")))
             return self.send(200, app.jobs.export(data.get("id")))
         if path == "/api/proxy":  # the light copy of the project's video, if it is not there yet

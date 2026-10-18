@@ -30,6 +30,18 @@ Kéo đường kẻ giữa các vùng để đổi cỡ vùng. App nhớ cỡ đ
 5. Bấm vào clip trên timeline, chỉnh ở **Bảng chỉnh hiệu ứng** và kéo khung trắng trên hình.
 6. Bấm nút phát để xem. Xong thì bấm **Xuất video**. Video nằm trong thư mục **Videos\Bokin FX**.
 
+## Kích hoạt (bản quyền)
+
+Lần đầu mở app (hoặc khi key hết hạn), app chỉ hiện màn hình **Kích hoạt Bokin FX**.
+
+| Thao tác | Cách làm |
+|---|---|
+| Lấy Mã máy | Bấm **Chép** cạnh **Mã máy**, gửi mã đó cho người bán |
+| Kích hoạt | Dán key nhận được (`BOKIN-…`) vào ô, bấm **Kích hoạt** (hoặc `Enter`) |
+| Xem lại Mã máy, gia hạn | Bấm chữ **Đã kích hoạt** (hoặc **Key còn … ngày**) ở góc dưới, dán key mới, bấm **Nhập key mới** |
+
+Key gắn với máy tính. Key mua chung cho nhiều app Bokin: kích hoạt ở một app là các app kia trên máy đó cùng mở.
+
 ## Lưu dự án
 
 App **tự lưu** mỗi lần bạn chỉnh: không cần làm gì, tắt app lúc nào cũng được. Cạnh tên dự án ở thanh trên cùng có

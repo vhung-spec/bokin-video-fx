@@ -8,7 +8,8 @@ clips, undoes, paints a still area, zooms and moves the picture (a clip outside 
 30-second video. It checks the timeline the page saved, that the live preview plays the light copies (H.264 and
 transparent WebM), the falling leaves' settings (each shape a checkbox, "Loại lá" following them), rustling leaves
 painted into their area (their live preview against the exact frame), the Phím tắt window (a key changed, taken from
-another action, refused; the guide), saving (Ctrl+S, "Lưu thành bản khác"), and that the page reports no script errors.
+another action, refused; the guide), saving (Ctrl+S, "Lưu thành bản khác"), the activation screen first (a wrong key
+refused, the right one opens the app), and that the page reports no script errors.
 Screenshots of each step go to the folder given (default: page-test).
 
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
@@ -35,7 +36,14 @@ import numpy as np  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
-from fx import server, timeline, video  # noqa: E402
+from bokin_license import ed25519, keys as license_keys, store as license_store  # noqa: E402
+from fx import licensing, server, timeline, video  # noqa: E402
+
+# The app opens on its activation screen (fx/licensing.py): this test is its own key center, a signing key made
+# now and trusted in place of the seller's in this process, with an empty key folder of its own.
+SECRET = os.urandom(32)
+license_keys.PUBLIC_KEY = ed25519.public_key(SECRET)
+license_store.default_folder = lambda: os.path.join(WORK, "license")
 
 SHOTS = sys.argv[1] if len(sys.argv) > 1 else "page-test"
 FAILED = []
@@ -569,6 +577,30 @@ def shortcuts(page, shot):
     check("the default keys again", page.evaluate("S.tool") == "select")
 
 
+def activation(page, shot):
+    """No key on this computer: only the activation screen, with the machine code; a wrong key is refused with a
+    reason; the right one opens the app. The footer says it is activated and shows the screen again on a click."""
+    page.wait_for_selector("#lic", state="visible")
+    machine = licensing.status(fresh=True)["machine"]
+    check("activation screen: the machine code, nothing else started", page.inner_text("#licMachine") == machine and
+          page.evaluate("!S.schema"), page.inner_text("#licMachine"))
+    shot("00-activation")
+    page.fill("#licKey", license_keys.make_key(SECRET, machine, ["loop"]))
+    page.click("#licGo")
+    page.wait_for_function("document.querySelector('#licErr').textContent.length > 0")
+    check("activation screen: a key for another app refused, with the reason",
+          "Bokin FX" in page.inner_text("#licErr"), page.inner_text("#licErr"))
+    page.fill("#licKey", license_keys.make_key(SECRET, machine, ["fx"]))
+    with page.expect_navigation():
+        page.click("#licGo")
+    page.wait_for_function("S.schema && S.state")
+    check("activation: the app opens", not page.is_visible("#lic") and page.inner_text("#licChip") == "Đã kích hoạt")
+    page.click("#licChip")
+    check("the licence from the footer: the machine code, closable",
+          page.is_visible("#lic") and page.inner_text("#licTitle") == "Bản quyền Bokin FX" and page.is_visible("#licClose"))
+    page.click("#licClose")
+
+
 def disc(png):
     """Where the loop's yellow disc is in a screenshot (x, y), or None."""
     import io
@@ -894,7 +926,7 @@ def run(page, folder, edge):
         page.mouse.up()
         page.wait_for_timeout(300)
 
-    page.wait_for_function("S.schema && S.state")
+    activation(page, shot)
     shot("01-start")
     page.set_input_files("#fileVideo", upload(folder, "loop.mp4", "Quán cà phê.mp4", "video/mp4"))
     page.wait_for_function("S.project && S.project.id", timeout=60000)

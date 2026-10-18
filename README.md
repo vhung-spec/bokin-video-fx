@@ -53,12 +53,29 @@ Mọi thao tác chuột và phím tắt: [HUONG-DAN.md](HUONG-DAN.md) (trong app
 
 ## Cài đặt
 
-1. Vào trang [Releases](https://github.com/vhung-spec/bokin-video-fx/releases), tải file `BokinFX-Setup-<phiên bản>.exe` mới nhất.
+1. Vào trang [Releases](https://github.com/vhung-spec/bokin-video-fx/releases) (kho riêng tư: đăng nhập GitHub bằng tài
+   khoản chủ), tải file `BokinFX-Setup-<phiên bản>.exe` mới nhất.
 2. Bấm đúp vào file để cài. Không cần quyền quản trị.
 3. Mở **Bokin FX** từ menu Start hoặc biểu tượng ngoài màn hình. App mở trong một cửa sổ riêng (Edge hoặc Chrome).
 
 App tự kiểm tra bản mới khi mở cửa sổ và mỗi 5 phút. Muốn kiểm tra ngay thì bấm vào dòng **phiên bản** ở góc
 dưới. Khi có bản mới, góc trên có nút **Cập nhật ngay**. Nếu không bấm, bản mới sẽ được cài lúc app tự đóng.
+
+## Kích hoạt (bản quyền)
+
+Bokin FX dùng hệ thống bản quyền chung của các app Bokin (key ký số, gắn với từng máy, kích hoạt không cần mạng).
+Lần đầu mở app (hoặc khi key hết hạn) app chỉ hiện màn hình **Kích hoạt Bokin FX**:
+
+1. Bấm **Chép** cạnh **Mã máy** (16 ký tự, ví dụ `ABCD-EFGH-IJKL-MNOP`) rồi gửi mã đó cho người bán.
+2. Người bán cấp key cho đúng Mã máy đó trong **Key Center** (chọn app **Bokin FX**, hoặc một gói nhiều app).
+3. Dán key nhận được (`BOKIN-…`) vào ô, bấm **Kích hoạt**. App mở ngay.
+
+Key gói nhiều app: kích hoạt ở một app là các app Bokin khác trong gói trên máy đó cùng mở (key lưu chung ở
+`%APPDATA%\BokinLicense\keys.txt`, theo từng tài khoản Windows). Góc dưới app ghi **Đã kích hoạt** (hoặc **Key còn …
+ngày** khi sắp hết hạn): bấm vào đó để xem lại Mã máy hoặc dán key mới để gia hạn. Tự cập nhật vẫn chạy khi chưa kích
+hoạt.
+
+Máy của chủ dự án: mở Key Center trên máy đó và cấp key cho chính máy (lệnh `activate-here`), không cần chép tay.
 
 ## Màn hình
 

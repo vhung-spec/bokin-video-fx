@@ -11,6 +11,24 @@ ROOT = tempfile.mkdtemp(prefix="bokinfx-tests-")
 os.environ["BOKIN_FX_DATA"] = os.path.join(ROOT, "data")
 os.environ["BOKIN_FX_OUT"] = os.path.join(ROOT, "out")
 
+# The app works only once activated (fx/licensing.py). The tests are their own key center: a signing key made here
+# (never the seller's), trusted in place of the seller's public key, and a key for this computer kept in the tests'
+# folder.
+import bokin_license  # noqa: E402
+from bokin_license import ed25519, keys as license_keys, store as license_store  # noqa: E402
+
+TEST_SECRET = bytes(range(1, 33))
+license_keys.PUBLIC_KEY = ed25519.public_key(TEST_SECRET)
+LICENSE_FOLDER = os.path.join(ROOT, "license")
+license_store.default_folder = lambda: LICENSE_FOLDER
+
+
+def test_key(products=("fx",), machine=None, expires=None, secret=TEST_SECRET):
+    return license_keys.make_key(secret, machine or bokin_license.machine_id(), list(products), expires)
+
+
+bokin_license.activate(test_key(), "fx")
+
 
 @atexit.register
 def cleanup():

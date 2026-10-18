@@ -1,0 +1,3 @@
+bokin_license 1.0.0, copied unchanged from the Bokin License repository at commit 4875ddd (2026-10-18).
+Update it by copying the folder again from there; never edit this copy (fix things there, then copy).
+Only the checking side ships here: keys are made by the owner's key center with a signing key that is never in this repository.
