@@ -1549,8 +1549,95 @@ def run(page, folder, edge):
         check("replace V1: the new video plays", state["base"] >= 2 and state["cur"] > 0, str(state))
     check("replace V1: its light copy", "proxy-" in state["src"], str(state))
     shot("07-replaced")
+    match_and_copy(page, shot, lane_y, x_of)
     save_project(page, shot)
+    paste_elsewhere(page, lane_y, x_of)
     check("no script errors on the page", not errors, "\n".join(errors[:10]))
+
+
+def match_and_copy(page, shot, lane_y, x_of):
+    """Khớp màu với cảnh: the app sets a file clip's colour sliders, Ctrl+Z takes them back. Copies of a clip: on
+    another track at the same time ("Chép sang track…", with its area), at the playhead on the track under the mouse
+    (Ctrl+C, Ctrl+V), and where a track is right-clicked."""
+    keys = ["bright", "contrast", "sat", "hue", "temp", "tint_amt", "tint"]
+    fid = page.evaluate("S.project.layers.find(l => l.kind === 'file').id")
+    page.evaluate(f"select('{fid}')")
+    before = page.evaluate(f"JSON.stringify(clipById('{fid}').params)")
+    page.click("#colourMatch")
+    page.wait_for_function("document.querySelector('#toast').textContent.includes('Đã khớp màu với cảnh')", timeout=60000)
+    got = page.evaluate(f"clipById('{fid}').params")
+    shown = page.evaluate("Object.fromEntries([...document.querySelectorAll('#ec input[data-param]')]"
+                          ".map(i => [i.dataset.param, i.value]))")
+    check("Khớp màu với cảnh: the colour sliders set, and shown", all(k in got for k in keys) and
+          all(str(got[k]) == shown.get(k) for k in keys if k != "tint") and got["tint"] == shown.get("tint"),
+          f"{got} / {shown}")
+    shot("09-colour-match")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(300)
+    check("Khớp màu với cảnh: undone in one step", page.evaluate(f"JSON.stringify(clipById('{fid}').params)") == before)
+
+    fps = page.evaluate("fps()")
+    painted = page.evaluate("(S.project.layers.find(l => S.masks[l.id] && !S.masks[l.id].full) || {}).id || null")
+    src = painted or page.evaluate("S.project.layers.find(l => l.kind === 'snow').id")
+    page.evaluate(f"select('{src}')")
+    tracks = page.evaluate("S.project.tracks.length")
+    page.click("#copyToBtn")
+    page.click("#menu >> text=Track mới")
+    page.wait_for_timeout(200)
+    got = page.evaluate(f"""(() => {{
+        const a = clipById('{src}'), b = clipById(S.sel), ma = S.masks[a.id], mb = S.masks[b.id];
+        const px = m => mctx(m).getImageData(0, 0, m.canvas.width, m.canvas.height).data;
+        const same = (x, y) => x.length === y.length && x.every((v, i) => v === y[i]);
+        return {{other: b.id !== a.id && b.track !== a.track, tracks: S.project.tracks.length, kind: b.kind === a.kind,
+                 time: b.start === a.start && b.end === a.end, params: JSON.stringify(b.params) === JSON.stringify(a.params),
+                 area: !ma || ma.full ? mb.full : !mb.full && same(px(ma), px(mb))}};
+    }})()""")
+    check("Chép sang track: the same clip at the same time on a new track, with its area" if painted else
+          "Chép sang track: the same clip at the same time on a new track",
+          got["other"] and got["kind"] and got["time"] and got["params"] and got["area"] and got["tracks"] == tracks + 1,
+          str(got))
+
+    page.evaluate(f"select('{src}')")
+    page.keyboard.press("Control+c")
+    page.evaluate("seek(3)")
+    page.mouse.move(x_of(8), lane_y(0))  # the mouse on the row that makes a new track
+    page.keyboard.press("Control+v")
+    page.wait_for_timeout(200)
+    got = page.evaluate(f"(() => {{ const b = clipById(S.sel); return {{id: b.id, kind: b.kind, start: b.start, "
+                        f"tracks: S.project.tracks.length, name: b.name === clipById('{src}').name}}; }})()")
+    want = 0 if page.evaluate(f"span(clipById('{src}'), false).full") else round(3 * fps)
+    check("Ctrl+C, Ctrl+V: a copy at the playhead, on the track under the mouse", got["id"] != src and
+          got["name"] and got["start"] == want and got["tracks"] == tracks + 2, f"{got}, want start {want}")
+
+    page.mouse.click(x_of(1), lane_y(0), button="right")
+    page.click("#menu >> text=vào đây")
+    page.wait_for_timeout(200)
+    got = page.evaluate("(() => { const b = clipById(S.sel); return {start: b.start, tracks: S.project.tracks.length}; })()")
+    check("right-click on a track: Dán vào đây", got["tracks"] == tracks + 3 and
+          (want == 0 or abs(got["start"] - fps) <= 0.3 * fps), str(got))
+    shot("10-copies")
+
+
+def paste_elsewhere(page, lane_y, x_of):
+    """A clip copied in one project pastes into another (opened after)."""
+    page.evaluate("select(S.project.layers[0].id)")
+    page.keyboard.press("Control+c")
+    other = page.evaluate("S.state.projects.find(p => p.id !== S.project.id).id")
+    page.evaluate(f"openProject('{other}')")
+    page.wait_for_function(f"S.project && S.project.id === '{other}' && S.project.masks", timeout=60000)
+    n = page.evaluate("S.project.layers.length")
+    page.evaluate("seek(2)")
+    page.mouse.move(x_of(8), lane_y(0))
+    page.keyboard.press("Control+v")
+    page.wait_for_timeout(200)
+    pasted = page.evaluate("S.sel")
+    page.evaluate("saveNow()")
+    page.wait_for_timeout(500)
+    kept = page.evaluate(f"(async () => (await get('/api/project?id={other}')).layers.map(c => c.id))()")
+    check("a clip copied in one project pastes into another", page.evaluate("S.project.layers.length") == n + 1 and
+          pasted in kept, f"{pasted} in {kept}")
+    page.keyboard.press("Control+z")  # (the project goes on as it was)
+    page.wait_for_timeout(200)
 
 
 def save_project(page, shot):

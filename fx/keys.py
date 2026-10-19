@@ -54,6 +54,8 @@ ACTIONS = [
     _a("snap", "Timeline", "Bật / tắt bám dính (cả lúc đang kéo clip)", ["KeyS"], "edit"),
     _a("split", "Timeline", "Cắt clip tại đầu phát", ["Ctrl+KeyK"]),
     _a("deleteClip", "Timeline", "Xoá clip đang chọn", ["Delete", "Backspace"], "edit"),
+    _a("copyClip", "Timeline", "Sao chép clip đang chọn (dán được sang track khác, hoặc dự án khác)", ["Ctrl+KeyC"], "edit"),
+    _a("pasteClip", "Timeline", "Dán clip đã chép: tại đầu phát, vào track dưới chuột", ["Ctrl+KeyV"], "edit"),
     _a("undo", "Timeline", "Hoàn tác (đang khoanh: bỏ điểm vừa bấm)", ["Ctrl+KeyZ"]),
     _a("redo", "Timeline", "Làm lại", ["Ctrl+KeyY", "Ctrl+Shift+KeyZ"]),
     _a("brushTool", "Vẽ vùng", "Cọ", ["KeyB"], "paint"),

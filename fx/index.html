@@ -776,6 +776,9 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
           <button class="icon" id="undoBtn" data-tip="Hoàn tác ({undo})" data-icon="undo" disabled></button>
           <button class="icon" id="redoBtn" data-tip="Làm lại ({redo+})" data-icon="redo" disabled></button>
           <span class="sep"></span>
+          <button class="icon" id="copyBtn" data-tip="Sao chép clip đang chọn ({copyClip}), để dán sang track khác hoặc sang dự án (video) khác" data-icon="copy" disabled></button>
+          <button class="icon" id="pasteBtn" data-tip="Dán clip đã chép ({pasteClip}): tại đầu phát, vào track của clip đang chọn (hết chỗ thì track mới). Chuột phải vào chỗ trống trên một track để dán đúng chỗ đó" data-icon="paste" disabled></button>
+          <span class="sep"></span>
           <button class="icon on" data-tool="select" data-tip="Chọn, kéo, kéo mép để cắt bớt ({selectTool})" data-icon="select"></button>
           <button class="icon" data-tool="razor" data-tip="Dao cắt: bấm vào clip để cắt đôi ({razorTool})" data-icon="razor"></button>
           <button class="icon on" id="snapBtn" data-tip="Bám dính vào đầu phát, mép clip, chỗ nối loop ({snap})" data-icon="magnet"></button>
@@ -864,6 +867,8 @@ const ICONS = {
   info: '<circle cx="10" cy="10" r="7.25"/><path d="M10 9v4.5"/><circle class="f" cx="10" cy="6.6" r=".9"/>',
   // actions
   pencil: '<path d="M13.6 3.6l2.8 2.8-8.7 8.7-3.7.9.9-3.7z"/><path d="M12 5.2L14.8 8"/>',
+  paste: '<rect x="4.5" y="4" width="11" height="13" rx="1.8"/><path d="M7.5 4v-.8c0-.4.3-.7.7-.7h3.6c.4 0 .7.3.7.7V4"/><path d="M7.5 9h5M7.5 12h3.5"/>',
+  match: '<path d="M11.4 5.6l3 3"/><path d="M12.9 4.1l1.2-1.2a1.6 1.6 0 0 1 2.3 0l.7.7a1.6 1.6 0 0 1 0 2.3l-1.2 1.2"/><path d="M12.4 7.6l-7.2 7.2-1.9.6.6-1.9 7.2-7.2"/>',
   copy: '<rect x="7" y="7" width="9.5" height="9.5" rx="1.8"/><path d="M13 7V5.3A1.8 1.8 0 0 0 11.2 3.5H5.3A1.8 1.8 0 0 0 3.5 5.3v5.9A1.8 1.8 0 0 0 5.3 13H7"/>',
   brush: '<path d="M16.5 3.5l-6.2 7"/><path d="M9.2 9.6l1.8 1.6"/><path d="M8.6 11.2c-1.9-.4-3.6.9-3.7 2.8-.1 1.1-.6 1.8-1.4 2.4 2.6.6 5.3.1 6.3-1.6.6-1.1.2-2.6-1.2-3.6z"/>',
   poly: '<path d="M10 3.5l6.2 4.5-2.4 7.5H6.2L3.8 8z"/><circle class="f" cx="10" cy="3.5" r="1.3"/><circle class="f" cx="16.2" cy="8" r="1.3"/><circle class="f" cx="13.8" cy="15.5" r="1.3"/><circle class="f" cx="6.2" cy="15.5" r="1.3"/><circle class="f" cx="3.8" cy="8" r="1.3"/>',
@@ -2703,6 +2708,7 @@ function maxClipEnd() { return S.project.layers.reduce((m, c) => Math.max(m, c.e
 function renderTimeline() {
   const p = S.project;
   const has = !!p;
+  clipButtons();
   if (!has) { tlLanes.innerHTML = `<div class="tl-empty">Mở một video để bắt đầu.</div>`; tlHeads.innerHTML = ""; drawRuler(); return; }
   if (S.fitTl) S.pps = fitPps();
   const rs = rows(), W = lanesWidth(), H = rs[rs.length - 1].y + ROW_H, N = total(), f = fps(), pps = S.pps;
@@ -3102,13 +3108,21 @@ function setLength(len) {
 // clips context menu
 tlLanes.addEventListener("contextmenu", e => {
   e.preventDefault();
-  const el = e.target.closest(".clip[data-clip]"); if (!el) return;
+  const el = e.target.closest(".clip[data-clip]");
+  if (!el) {  // an empty place on a track (or the row for a new track): the clip copied, pasted right there
+    const row = rowAt(e.clientY); if (!row || row.type === "base" || !S.project) return;
+    const at = snapFrame(frameAtX(e.clientX), null), track = row.type === "track" ? row.track.id : "new";
+    return showMenu(e.clientX, e.clientY, [[S.clip ? `Dán "${S.clip.clip.name}" vào đây` : "Dán clip vào đây (chưa chép clip nào)",
+      () => pasteClip({track, at, strict: true}), keyName("pasteClip"), "paste"]]);
+  }
   const c = clipById(el.dataset.clip); if (!c) return;
   select(c.id);
-  const fr = snapFrame(frameAtX(e.clientX), c.id);
+  const fr = snapFrame(frameAtX(e.clientX), c.id), x = e.clientX, y = e.clientY;
   showMenu(e.clientX, e.clientY, [
     ["Cắt đôi tại đây", () => splitClip(c, fr), (S.keys.razorTool || []).length ? keyName("razorTool") : "", "razor"],
     ["Nhân đôi", () => duplicate(c), "Alt+kéo", "copy"],
+    ["Sao chép", () => copyClip(c), keyName("copyClip"), "copy"],
+    ["Chép sang track…", () => trackMenu(c, x, y), "", "copy"],
     [c.on === false ? "Bật clip" : "Tắt clip", () => { c.on = c.on === false; edited(); }, "", c.on === false ? "eye" : "eyeOff"],
     ...(clipBefore(c) ? [[c.mix > 0 ? "Bỏ Mix với clip trước" : "Mix với clip trước", () => setMix(c, c.mix > 0 ? 0 : 0.5), "", "mix"]] : []),
     ...(clipAfter(c) ? [[clipAfter(c).mix > 0 ? "Bỏ Mix với clip sau" : "Mix với clip sau", () => { const b = clipAfter(c); setMix(b, b.mix > 0 ? 0 : 0.5); }, "", "mix"]] : []),
@@ -3127,6 +3141,88 @@ function duplicate(c) {
     const t = {id: newId("t"), on: true}; S.project.tracks.push(t); copy.track = t.id;
   }
   S.project.layers.push(copy); S.sel = copy.id; joinFades(copy); edited();
+}
+// copy and paste of clips: to another track, another time, or another project (another video). S.clip is kept
+// while the page is open, so a clip copied in one project pastes into the next one opened.
+function clipboardOf(c) {
+  const m = S.masks[c.id];
+  let area = null;  // its own area, as painted (on another video: where it was on the frame)
+  if (m && !m.full) {
+    area = document.createElement("canvas"); area.width = m.canvas.width; area.height = m.canvas.height;
+    area.getContext("2d").drawImage(m.canvas, 0, 0);
+  }
+  return {project: S.project.id, clip: JSON.parse(JSON.stringify(c)), area, full: span(c, false).full, sec: (c.end - c.start) / fps()};
+}
+function copyClip(c) {
+  if (!c || !S.project) return toast("Hãy chọn một clip trước.", true);
+  S.clip = clipboardOf(c); clipButtons();
+  toast(`Đã chép "${c.name}". Để chuột trên track muốn dán, đặt đầu phát vào chỗ muốn dán rồi bấm ${keyName("pasteClip")}. Hoặc bấm chuột phải vào chỗ trống trên track, chọn "Dán vào đây". Mở dự án khác rồi dán cũng được.`, false, 7000);
+}
+function clipButtons() {
+  const c = $("#copyBtn"), v = $("#pasteBtn");
+  if (c) c.disabled = !S.project || !clipById(S.sel);
+  if (v) v.disabled = !S.project || !S.clip;
+}
+function trackLabel(id) { const i = S.project.tracks.findIndex(t => t.id === id); return i < 0 ? "track mới" : trackName(i); }
+function pasteHere() {  // the paste key: at the playhead, on the track under the mouse (else the selected clip's)
+  const row = S.tlMouse != null ? rowAt(S.tlMouse) : null;
+  if (row && row.type === "track") return pasteClip({track: row.track.id, strict: true});
+  pasteClip(row && row.type === "new" ? {track: "new"} : {});
+}
+function pasteClip(where, cb = S.clip) {  // where: {track: an id or "new", at: its first frame, strict: never elsewhere}
+  const p = S.project; if (!p) return;
+  if (!cb) return toast(`Chưa chép clip nào: chọn một clip rồi bấm ${keyName("copyClip")}.`, true);
+  if (!roomFor(1)) return;
+  const N = total(), room = Math.ceil(2 * S.schema.min_edge_fade * fps());
+  const len = cb.project === p.id ? cb.clip.end - cb.clip.start : Math.max(1, Math.round(cb.sec * fps()));
+  const s = cb.full ? 0 : clamp(where.at ?? curFrame(), 0, Math.max(0, N - room)), en = cb.full ? N : Math.min(N, s + len);
+  let track = where.track || (clipById(S.sel) || {}).track;
+  if (track && track !== "new" && overlaps(track, s, en, null)) {
+    if (where.strict) return toast(`${trackLabel(track)} đã có clip ở chỗ này. Hãy dán vào chỗ trống, track khác, hoặc track mới.`, true);
+    track = null;  // (the selected clip's track is full there: a new track)
+  }
+  if (!track || !p.tracks.some(t => t.id === track)) {
+    if (p.tracks.length >= S.schema.max_tracks) return toast(`Tối đa ${S.schema.max_tracks} track.`, true);
+    const t = {id: newId("t"), on: true}; p.tracks.push(t); track = t.id;
+  }
+  const c = JSON.parse(JSON.stringify(cb.clip));
+  Object.assign(c, {id: newId(c.kind.slice(0, 2)), track, start: s, end: en, mix: 0, short: false});
+  if (cb.full) { c.fade_in = 0; c.fade_out = 0; }
+  else { c.fade_in = c.fade_in > 0 ? c.fade_in : 0.5; c.fade_out = c.fade_out > 0 ? c.fade_out : 0.5; }  // (joined where it was)
+  p.layers.push(c);
+  const m = newMask(c.id, p);
+  if (cb.area) {  // its area too: sent once the new clip is saved
+    const g = mctx(m); g.clearRect(0, 0, m.canvas.width, m.canvas.height);
+    g.drawImage(cb.area, 0, 0, m.canvas.width, m.canvas.height);
+    measure(m); m.ver++; m.posted = m.ver; m.afterSave = !m.full;
+  }
+  joinFades(c); S.sel = c.id; edited();
+  toast(`Đã dán "${c.name}" vào ${trackLabel(track)}.` + (cb.area && cb.project !== p.id ? " Vùng riêng của clip được chép theo chỗ trên khung hình: nếu cảnh khác, hãy tô lại vùng." : ""), false, cb.area && cb.project !== p.id ? 7000 : 3000);
+}
+function trackMenu(c, x, y) {  // "Chép sang track…": the same clip at the same time on another track
+  const p = S.project, items = [];
+  for (let i = p.tracks.length - 1; i >= 0; i--) {
+    const t = p.tracks[i]; if (t.id === c.track) continue;
+    const busy = overlaps(t.id, c.start, c.end, null);
+    items.push([trackName(i) + (busy ? " (đã có clip ở chỗ này)" : ""), () => pasteClip({track: t.id, at: c.start, strict: true}, clipboardOf(c)), "", "copy"]);
+  }
+  items.push(["Track mới", () => pasteClip({track: "new", at: c.start}, clipboardOf(c)), "", "plus"]);
+  showMenu(x, y, items);
+}
+async function matchColours(c, btn) {  // "Khớp màu với cảnh": the app measures the scene under the clip (colourmatch.py)
+  const p = S.project, label = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = `${icon("wait", "lead")}Đang đo màu…`;
+  try {
+    if (!(await saveNow())) return toast("Chưa khớp màu được: thay đổi mới nhất chưa lưu vào app. Hãy bấm lại.", true);
+    const r = await post("/api/match", {id: p.id, layer: c.id});
+    const cur = S.project === p && clipById(c.id); if (!cur) return;  // (undone or another project meanwhile)
+    Object.assign(cur.params, r.params);
+    edited();
+    const said = S.schema.kinds.file.params.filter(d => ["bright", "contrast", "sat", "temp", "tint_amt"].includes(d.key) && r.params[d.key])
+      .map(d => `${d.label} ${r.params[d.key] > 0 && d.key !== "tint_amt" ? "+" : ""}${r.params[d.key]}`);
+    toast(`Đã khớp màu với cảnh${said.length ? ": " + said.join(", ") : " (màu đã hợp, không cần đổi)"}. Kéo các thanh để chỉnh thêm, hoặc ${keyName("undo")} để bỏ.`, false, 7000);
+  } catch (e) { toast(e.message, true, 6000); }
+  finally { if (btn.isConnected) { btn.disabled = false; btn.innerHTML = label; } }
 }
 function showMenu(x, y, items) {  // items: [label, action, key shown on the right, icon, true for a delete] or null (a line)
   const m = $("#menu");
@@ -3328,9 +3424,11 @@ function renderControls() {
       <h4>Vị trí và cỡ</h4>${by.fit}${by.scale}${by.x}${by.y}<div class="flips">${by.flip_h}${by.flip_v}</div>
       <h4>Xoay 3D</h4>${turn}${turnTail(c)}
       ${c.file && c.file.info && !c.file.info.image ? `<h4>Phát file</h4>${startSlider(c)}${by.fade}${by.reverse}<p class="note">File ngắn hơn clip sẽ được phát lặp lại, mỗi lần hoà mượt vào lần sau.</p>` : ""}
-      <h4>Màu sắc</h4>${by.bright}${by.contrast}${by.sat}${by.hue}${by.temp}${by.tint_amt}${by.tint}
+      <h4>Màu sắc</h4>
+      <div class="btns"><button class="small" id="colourMatch" title="App đo màu của video ở chỗ clip nằm, rồi tự đặt các thanh bên dưới">${icon("match", "lead")}Khớp màu với cảnh</button></div>
+      ${by.bright}${by.contrast}${by.sat}${by.hue}${by.temp}${by.tint_amt}${by.tint}
       <div class="btns"><button class="small" id="colourReset" ${colourOps(c.params) ? "" : "disabled"}>Đặt lại màu như file gốc</button></div>
-      <p class="note">Phủ một màu: chọn màu rồi kéo thanh "Phủ một màu" lên (ví dụ tuyết trắng thành vàng ấm).</p>`;
+      <p class="note">Khớp màu với cảnh: đặt clip vào đúng chỗ, chọn chế độ hoà trộn trước, rồi bấm. Sau đó vẫn kéo tay các thanh được. Phủ một màu: chọn màu rồi kéo thanh "Phủ một màu" lên (ví dụ tuyết trắng thành vàng ấm).</p>`;
   })() : sch.params.map((d, i) => {  // a heading where the group changes
     const g = d.group || "Hiệu ứng", head = i === 0 || g !== (sch.params[i - 1].group || "Hiệu ứng") ? `<h4>${esc(g)}</h4>` : "";
     if (g !== "Xoay 3D") return head + params[i] + (d.key === "y" && sheetKind(c) ? `<p class="note">Cỡ 100%, ở giữa: hiệu ứng phủ đúng cả khung hình. Thu nhỏ rồi kéo khung trắng để hiệu ứng chỉ nằm ở một chỗ (ví dụ một ô cửa sổ).</p>` : "");
@@ -3362,6 +3460,8 @@ function renderControls() {
     <div class="btns">
       <button class="small" id="splitBtn" title="Cắt clip tại đầu phát (${keyName("split")})">${icon("razor", "lead")}Cắt tại đầu phát</button>
       <button class="small" id="dupBtn">${icon("copy", "lead")}Nhân đôi</button>
+      <button class="small" id="copyToBtn" title="Chép clip này sang track khác, cùng thời điểm (cả thông số và vùng riêng)">${icon("copy", "lead")}Chép sang track…</button>
+      <button class="small" id="copyClipBtn" title="Sao chép (${keyName("copyClip")}) để dán vào chỗ khác, hoặc vào dự án (video) khác">${icon("copy", "lead")}Sao chép</button>
       <button class="small" id="onBtn">${c.on === false ? "Bật clip" : "Tắt clip"}</button>
       <button class="small danger" id="delBtn">${icon("trash", "lead")}Xoá clip</button>
     </div></div>`;
@@ -3438,6 +3538,7 @@ $("#ec").addEventListener("click", e => {
   if (id === "paintArea") return S.paint === c.id ? exitPaint() : (enterPaint(c.id), renderControls());
   if (id === "clearArea") return clear(c.id, "all");
   if (id === "reseed") { c.seed = Math.floor(Math.random() * 2147483647); edited(); return; }
+  if (id === "colourMatch") return matchColours(c, t);
   if (id === "colourReset") {  // the file's own colours again
     for (const d of S.schema.kinds.file.params) if (COLOUR_KEYS.includes(d.key)) c.params[d.key] = d.value;
     edited(); return;
@@ -3458,6 +3559,8 @@ $("#ec").addEventListener("click", e => {
   }
   if (id === "splitBtn") { const fr = curFrame(); return c.start < fr && fr < c.end ? splitClip(c, fr) : toast("Đặt đầu phát vào trong clip này rồi bấm Cắt.", true); }
   if (id === "dupBtn") return duplicate(c);
+  if (id === "copyClipBtn") return copyClip(c);
+  if (id === "copyToBtn") { const r = t.getBoundingClientRect(); return trackMenu(c, r.left, r.bottom + 4); }
   if (id === "onBtn") { c.on = c.on === false; edited(); return; }
   if (id === "delBtn") return deleteClip(c);
 });
@@ -4221,6 +4324,8 @@ document.addEventListener("keydown", e => {
   else if (is("razorTool")) { S.tool = "razor"; renderTimeline(); }
   else if (is("snap")) { S.snap = !S.snap; renderTimeline(); }
   else if (is("deleteClip")) { e.preventDefault(); const c = clipById(S.sel); if (c) deleteClip(c); }
+  else if (is("copyClip")) { const c = clipById(S.sel); if (c) { e.preventDefault(); copyClip(c); } }  // (else the page's text)
+  else if (is("pasteClip")) { e.preventDefault(); pasteHere(); }
   else if (k === "Escape") { if (S.sel) select(null); }  // (its box and its picture outside the frame go too)
   else if (is("zoomIn")) S.overStage ? zoomKey(1.25) : setPps(S.pps * 1.4, S.time);  // the panel under the mouse
   else if (is("zoomOut")) S.overStage ? zoomKey(1 / 1.25) : setPps(S.pps / 1.4, S.time);
@@ -4242,6 +4347,12 @@ window.addEventListener("blur", () => { S.space = false; S.spaceKey = S.handKey 
 $("#handBtn").onclick = () => setHand(!S.hand);
 $("#tPlay").onclick = () => S.playing ? pause() : play();
 $("#undoBtn").onclick = () => undo(false);
+$("#copyBtn").onclick = () => copyClip(clipById(S.sel));
+$("#pasteBtn").onclick = () => pasteClip({});
+for (const el of [tlLanes, tlHeads]) {  // the track under the mouse: where Ctrl+V pastes
+  el.addEventListener("pointermove", e => { S.tlMouse = e.clientY; });
+  el.addEventListener("pointerleave", () => { S.tlMouse = null; });
+}
 $("#redoBtn").onclick = () => undo(true);
 $("#tPrev").onclick = () => step(-1);
 $("#tNext").onclick = () => step(1);

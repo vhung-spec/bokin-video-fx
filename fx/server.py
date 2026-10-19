@@ -24,7 +24,7 @@ from PIL import Image
 
 import bokin_license
 
-from . import effects, engine, jobs, keys, library, licensing, overlay, paths, projects, timeline, video
+from . import colourmatch, effects, engine, jobs, keys, library, licensing, overlay, paths, projects, timeline, video
 
 UPLOAD_LIMITS = {"video": 4 << 30, "replace": 4 << 30, "library": 4 << 30, "still": 200 << 20}
 UPLOAD_TYPES = {"video": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
@@ -38,7 +38,8 @@ FX_NAME = re.compile(r"^fx-[0-9a-f]{12}\.(webm|mp4)$")
 PROXY_NAME = re.compile(r"^proxy\.(mp4|webm|png)$")  # a library item's
 REV_PROXY_NAME = re.compile(r"^proxy-rev\.(mp4|webm)$")  # its played-backwards light copy
 MEDIA_TYPES = {".mp4": "video/mp4", ".webm": "video/webm", ".png": "image/png", ".jpg": "image/jpeg"}
-ERRORS = (projects.UserError, video.VideoError, library.LibraryError, bokin_license.LicenseError)
+ERRORS = (projects.UserError, video.VideoError, library.LibraryError, bokin_license.LicenseError,
+          colourmatch.MatchError)
 # What answers before the app is activated (licensing): the page and its activation screen, the installer's and the
 # updater's questions. Everything else is refused.
 FREE_GET = {"/", "/index.html", "/api/ping", "/api/license", "/api/state"}
@@ -475,6 +476,12 @@ class Handler(BaseHTTPRequestHandler):
             wanted = {engine.fx_clip_name(project, lay) for lay in project["layers"] if lay["kind"] != "file"}
             job = app.jobs.fx_clip(project["id"], layer["id"], name, wanted)
             return self.send(200, {"name": name, "ready": False, "job": job["id"], "length": length, "at": at})
+        if path == "/api/match":  # "Khớp màu với cảnh": colour settings for a file clip, from the saved project
+            project = projects.load(data.get("id"))
+            layer = next((lay for lay in project["layers"] if lay["id"] == data.get("layer")), None)
+            if layer is None:
+                raise projects.UserError("Không tìm thấy clip.")
+            return self.send(200, {"params": colourmatch.match(projects.folder(project["id"]), project, layer)})
         if path == "/api/copymask":  # a clip cut in two: the second half gets the first one's area
             project = projects.copy_mask(projects.load(data.get("id")), data.get("src"), data.get("dst"))
             return self.send(200, {"rev": project["rev"], "masks": self.project_view(project)["masks"]})

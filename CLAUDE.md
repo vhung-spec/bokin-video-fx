@@ -189,7 +189,16 @@ hiệu ứng. Cách dùng: `README.md`.
   (`turns()`, `sheetKind()`: clip xem nhanh cả khung hoặc hộp, đặt bằng cùng `turnCSS`). CI so góc trang với Python
   (clip file, tuyết, khói, hạt sáng và mưa trong Mix).
 - Màu của clip file: `overlay.colour_ops` (đường cong tông giữ đen là đen, rồi ma trận màu) và trang dựng đúng các số
-  đó thành bộ lọc SVG (`colourOps`, `colourFilter`, `feComponentTransfer` bảng + `feColorMatrix`, sRGB).
+  đó thành bộ lọc SVG (`colourOps`, `colourFilter`, `feComponentTransfer` bảng + `feColorMatrix`, sRGB). "Khớp màu
+  với cảnh" (`fx/colourmatch.py`, `/api/match`, trang `matchColours` sau `saveNow`): đo video ở chỗ clip nằm (hộp quanh
+  tứ giác, rộng thêm `MARGIN`, trong vùng riêng nếu có; vài khung trong thời gian clip) và phần hiện ra của file (Normal:
+  điểm đục; Screen/Add: điểm sáng; Multiply: điểm tối), rồi đặt chính các thanh màu, khớp trên điểm ảnh của clip qua
+  `colour_ops`: độ sáng, độ tương phản (chỉ giảm), độ rực (lệch khỏi ám màu riêng, không tính ám màu), rồi ám màu (ấm
+  + phủ màu của cảnh, tìm lưới), đi `STRENGTH` quãng đường. Screen/Add chỉ tối đi.
+- Chép clip (`clipboardOf`, `copyClip`, `pasteClip`, `trackMenu`, `pasteHere`): `S.clip` giữ bản chép cả khi mở dự án
+  khác (cùng trang); vùng riêng chép theo chỗ trên khung (co giãn theo cỡ mặt nạ). Dán: đầu phát, track dưới chuột
+  (`S.tlMouse`), hoặc track của clip đang chọn (hết chỗ: track mới); chuột phải chỗ trống: dán đúng chỗ đó. Clip suốt
+  video dán vẫn suốt video; mờ dần 0,5 giây nếu clip gốc nối liền (`joinFades` bỏ lại khi nối tiếp).
 - Hoàn tác: `S.hist` giữ timeline và cả lần vẽ vùng (mặt nạ trước/sau, chỉ 8 lần gần nhất). Phóng to hình:
   `zoomPicture` (Ctrl +/-/0/1, `+` `-` khi chuột trên hình); Ctrl + lăn chuột không phóng cả trang.
 - Dời hình như Premiere (`layoutScreen`, `panBy`, `unfit`): `S.zoom` là `"fit"` (giữa, vừa khung) hoặc số điểm ảnh

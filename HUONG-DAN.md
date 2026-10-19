@@ -79,7 +79,10 @@ này không đổi bản kia.
 | Cắt bớt đầu / cuối | Kéo mép trái / phải của clip |
 | Cắt đôi | Chọn **Dao cắt** (hình cái kéo) rồi bấm vào clip. Hoặc nút **Cắt tại đầu phát** trong Bảng chỉnh hiệu ứng |
 | Nhân đôi | Nút **Nhân đôi** trong Bảng chỉnh hiệu ứng: bản sao nối ngay sau. Giữ `Alt` rồi kéo clip: bản sao đặt ở chỗ thả |
-| Menu của clip | Bấm chuột phải vào clip: cắt đôi tại đó, nhân đôi, tắt / bật clip, Mix, kéo dài suốt video, xoá |
+| Chép sang track khác | Nút **Chép sang track…** trong Bảng chỉnh hiệu ứng (hoặc chuột phải vào clip), chọn V2, V3… hay **Track mới**: bản sao cùng thời điểm, cùng thông số, cùng vùng riêng |
+| Sao chép, dán | Chọn clip, bấm `Ctrl+C` (hoặc nút **Sao chép**). Đặt đầu phát vào chỗ muốn dán, để chuột trên track muốn dán (hàng **+ track mới**: tạo track mới), bấm `Ctrl+V`. Hoặc bấm chuột phải vào chỗ trống trên track, chọn **Dán … vào đây** |
+| Dán sang dự án (video) khác | Sao chép clip, mở dự án khác ở thẻ **Dự án**, rồi dán như trên. Vùng riêng của clip được chép theo chỗ trên khung hình: cảnh khác thì tô lại vùng |
+| Menu của clip | Bấm chuột phải vào clip: cắt đôi tại đó, nhân đôi, sao chép, chép sang track khác, tắt / bật clip, Mix, kéo dài suốt video, xoá |
 | Mix (hoà hai clip) | Bấm nút **Mix** (hai vòng tròn) ở chỗ hai clip nối nhau. Nhấn giữ nút **Mix** rồi kéo sang trái / phải: kéo mép clip bên đó |
 | Ẩn một track | Bấm hình con mắt ở đầu track |
 | Hoàn tác / làm lại | Hai nút mũi tên cong ở đầu thanh timeline |
@@ -101,6 +104,7 @@ Chọn clip là trên hình có khung trắng quanh nó.
 | Xoay phẳng | Kéo nút tròn phía trên khung. Giữ `Shift`: từng nấc 15°. Bấm đúp nút tròn: về 0° |
 | Nghiêng 3D | Nhấn giữ nút **3D** (cạnh nút tròn) rồi kéo: trái / phải là xoay trái / phải, lên / xuống là nghiêng trước / sau. Giữ `Shift`: chỉ một hướng. Bấm đúp nút **3D**: thẳng lại |
 | Gõ số cho thật đúng | Gõ vào ô số cạnh thanh trượt trong Bảng chỉnh hiệu ứng, rồi bấm `Enter` |
+| Khớp màu với cảnh (video / ảnh ngoài) | Đặt clip vào đúng chỗ, chọn chế độ hoà trộn, rồi bấm **Khớp màu với cảnh** ở mục **Màu sắc**. App đo màu video ở chỗ clip nằm và tự đặt các thanh màu. Sau đó vẫn kéo tay được. `Ctrl+Z`: bỏ |
 
 Lúc đang kéo, góc trên bên trái hình ghi tên clip, cỡ, vị trí và góc xoay.
 
@@ -187,6 +191,8 @@ Các phím dưới đây là phím mặc định. Phím trong nhóm **Vẽ vùng
 | Bật / tắt bám dính (cả lúc đang kéo clip) | `S` |
 | Cắt clip tại đầu phát | `Ctrl+K` |
 | Xoá clip đang chọn | `Delete` hoặc `Backspace` |
+| Sao chép clip đang chọn (dán được sang track khác, hoặc dự án khác) | `Ctrl+C` |
+| Dán clip đã chép: tại đầu phát, vào track dưới chuột | `Ctrl+V` |
 | Hoàn tác (đang khoanh: bỏ điểm vừa bấm) | `Ctrl+Z` |
 | Làm lại | `Ctrl+Y` hoặc `Ctrl+Shift+Z` |
 

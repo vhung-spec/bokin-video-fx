@@ -146,6 +146,8 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 | Cắt bớt đầu / cuối | Kéo mép trái / phải của clip |
 | Cắt đôi | Chọn dao cắt (hình cái kéo, phím `C`) rồi bấm vào clip. Hoặc `Ctrl+K`: cắt clip đang chọn tại đầu phát (không chọn clip nào thì cắt mọi clip ở đầu phát). Không cắt ở chỗ clip đang mờ dần |
 | Nhân đôi (nhân bản) | Nút **Nhân đôi** trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip: bản sao nối ngay sau. Giữ `Alt` rồi kéo clip: bản sao đặt ở chỗ thả |
+| Chép sang track khác | Nút **Chép sang track…** (hoặc chuột phải vào clip), chọn V2, V3… hay **Track mới**: bản sao cùng thời điểm, cùng thông số và vùng riêng |
+| Sao chép, dán (cả sang dự án khác) | Chọn clip, `Ctrl+C`. Đặt đầu phát, để chuột trên track muốn dán, `Ctrl+V`; hoặc chuột phải vào chỗ trống trên track: **Dán … vào đây**. Mở dự án khác rồi dán cũng được (vùng riêng chép theo chỗ trên khung hình) |
 | Xoá clip | Chọn clip rồi bấm `Delete` |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` (hoặc `Ctrl+Shift+Z`), hoặc hai nút mũi tên cong ở đầu thanh timeline. Hoàn tác được cả vùng đã vẽ (cả lần vẽ là một bước) |
 | Ẩn một track | Bấm hình con mắt ở đầu track (bấm lại để hiện) |
@@ -313,6 +315,12 @@ là dời tuyết (dù bên dưới có logo hay một video phủ cả hình); 
 Chọn clip, mục **Màu sắc** trong Bảng chỉnh hiệu ứng: độ sáng, độ tương phản, độ đậm màu, đổi màu (xoay vòng màu),
 lạnh ↔ ấm, và **Phủ một màu** (chọn màu rồi kéo thanh lên, ví dụ tuyết trắng thành vàng ấm). Nền đen của hiệu ứng vẫn
 đen. **Đặt lại màu như file gốc** để bỏ hết.
+
+**Khớp màu với cảnh**: đặt clip vào đúng chỗ và chọn chế độ hoà trộn trước, rồi bấm nút này. App đo màu của video ở chỗ
+clip nằm (cả một chút xung quanh, trong vùng riêng nếu đã tô) và màu của chính clip, rồi tự đặt độ sáng, độ tương phản,
+độ đậm màu, lạnh ↔ ấm và phủ màu để clip hợp ánh sáng của cảnh (đi gần hết, không hết hẳn, để không như phủ một lớp
+lọc màu). Clip dùng Screen (hiệu ứng trên nền đen) chỉ bị làm tối đi, không sáng hơn. Sau đó vẫn kéo tay được; `Ctrl+Z`
+để bỏ. Dời clip sang chỗ khác thì bấm lại.
 
 ## Bản quyền hình và video
 
