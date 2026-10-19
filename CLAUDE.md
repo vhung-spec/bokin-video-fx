@@ -199,6 +199,11 @@ hiệu ứng. Cách dùng: `README.md`.
   khác (cùng trang); vùng riêng chép theo chỗ trên khung (co giãn theo cỡ mặt nạ). Dán: đầu phát, track dưới chuột
   (`S.tlMouse`), hoặc track của clip đang chọn (hết chỗ: track mới); chuột phải chỗ trống: dán đúng chỗ đó. Clip suốt
   video dán vẫn suốt video; mờ dần 0,5 giây nếu clip gốc nối liền (`joinFades` bỏ lại khi nối tiếp).
+  "Dán thiết lập" (Paste Attributes, `Ctrl+Alt+V`, `pasteAttrsDialog`, `pasteAttrs`): thông số của `S.clip` theo nhóm
+  như bảng chỉnh (`paramGroups`: clip file `FILE_GROUPS`, hiệu ứng tạo sẵn theo `group` của schema) và của clip
+  (`CLIP_GROUPS`: mờ dần; mép mềm vùng + sau tiền cảnh; không chép hình vùng). Khác loại: chỉ `SHARED_GROUPS` (vị trí và
+  cỡ, xoay 3D) và nhóm của clip. Giá trị kiểm theo schema của clip nhận (`fitValue`). Vào clip đang chọn hoặc mọi clip
+  cùng loại; một bước hoàn tác.
 - Hoàn tác: `S.hist` giữ timeline và cả lần vẽ vùng (mặt nạ trước/sau, chỉ 8 lần gần nhất). Phóng to hình:
   `zoomPicture` (Ctrl +/-/0/1, `+` `-` khi chuột trên hình); Ctrl + lăn chuột không phóng cả trang.
 - Dời hình như Premiere (`layoutScreen`, `panBy`, `unfit`): `S.zoom` là `"fit"` (giữa, vừa khung) hoặc số điểm ảnh

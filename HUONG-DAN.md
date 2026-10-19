@@ -82,7 +82,8 @@ này không đổi bản kia.
 | Chép sang track khác | Nút **Chép sang track…** trong Bảng chỉnh hiệu ứng (hoặc chuột phải vào clip), chọn V2, V3… hay **Track mới**: bản sao cùng thời điểm, cùng thông số, cùng vùng riêng |
 | Sao chép, dán | Chọn clip, bấm `Ctrl+C` (hoặc nút **Sao chép**). Đặt đầu phát vào chỗ muốn dán, để chuột trên track muốn dán (hàng **+ track mới**: tạo track mới), bấm `Ctrl+V`. Hoặc bấm chuột phải vào chỗ trống trên track, chọn **Dán … vào đây** |
 | Dán sang dự án (video) khác | Sao chép clip, mở dự án khác ở thẻ **Dự án**, rồi dán như trên. Vùng riêng của clip được chép theo chỗ trên khung hình: cảnh khác thì tô lại vùng |
-| Menu của clip | Bấm chuột phải vào clip: cắt đôi tại đó, nhân đôi, sao chép, chép sang track khác, tắt / bật clip, Mix, kéo dài suốt video, xoá |
+| Dán thiết lập (như Paste Attributes của Premiere) | Chọn clip đã chỉnh xong, bấm `Ctrl+C`. Chọn clip khác, bấm `Ctrl+Alt+V` (hoặc nút **Dán thiết lập…**, hoặc chuột phải vào clip). Tích những thiết lập muốn lấy (màu sắc, vị trí và cỡ, xoay 3D, hoà trộn, mờ dần…), chọn dán vào clip đang chọn hay mọi clip cùng loại, rồi bấm **Dán**. Clip khác loại (ví dụ video ngoài sang tuyết): chỉ dán được vị trí, cỡ, xoay, mờ dần. `Ctrl+Z`: bỏ |
+| Menu của clip | Bấm chuột phải vào clip: cắt đôi tại đó, nhân đôi, sao chép, chép sang track khác, dán thiết lập, tắt / bật clip, Mix, kéo dài suốt video, xoá |
 | Mix (hoà hai clip) | Bấm nút **Mix** (hai vòng tròn) ở chỗ hai clip nối nhau. Nhấn giữ nút **Mix** rồi kéo sang trái / phải: kéo mép clip bên đó |
 | Ẩn một track | Bấm hình con mắt ở đầu track |
 | Hoàn tác / làm lại | Hai nút mũi tên cong ở đầu thanh timeline |
@@ -193,6 +194,7 @@ Các phím dưới đây là phím mặc định. Phím trong nhóm **Vẽ vùng
 | Xoá clip đang chọn | `Delete` hoặc `Backspace` |
 | Sao chép clip đang chọn (dán được sang track khác, hoặc dự án khác) | `Ctrl+C` |
 | Dán clip đã chép: tại đầu phát, vào track dưới chuột | `Ctrl+V` |
+| Dán thiết lập của clip đã chép (màu, cỡ, vị trí…) vào clip đang chọn | `Ctrl+Alt+V` |
 | Hoàn tác (đang khoanh: bỏ điểm vừa bấm) | `Ctrl+Z` |
 | Làm lại | `Ctrl+Y` hoặc `Ctrl+Shift+Z` |
 

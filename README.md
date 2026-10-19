@@ -148,6 +148,7 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 | Nhân đôi (nhân bản) | Nút **Nhân đôi** trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip: bản sao nối ngay sau. Giữ `Alt` rồi kéo clip: bản sao đặt ở chỗ thả |
 | Chép sang track khác | Nút **Chép sang track…** (hoặc chuột phải vào clip), chọn V2, V3… hay **Track mới**: bản sao cùng thời điểm, cùng thông số và vùng riêng |
 | Sao chép, dán (cả sang dự án khác) | Chọn clip, `Ctrl+C`. Đặt đầu phát, để chuột trên track muốn dán, `Ctrl+V`; hoặc chuột phải vào chỗ trống trên track: **Dán … vào đây**. Mở dự án khác rồi dán cũng được (vùng riêng chép theo chỗ trên khung hình) |
+| Dán thiết lập (Paste Attributes) | Chọn clip đã chỉnh, `Ctrl+C`. Chọn clip khác, `Ctrl+Alt+V` (hoặc nút **Dán thiết lập…**): tích màu sắc, vị trí và cỡ, xoay 3D, hoà trộn, mờ dần…, dán vào clip đó hoặc mọi clip cùng loại. Clip khác loại: chỉ vị trí, cỡ, xoay, mờ dần |
 | Xoá clip | Chọn clip rồi bấm `Delete` |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` (hoặc `Ctrl+Shift+Z`), hoặc hai nút mũi tên cong ở đầu thanh timeline. Hoàn tác được cả vùng đã vẽ (cả lần vẽ là một bước) |
 | Ẩn một track | Bấm hình con mắt ở đầu track (bấm lại để hiện) |

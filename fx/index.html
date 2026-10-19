@@ -632,6 +632,9 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
 .modal p { margin: 10px 0; font-size: var(--fs-sm); line-height: 1.55; }
 .modal .acts { display: flex; justify-content: flex-end; align-items: center; gap: var(--s2); margin-top: var(--s4); }
 .modal .acts button { min-height: 32px; min-width: 84px; padding: 0 var(--s4); font-size: var(--fs); }
+.modal .pa label { display: flex; gap: var(--s2); align-items: center; margin: 6px 0; font-size: var(--fs-sm); cursor: pointer; }
+.modal .pa .groups { columns: 2; column-gap: var(--s5); margin: var(--s1) 0 var(--s2); }
+.modal .pa .groups label { break-inside: avoid; margin: 0 0 6px; }
 .modal video { display: block; max-width: 86vw; max-height: 74vh; background: #000; border-radius: var(--r-sm); }
 /* the Phím tắt window: every action and its keys (changed by pressing a new one), and the guide (HUONG-DAN.md) */
 .modal .box:has(.kd) { display: flex; width: min(880px, 94vw); max-width: 94vw; height: min(780px, 90vh); padding: 0; overflow: hidden; }
@@ -3123,6 +3126,7 @@ tlLanes.addEventListener("contextmenu", e => {
     ["Nhân đôi", () => duplicate(c), "Alt+kéo", "copy"],
     ["Sao chép", () => copyClip(c), keyName("copyClip"), "copy"],
     ["Chép sang track…", () => trackMenu(c, x, y), "", "copy"],
+    [S.clip ? `Dán thiết lập của "${S.clip.clip.name}"…` : "Dán thiết lập… (chưa chép clip nào)", () => pasteAttrsDialog(c), keyName("pasteAttrs"), "paste"],
     [c.on === false ? "Bật clip" : "Tắt clip", () => { c.on = c.on === false; edited(); }, "", c.on === false ? "eye" : "eyeOff"],
     ...(clipBefore(c) ? [[c.mix > 0 ? "Bỏ Mix với clip trước" : "Mix với clip trước", () => setMix(c, c.mix > 0 ? 0 : 0.5), "", "mix"]] : []),
     ...(clipAfter(c) ? [[clipAfter(c).mix > 0 ? "Bỏ Mix với clip sau" : "Mix với clip sau", () => { const b = clipAfter(c); setMix(b, b.mix > 0 ? 0 : 0.5); }, "", "mix"]] : []),
@@ -3156,7 +3160,7 @@ function clipboardOf(c) {
 function copyClip(c) {
   if (!c || !S.project) return toast("Hãy chọn một clip trước.", true);
   S.clip = clipboardOf(c); clipButtons();
-  toast(`Đã chép "${c.name}". Để chuột trên track muốn dán, đặt đầu phát vào chỗ muốn dán rồi bấm ${keyName("pasteClip")}. Hoặc bấm chuột phải vào chỗ trống trên track, chọn "Dán vào đây". Mở dự án khác rồi dán cũng được.`, false, 7000);
+  toast(`Đã chép "${c.name}". Dán clip: để chuột trên track muốn dán, đặt đầu phát rồi bấm ${keyName("pasteClip")} (hoặc chuột phải vào chỗ trống trên track). Chỉ lấy thiết lập (màu, cỡ, vị trí…): chọn clip khác rồi bấm ${keyName("pasteAttrs")}.`, false, 8000);
 }
 function clipButtons() {
   const c = $("#copyBtn"), v = $("#pasteBtn");
@@ -3208,6 +3212,81 @@ function trackMenu(c, x, y) {  // "Chép sang track…": the same clip at the sa
   }
   items.push(["Track mới", () => pasteClip({track: "new", at: c.start}, clipboardOf(c)), "", "plus"]);
   showMenu(x, y, items);
+}
+// "Dán thiết lập" (Premiere's Paste Attributes): the copied clip's settings, group by group, onto other clips
+const FILE_GROUPS = [["Màu sắc", COLOUR_KEYS], ["Vị trí và cỡ", ["fit", "scale", "x", "y", "flip_h", "flip_v"]],
+  ["Xoay 3D", [...ROT_KEYS, "persp"]], ["Hoà trộn", ["blend", "opacity"]], ["Phát file", ["start", "fade", "reverse"]]];
+const SHARED_GROUPS = ["Vị trí và cỡ", "Xoay 3D"];  // the only settings clips of two kinds have in common
+const CLIP_GROUPS = [["Mờ dần", ["fade_in", "fade_out"]], ["Độ mềm mép vùng, bay sau tiền cảnh", ["feather", "behind"]]];
+function paramGroups(kind) {  // [heading, keys] as the clip's panel shows them
+  if (kind === "file") return FILE_GROUPS;
+  const out = [];
+  for (const d of S.schema.kinds[kind].params) {
+    const g = d.group || "Hiệu ứng", last = out[out.length - 1];
+    if (last && last[0] === g) last[1].push(d.key); else out.push([g, [d.key]]);
+  }
+  return out;
+}
+function attrGroups(src, kind) {  // what of src can go onto clips of this kind: {name, keys (params), clip (the clip's own)}
+  const theirs = new Map(paramGroups(kind));
+  const groups = paramGroups(src.kind).filter(([g]) => theirs.has(g) && (src.kind === kind || SHARED_GROUPS.includes(g)))
+    .map(([g, keys]) => ({name: g, keys: keys.filter(k => theirs.get(g).includes(k))})).filter(g => g.keys.length);
+  return [...groups, ...CLIP_GROUPS.map(([g, clip]) => ({name: g, clip}))];
+}
+function fitValue(d, v) {  // a value for this setting as the clip's own kind takes it, or undefined
+  if (d.type === "range") { const n = +v; return Number.isFinite(n) ? clamp(n, d.min, d.max) : undefined; }
+  if (d.type === "toggle") return !!v;
+  if (d.type === "color") return /^#[0-9a-f]{6}$/i.test(v) ? v : undefined;
+  if (d.type === "choice") return d.options.some(o => o.value === v) ? v : undefined;
+}
+function pasteAttrsDialog(c) {
+  const p = S.project; if (!p) return;
+  if (!c) return toast("Hãy chọn clip muốn dán thiết lập vào.", true);
+  const cb = S.clip;
+  if (!cb) return toast(`Chưa chép clip nào: chọn clip có thiết lập muốn lấy, bấm ${keyName("copyClip")}, rồi chọn clip khác và dán thiết lập.`, true);
+  const src = cb.clip, groups = attrGroups(src, c.kind);
+  const all = p.layers.filter(x => x.kind === c.kind && !(cb.project === p.id && x.id === src.id));
+  const kindName = c.kind === "file" ? "video / ảnh ngoài" : kindLabel(c.kind);
+  pause();
+  const box = $("#modalBox");
+  box.innerHTML = `<div class="pa"><h3>Dán thiết lập</h3>
+    <p>Lấy thiết lập của <b>${esc(src.name)}</b>${cb.project !== p.id ? " (ở dự án khác)" : ""}, dán vào:</p>
+    <label><input type="radio" name="paTo" value="one" checked> Clip đang chọn: <b>${esc(c.name)}</b></label>
+    ${all.length > 1 ? `<label><input type="radio" name="paTo" value="all"> Mọi clip ${esc(kindName)} trong dự án (${all.length} clip)</label>` : ""}
+    <p>Thiết lập dán:</p>
+    <div class="groups">${groups.map((g, i) => `<label><input type="checkbox" data-pa="${i}" ${g.name === "Phát file" ? "" : "checked"}> ${esc(g.name)}</label>`).join("")}</div>
+    ${src.kind !== c.kind ? `<p style="color:var(--dim)">Hai clip khác loại: chỉ dán được vị trí, cỡ, xoay, mờ dần và vùng.</p>` : ""}
+    <div class="acts"><button id="mCancel">Huỷ</button><button class="primary" id="mGo">Dán</button></div></div>`;
+  $("#modal").style.display = "flex";
+  $("#mCancel").onclick = closeModal;
+  $("#mGo").onclick = () => {
+    const chosen = groups.filter((g, i) => box.querySelector(`[data-pa="${i}"]`).checked);
+    const to = box.querySelector('[name="paTo"]:checked').value === "all" ? all : [c];
+    closeModal();
+    if (!chosen.length) return toast("Chưa chọn thiết lập nào để dán.", true);
+    pasteAttrs(src, to, chosen);
+  };
+}
+function pasteAttrs(src, targets, groups) {  // one undo step for all of them
+  let reversed = false;
+  for (const c of targets) {
+    const defs = new Map(S.schema.kinds[c.kind].params.map(d => [d.key, d]));
+    for (const g of groups) {
+      for (const k of g.keys || []) {
+        const d = defs.get(k), v = d && k in src.params ? fitValue(d, src.params[k]) : undefined;
+        if (v === undefined) continue;
+        if (k === "reverse" && !!c.params[k] !== !!v) reversed = true;
+        c.params[k] = v;
+      }
+      for (const k of g.clip || []) {
+        if (!(k in src) || ((k === "fade_in" || k === "fade_out") && span(c, false).full)) continue;  // (over the whole video: no fades)
+        c[k] = src[k];
+      }
+    }
+  }
+  edited();
+  if (reversed) pollSoon();  // another file plays: its own copy
+  toast(`Đã dán thiết lập (${groups.map(g => g.name).join(", ")}) vào ${targets.length === 1 ? `"${targets[0].name}"` : targets.length + " clip"}. ${keyName("undo")} để bỏ.`, false, 5000);
 }
 async function matchColours(c, btn) {  // "Khớp màu với cảnh": the app measures the scene under the clip (colourmatch.py)
   const p = S.project, label = btn.innerHTML;
@@ -3462,6 +3541,7 @@ function renderControls() {
       <button class="small" id="dupBtn">${icon("copy", "lead")}Nhân đôi</button>
       <button class="small" id="copyToBtn" title="Chép clip này sang track khác, cùng thời điểm (cả thông số và vùng riêng)">${icon("copy", "lead")}Chép sang track…</button>
       <button class="small" id="copyClipBtn" title="Sao chép (${keyName("copyClip")}) để dán vào chỗ khác, hoặc vào dự án (video) khác">${icon("copy", "lead")}Sao chép</button>
+      <button class="small" id="pasteAttrsBtn" title="Dán thiết lập (${keyName("pasteAttrs")}) của clip đã chép (${keyName("copyClip")}) vào clip này: màu sắc, cỡ, vị trí, xoay…">${icon("paste", "lead")}Dán thiết lập…</button>
       <button class="small" id="onBtn">${c.on === false ? "Bật clip" : "Tắt clip"}</button>
       <button class="small danger" id="delBtn">${icon("trash", "lead")}Xoá clip</button>
     </div></div>`;
@@ -3560,6 +3640,7 @@ $("#ec").addEventListener("click", e => {
   if (id === "splitBtn") { const fr = curFrame(); return c.start < fr && fr < c.end ? splitClip(c, fr) : toast("Đặt đầu phát vào trong clip này rồi bấm Cắt.", true); }
   if (id === "dupBtn") return duplicate(c);
   if (id === "copyClipBtn") return copyClip(c);
+  if (id === "pasteAttrsBtn") return pasteAttrsDialog(c);
   if (id === "copyToBtn") { const r = t.getBoundingClientRect(); return trackMenu(c, r.left, r.bottom + 4); }
   if (id === "onBtn") { c.on = c.on === false; edited(); return; }
   if (id === "delBtn") return deleteClip(c);
@@ -4325,6 +4406,7 @@ document.addEventListener("keydown", e => {
   else if (is("snap")) { S.snap = !S.snap; renderTimeline(); }
   else if (is("deleteClip")) { e.preventDefault(); const c = clipById(S.sel); if (c) deleteClip(c); }
   else if (is("copyClip")) { const c = clipById(S.sel); if (c) { e.preventDefault(); copyClip(c); } }  // (else the page's text)
+  else if (is("pasteAttrs")) { e.preventDefault(); pasteAttrsDialog(clipById(S.sel)); }
   else if (is("pasteClip")) { e.preventDefault(); pasteHere(); }
   else if (k === "Escape") { if (S.sel) select(null); }  // (its box and its picture outside the frame go too)
   else if (is("zoomIn")) S.overStage ? zoomKey(1.25) : setPps(S.pps * 1.4, S.time);  // the panel under the mouse

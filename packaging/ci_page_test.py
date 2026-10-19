@@ -1576,6 +1576,31 @@ def match_and_copy(page, shot, lane_y, x_of):
     page.wait_for_timeout(300)
     check("Khớp màu với cảnh: undone in one step", page.evaluate(f"JSON.stringify(clipById('{fid}').params)") == before)
 
+    # Dán thiết lập (Paste Attributes): this clip's colours and size onto another file clip, in one undo step; onto
+    # a clip of another kind only what both have
+    page.evaluate(f"(() => {{ const c = clipById('{fid}'); c.params.bright = 30; c.params.scale = 60; edited(); select(c.id); }})()")
+    page.keyboard.press("Control+c")
+    other = page.evaluate("(() => { addClip({lib: S.lib[0].id}, null, 0, 48); return S.sel; })()")
+    page.keyboard.press("Control+Alt+v")
+    page.wait_for_selector("#modalBox .pa")
+    names = page.evaluate("[...document.querySelectorAll('#modalBox .groups label')].map(l => l.textContent.trim())")
+    shot("09b-paste-attributes")
+    page.click("#mGo")
+    got = page.evaluate(f"(() => {{ const b = clipById('{other}').params; return [b.bright, b.scale, b.start]; }})()")
+    check("Dán thiết lập: the colours and size of one clip onto another", got == [30, 60, 0] and
+          names[:3] == ["Màu sắc", "Vị trí và cỡ", "Xoay 3D"], f"{got}, {names}")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    got = page.evaluate(f"(() => {{ const b = clipById('{other}').params; return [b.bright, b.scale]; }})()")
+    check("Dán thiết lập: undone in one step", got == [0, 100], str(got))
+    page.evaluate("select(S.project.layers.find(l => l.kind === 'snow').id)")
+    page.keyboard.press("Control+Alt+v")
+    page.wait_for_selector("#modalBox .pa")
+    names = page.evaluate("[...document.querySelectorAll('#modalBox .groups label')].map(l => l.textContent.trim())")
+    check("Dán thiết lập onto another kind: only what both have",
+          "Vị trí và cỡ" in names and "Xoay 3D" in names and "Màu sắc" not in names and "Mờ dần" in names, str(names))
+    page.click("#mCancel")
+
     fps = page.evaluate("fps()")
     painted = page.evaluate("(S.project.layers.find(l => S.masks[l.id] && !S.masks[l.id].full) || {}).id || null")
     src = painted or page.evaluate("S.project.layers.find(l => l.kind === 'snow').id")
