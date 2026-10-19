@@ -155,6 +155,12 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/updater.py`: tự cập nhật. `fx/selftest.py`: tự kiểm tra.
 - `packaging/`: PyInstaller (`BokinFX.spec`), Inno Setup (`BokinFX.iss`), icon, bài thử cài đặt, cập nhật, và giao
   diện trên Edge (`ci_page_test.py`, dùng Playwright) trong CI.
+- `brand/`: bộ logo chung của mọi app Bokin (hướng B, chủ chọn 2026-10-19; `brand/README.md`): ô màu riêng mỗi app, mã
+  hai chữ màu đậm góc dưới trái, vòng lặp nhỏ góc trên phải (bỏ dưới 32 điểm ảnh). `make_icons.py` chỉ dùng Pillow và
+  numpy: chữ là đường viền Be Vietnam Pro ExtraBold (OFL) trong `glyphs.json`, tô chẵn lẻ; `write_ico()` vẽ riêng
+  từng cỡ; `svg()`, `small_svg()`; `out/` là file cho mọi app (commit sẵn). Bokin FX: `packaging/make_icon.py` (CI
+  chạy trước PyInstaller, `icon.ico` không commit), tab và logo góc trên của trang là `small_svg("fx")`. Đổi logo thì
+  chạy lại `python brand/make_icons.py` và dán lại đoạn SVG vào `index.html`.
 - Thư viện: numpy, Pillow, imageio-ffmpeg. **Không dùng OpenCV**: OpenCV cần Media Foundation, mà Windows bản N và
   Windows Server không có sẵn.
 

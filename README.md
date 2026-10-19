@@ -344,6 +344,7 @@ Gỡ cài đặt hoặc cập nhật không xoá những thư mục này. Dự �
 - Tự kiểm tra trọn vẹn (làm một video thật): `python bokin_fx.py --selftest`
 - Thử giao diện trong trình duyệt (cần `pip install playwright`): `python packaging/ci_page_test.py`
 - Cấu trúc và quy tắc: [CLAUDE.md](CLAUDE.md).
+- Logo: thư mục [brand](brand/README.md) là bộ logo chung của mọi app Bokin (file .ico, .png, .svg cho từng app).
 - Mỗi lần push lên nhánh phát hành, GitHub Actions build trên Windows, chạy kiểm thử, thử giao diện trên Edge, cài
   thử, thử tự cập nhật rồi phát hành bản cài mới ở kho công khai `vhung-spec/bokin-fx-releases`
   (`.github/workflows/bokin-fx.yml`, cần secret `RELEASES_TOKEN`: token chỉ ghi được Releases của kho đó).
