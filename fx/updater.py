@@ -1,4 +1,5 @@
-"""Self-update from this repository's GitHub releases (a public repository: no login, no key).
+"""Self-update from the GitHub releases of vhung-spec/bokin-fx-releases: a public repository that holds only the
+installers (no login, no key), since the source repository is private and its releases need a login.
 
 A release is tagged fx-v<version> and carries the installer BokinFX-Setup-<version>.exe; GitHub Actions only
 publishes one after building, installing and testing it. AutoUpdate looks when the app starts, every 5 minutes
@@ -10,7 +11,8 @@ whose file cannot be checked is never used.
 
 The installer runs when the app quits by itself, or at once when the page asks ("Cập nhật ngay"), and then starts
 the app again. Only api.github.com and GitHub's download servers are contacted, with nothing about the computer.
-Whoever can publish releases in the repository can update every installed app: keep that account protected.
+Whoever can publish releases there can update every installed app: keep that account protected, and the workflow's
+token (the RELEASES_TOKEN secret) limited to that repository.
 """
 import collections
 import hashlib
@@ -22,7 +24,7 @@ import threading
 import time
 import urllib.request
 
-RELEASES = "https://api.github.com/repos/vhung-spec/bokin-video-fx/releases?per_page=50"
+RELEASES = "https://api.github.com/repos/vhung-spec/bokin-fx-releases/releases?per_page=50"
 TAG = "fx-v"
 INSTALLER = re.compile(r"^BokinFX-Setup-[0-9.]+\.exe$")
 CHECK_EVERY = 5 * 60

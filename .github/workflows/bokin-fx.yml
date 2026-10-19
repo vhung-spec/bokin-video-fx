@@ -1,5 +1,7 @@
-# Builds the Bokin FX installer on Windows, tests it, and publishes it as a GitHub Release
-# (repo page -> Releases -> BokinFX-Setup-<version>.exe, tag fx-v<version>). The installed apps update from there.
+# Builds the Bokin FX installer on Windows, tests it, and publishes it as a GitHub Release of the public repository
+# vhung-spec/bokin-fx-releases (installers only; this repository is private and its releases need a login):
+# Releases -> BokinFX-Setup-<version>.exe, tag fx-v<version>. The installed apps update from there. The RELEASES_TOKEN
+# secret is a fine-grained token with Contents read/write on that repository only.
 name: Bokin FX
 
 on:
@@ -8,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: bokin-fx-${{ github.ref }}
@@ -94,13 +96,14 @@ jobs:
           name: BokinFX-Setup-${{ env.APP_VERSION }}
           path: dist/BokinFX-Setup-*.exe
 
-      - name: Publish a release
+      - name: Publish a release (in vhung-spec/bokin-fx-releases)
         if: github.ref == 'refs/heads/claude/relaxed-ptolemy-v732bs'
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
+          if (-not $env:GH_TOKEN) { throw "No RELEASES_TOKEN secret: a token that can write the releases of vhung-spec/bokin-fx-releases." }
           $file = (Get-ChildItem dist/BokinFX-Setup-*.exe).FullName
           $sha = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
           python packaging/release_notes.py $env:APP_VERSION $sha notes.md
-          gh release create "fx-v$env:APP_VERSION" $file --target "${{ github.sha }}" --title "Bokin FX $env:APP_VERSION" --notes-file notes.md
+          gh release create "fx-v$env:APP_VERSION" $file --repo vhung-spec/bokin-fx-releases --title "Bokin FX $env:APP_VERSION" --notes-file notes.md

@@ -55,6 +55,10 @@ class Updates(unittest.TestCase):
         return {"tag_name": tag, "draft": draft, "prerelease": False, "assets": [asset],
                 "body": body.replace("<sha>", sha)}
 
+    def test_public_releases(self):
+        """The source repository is private (its releases need a login): the apps read the installers' repository."""
+        self.assertTrue(updater.RELEASES.startswith("https://api.github.com/repos/vhung-spec/bokin-fx-releases/releases"))
+
     def test_versions(self):
         self.assertEqual(updater.parse_version("1.0.12"), (1, 0, 12))
         self.assertIsNone(updater.parse_version("dev"))

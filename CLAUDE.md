@@ -13,8 +13,11 @@ hiệu ứng. Cách dùng: `README.md`.
   phiên bản, commit). Không sửa bản chép ở đây (sửa ở kho đó rồi chép lại). Chỉ phần kiểm tra key và khoá công khai;
   khoá ký và mã cài đặt chỉ nằm trên máy của chủ dự án, không bao giờ vào kho này, bộ cài hay chat.
 - Mã hay tài liệu của các kho khác của công ty: chỉ chép vào đây khi chủ đồng ý.
-- Releases của kho riêng tư chỉ người đăng nhập GitHub tải được, nên app (đọc Releases không đăng nhập,
-  `fx/updater.py`) không thấy bản mới: cần một kênh phát hành khác (chủ chọn). Đến lúc đó, cài bản mới bằng tay.
+- Bản cài phát hành ở kho **công khai** `vhung-spec/bokin-fx-releases` (chỉ có Releases, không có mã; chủ chọn
+  2026-10-19): app đọc Releases ở đó không cần đăng nhập (`fx/updater.py`), khách tải ở
+  `…/bokin-fx-releases/releases/latest`. CI đăng bằng secret `RELEASES_TOKEN` (token fine-grained, Contents read/write
+  chỉ kho đó, hạn 1 năm: hết hạn thì bước phát hành đỏ, chủ tạo token mới). App 1.0.48 trở về trước đọc Releases của
+  kho này (riêng tư, không thấy): cài tay bản mới một lần.
 - Hình hạt (lá, tuyết…) đều vẽ bằng mã. Chỉ thêm hình/video mà công ty sở hữu hoặc có giấy phép.
 - Học ý tưởng từ dự án mở thì được. Mã GPL (Shotcut, Kdenlive, OpenShot…) không chép vào đây. Mã MIT/Apache chỉ dùng
   khi ghi kèm giấy phép.
@@ -241,7 +244,7 @@ hiệu ứng. Cách dùng: `README.md`.
   1. Kiểm thử, thử giao diện trên Edge (ảnh chụp từng bước lưu thành artifact `page-test`), rồi build PyInstaller.
   2. Bản đã build chạy `--selftest`, rồi build bộ cài Inno Setup.
   3. Cài thật, cài đè lúc app đang chạy, rồi thử tự cập nhật lên bản `N.1` với một GitHub giả.
-  4. Phát hành Release `fx-v1.0.<số lần chạy>` (ghi SHA-256 vào ghi chú).
+  4. Phát hành Release `fx-v1.0.<số lần chạy>` ở `vhung-spec/bokin-fx-releases` (ghi SHA-256 vào ghi chú).
 - Báo xong chỉ khi CI xanh. Báo đúng kết quả, kể cả khi lỗi.
 
 ## Làm việc với chủ dự án

@@ -53,9 +53,10 @@ Mọi thao tác chuột và phím tắt: [HUONG-DAN.md](HUONG-DAN.md) (trong app
 
 ## Cài đặt
 
-1. Vào trang [Releases](https://github.com/vhung-spec/bokin-video-fx/releases) (kho riêng tư: đăng nhập GitHub bằng tài
-   khoản chủ), tải file `BokinFX-Setup-<phiên bản>.exe` mới nhất.
-2. Bấm đúp vào file để cài. Không cần quyền quản trị.
+1. Vào trang tải [bokin-fx-releases](https://github.com/vhung-spec/bokin-fx-releases/releases/latest) (công khai, không
+   cần đăng nhập; gửi khách đúng link này), tải file `BokinFX-Setup-<phiên bản>.exe`.
+2. Bấm đúp vào file để cài. Không cần quyền quản trị. Windows hiện bảng xanh "Windows đã bảo vệ máy tính của bạn"
+   (bộ cài chưa có chữ ký số): bấm **Thông tin thêm** (More info) rồi **Vẫn chạy** (Run anyway).
 3. Mở **Bokin FX** từ menu Start hoặc biểu tượng ngoài màn hình. App mở trong một cửa sổ riêng (Edge hoặc Chrome).
 
 App tự kiểm tra bản mới khi mở cửa sổ và mỗi 5 phút. Muốn kiểm tra ngay thì bấm vào dòng **phiên bản** ở góc
@@ -335,4 +336,5 @@ Gỡ cài đặt hoặc cập nhật không xoá những thư mục này. Dự �
 - Thử giao diện trong trình duyệt (cần `pip install playwright`): `python packaging/ci_page_test.py`
 - Cấu trúc và quy tắc: [CLAUDE.md](CLAUDE.md).
 - Mỗi lần push lên nhánh phát hành, GitHub Actions build trên Windows, chạy kiểm thử, thử giao diện trên Edge, cài
-  thử, thử tự cập nhật rồi phát hành bản cài mới (`.github/workflows/bokin-fx.yml`).
+  thử, thử tự cập nhật rồi phát hành bản cài mới ở kho công khai `vhung-spec/bokin-fx-releases`
+  (`.github/workflows/bokin-fx.yml`, cần secret `RELEASES_TOKEN`: token chỉ ghi được Releases của kho đó).
