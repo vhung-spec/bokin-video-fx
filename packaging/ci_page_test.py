@@ -502,6 +502,59 @@ def foliage(page, shot):
     shot("05h-foliage")
 
 
+def winter(page, shot, edge):
+    """Frost on the pane and string lights on a tree: frost over the whole picture (a transparent WebM, Normal); the
+    lights placed in a box (the white box on the picture, where the renderer puts it), light on black (H.264, Screen)
+    laid in that box; each alone, the live picture is the exact frame's (the lights' in Edge: H.264)."""
+    from fx import effects as fx_effects
+    page.click('.tab[data-bin="fx"]')
+    page.evaluate("seek(3)")
+    ids = {}
+    for kind in ("frost", "lights"):
+        page.dblclick(f'.tile[data-kind="{kind}"]')
+        ids[kind] = page.evaluate(f"S.project.layers.find(l => l.kind === '{kind}').id")
+        page.click("#fullBtn")
+    fid, lid = ids["frost"], ids["lights"]
+    page.evaluate(f"select('{lid}')")
+    page.wait_for_timeout(300)
+    vw, vh = page.evaluate("[info().w, info().h]")
+    ui = page.evaluate("""[$('#xform').style.display, !!$('#ec select[data-param="layout"]'),
+        !!$('#ec select[data-param="mode"]'), !!$('#ec [data-num="rot_x"]')]""")
+    box = page.evaluate(BOX)
+    x0, y0, w, h = fx_effects.box_of("lights", page.evaluate(f"clipById('{lid}').params"), vw, vh)
+    check("string lights: a box on the picture where the renderer puts them, their layout, twinkle and turn settings",
+          ui == ["block", True, True, True] and all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])),
+          str([ui, box, [x0, y0, x0 + w, y0 + h]]))
+    page.select_option('#ec select[data-param="palette"]', "multi")
+    page.wait_for_timeout(300)
+    others = page.evaluate(f"S.project.layers.filter(c => !['{fid}', '{lid}'].includes(c.id) && c.on !== false)"
+                           ".map(c => c.id)")
+
+    def switch(on):
+        page.evaluate(f"""(() => {{ for (const c of S.project.layers) c.on = {json.dumps(on)}.includes(c.id);
+            edited(); }})()""")
+        page.wait_for_timeout(600)
+    for kind, cid, clip, blend in (("frost", fid, ".webm", "normal"), ("lights", lid, ".mp4", "screen")):
+        switch([cid])
+        plays = edge or clip == ".webm"
+        page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want "
+                               f"&& S.els['{cid}']" + (f" && S.els['{cid}'].media.readyState >= 2" if plays else ""),
+                               timeout=300000)
+        page.evaluate("applyTime()")
+        laid = page.evaluate(f"[S.els['{cid}'].media.getAttribute('src').includes('{clip}'), "
+                             f"S.els['{cid}'].wrap.style.mixBlendMode || 'normal']")
+        if not plays:
+            check(f"{kind}: its preview clip ({clip}, {blend})", laid == [True, blend], str(laid))
+            continue
+        live, exact = live_and_exact(page, f"05i-{kind}")
+        parity = picture_parity(page, cid, vw, vh, None, live, exact)
+        check(f"{kind}: its preview clip ({clip}, {blend}), the live picture as the exact frame",
+              laid == [True, blend] and parity["soft luma mean"] < 2.5 and parity["rgb mean"] < 5,
+              str([laid, parity]))
+    switch(others + [fid, lid])
+    shot("05i-winter")
+
+
 def shortcuts(page, shot):
     """The Phím tắt window: a key changed, taken from another action, refused, searched; the guide; all back."""
     def row(i):
@@ -967,7 +1020,8 @@ def run(page, folder, edge):
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
-          glass == ["snow", "rain", "glass", "steam", "candle", "leaves", "foliage", "glow"], str(glass))
+          glass == ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "lights", "glow"],
+          str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
     check("snow over the whole video, with its preview clip", True)
@@ -1510,6 +1564,7 @@ def run(page, folder, edge):
             page.wait_for_timeout(200)
     shot("05b-steam-candle")
     foliage(page, shot)
+    winter(page, shot, edge)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

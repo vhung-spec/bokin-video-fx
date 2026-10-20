@@ -64,8 +64,8 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), hạt sáng, và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
-  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`: tuyết, mưa, lá rơi, nước trên kính, khói, lửa nến,
-  mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang, nồi;
+  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`, `fx/frost.py`, `fx/lights.py`: tuyết, mưa, lá
+  rơi, nước trên kính, khói, lửa nến, tuyết bám kính, dây đèn, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang, nồi;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
   (streakline) theo luồng khí: điểm toả khói trên cả hình bầu dục, đi lang thang (không thành răng lược); luồng khí
   gom về vài chỗ bốc mạnh đang trôi; sóng dài / vừa / ngắn; xoáy (`_whirls`: cột điểm trôi theo khí, sinh số nguyên
@@ -133,6 +133,19 @@ hiệu ứng. Cách dùng: `README.md`.
   theo dải `_bands_of`, WebM có thẻ BT.709); tên theo hash vùng của clip (`_area_painted`), vùng đứng yên gần đó;
   trang hỏi lại khi tô vùng của clip, đặt nó trong `underBox`; clip làm cho đúng vùng hiện tại thì xem nhanh là
   chính xác (`areaLive`: dừng hình không cần khung chính xác).
+- Tuyết bám kính (`fx/frost.py`, mã loại `frost`): hiệu ứng vẽ đè (không lens: xem nhanh là chính xác), phủ cả hình,
+  xoay được. Hoa băng làm một lần theo chiều cao khung (`_segments`: thân lượn, gai 50° hình lông chim, cành phụ, rẽ
+  nhánh `_stem`), vẽ bằng điểm rải dọc nét lên điểm ảnh (`_ink`: mực mỗi điểm ảnh, độ "mọc" sớm nhất `first`);
+  sương muối, kính mờ trên dải viền (`_field`: khoảng cách tới mép, góc dày theo `corner`, viền trong lượn bằng
+  noise); "Băng lan ra, thu vào" (`creep`): một vòng mỗi loop, chỉ hiện phần đã mọc. Tuyết đọng mép dưới (`_sill`,
+  tĩnh), bông tuyết đậu rồi tan (mỗi slot k lần mỗi vòng, mỗi lần một chỗ: `places`), lấp lánh trên băng. Clip xem
+  nhanh cỡ 1280 (`PREVIEW`).
+- Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
+  nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
+  `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D
+  (`_even`), lệch nhẹ (`jitter`), màu lần lượt dọc dây (`PALETTES`). Mỗi bóng: lõi gần trắng, quầng màu, tia sáng khi
+  loé. Kiểu nháy (`levels()`): từng bóng, nhóm thở lần lượt, chạy đuổi dọc dây (`CHASE` bóng một sóng), hai nhóm,
+  sáng đứng; mọi tần số số nguyên vòng mỗi loop.
 - `fx/sprites.py`: hình hạt vẽ bằng mã (chấm, quầng sáng). `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()`
   cho clip suốt video, `playing()` cho clip ngắn hơn, xoay 3D: `homography()`, `quad()`).
 - `fx/sheet.py`: hiệu ứng tạo sẵn dời / đổi cỡ / xoay 3D như clip file (`Effect.TURNS`, nến không xoay). Vẽ trên một

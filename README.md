@@ -48,6 +48,10 @@ Premiere Pro:
   - **Khói** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói, lửa nến** bên dưới).
   - **Lá cây lay động**: bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió (xem mục **Lá cây lay động**
     bên dưới).
+  - **Tuyết bám kính**: băng giá bám quanh viền ô kính (hoa băng như lông chim, sương muối li ti, kính mờ đục), tuyết
+    đọng ở mép dưới, bông tuyết đậu lên kính rồi tan, băng lấp lánh (xem mục **Tuyết bám kính** bên dưới).
+  - **Dây đèn lấp lánh**: dây đèn nháy quấn quanh cây thông Noel, treo võng, rèm đèn (xem mục **Dây đèn lấp lánh**
+    bên dưới).
 
 Mọi thao tác chuột và phím tắt: [HUONG-DAN.md](HUONG-DAN.md) (trong app: nút **Phím tắt**, thẻ **Hướng dẫn**).
 
@@ -269,14 +273,55 @@ Chưa tô vùng thì chưa có gì lay động. Sau khi tô, app cần một lú
 nhanh; xong rồi thì lúc phát thấy đúng như video xuất ra. Tô lại vùng (hoặc vẽ vùng đứng yên ngay đó) thì app làm lại bản
 xem nhanh; trong lúc chờ, bản cũ vẫn phát.
 
+### Tuyết bám kính
+
+Băng giá và tuyết bám lên ô cửa kính, như nhìn ra ngoài trời đông: dày ở viền và ở góc, giữa kính vẫn trong.
+
+1. Bấm **Tạo sẵn** → **Tuyết bám kính**, kéo xuống một track trống, bấm **Suốt video**.
+2. Chọn **Kiểu**: **Băng bám quanh viền kính**, **Băng dày ở các góc**, **Kính đóng băng dày** hoặc **Sương giá mỏng**.
+3. Chỉnh thêm nếu cần:
+   - **Băng lan vào giữa kính**: băng phủ rộng hay hẹp. **Dày ở các góc**.
+   - **Hoa băng**: những vân băng như lông chim mọc từ mép kính. **Sương muối li ti**: lớp băng hạt mịn. **Mờ đục như
+     kính mờ**: lớp trắng đục mỏng.
+   - **Băng lan ra, thu vào**: hoa băng khẽ mọc ra rồi thu lại một lần mỗi vòng loop (0: băng đứng yên).
+   - **Tuyết đọng mép dưới** (0: không có), **Bông tuyết đậu lên kính** (số bông), **Cỡ bông tuyết**, **Tan nhanh**.
+   - **Lấp lánh**: băng loé sáng từng chút. **Độ đậm**, **Màu băng tuyết**.
+4. Video có khung cửa sổ: dùng **Vẽ vùng** (nút có hình bút chì) khoanh đúng ô kính, băng chỉ nằm trong ô kính. Hoặc
+   thu nhỏ, dời, xoay 3D khung trắng cho khớp ô kính. Muốn cảnh ngoài kính nhoè hơi nước: thêm **Nước trên kính** ở
+   track dưới (kéo **Số giọt đọng**, **Số giọt chảy**, **Giọt mưa mới bám vào kính** về 0 nếu chỉ cần kính
+   mờ).
+
+Lúc phát thấy đúng như video xuất ra.
+
+### Dây đèn lấp lánh
+
+Dây đèn nháy cho cây thông Noel (hoặc cửa sổ, mái hiên): bóng đèn nhỏ, sáng có quầng, loé tia sáng như máy quay thật.
+
+1. Bấm **Tạo sẵn** → **Dây đèn lấp lánh**, kéo xuống một track trống, bấm **Suốt video**.
+2. Kéo khung trắng trên hình trùm lên cây thông, kéo góc khung cho vừa cây (khung vuông: đỉnh cây ở mép trên, gốc cây
+   ở mép dưới). **Độ rộng** chỉnh tán cây rộng hay hẹp so với khung.
+3. Chọn **Cách giăng dây**: **Quấn quanh cây thông** (dây quấn vòng quanh cây, bóng phía sau cây bị cây che bớt),
+   **Dây võng ngang**, **Rèm đèn thả dọc**, **Rải đều trong khung**.
+4. Chọn **Kiểu nháy**: **Lấp lánh từng bóng**, **Sáng mờ dần lần lượt**, **Chạy đuổi**, **Nhấp nháy hai nhóm**,
+   **Sáng đứng**. **Tốc độ nháy**, **Độ nháy** (0: không tối đi chút nào).
+5. Chọn **Màu đèn**: **Vàng ấm**, **Nhiều màu**, **Trắng lạnh**, **Vàng và đỏ**, hoặc **Một màu** (chọn ở ô **Màu**).
+6. Chỉnh thêm: **Số bóng**, **Dây quấn dày** (số vòng quanh cây, số hàng võng, số dây rèm), **Lộn xộn** (bóng không
+   thẳng hàng, như nằm giữa cành lá), **Bóng phía sau cây lộ ra**, **Cỡ bóng**, **Quầng sáng**, **Tia sáng lấp lánh**,
+   **Độ sáng**.
+7. Đèn thừa ra ngoài cây: bấm **Vẽ vùng** của clip này, tô lên cây. Đèn chỉ hiện trong vùng đã tô.
+
+Đèn là ánh sáng (hoà trộn Screen): chỉ làm sáng thêm, đẹp nhất trên cảnh tối hoặc chạng vạng. Lúc phát thấy đúng như
+video xuất ra.
+
 ### Xoay 3D (ghép hiệu ứng vào ô cửa nhìn chéo)
 
-Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, hạt sáng, nước trên kính, khói),
+Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, hạt sáng, nước trên kính, tuyết bám kính,
+khói, dây đèn),
 xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng khi cần đặt mưa, ánh sáng…
 nằm đúng một ô cửa kính nhìn từ một góc. Riêng **lửa nến** không xoay: ngọn lửa luôn bốc thẳng lên. **Lá cây lay động**
 cũng không xoay, không dời: nó làm động chính lá cây trong video, ngay tại chỗ.
 
-Hiệu ứng tạo sẵn phủ cả hình (tuyết, mưa, lá, hạt sáng, nước trên kính) giống như một tấm phim bằng đúng khung hình:
+Hiệu ứng tạo sẵn phủ cả hình (tuyết, mưa, lá, hạt sáng, nước trên kính, tuyết bám kính) giống như một tấm phim bằng đúng khung hình:
 chọn clip là thấy khung trắng quanh cả khung hình. Cỡ 100%, ở giữa, không xoay: y như trước. Thu nhỏ, dời, xoay tấm
 phim đó như một ảnh ngoài; hạt rơi tới mép tấm phim thì bị cắt ở mép.
 
