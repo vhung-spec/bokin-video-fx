@@ -1981,6 +1981,7 @@ function endXdrag(e) {
   }
   if (S.schema.under[d.c.kind]) applyTime();  // (back if it did not move)
   if (XFORM_KEYS.some(k => d.c.params[k] !== d.p0[k])) {
+    refindBulbs(d.c);
     if (S.els[d.c.id]) styleLayer(d.c, S.els[d.c.id]);
     showXform(); scheduleSave(); remember(); renderControls(); renderTools();
     invalidateExact();  // the exact frame is asked for once the save is in (sendSave)
@@ -3240,6 +3241,7 @@ function fitValue(d, v) {  // a value for this setting as the clip's own kind ta
   if (d.type === "toggle") return !!v;
   if (d.type === "color") return /^#[0-9a-f]{6}$/i.test(v) ? v : undefined;
   if (d.type === "choice") return d.options.some(o => o.value === v) ? v : undefined;
+  if (d.type === "points") return Array.isArray(v) ? v.map(x => Array.isArray(x) ? x.slice() : x) : undefined;
 }
 function pasteAttrsDialog(c) {
   const p = S.project; if (!p) return;
@@ -3304,6 +3306,32 @@ async function matchColours(c, btn) {  // "Khớp màu với cảnh": the app me
     toast(`Đã khớp màu với cảnh${said.length ? ": " + said.join(", ") : " (màu đã hợp, không cần đổi)"}. Kéo các thanh để chỉnh thêm, hoặc ${keyName("undo")} để bỏ.`, false, 7000);
   } catch (e) { toast(e.message, true, 6000); }
   finally { if (btn.isConnected) { btn.disabled = false; btn.innerHTML = label; } }
+}
+function pointsRow(c, d) {  // string lights on the lights in the video: the ones the app found under the box
+  if (c.kind !== "lights" || c.params.layout !== "scene") return "";
+  const n = (c.params[d.key] || []).length;
+  return `<div class="btns"><button class="small" id="findBulbs" title="App tìm các bóng đèn sáng trong video, ở trong khung trắng">${icon("lights", "lead")}Tìm đèn trong video</button></div>
+    <p class="note">${n ? `Đã thấy ${n} bóng đèn trong khung trắng: chính chỗ đó sẽ lấp lánh. Dời hay đổi cỡ khung thì app tự tìm lại.` : "Chưa thấy bóng đèn nào. Kéo khung trắng trùm lên chỗ có đèn (cây thông có dây đèn), rồi bấm Tìm đèn trong video."}</p>`;
+}
+async function findBulbs(c, btn, quiet) {  // "Tìm đèn trong video": the lights in the video under the clip's box (bulbs.py)
+  const p = S.project, label = btn && btn.innerHTML, tok = (S.bulbTok = (S.bulbTok || 0) + 1);
+  if (btn) { btn.disabled = true; btn.innerHTML = `${icon("wait", "lead")}Đang tìm đèn…`; }
+  try {
+    if (!(await saveNow())) { if (!quiet) toast("Chưa tìm được: thay đổi mới nhất chưa lưu vào app. Hãy bấm lại.", true); return; }
+    const r = await post("/api/bulbs", {id: p.id, layer: c.id});
+    const cur = S.project === p && clipById(c.id);
+    if (!cur || cur.params.layout !== "scene" || tok !== S.bulbTok) return;  // (undone, moved again, another project)
+    cur.params.spots = r.spots;
+    edited();
+    if (!r.spots.length) toast("Không thấy bóng đèn nào trong khung trắng. Kéo khung trùm lên chỗ có đèn rồi bấm Tìm đèn trong video.", true, 6000);
+    else if (!quiet) toast(`Đã thấy ${r.spots.length} bóng đèn: chính chỗ đó sẽ lấp lánh. ${keyName("undo")} để bỏ.`, false, 5000);
+  } catch (e) { toast(e.message, true, 6000); }
+  finally { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = label; } S.bulbDone = tok; }
+}
+function refindBulbs(c) {  // its box moved or sized: the lights under it again, once it stays put a moment
+  if (c.kind !== "lights" || c.params.layout !== "scene") return;
+  clearTimeout(S.bulbWait);
+  S.bulbWait = setTimeout(() => { if (clipById(c.id) === c) findBulbs(c, null, true); }, 600);
 }
 function showMenu(x, y, items) {  // items: [label, action, key shown on the right, icon, true for a delete] or null (a line)
   const m = $("#menu");
@@ -3496,6 +3524,7 @@ function renderControls() {
     if (d.type === "range") return slider(d.key, d.label, v, d.min, d.max, d.step);
     if (d.type === "color") return `<div class="row"><div class="lab"><span>${esc(d.label)}</span><input type="color" data-param="${d.key}" value="${v}"></div></div>`;
     if (d.type === "toggle") return `<label class="check"><input type="checkbox" data-param="${d.key}" ${v ? "checked" : ""}> ${esc(d.label)}</label>`;
+    if (d.type === "points") return pointsRow(c, d);
     return `<div class="row"><div class="lab"><span>${esc(d.label)}</span></div><select data-param="${d.key}">${d.options.map(o => `<option value="${o.value}" ${o.value === v ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></div>`;
   });
   const fileParams = c.kind === "file" ? (() => {
@@ -3621,6 +3650,7 @@ $("#ec").addEventListener("click", e => {
   if (id === "clearArea") return clear(c.id, "all");
   if (id === "reseed") { c.seed = Math.floor(Math.random() * 2147483647); edited(); return; }
   if (id === "colourMatch") return matchColours(c, t);
+  if (id === "findBulbs") return findBulbs(c, t);
   if (id === "colourReset") {  // the file's own colours again
     for (const d of S.schema.kinds.file.params) if (COLOUR_KEYS.includes(d.key)) c.params[d.key] = d.value;
     edited(); return;
@@ -3671,6 +3701,7 @@ $("#ec").addEventListener("input", e => {
     const key = t.dataset.num, raw = String(t.value).trim(), v = Number(raw);
     if (raw === "" || !Number.isFinite(v)) return;  // (put right when the field is left)
     c.params[key] = placeParam(c, key, v);
+    refindBulbs(c);
     const sl = $(`#ec input[type=range][data-param="${key}"]`); if (sl) { sl.value = c.params[key]; fillRange(sl); }
     if (S.els[c.id]) styleLayer(c, S.els[c.id]);
     applyTime(); invalidateExact(); scheduleSave(); showXform(); return;
@@ -3687,6 +3718,7 @@ $("#ec").addEventListener("input", e => {
     }
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
     else followChoices(c, key);
+    if (c.kind === "lights" && (key === "layout" && v === "scene" && !(c.params.spots || []).length || XFORM_KEYS.includes(key))) refindBulbs(c);
     if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
     else if (S.els[c.id]) styleLayer(c, S.els[c.id]);
     applyTime(); invalidateExact(); scheduleSave(); renderTimeline(); showXform();

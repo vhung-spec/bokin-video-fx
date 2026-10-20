@@ -135,17 +135,26 @@ hiệu ứng. Cách dùng: `README.md`.
   chính xác (`areaLive`: dừng hình không cần khung chính xác).
 - Tuyết bám kính (`fx/frost.py`, mã loại `frost`): hiệu ứng vẽ đè (không lens: xem nhanh là chính xác), phủ cả hình,
   xoay được. Hoa băng làm một lần theo chiều cao khung (`_segments`: thân lượn, gai 50° hình lông chim, cành phụ, rẽ
-  nhánh `_stem`), vẽ bằng điểm rải dọc nét lên điểm ảnh (`_ink`: mực mỗi điểm ảnh, độ "mọc" sớm nhất `first`);
+  nhánh `_stem`; nửa số mọc từ mép, nửa từ trong lớp băng, hướng bất kỳ; "Cỡ hoa băng" `fern_k`: nhỏ thì nhiều hơn,
+  gai dày hơn, nét mảnh hơn), vẽ bằng điểm rải dọc nét lên điểm ảnh (`_ink`: mực mỗi điểm ảnh, độ "mọc" sớm nhất `first`);
   sương muối, kính mờ trên dải viền (`_field`: khoảng cách tới mép, góc dày theo `corner`, viền trong lượn bằng
   noise); "Băng lan ra, thu vào" (`creep`): một vòng mỗi loop, chỉ hiện phần đã mọc. Tuyết đọng mép dưới (`_sill`,
-  tĩnh), bông tuyết đậu rồi tan (mỗi slot k lần mỗi vòng, mỗi lần một chỗ: `places`), lấp lánh trên băng. Clip xem
-  nhanh cỡ 1280 (`PREVIEW`).
+  tĩnh), bông tuyết đậu rồi tan (mỗi slot k lần mỗi vòng, mỗi lần một chỗ: `places`; sao băng, đĩa, cụm vụn), lấp
+  lánh trên băng. Sáng theo cảnh (`LIT` như mưa, thanh `lit`): sương muối, kính mờ là ánh sáng tại chỗ của bản đồ ánh
+  sáng làm mờ (`_behind`: kính mờ thật, hơi xám đi) + chút màu riêng (ánh đèn trong phòng, `*_ROOM`); hoa băng sáng
+  hơn, nổi khối theo hướng sáng trên trái (`_colours`); tuyết, bông tuyết cũng vậy. Clip xem nhanh cỡ 1280
+  (`PREVIEW`).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D
   (`_even`), lệch nhẹ (`jitter`), màu lần lượt dọc dây (`PALETTES`). Mỗi bóng: lõi gần trắng, quầng màu, tia sáng khi
-  loé. Kiểu nháy (`levels()`): từng bóng, nhóm thở lần lượt, chạy đuổi dọc dây (`CHASE` bóng một sóng), hai nhóm,
-  sáng đứng; mọi tần số số nguyên vòng mỗi loop.
+  loé; "Chỉ ánh sáng" (`bulb` = `glow`): không lõi, chỉ quầng mềm + tia. Kiểu nháy (`levels()`): từng bóng, nhóm thở
+  lần lượt, chạy đuổi dọc dây (`CHASE` bóng một sóng), hai nhóm, sáng đứng; mọi tần số số nguyên vòng mỗi loop.
+  "Theo đèn có sẵn trong video" (`layout` = `scene`): `fx/bulbs.py` tìm chấm sáng nhỏ (cực đại cục bộ, sáng hơn xung
+  quanh, đỉnh phẳng chỉ một điểm, cách nhau vài px) trong vài khung của video, trong hộp và vùng của clip; lưu trong
+  thông số `spots` (kiểu `points` của schema: `effects._points`, trang không vẽ thanh mà vẽ nút **Tìm đèn trong video**,
+  `pointsRow`, `findBulbs`, `/api/bulbs`; dời / đổi cỡ hộp thì trang tự tìm lại, `refindBulbs`) theo chỗ trong hộp, độ
+  sáng, màu (màu quầng quanh bóng).
 - `fx/sprites.py`: hình hạt vẽ bằng mã (chấm, quầng sáng). `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()`
   cho clip suốt video, `playing()` cho clip ngắn hơn, xoay 3D: `homography()`, `quad()`).
 - `fx/sheet.py`: hiệu ứng tạo sẵn dời / đổi cỡ / xoay 3D như clip file (`Effect.TURNS`, nến không xoay). Vẽ trên một

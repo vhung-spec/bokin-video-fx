@@ -77,6 +77,29 @@ class Frost(unittest.TestCase):
         a, b = cover(fx, 0), cover(fx, 100)
         self.assertGreater(float(np.abs(a - b).max()), 0.3)
 
+    def test_lit_by_the_scene(self):
+        """Lit by the scene behind the glass: in front of a bright place the frost is bright, in front of a dark one
+        dim (frosted glass shows the scene blurred); "lit" 0: its own colour, as without the scene's light."""
+        w, h = 640, 360
+        scene = np.zeros((h, w, 3), np.uint8)
+        scene[:, : w // 2] = 230  # (bright on the left, dark on the right)
+        light = effects.light_map([scene])
+        p = {"amount": 0, "sparkle": 0, "sill": 0, "creep": 0, "ferns": 0, "opacity": 100}
+        lit = effects.make("frost", p, 3, 144, 24, w, h, light)
+        own = effects.make("frost", dict(p, lit=0), 3, 144, 24, w, h, light)
+        plain = effects.make("frost", p, 3, 144, 24, w, h)
+        for fx in (lit, own, plain):
+            fx.draw(0, effects.Canvas(w, h), None)
+        rgb, cover = lit._frost_at(0)
+        colour = rgb.sum(axis=2) / np.maximum(cover, 1e-6) / 3
+        edge = cover > 0.3
+        left, right = edge.copy(), edge.copy()
+        left[:, w // 4:] = False
+        right[:, : 3 * w // 4] = False
+        self.assertGreater(colour[left].mean(), colour[right].mean() + 0.3)
+        self.assertTrue(np.allclose(own._frost_at(0)[0], plain._frost_at(0)[0], atol=1e-5))
+        self.assertEqual(effects.KINDS["frost"].LIT, True)
+
 
 if __name__ == "__main__":
     unittest.main()

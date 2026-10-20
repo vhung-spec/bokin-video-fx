@@ -39,6 +39,11 @@ def _toggle(key, label, value=False, **extra):
     return {"key": key, "label": label, "type": "toggle", "value": value, **extra}
 
 
+def _points_param(key, label, width, most, **extra):
+    """Points found by the app (not a slider: the page shows a button that finds them), each `width` numbers 0..1."""
+    return {"key": key, "label": label, "type": "points", "value": [], "width": width, "most": most, **extra}
+
+
 def _place(scale=20, x=0, y=0, group="Vị trí và cỡ"):
     """The settings that place a placed effect (Effect.BOX): as a file clip's, so the box on the page's picture
     moves and sizes it."""
@@ -89,10 +94,27 @@ def clean_params(kind, raw):
             v = v if v in {o["value"] for o in p["options"]} else p["value"]
         elif p["type"] == "toggle":
             v = v is True or v in (1, "1", "true", "on")
+        elif p["type"] == "points":
+            v = _points(v, p["most"], p["width"])
         else:
             v = v.lower() if isinstance(v, str) and len(v) == 7 and v[0] == "#" and all(
                 c in "0123456789abcdefABCDEF" for c in v[1:]) else p["value"]
         out[p["key"]] = v
+    return out
+
+
+def _points(v, most, width):
+    """A list of at most `most` points, each `width` numbers 0..1 (rounded to 4 places), from what the page sent:
+    anything else left out."""
+    out = []
+    for item in v[:most] if isinstance(v, list) else ():
+        if isinstance(item, (list, tuple)) and len(item) == width:
+            try:
+                nums = [float(x) for x in item]
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if all(math.isfinite(x) for x in nums):
+                out.append([round(min(1.0, max(0.0, x)), 4) for x in nums])
     return out
 
 

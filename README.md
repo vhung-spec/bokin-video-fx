@@ -281,11 +281,14 @@ Băng giá và tuyết bám lên ô cửa kính, như nhìn ra ngoài trời đ�
 2. Chọn **Kiểu**: **Băng bám quanh viền kính**, **Băng dày ở các góc**, **Kính đóng băng dày** hoặc **Sương giá mỏng**.
 3. Chỉnh thêm nếu cần:
    - **Băng lan vào giữa kính**: băng phủ rộng hay hẹp. **Dày ở các góc**.
-   - **Hoa băng**: những vân băng như lông chim mọc từ mép kính. **Sương muối li ti**: lớp băng hạt mịn. **Mờ đục như
+   - **Hoa băng**: những vân băng như lông chim mọc từ mép kính và từ trong lớp băng. **Cỡ hoa băng**: nhỏ (mặc định,
+     mịn như kính đóng băng thật nhìn từ xa) hay to (nhìn gần). **Sương muối li ti**: lớp băng hạt mịn. **Mờ đục như
      kính mờ**: lớp trắng đục mỏng.
    - **Băng lan ra, thu vào**: hoa băng khẽ mọc ra rồi thu lại một lần mỗi vòng loop (0: băng đứng yên).
    - **Tuyết đọng mép dưới** (0: không có), **Bông tuyết đậu lên kính** (số bông), **Cỡ bông tuyết**, **Tan nhanh**.
    - **Lấp lánh**: băng loé sáng từng chút. **Độ đậm**, **Màu băng tuyết**.
+   - **Sáng theo cảnh sau kính**: băng lấy ánh sáng của cảnh phía sau, như kính đóng băng thật: cảnh sau lớp băng nhoè
+     đi, chỗ có đèn thì băng ửng sáng theo màu đèn, chỗ tối thì băng xám mờ. Kéo về 0 nếu muốn băng trắng một màu.
 4. Video có khung cửa sổ: dùng **Vẽ vùng** (nút có hình bút chì) khoanh đúng ô kính, băng chỉ nằm trong ô kính. Hoặc
    thu nhỏ, dời, xoay 3D khung trắng cho khớp ô kính. Muốn cảnh ngoài kính nhoè hơi nước: thêm **Nước trên kính** ở
    track dưới (kéo **Số giọt đọng**, **Số giọt chảy**, **Giọt mưa mới bám vào kính** về 0 nếu chỉ cần kính
@@ -296,6 +299,7 @@ Lúc phát thấy đúng như video xuất ra.
 ### Dây đèn lấp lánh
 
 Dây đèn nháy cho cây thông Noel (hoặc cửa sổ, mái hiên): bóng đèn nhỏ, sáng có quầng, loé tia sáng như máy quay thật.
+Cây thông trong video **đã có sẵn dây đèn** nhưng đèn đứng yên (video làm từ ảnh): xem bước 8.
 
 1. Bấm **Tạo sẵn** → **Dây đèn lấp lánh**, kéo xuống một track trống, bấm **Suốt video**.
 2. Kéo khung trắng trên hình trùm lên cây thông, kéo góc khung cho vừa cây (khung vuông: đỉnh cây ở mép trên, gốc cây
@@ -309,6 +313,15 @@ Dây đèn nháy cho cây thông Noel (hoặc cửa sổ, mái hiên): bóng đ�
    thẳng hàng, như nằm giữa cành lá), **Bóng phía sau cây lộ ra**, **Cỡ bóng**, **Quầng sáng**, **Tia sáng lấp lánh**,
    **Độ sáng**.
 7. Đèn thừa ra ngoài cây: bấm **Vẽ vùng** của clip này, tô lên cây. Đèn chỉ hiện trong vùng đã tô.
+8. Cây đã có dây đèn trong ảnh: chọn **Cách giăng dây** → **Theo đèn có sẵn trong video**. App tự tìm từng bóng đèn
+   sáng trong khung trắng và cho chính chỗ đó lấp lánh, đúng màu của bóng đó (**Màu đèn**: **Theo màu đèn trong
+   video**; **Bóng đèn**: **Chỉ ánh sáng lấp lánh**, không vẽ thêm bóng). Bảng chỉnh ghi đã thấy bao nhiêu bóng. Dời
+   hay đổi cỡ khung trắng thì app tự tìm lại; bấm **Tìm đèn trong video** để tìm lại bất cứ lúc nào. **Số bóng**: bao
+   nhiêu phần đèn được lấp lánh. Muốn chỉ đèn trên cây (không lấy đèn đường phía sau): **Vẽ vùng** tô lên cây trước, rồi
+   bấm **Tìm đèn trong video**. Với cách giăng này đừng xoay 3D khung trắng.
+
+**Bóng đèn** → **Chỉ ánh sáng lấp lánh (không hiện bóng)** dùng được với mọi cách giăng: chỉ có ánh sáng, quầng và tia
+loé, không có bóng đèn vẽ thêm.
 
 Đèn là ánh sáng (hoà trộn Screen): chỉ làm sáng thêm, đẹp nhất trên cảnh tối hoặc chạng vạng. Lúc phát thấy đúng như
 video xuất ra.

@@ -551,7 +551,18 @@ def winter(page, shot, edge):
         check(f"{kind}: its preview clip ({clip}, {blend}), the live picture as the exact frame",
               laid == [True, blend] and parity["soft luma mean"] < 2.5 and parity["rgb mean"] < 5,
               str([laid, parity]))
+    # on the lights the video already has: the app looks for them under the box (by itself, and with a button)
     switch(others + [fid, lid])
+    page.evaluate(f"select('{lid}')")
+    page.wait_for_timeout(300)
+    page.select_option('#ec select[data-param="layout"]', "scene")
+    page.wait_for_function("S.bulbTok >= 1 && S.bulbDone === S.bulbTok", timeout=60000)
+    got = page.evaluate(f"""(c => [c.params.bulb, c.params.palette, Array.isArray(c.params.spots), !!$('#findBulbs'),
+        $('#ec').textContent.includes('bóng đèn')])(clipById('{lid}'))""")
+    page.click("#findBulbs")
+    page.wait_for_function("S.bulbDone === S.bulbTok && !$('#findBulbs').disabled", timeout=60000)
+    check("string lights on the video's own lights: only their light, in their colours; the app looks for them",
+          got == ["glow", "video", True, True, True], str(got))
     shot("05i-winter")
 
 

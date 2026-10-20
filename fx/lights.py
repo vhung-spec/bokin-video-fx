@@ -8,7 +8,11 @@ down below the eye and up above it, the bulbs at the back mostly hidden by the t
 points, as a curtain of strands, or scattered. Bulbs sit along each strand at even spacing, nudged a little (a real
 tree's branches never hold them in line), each colour in turn along a strand as on a real one.
 
-Each bulb is a small hot core (near white), a halo of its colour and the rays a camera lens makes of a bright point.
+Each bulb is a small hot core (near white), a halo of its colour and the rays a camera lens makes of a bright point;
+or, to twinkle the lights a picture already has ("glow": no bulb of its own), only a soft bloom, its halo and rays.
+Laid "on the lights in the video" ("scene"), the bulbs are the bright small spots the app found in the video under
+the box (fx/bulbs.py: kept in the clip's settings as places in the box, with their colours), so the picture's own
+fairy lights flare and twinkle where they are.
 How bright it is follows the way of twinkling chosen, as a light controller does: each bulb on its own, groups
 breathing in turn, waves chasing along the strands, two groups flashing in turn, or steady; now and then a bulb
 flares (its rays grow). Every frequency is a whole number of cycles per loop, so frame P is frame 0 again.
@@ -20,22 +24,25 @@ import math
 import numpy as np
 
 from . import sprites
-from .effects import Effect, _choice, _colour, _lerp, _num, _place, _rgb
+from .effects import Effect, _choice, _colour, _lerp, _num, _place, _points_param, _rgb
 
 # the colours of the bulbs in turn along a strand ("one": the colour setting)
 PALETTES = {"warm": ["#ffb347"], "multi": ["#ff2a1a", "#22d84a", "#2f6bff", "#ffb000", "#ff3fb0"],
-            "cool": ["#b8d4ff"], "gold": ["#ffb347", "#ff2a1a"], "one": None}
-WHITE = {"warm": 0.7, "multi": 0.45, "cool": 0.75, "gold": 0.55, "one": 0.6}  # how white a bulb's hot core is
+            "cool": ["#b8d4ff"], "gold": ["#ffb347", "#ff2a1a"], "one": None, "video": ["#ffb347"]}
+WHITE = {"warm": 0.7, "multi": 0.45, "cool": 0.75, "gold": 0.55, "one": 0.6, "video": 0.5}  # how white a hot core is
 EYE = 0.45  # the camera's height on the tree (share of the box from the top)
 AWAY = 2.6  # and how far it stands (box heights): a turn of the spiral 1 box height below the eye looks this flat
 HALO = 0.55  # a halo's light at its middle (times the bulb's)
 CORE = 1.8  # a core's (it burns white in the middle)
+BLOOM = 0.8  # with no bulb: the soft bloom's
 CHASE = 7.0  # bulbs from one chasing wave to the next
 
 DEFAULTS = {"amount": 45, "density": 45, "width": 62, "jitter": 40, "back": 25, "size": 40, "glow": 50, "rays": 35,
             "brightness": 75, "speed": 40, "depth": 60}
 LAYOUTS = {"tree": {"width": 62, "density": 45}, "swag": {"width": 100, "density": 30},
-           "curtain": {"width": 100, "density": 45}, "scatter": {"width": 80, "density": 45}}
+           "curtain": {"width": 100, "density": 45}, "scatter": {"width": 80, "density": 45},
+           "scene": {"bulb": "glow", "palette": "video", "amount": 70, "depth": 90, "glow": 45, "rays": 55}}
+SPOTS = 600  # lights found in the video, at most (x, y in the box, how bright, r, g, b)
 
 
 def _p(key, label, value, group, lo=0, hi=100):
@@ -45,18 +52,23 @@ def _p(key, label, value, group, lo=0, hi=100):
 SCHEMA = {
     "label": "Dây đèn lấp lánh",
     "note": "Kéo khung trắng trùm lên cây thông (hoặc cửa sổ, mái hiên), kéo góc khung cho vừa. Chọn cách giăng dây: "
-            "quấn quanh cây, võng ngang, rèm thả dọc hay rải đều. Muốn đèn chỉ nằm trên cây: bấm Vẽ vùng của clip "
-            "này và tô lên cây.",
+            "quấn quanh cây, võng ngang, rèm thả dọc, rải đều, hoặc theo đèn có sẵn trong video (cây đã có dây đèn "
+            "nhưng đèn đứng yên: app tìm từng bóng và cho chính chỗ đó lấp lánh). Muốn đèn chỉ nằm trên cây: bấm Vẽ "
+            "vùng của clip này và tô lên cây.",
     "params": [
         _choice("layout", "Cách giăng dây", "tree",
                 [("tree", "Quấn quanh cây thông"), ("swag", "Dây võng ngang"), ("curtain", "Rèm đèn thả dọc"),
-                 ("scatter", "Rải đều trong khung")], presets=LAYOUTS, group="Kiểu"),
+                 ("scatter", "Rải đều trong khung"), ("scene", "Theo đèn có sẵn trong video")], presets=LAYOUTS,
+                group="Kiểu"),
+        _choice("bulb", "Bóng đèn", "bulb", [("bulb", "Hiện bóng đèn và ánh sáng"),
+                                             ("glow", "Chỉ ánh sáng lấp lánh (không hiện bóng)")], group="Kiểu"),
         _choice("mode", "Kiểu nháy", "twinkle",
                 [("twinkle", "Lấp lánh từng bóng"), ("breathe", "Sáng mờ dần lần lượt"), ("chase", "Chạy đuổi"),
                  ("flash", "Nhấp nháy hai nhóm"), ("steady", "Sáng đứng")], group="Kiểu"),
         _choice("palette", "Màu đèn", "warm",
                 [("warm", "Vàng ấm"), ("multi", "Nhiều màu"), ("cool", "Trắng lạnh"), ("gold", "Vàng và đỏ"),
-                 ("one", "Một màu (chọn ở dưới)")], group="Kiểu"),
+                 ("one", "Một màu (chọn ở dưới)"), ("video", "Theo màu đèn trong video")], group="Kiểu"),
+        _points_param("spots", "Đèn có sẵn trong video", 6, SPOTS, group="Dây đèn"),
         _p("amount", "Số bóng", DEFAULTS["amount"], "Dây đèn"),
         _p("density", "Dây quấn dày (số vòng, số hàng)", DEFAULTS["density"], "Dây đèn"),
         _p("width", "Độ rộng (so với khung trắng)", DEFAULTS["width"], "Dây đèn", 10, 100),
@@ -131,7 +143,15 @@ class Lights(Effect):
         layout = p["layout"]
         g = np.random.default_rng([self.seed, 1103, 1])
         lines = self._lines(layout, dens, width, g)
-        if layout == "scatter":
+        found = np.asarray(p["spots"], np.float64).reshape(-1, 6) if layout == "scene" else None
+        if found is not None:  # the lights in the video: some of them ("amount"), picked at random
+            keep = np.sort(np.random.default_rng([self.seed, 1103, 2]).permutation(len(found))[
+                :int(round(len(found) * _lerp(0.25, 1.0, p["amount"] / 100)))])
+            found = found[keep]
+            pts = np.stack([found[:, 0] * self.bw, found[:, 1], np.zeros(len(found))], 1)
+            strand, along = np.zeros(len(found), int), np.argsort(np.argsort(pts[:, 0] + pts[:, 1]))
+            step = jitter = 0.0  # (exactly where they are)
+        elif layout == "scatter":
             k = np.random.default_rng([self.seed, 1103, 2]).random((n, 2))
             pts = np.stack([self.bw / 2 + (k[:, 0] - 0.5) * width, 0.03 + 0.94 * k[:, 1], np.zeros(n)], 1)
             strand, along = np.zeros(n, int), np.argsort(np.argsort(pts[:, 0] + pts[:, 1]))
@@ -154,17 +174,23 @@ class Lights(Effect):
         self.y = y + spread * (u[:, 3] - 0.5) * 2 * (0.4 + 0.6 * u[:, 4])
         self.vis = vis * (1 - 0.35 * jitter * u[:, 5])  # (half hidden among the needles now and then)
         self.strand, self.along = strand, along
-        # colours: in turn along each strand
+        # colours: in turn along each strand (or each light's own, found in the video)
         pal = PALETTES[p["palette"]] or [p["color"]]
         halo = np.array([_rgb(c) for c in pal], np.float32)
         which = (along + 2 * strand) % len(pal)
         white = WHITE[p["palette"]]
         self.c_halo = halo[which]
+        if found is not None and p["palette"] == "video":
+            own = found[:, 3:6].astype(np.float32)
+            self.c_halo = own / np.maximum(own.max(axis=1, keepdims=True), 0.05)
         self.c_core = self.c_halo * (1 - white) + white
+        self.glow_only = p["bulb"] == "glow"
         # sizes, box heights (a bulb at the back a little smaller)
         self.core = _lerp(0.0015, 0.009, p["size"] / 100) * (0.8 + 0.2 * np.minimum(vis, 1)) * (0.85 + 0.3 * u[:, 6])
         self.halo = self.core * _lerp(2.0, 7.0, p["glow"] / 100)
         self.bright = p["brightness"] / 100 * 1.3 * (0.8 + 0.2 * u[:, 7])
+        if found is not None:  # (a brighter light in the video flares more)
+            self.bright = self.bright * (0.5 + 0.5 * found[:, 2])
         self.rays_k = p["rays"] / 100
         self.depth = p["depth"] / 100
         self.mode = p["mode"]
@@ -255,8 +281,12 @@ class Lights(Effect):
             fx, fy = xs[i] - ix, ys[i] - iy
             spot, sx, sy = halo.get(sprites.bucket(self.halo[i] * h), fx, fy)
             canvas.light(ix + sx, iy + sy, spot, self.c_halo[i] * (HALO * lit[i]), mask)
-            spot, sx, sy = core.get(sprites.bucket(self.core[i] * h), fx, fy)
-            canvas.light(ix + sx, iy + sy, spot, self.c_core[i] * (CORE * lit[i]), mask)
+            if self.glow_only:  # no bulb: a soft bloom where the light is, a little whiter in its middle
+                spot, sx, sy = halo.get(sprites.bucket(self.core[i] * h * 1.6), fx, fy)
+                canvas.light(ix + sx, iy + sy, spot, self.c_core[i] * (BLOOM * lit[i]), mask)
+            else:
+                spot, sx, sy = core.get(sprites.bucket(self.core[i] * h), fx, fy)
+                canvas.light(ix + sx, iy + sy, spot, self.c_core[i] * (CORE * lit[i]), mask)
             ray = self.rays_k * lit[i] * (0.3 + 1.2 * flare[i])
             if ray > 0.05:
                 length = self.core[i] * h * _lerp(3.0, 14.0, self.rays_k) * (0.6 + 0.8 * flare[i])
