@@ -29,6 +29,7 @@ APPS = {
     "loop": ("Lp", "Bokin Loop", "#FFA24D", "#3A1C04"),
     "motion-studio": ("Mo", "Bokin Motion Studio", "#3DDBC9", "#04302B"),
     "upscaler": ("Up", "Bokin Upscaler", "#C9E66A", "#222D06"),
+    "upscale-video": ("Uv", "Bokin Upscale Video", "#E384EE", "#3A0B40"),
     "key-center": ("Kc", "Bokin Key Center", "#D9DEE7", "#1A1D23"),
     "web": ("Wb", "Bokin Web", "#F2C54B", "#352805"),
 }

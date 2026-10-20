@@ -13,7 +13,8 @@ hơn 32 điểm ảnh (thanh tác vụ, tab trình duyệt) bỏ vòng lặp cho
 | Bokin FX | Fx | `#5AA2FF` | `#0B1C3D` | `out/fx.*` |
 | Bokin Loop | Lp | `#FFA24D` | `#3A1C04` | `out/loop.*` |
 | Bokin Motion Studio | Mo | `#3DDBC9` | `#04302B` | `out/motion-studio.*` |
-| Bokin Upscaler | Up | `#C9E66A` | `#222D06` | `out/upscaler.*` |
+| Bokin Upscaler (Upscale ảnh) | Up | `#C9E66A` | `#222D06` | `out/upscaler.*` |
+| Bokin Upscale Video | Uv | `#E384EE` | `#3A0B40` | `out/upscale-video.*` |
 | Bokin Key Center (nội bộ) | Kc | `#D9DEE7` | `#1A1D23` | `out/key-center.*` |
 | Bokin Web (nội bộ) | Wb | `#F2C54B` | `#352805` | `out/web.*` |
 
