@@ -38,12 +38,15 @@ jobs:
           python -m pip install playwright==1.56.0
           python packaging/ci_page_test.py page-test
 
+      # (the screenshots: kept a few days; a full storage quota fails no build)
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: page-test
           path: page-test/
           if-no-files-found: ignore
+          retention-days: 5
 
       - name: Version
         shell: pwsh
@@ -91,10 +94,13 @@ jobs:
       - name: Update test (finds, downloads and checks the next version; "Cập nhật ngay" installs it and restarts)
         run: python packaging/ci_install_test.py update dist-next/BokinFX-Setup-${{ env.NEXT_VERSION }}.exe ${{ env.NEXT_VERSION }}
 
+      # (the release holds the installer: this copy is kept a week, and a full storage quota does not stop the release)
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: BokinFX-Setup-${{ env.APP_VERSION }}
           path: dist/BokinFX-Setup-*.exe
+          retention-days: 7
 
       - name: Publish a release (in vhung-spec/bokin-fx-releases)
         if: github.ref == 'refs/heads/claude/relaxed-ptolemy-v732bs'
