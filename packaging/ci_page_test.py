@@ -534,6 +534,8 @@ def winter(page, shot, edge):
         page.evaluate(f"""(() => {{ for (const c of S.project.layers) c.on = {json.dumps(on)}.includes(c.id);
             edited(); }})()""")
         page.wait_for_timeout(600)
+    # (fine ice and tiny bulbs: a little apart in a compressed clip and in the JPEG of the exact frame, more than snow;
+    # the bounds of the 3D check of a file clip)
     for kind, cid, clip, blend in (("frost", fid, ".webm", "normal"), ("lights", lid, ".mp4", "screen")):
         switch([cid])
         plays = edge or clip == ".webm"
@@ -549,7 +551,7 @@ def winter(page, shot, edge):
         live, exact = live_and_exact(page, f"05i-{kind}")
         parity = picture_parity(page, cid, vw, vh, None, live, exact)
         check(f"{kind}: its preview clip ({clip}, {blend}), the live picture as the exact frame",
-              laid == [True, blend] and parity["soft luma mean"] < 2.5 and parity["rgb mean"] < 5,
+              laid == [True, blend] and parity["soft luma mean"] < 4 and parity["rgb mean"] < 7,
               str([laid, parity]))
     # on the lights the video already has: the app looks for them under the box (by itself, and with a button)
     switch(others + [fid, lid])
@@ -975,9 +977,11 @@ def run(page, folder, edge):
         return page.evaluate("S.project.layers.map(c => ({id: c.id, kind: c.kind, track: c.track, start: c.start, "
                              "end: c.end, skip: c.skip}))")
 
-    def lane_y(i):  # rows from the top: new track, V4, V3, V2, V1
-        b = page.locator(".lane[data-row]").nth(i).bounding_box()
-        return b["y"] + b["height"] / 2
+    def lane_y(i):  # rows from the top: new track, V4, V3, V2, V1 (scrolled into view: many tracks overflow; in one
+        # step, as the timeline is drawn anew now and then while preview clips are made)
+        return page.evaluate(f"""(() => {{ const row = document.querySelectorAll('.lane[data-row]')[{i}];
+            row.scrollIntoView({{block: 'nearest'}}); const r = row.getBoundingClientRect();
+            return r.top + r.height / 2; }})()""")
 
     def x_of(sec):
         return page.locator("#tlLanes").bounding_box()["x"] + sec * page.evaluate("S.pps")
