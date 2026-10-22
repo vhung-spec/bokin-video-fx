@@ -1,13 +1,16 @@
 """Self-update from the GitHub releases of vhung-spec/bokin-fx-releases: a public repository that holds only the
 installers (no login, no key), since the source repository is private and its releases need a login.
 
-A release is tagged fx-v<version> and carries the installer BokinFX-Setup-<version>.exe; GitHub Actions only
-publishes one after building, installing and testing it. AutoUpdate looks when the app starts, every 5 minutes
-(12 requests an hour, well inside GitHub's 60 for a computer without a login), and when the page asks (each time its
-window opens, or the version is clicked),
-fetches a newer installer in the background and keeps it only if its size and SHA-256 are the ones GitHub lists for
-the file (the asset's "digest", else the "SHA-256:" line the workflow writes into the release notes). A release
-whose file cannot be checked is never used.
+A release is tagged fx-v<version> and carries the installer BokinFX-Setup-<version>.exe and a manifest,
+bokin-fx-latest.json (its version, the installer's name, size and SHA-256); GitHub Actions only publishes one after
+building, installing and testing it. AutoUpdate looks when the app starts, every 5 minutes, and when the page asks
+(each time its window opens, or the version is clicked). It reads the newest release's manifest as a plain download
+(github.com/.../releases/latest/download/...), not through GitHub's API: without a login the API answers 60 requests
+an hour for each Internet connection, and the computers of an office share one (five apps checking every 5 minutes
+use it all up). Only if there is no manifest (older releases) is the API's list read, and there the
+installer's SHA-256 is the asset's "digest", else the "SHA-256:" line the workflow writes into the release notes. A
+release whose file cannot be checked is never used. The installer is fetched in the background and kept only if its
+size and SHA-256 are the published ones; a download that breaks off goes on from where it stopped next time.
 
 The installer runs when the app quits by itself, or at once when the page asks ("Cập nhật ngay"), and then starts
 the app again. Only api.github.com and GitHub's download servers are contacted, with nothing about the computer.
@@ -22,9 +25,12 @@ import re
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.request
 
+SITE = "https://github.com/vhung-spec/bokin-fx-releases"  # the releases as plain downloads
 RELEASES = "https://api.github.com/repos/vhung-spec/bokin-fx-releases/releases?per_page=50"
+MANIFEST = "bokin-fx-latest.json"
 TAG = "fx-v"
 INSTALLER = re.compile(r"^BokinFX-Setup-[0-9.]+\.exe$")
 CHECK_EVERY = 5 * 60
@@ -41,14 +47,49 @@ def parse_version(text):
     return tuple(int(p) for p in parts)
 
 
-def _open(url, accept):
-    req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "BokinFX-update"})
-    return urllib.request.urlopen(req, timeout=60)
+def _open(url, accept, start=0):
+    headers = {"Accept": accept, "User-Agent": "BokinFX-update"}
+    if start:
+        headers["Range"] = f"bytes={start}-"
+    return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60)
 
 
-def latest(api=None):
-    """The newest published release that has a checkable installer, or None."""
-    with _open(api or os.environ.get("BOKIN_UPDATE_API") or RELEASES, "application/vnd.github+json") as r:
+def _sources():
+    """(the site whose newest release's manifest is read first or None, the API). A test's stand-in for GitHub
+    (BOKIN_UPDATE_API, and BOKIN_UPDATE_SITE for its manifest) never leads to the real one."""
+    api = os.environ.get("BOKIN_UPDATE_API")
+    return (os.environ.get("BOKIN_UPDATE_SITE"), api) if api else (SITE, RELEASES)
+
+
+def latest():
+    """The newest published release that has a checkable installer, or None: from the newest release's manifest,
+    else (none there, or not one to use) from the API's list."""
+    site, api = _sources()
+    if site:
+        try:
+            return from_manifest(site)
+        except (urllib.error.HTTPError, ValueError):  # (no manifest: a release before it had one; or none to use)
+            pass  # (GitHub out of reach: that is the answer, no second wait)
+    return from_api(api)
+
+
+def from_manifest(site):
+    """The release a manifest describes (a plain download from the newest release, no API). ValueError if it is not
+    one to use."""
+    with _open(f"{site}/releases/latest/download/{MANIFEST}", "application/octet-stream") as r:
+        m = json.loads(r.read(1 << 16))
+    numbers, name = parse_version(m.get("version", "")), m.get("name")
+    sha, size = str(m.get("sha256", "")).lower(), m.get("size")
+    if not numbers or not isinstance(name, str) or not INSTALLER.match(name) or not re.fullmatch(r"[0-9a-f]{64}", sha) \
+            or not isinstance(size, int) or size <= 0:
+        raise ValueError("the newest release's manifest is not one to use")
+    version = ".".join(map(str, numbers))
+    return Release(version, numbers, f"{site}/releases/download/{TAG}{version}/{name}", name, size, sha)
+
+
+def from_api(api):
+    """The newest release with a checkable installer in the API's list, or None."""
+    with _open(api, "application/vnd.github+json") as r:
         listing = json.loads(r.read())
     found = None
     for rel in listing:
@@ -93,20 +134,27 @@ def _keep_only(folder, name):
 
 
 def fetch(release, folder):
-    """The release's installer in `folder`, downloaded once and verified. Older files there are deleted only
-    once this one is in place, so a ready installer never disappears before its replacement is."""
+    """The release's installer in `folder`, downloaded once and verified. A download that broke off goes on from
+    where it stopped (when the server can send the rest only). Older files there are deleted only once this one is
+    in place, so a ready installer never disappears before its replacement is."""
     os.makedirs(folder, exist_ok=True)
     target = os.path.join(folder, release.name)
     if os.path.exists(target) and verified(target, release):
         _keep_only(folder, release.name)
         return target
     partial = target + ".download"
-    with _open(release.url, "application/octet-stream") as r, open(partial, "wb") as f:
-        while True:
-            block = r.read(1 << 20)
-            if not block:
-                break
-            f.write(block)
+    have = os.path.getsize(partial) if os.path.exists(partial) else 0
+    if release.size is None or have >= release.size:
+        have = 0  # (nothing to go on from: from the start)
+    with _open(release.url, "application/octet-stream", have) as r:
+        if r.status != 206 or not (r.headers.get("Content-Range") or "").startswith(f"bytes {have}-"):
+            have = 0  # (the server sent the whole file)
+        with open(partial, "ab" if have else "wb") as f:
+            while True:
+                block = r.read(1 << 20)
+                if not block:
+                    break
+                f.write(block)
     if not verified(partial, release):
         os.remove(partial)
         raise ValueError("downloaded installer does not match the published SHA-256")
@@ -115,14 +163,27 @@ def fetch(release, folder):
     return target
 
 
+def reason(error):
+    """Why a look failed, for the page: "limit" (GitHub's API refused: its limit of requests for this Internet
+    connection), "github" (GitHub answered with another error), "offline" (GitHub could not be reached: no
+    connection, its name not found, a firewall, a certificate replaced by an antivirus), "other"."""
+    if isinstance(error, urllib.error.HTTPError):
+        if error.code == 429 or (error.code == 403 and (error.headers or {}).get("X-RateLimit-Remaining") == "0"):
+            return "limit"
+        return "github"
+    if isinstance(error, OSError):  # (URLError, a time-out, a certificate)
+        return "offline"
+    return "other"
+
+
 class AutoUpdate:
     """state: what the page shows. ready = an installer for a newer version is downloaded and verified."""
 
     def __init__(self, current, folder, every=CHECK_EVERY):
         self.numbers, self.folder, self.every = parse_version(current), folder, every
         self.installer = None
-        self.state = {"current": current, "available": None, "ready": False, "error": None, "checked": None,
-                      "downloading": None}
+        self.state = {"current": current, "available": None, "ready": False, "error": None, "reason": None,
+                      "checked": None, "downloading": None}
         self.wake = threading.Event()
 
     def start(self):
@@ -154,9 +215,11 @@ class AutoUpdate:
                 self.installer = installer
                 self.state.update(available=release.version, ready=True)
                 print(f"update {release.version} ready: it is installed when the app closes", flush=True)
-            self.state["error"] = None
+            self.state.update(error=None, reason=None)
         except Exception as e:  # noqa: BLE001 - offline or GitHub busy: next time
-            self.state["error"] = str(e)[:200]
+            self.state.update(error=f"{type(e).__name__}: {e}"[:200],
+                              reason="download" if self.state["downloading"] else reason(e))
+            print(f"update check: {self.state['error']}", flush=True)
         finally:
             self.state.update(downloading=None, checked=time.time())
 

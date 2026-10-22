@@ -67,6 +67,10 @@ Mọi thao tác chuột và phím tắt: [HUONG-DAN.md](HUONG-DAN.md) (trong app
 
 App tự kiểm tra bản mới khi mở cửa sổ và mỗi 5 phút. Muốn kiểm tra ngay thì bấm vào dòng **phiên bản** ở góc
 dưới. Khi có bản mới, góc trên có nút **Cập nhật ngay**. Nếu không bấm, bản mới sẽ được cài lúc app tự đóng.
+Nhiều máy dùng chung một mạng (văn phòng) vẫn tự cập nhật được. Không kiểm tra được thì app nói lý do (mạng, tường
+lửa hay phần mềm diệt virus chặn; tải bị ngắt thì lần sau tải tiếp). Máy còn bản cũ (trước khi có các điều này) mà
+không tự cập nhật được: cài tay một lần bản mới ở
+https://github.com/vhung-spec/bokin-fx-releases/releases/latest (cài đè, key và dự án vẫn còn).
 
 ## Kích hoạt (bản quyền)
 

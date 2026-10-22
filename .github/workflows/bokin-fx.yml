@@ -1,6 +1,7 @@
 # Builds the Bokin FX installer on Windows, tests it, and publishes it as a GitHub Release of the public repository
 # vhung-spec/bokin-fx-releases (installers only; this repository is private and its releases need a login):
-# Releases -> BokinFX-Setup-<version>.exe, tag fx-v<version>. The installed apps update from there. The RELEASES_TOKEN
+# Releases -> BokinFX-Setup-<version>.exe and its manifest bokin-fx-latest.json, tag fx-v<version>. The installed apps
+# update from there (they read the newest release's manifest, a plain download, not the API). The RELEASES_TOKEN
 # secret is a fine-grained token with Contents read/write on that repository only.
 name: Bokin FX
 
@@ -110,6 +111,6 @@ jobs:
         run: |
           if (-not $env:GH_TOKEN) { throw "No RELEASES_TOKEN secret: a token that can write the releases of vhung-spec/bokin-fx-releases." }
           $file = (Get-ChildItem dist/BokinFX-Setup-*.exe).FullName
-          $sha = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
-          python packaging/release_notes.py $env:APP_VERSION $sha notes.md
-          gh release create "fx-v$env:APP_VERSION" $file --repo vhung-spec/bokin-fx-releases --title "Bokin FX $env:APP_VERSION" --notes-file notes.md
+          # (the notes, and the manifest the installed apps read first: bokin-fx-latest.json, fx/updater.py)
+          python packaging/release_notes.py $file $env:APP_VERSION release
+          gh release create "fx-v$env:APP_VERSION" $file release/bokin-fx-latest.json --repo vhung-spec/bokin-fx-releases --title "Bokin FX $env:APP_VERSION" --notes-file release/notes.md

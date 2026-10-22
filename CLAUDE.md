@@ -14,7 +14,10 @@ hiệu ứng. Cách dùng: `README.md`.
   khoá ký và mã cài đặt chỉ nằm trên máy của chủ dự án, không bao giờ vào kho này, bộ cài hay chat.
 - Mã hay tài liệu của các kho khác của công ty: chỉ chép vào đây khi chủ đồng ý.
 - Bản cài phát hành ở kho **công khai** `vhung-spec/bokin-fx-releases` (chỉ có Releases, không có mã; chủ chọn
-  2026-10-19): app đọc Releases ở đó không cần đăng nhập (`fx/updater.py`), khách tải ở
+  2026-10-19): app đọc Releases ở đó không cần đăng nhập (`fx/updater.py`: trước hết `bokin-fx-latest.json` của
+  bản mới nhất, tải thường qua `releases/latest/download/`, không qua API, vì API không đăng nhập chỉ trả 60 lần mỗi
+  giờ cho một mạng, cả văn phòng dùng chung; không có file đó thì đọc API; tải bị ngắt thì lần sau tải tiếp; trang nói
+  lý do không kiểm tra được: `reason`, `UPDATE_FAILED`; CI đăng file đó bằng `packaging/release_notes.py`), khách tải ở
   `…/bokin-fx-releases/releases/latest`. CI đăng bằng secret `RELEASES_TOKEN` (token fine-grained, Contents read/write
   chỉ kho đó, hạn 1 năm: hết hạn thì bước phát hành đỏ, chủ tạo token mới). App 1.0.48 trở về trước đọc Releases của
   kho này (riêng tư, không thấy): cài tay bản mới một lần.

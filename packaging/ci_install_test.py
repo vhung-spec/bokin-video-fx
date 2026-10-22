@@ -5,7 +5,8 @@
       running closes it (BokinFX.exe --close) and installs over it.
 
   python packaging/ci_install_test.py update <BokinFX-Setup-Y.exe> <Y>
-      the installed app finds version Y on a stand-in for GitHub, downloads and verifies it; "Cập nhật ngay"
+      the installed app finds version Y on a stand-in for GitHub (in the newest release's manifest, while the API
+      refuses as for an office over its limit of requests), downloads and verifies it; "Cập nhật ngay"
       (POST /api/update) installs it and the installer starts the app again, now in version Y.
 """
 import json
@@ -59,8 +60,10 @@ def setup(installer):
         stop(f"setup ended with code {code}")
 
 
-def start_app(update_api):
+def start_app(update_api, update_site=None):
     env = dict(os.environ, BOKIN_NO_BROWSER="1", BOKIN_UPDATE_API=update_api)
+    if update_site:
+        env["BOKIN_UPDATE_SITE"] = update_site
     return subprocess.Popen([EXE], env=env)
 
 
@@ -77,7 +80,8 @@ def install(installer):
 
 def update(installer, version):
     fake = fake_releases.serve(f"fx-v{version}", installer, 8765)
-    app = start_app("http://127.0.0.1:8765/releases")
+    # the newest release's manifest, while the API refuses as it does for an office over its limit of requests
+    app = start_app("http://127.0.0.1:8765/limited", "http://127.0.0.1:8765/site")
     wait(lambda: ((call("/api/state") or {}).get("update") or {}).get("ready"), 120,
          "the app found the next version, downloaded it and checked it")
     if not (call("/api/update", {}) or {}).get("ok"):
