@@ -488,14 +488,14 @@ class Glow(Effect):
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)
 
 
-from . import candle, foliage, frost, glass, leaves, lights, rain, snow, steam  # (here: they build on the classes above)
+from . import candle, flicker, foliage, frost, glass, leaves, lights, rain, snow, steam  # (here: they build on the classes above)
 
 SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "steam": steam.SCHEMA,
           "candle": candle.SCHEMA, "leaves": leaves.SCHEMA, "foliage": foliage.SCHEMA, "lights": lights.SCHEMA,
-          "frost": frost.SCHEMA, **SCHEMA}
+          "frost": frost.SCHEMA, "flicker": flicker.SCHEMA, **SCHEMA}
 KINDS = {"snow": snow.Snow, "leaves": leaves.Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
          "steam": steam.Steam, "candle": candle.Candle, "foliage": foliage.Foliage, "lights": lights.Lights,
-         "frost": frost.Frost}
+         "frost": frost.Frost, "flicker": flicker.Flicker}
 
 # Placed and turned like a file clip (Effect.TURNS): the same settings as a file clip's, under the same headings,
 # after the effect's own. A full-frame effect gets a place and a size (at 100 and in the middle: the frame itself, as

@@ -48,6 +48,8 @@ Premiere Pro:
   - **Khói** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói, lửa nến** bên dưới).
   - **Lá cây lay động**: bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió (xem mục **Lá cây lay động**
     bên dưới).
+  - **Nhấp nháy vùng**: một chỗ trong video sáng tối nhấp nháy, như quả bí ngô có nến bên trong, đèn lồng, lò sưởi
+    (xem mục **Nhấp nháy vùng** bên dưới).
   - **Tuyết bám kính**: băng giá bám quanh viền ô kính (hoa băng như lông chim, sương muối li ti, kính mờ đục), tuyết
     đọng ở mép dưới, bông tuyết đậu lên kính rồi tan, băng lấp lánh (xem mục **Tuyết bám kính** bên dưới).
   - **Dây đèn lấp lánh**: dây đèn nháy quấn quanh cây thông Noel, treo võng, rèm đèn (xem mục **Dây đèn lấp lánh**
@@ -272,6 +274,21 @@ viền bụi cây đứng yên. Chỉ chỗ bạn tô mới động, cả bức 
 Chưa tô vùng thì chưa có gì lay động. Sau khi tô, app cần một lúc (khoảng nửa phút cho 30 giây video) để làm bản xem
 nhanh; xong rồi thì lúc phát thấy đúng như video xuất ra. Tô lại vùng (hoặc vẽ vùng đứng yên ngay đó) thì app làm lại bản
 xem nhanh; trong lúc chờ, bản cũ vẫn phát.
+
+### Nhấp nháy vùng
+
+Làm một chỗ có sẵn trong video sáng tối nhấp nháy: quả bí ngô có nến bên trong, đèn lồng, lò sưởi, cửa sổ có ánh nến.
+Chỉ chỗ bạn tô mới nhấp nháy.
+
+1. Bấm **Tạo sẵn** → **Nhấp nháy vùng**, kéo xuống một track trống, bấm **Suốt video**.
+2. Bấm **Vẽ vùng** (nút có hình bút chì), tô lên chỗ cần nhấp nháy, ví dụ quả bí ngô. Muốn ánh sáng trên mặt bàn
+   quanh nó cũng chập chờn theo thì tô cả chỗ đó. Bấm **Xong**. Chưa tô thì chưa có gì nhấp nháy.
+3. Chọn **Kiểu nháy**: **Ánh nến lung linh** (bí ngô, đèn lồng), **Lửa bập bùng** (lò sưởi, đống lửa), **Nhấp nháy
+   đều**, **Sáng mờ dần (như thở)**, **Đèn chập chờn** (sáng đều, thỉnh thoảng tắt vụt).
+4. Chỉnh thêm nếu cần: **Độ nháy** (sáng tối mạnh hay nhẹ), **Tốc độ**, **Chỗ sáng nháy nhiều hơn** (mắt, miệng bí ngô
+   nháy rõ, chỗ tối gần như yên), **Ấm lên khi sáng, đỏ đi khi tối**, **Mép mềm** (vùng nhấp nháy mềm dần từ mép vào).
+
+Sau khi tô, app cần một lúc để làm bản xem nhanh; xong rồi thì lúc phát thấy đúng như video xuất ra.
 
 ### Tuyết bám kính
 

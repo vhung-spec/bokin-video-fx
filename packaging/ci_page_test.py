@@ -565,6 +565,14 @@ def winter(page, shot, edge):
     page.wait_for_function("S.bulbDone === S.bulbTok && !$('#findBulbs').disabled", timeout=60000)
     check("string lights on the video's own lights: only their light, in their colours; the app looks for them",
           got == ["glow", "video", True, True, True], str(got))
+    # a painted area flickering (as the rustling leaves: nothing until its area is painted, no box, no turn)
+    page.dblclick('.tile[data-kind="flicker"]')
+    page.wait_for_timeout(400)
+    warn = page.evaluate("""[$('#ec .warn') && $('#ec .warn').textContent, !!$('#ec select[data-param="mode"]'),
+        $('#xform').style.display, !!$('#ec [data-num="rot_x"]')]""")
+    check("Nhấp nháy vùng: the panel says to paint its area first; its ways of flickering; no box, no turn",
+          bool(warn[0]) and "nhấp nháy" in warn[0] and warn[1:] == [True, "none", False], str(warn))
+    page.evaluate("deleteClip(clipById(S.sel)); edited()")
     shot("05i-winter")
 
 
@@ -1035,7 +1043,8 @@ def run(page, folder, edge):
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
-          glass == ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "lights", "glow"],
+          glass == ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "flicker", "lights",
+                    "glow"],
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)

@@ -132,11 +132,11 @@ class Plain(unittest.TestCase):
         file = {p["key"]: p for p in overlay.SCHEMA["params"]}
         for kind, cls in effects.KINDS.items():
             by = {p["key"]: p for p in effects.SCHEMA[kind]["params"]}
-            if kind in ("candle", "foliage"):
+            if kind in ("candle", "foliage", "flicker"):
                 self.assertFalse(cls.TURNS)
                 self.assertFalse(set(overlay.ROTATIONS) & set(by))
                 self.assertFalse(effects.on_sheet(kind, {"rot_x": 30, "rot_z": 10}))
-                if kind == "foliage":
+                if kind in ("foliage", "flicker"):
                     self.assertFalse({"x", "y", "scale", "persp"} & set(by))
                     self.assertFalse(effects.on_sheet(kind, {"x": 10, "scale": 50}))
                 continue

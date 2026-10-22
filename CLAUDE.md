@@ -133,6 +133,11 @@ hiệu ứng. Cách dùng: `README.md`.
   theo dải `_bands_of`, WebM có thẻ BT.709); tên theo hash vùng của clip (`_area_painted`), vùng đứng yên gần đó;
   trang hỏi lại khi tô vùng của clip, đặt nó trong `underBox`; clip làm cho đúng vùng hiện tại thì xem nhanh là
   chính xác (`areaLive`: dừng hình không cần khung chính xác).
+- Nhấp nháy vùng (`fx/flicker.py`, mã loại `flicker`): lens trong vùng của clip như lá cây lay động (`AREA`, `UNDER`
+  không hộp, không xoay; "Mép mềm" của chính nó, mềm vào trong mép tô). Nhân hình với mức sáng theo thời gian (`level()`:
+  tổng sóng số nguyên vòng mỗi loop; nến: lung linh + thỉnh thoảng chao, lửa, nhấp nháy đều, thở, đèn chập chờn), chỗ
+  sáng theo nhiều hơn (`focus`), sáng lên thì trắng hơn, tối đi thì đỏ hơn (`WARM`: xanh dương theo nhiều nhất), lửa
+  lắc làm một bên sáng hơn (`sway`). Lời nhắc khi tô vùng và khi chưa tô lấy từ schema (`area_tip`, `area_empty`).
 - Tuyết bám kính (`fx/frost.py`, mã loại `frost`): hiệu ứng vẽ đè (không lens: xem nhanh là chính xác), phủ cả hình,
   xoay được. Hoa băng làm một lần theo chiều cao khung (`_segments`: thân lượn, gai 50° hình lông chim, cành phụ, rẽ
   nhánh `_stem`; nửa số mọc từ mép, nửa từ trong lớp băng, hướng bất kỳ; "Cỡ hoa băng" `fern_k`: nhỏ thì nhiều hơn,

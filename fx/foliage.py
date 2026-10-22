@@ -61,7 +61,10 @@ SCHEMA = {"label": "Lá cây lay động", "params": [
             "(1) Bấm Suốt video. (2) Bấm Vẽ vùng (hoặc Vùng của clip đang chọn) rồi tô lên bụi cây, tán lá; "
             "không tô lên nhà, xe, bầu trời. Chưa tô vùng thì chưa có gì lay động. (3) Chọn Kiểu: gió nhẹ, vừa, lớn. "
             "Lá động khắp vùng đã tô, chỉ một viền mỏng sát mép đứng yên (Giữ yên viền: kéo lên nếu thấy viền bụi cây "
-            "rung), nên hãy tô sát mép bụi cây. Hiệu ứng này không xoay 3D."}
+            "rung), nên hãy tô sát mép bụi cây. Hiệu ứng này không xoay 3D.",
+    # (what the page says while the area is painted, and when nothing is painted yet)
+    "area_tip": "Lá động khắp vùng tô, tới sát mép. Viền đứng yên: chỉnh Giữ yên viền trong Bảng chỉnh hiệu ứng.",
+    "area_empty": "Chưa tô vùng nên chưa có lá nào lay động. Bấm Vẽ vùng rồi tô lên bụi cây, tán lá."}
 
 TAU = 2 * math.pi
 # the octaves of the rustling: (lattice spacing, in cluster sizes; share of the motion; frequencies, Hz at speed 50)
