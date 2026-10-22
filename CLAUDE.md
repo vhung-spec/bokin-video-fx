@@ -68,7 +68,9 @@ hiệu ứng. Cách dùng: `README.md`.
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`, `fx/frost.py`, `fx/lights.py`: tuyết, mưa, lá
-  rơi, nước trên kính, khói, lửa nến, tuyết bám kính, dây đèn, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang, nồi;
+  rơi, nước trên kính, khói, lửa nến, tuyết bám kính, dây đèn, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang, nồi,
+  ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn: `edge`, `side`; `preset` của kiểu
+  đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
   (streakline) theo luồng khí: điểm toả khói trên cả hình bầu dục, đi lang thang (không thành răng lược); luồng khí
   gom về vài chỗ bốc mạnh đang trôi; sóng dài / vừa / ngắn; xoáy (`_whirls`: cột điểm trôi theo khí, sinh số nguyên

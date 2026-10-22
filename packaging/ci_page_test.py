@@ -1578,7 +1578,7 @@ def run(page, folder, edge):
             check("steam: its mark sits inside the box on its bottom edge", abs(sits[0]) < 3 and 0.15 < sits[1] < 0.4
                   and sits[2] > 4, str(sits))
             styles = page.evaluate("[...$('#ec select[data-param=\"style\"]').options].map(o => o.value)")
-            check("steam: its styles to choose from", styles == ["cup", "incense", "pot"], str(styles))
+            check("steam: its styles to choose from", styles == ["cup", "incense", "pot", "chimney"], str(styles))
             shot("05b-steam")
         spin = page.evaluate("[$('#xformRot').style.display, $('#xform3d').style.display, !!$('#ec [data-num=\"rot_x\"]')]")
         if kind == "steam":  # turned as a file clip, its box the sheet; a flame always rises straight up

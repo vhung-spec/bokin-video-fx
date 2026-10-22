@@ -521,7 +521,7 @@ class Settings(unittest.TestCase):
         self.assertEqual((defaults["style"], defaults["look"]), ("cup", "light"))
         keys = set(by) - set(PLACE)
         # a style: every setting but the place, the light and the style itself (its own rim and colour)
-        self.assertEqual(set(by["style"]["options"][i]["value"] for i in range(3)), {"cup", "incense", "pot"})
+        self.assertEqual(set(by["style"]["options"][i]["value"] for i in range(4)), {"cup", "incense", "pot", "chimney"})
         for name, preset in by["style"]["presets"].items():
             self.assertEqual(set(preset), keys - {"style", "lit"}, name)
             self.assertEqual(effects.clean_params("steam", preset), {**defaults, **preset}, name)  # in range

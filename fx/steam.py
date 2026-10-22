@@ -1,5 +1,6 @@
 """Smoke and steam rising from one place: steam over a hot cup of coffee or tea, the smoke of an incense stick, steam
-over a pot or a kettle (a placed effect: Effect.BOX; see effects.py for how every effect loops).
+over a pot or a kettle, wood smoke from a chimney leaning in the wind (a placed effect: Effect.BOX; see effects.py for
+how every effect loops).
 
 Smoke is drawn as dye carried by moving air. Points over the surface (the liquid in the cup or the pot, the glowing
 tip of the incense) let go of a little smoke all the time, the air carries it up, and what shows are the streaklines:
@@ -83,6 +84,10 @@ FORWARD = 0.35  # and of the light behind it (droplets scatter forward: backlit 
 #   dense     its steam goes with its surface (a pot: points and steam as the rim; narrow: a jet) or not (a cup: as
 #             much in all, spread over a wider one)
 #   vb, vt    its first moments spread between the points (times the gap between them), for about vt seconds
+#   puff      (puffs) how often a place lets go of a puff: two rates (Hz) of each, between which it is drawn
+#   edge, side  how near the box's sides it evaporates (box heights from its middle, at least and at most), and
+#             where a breeze gives way to rising there
+#   preset    its own settings when it is chosen, besides its rim and colour (a chimney's smoke leans in the wind)
 STYLES = {
     "cup": {"speed": (0.16, 0.6), "points": 64, "plumes": (3, 7), "veil": (0.04, 0.2), "gather": 0.45, "neck": 0.4,
             "calm": 0.05, "stir": 0.0, "wander": 0.18, "sway": 1.0, "wave": (0.35, 0.9), "eddy": 1.0, "fine": 1.0,
@@ -99,6 +104,17 @@ STYLES = {
             "whirls": 8, "spin": 1.0, "rc": 0.06, "s0": (0.002, 0.005), "grow": (0.005, 0.014), "widen": 0.0,
             "evap": 1.8, "fade": 0.3, "show": 0.15, "puffs": True, "mass": 0.18, "colour": "#f2f2f0", "rim": 70,
             "dense": True, "vb": 0.7, "vt": 0.3},
+    # wood smoke from a chimney: a dense column out of a narrow top that leans in the wind, swells and thins as it
+    # drifts, in soft billows (quick puffs: a column that comes in lumps); it does not evaporate as steam does, it
+    # spreads out and fades; a breeze carries it nearer the box's sides than steam
+    "chimney": {"speed": (0.08, 0.32), "points": 60, "plumes": (3, 6), "veil": (0.2, 0.4), "gather": 0.1,
+                "neck": 0.1, "calm": 0.0, "stir": 0.2, "wander": 0.25, "sway": 0.5, "wave": (0.6, 1.4), "eddy": 1.0,
+                "fine": 1.2, "whirls": 6, "spin": 1.0, "rc": 0.07, "s0": (0.004, 0.008), "grow": (0.008, 0.016),
+                "widen": 0.025, "evap": 0.4, "fade": 0.5, "show": 0.03, "puffs": True,
+                "puff": ((0.6, 1.0), (1.0, 1.6)), "mass": 0.3, "colour": "#c3c4c6", "rim": 8, "dense": False,
+                "vb": 0.0, "vt": 0.25, "edge": (0.27, 0.29), "side": (0.28, 0.46),
+                "preset": {"amount": 70, "reach": 100, "spread": 70, "soft": 50, "curl": 30, "breeze": 60,
+                           "gust": 35, "opacity": 75}},
 }
 
 DEFAULTS = {"amount": 45, "reach": 80, "spread": 40, "speed": 35, "curl": 40, "breeze": 6, "gust": 25, "soft": 40,
@@ -111,9 +127,10 @@ LOOKS = {
     "breeze": {"amount": 50, "reach": 85, "spread": 50, "curl": 45, "breeze": 50, "gust": 30},
 }
 LOOKS = {k: {**DEFAULTS, **v} for k, v in LOOKS.items()}
-# a style: its own rim and colour, and the first look (the style itself sets how it moves: the sliders are its own)
-STYLE_PRESETS = {k: {**LOOKS["light"], "look": "light", "rim": st["rim"], "color": st["colour"]} for k, st in
-                 STYLES.items()}
+# a style: its own rim and colour, and the first look (the style itself sets how it moves: the sliders are its own;
+# a chimney's own wind and amount of smoke on top)
+STYLE_PRESETS = {k: {**LOOKS["light"], "look": "light", **st.get("preset", {}), "rim": st["rim"],
+                     "color": st["colour"]} for k, st in STYLES.items()}
 LIT = 70  # how much it is lit by the scene, by default
 
 
@@ -123,18 +140,20 @@ def _p(key, label, value, group, lo=0, hi=100):
 
 SCHEMA = {
     "label": "Khói",
-    "note": "Chọn kiểu khói: hơi nóng bốc lên từ cốc cà phê, trà; khói nhang; hay hơi nước từ nồi, ấm. Kéo khung trắng "
-            "trên hình đến chỗ khói bốc lên: hình bầu dục vàng nằm ở đáy khung, đặt nó trùng miệng cốc (mặt nồi, "
-            "miệng vòi ấm), hoặc chấm vàng vào đầu que nhang. Kéo góc khung cho hình vàng rộng bằng miệng cốc. Khói "
-            "chỉ bay trong khung. Khói tự sáng theo đèn trong cảnh (đèn bên cạnh, cửa sổ phía sau).",
+    "note": "Chọn kiểu khói: hơi nóng bốc lên từ cốc cà phê, trà; khói nhang; hơi nước từ nồi, ấm; hay khói ống khói "
+            "(nhà có lò sưởi). Kéo khung trắng trên hình đến chỗ khói bốc lên: hình bầu dục vàng nằm ở đáy khung, đặt "
+            "nó trùng miệng cốc (mặt nồi, miệng vòi ấm, miệng ống khói), hoặc chấm vàng vào đầu que nhang. Kéo góc "
+            "khung cho hình vàng rộng bằng miệng cốc. Khói chỉ bay trong khung. Khói tự sáng theo đèn trong cảnh (đèn "
+            "bên cạnh, cửa sổ phía sau). Khói ống khói bay nghiêng theo gió: chỉnh Gió nghiêng.",
     # for the page: a mark where the smoke rises from, a flat ellipse (`ratio`: height / width) sitting on the middle
     # of the box's bottom edge, inside the box, as wide as the setting "rim" (% of the box's width), and a tip
     "mark": {"width": "rim", "ratio": MARK, "sits": True, "label": "chỗ khói bốc lên",
-             "tip": "Đặt hình bầu dục vàng trùng miệng cốc (mặt nồi, miệng vòi ấm), hoặc chấm vàng vào đầu que nhang, "
-                    "rồi kéo góc khung cho hình vàng rộng bằng miệng cốc."},
+             "tip": "Đặt hình bầu dục vàng trùng miệng cốc (mặt nồi, miệng vòi ấm, miệng ống khói), hoặc chấm vàng vào "
+                    "đầu que nhang, rồi kéo góc khung cho hình vàng rộng bằng miệng cốc."},
     "params": [
         _choice("style", "Kiểu khói", "cup",
-                [("cup", "Hơi nóng cốc cà phê, trà"), ("incense", "Khói nhang"), ("pot", "Hơi nước nồi, ấm")],
+                [("cup", "Hơi nóng cốc cà phê, trà"), ("incense", "Khói nhang"), ("pot", "Hơi nước nồi, ấm"),
+                 ("chimney", "Khói ống khói")],
                 presets=STYLE_PRESETS, group="Kiểu"),
         _choice("look", "Dáng khói", "light",
                 [("light", "Nhẹ nhàng"), ("thick", "Đậm"), ("long", "Bay cao, lượn dài"),
@@ -326,8 +345,8 @@ class Steam(Effect):
         # draws together into wisps), box heights
         self.vb = st["vb"] * math.sqrt(math.pi * self.a * self.e / n)
         # near the box's sides it evaporates, each strand a little nearer or farther (no straight edge)
-        self.edge = (np.clip(self.a + 0.02, 0.26, 0.34) + 0.04 * ((u[:, 11] * 13.7 + u[:, 2] * 5.3) % 1.0)
-                     ).astype(np.float32)
+        self.edge = (np.clip(self.a + 0.02, *st.get("edge", (0.26, 0.34))) +
+                     0.04 * ((u[:, 11] * 13.7 + u[:, 2] * 5.3) % 1.0)).astype(np.float32)
         # each point wanders over the surface (two rates, whole cycles a loop)
         self.wan = (st["wander"] * u[:, 4] * (1 - 0.7 * float(_smooth(30.0, 12.0, p["rim"])) * st["dense"])
                     ).astype(np.float32)  # (a kettle's spout: a jet, it stays at the spout)
@@ -349,8 +368,9 @@ class Steam(Effect):
         self.em = np.stack([self.cycles(_lerp(0.03, 0.08, pu[:, 6])), self.cycles(_lerp(0.1, 0.25, pu[:, 7]))]
                            ).astype(np.int64)
         self.ephi = pu[:, 8:10].T * 2 * math.pi
-        if st["puffs"]:  # a pot: puffs, quick ones
-            self.em = np.stack([self.cycles(_lerp(0.3, 0.6, pu[:, 6])), self.cycles(_lerp(0.6, 1.1, pu[:, 7]))]
+        if st["puffs"]:  # a pot: puffs, quick ones (a chimney: slow billows)
+            (a0, a1), (b0, b1) = st.get("puff", ((0.3, 0.6), (0.6, 1.1)))
+            self.em = np.stack([self.cycles(_lerp(a0, a1, pu[:, 6])), self.cycles(_lerp(b0, b1, pu[:, 7]))]
                                ).astype(np.int64)
             self.pm = np.stack([self.cycles(_lerp(0.03, 0.08, pu[:, 1])), self.cycles(_lerp(0.08, 0.2, pu[:, 2]))]
                                ).astype(np.int64)
@@ -421,7 +441,8 @@ class Steam(Effect):
         self.gm = self.cycles(np.array([_lerp(0.035, 0.07, g[7]), _lerp(0.09, 0.16, g[8]), _lerp(0.2, 0.32, g[9])])
                               ).astype(np.int64)
         self.gphi = g[9:12] * 2 * math.pi
-        self.flare = _lerp(0.0, 1.0, p["spread"] / 100) * V * {"cup": 1.0, "incense": 0.55, "pot": 1.1}[self.kind]
+        self.flare = _lerp(0.0, 1.0, p["spread"] / 100) * V * {"cup": 1.0, "incense": 0.55, "pot": 1.1,
+                                                                    "chimney": 1.2}[self.kind]
         # a narrow source of a lot of steam (a kettle's spout): a quick jet, clear for a little way (vapour still too
         # hot to show), then spreading at once
         self.jet = float(_smooth(30.0, 12.0, p["rim"])) if st["dense"] else 0.0
@@ -488,7 +509,8 @@ class Steam(Effect):
         lean = self._breeze(k)
         if self.calm > 0.1 * reach:  # (a smooth column first: only a steady breeze bends it there)
             lean = self.lean + (lean - self.lean) * _smooth(0.5 * self.calm, self.calm, h)
-        vx = lean * (0.05 + 0.95 * _smooth(0.0, 0.2, h)) * (1 - _smooth(0.22, 0.44, x * np.sign(lean)))
+        vx = lean * (0.05 + 0.95 * _smooth(0.0, 0.2, h)) * (1 - _smooth(*self.style.get("side", (0.22, 0.44)),
+                                                                        x * np.sign(lean)))
         axis = self.lean * np.maximum(y - 0.12, 0.0) / V  # where the leaning plume is, roughly
         vx = vx + self.flare * (x - axis) * _smooth(0.04, 0.45 * reach, h)  # it spreads as it rises
         if plumes is not None:  # the draught over the surface sweeps the steam into the wisps

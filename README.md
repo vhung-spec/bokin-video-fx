@@ -220,7 +220,7 @@ phóng to (vài loại chuột lăn mượt, không có nấc), giữ `Ctrl` r�
 Hai hiệu ứng này nằm ở một chỗ trong hình, không phủ cả khung. Khi chọn clip, hình có một **khung trắng**: kéo khung để
 dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong Bảng chỉnh hiệu ứng).
 
-**Khói** (hơi nóng cốc cà phê, trà; khói nhang; hơi nước nồi, ấm)
+**Khói** (hơi nóng cốc cà phê, trà; khói nhang; hơi nước nồi, ấm; khói ống khói)
 
 1. Bấm **Tạo sẵn** → **Khói**, kéo xuống một track trống (hàng ghi **trống**).
 2. Chọn **Kiểu khói**:
@@ -229,6 +229,10 @@ dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong 
    - **Hơi nước nồi, ấm**: một lớp hơi mỏng phủ đều mặt nước, bốc lên thành từng đám cuộn rồi tan. Với ấm đun nước:
      đặt hình vàng vào miệng vòi ấm, kéo góc khung cho hình vàng nhỏ bằng miệng vòi; hơi phụt nhanh ra, cách miệng
      vòi một chút mới thấy (như hơi thật), rồi uốn lượn và tan.
+   - **Khói ống khói** (nhà có lò sưởi): một cột khói xám đặc bốc lên từ miệng ống khói, nghiêng theo gió, to dần
+     thành từng cuộn mềm rồi loãng đi. Đặt hình vàng vào miệng ống khói, kéo góc khung cho hình vàng rộng bằng miệng
+     ống khói (khung sẽ to hơn ống khói nhiều: chỗ cho khói bay). **Gió nghiêng**: khói bay sang trái hay phải, nghiêng
+     nhiều hay ít (0: bay thẳng lên). Muốn khói bay xa hơn: kéo khung to hơn và giảm **Độ rộng chỗ khói bốc lên**.
 3. Kéo khung trắng đến chỗ khói bốc lên. Ở đáy khung có **hình bầu dục vàng** (ghi "chỗ khói bốc lên"): đặt nó trùng
    miệng cốc (mặt nồi), rồi kéo góc khung cho hình vàng rộng bằng miệng cốc. Với khói nhang, hình vàng chỉ là một chấm:
    đặt chấm vào đầu que nhang, rồi kéo góc khung cho khung cao bằng chỗ khói bay lên.
