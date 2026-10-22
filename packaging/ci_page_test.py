@@ -553,18 +553,11 @@ def winter(page, shot, edge):
         check(f"{kind}: its preview clip ({clip}, {blend}), the live picture as the exact frame",
               laid == [True, blend] and parity["soft luma mean"] < 4 and parity["rgb mean"] < 7,
               str([laid, parity]))
-    # on the lights the video already has: the app looks for them under the box (by itself, and with a button)
     switch(others + [fid, lid])
-    page.evaluate(f"select('{lid}')")
-    page.wait_for_timeout(300)
-    page.select_option('#ec select[data-param="layout"]', "scene")
-    page.wait_for_function("S.bulbTok >= 1 && S.bulbDone === S.bulbTok", timeout=60000)
-    got = page.evaluate(f"""(c => [c.params.bulb, c.params.palette, Array.isArray(c.params.spots), !!$('#findBulbs'),
-        $('#ec').textContent.includes('bóng đèn')])(clipById('{lid}'))""")
-    page.click("#findBulbs")
-    page.wait_for_function("S.bulbDone === S.bulbTok && !$('#findBulbs').disabled", timeout=60000)
-    check("string lights on the video's own lights: only their light, in their colours; the app looks for them",
-          got == ["glow", "video", True, True, True], str(got))
+    layouts = page.evaluate(f"""(() => {{ select('{lid}');
+        return [...$('#ec select[data-param="layout"]').options].map(o => o.value); }})()""")
+    check("string lights: round a tree, swags, a curtain or scattered (drawn by hand: Dây đèn tự vẽ)",
+          layouts == ["tree", "swag", "curtain", "scatter"], str(layouts))
     # a painted area flickering (as the rustling leaves: nothing until its area is painted, no box, no turn)
     page.dblclick('.tile[data-kind="flicker"]')
     page.wait_for_timeout(400)
@@ -576,67 +569,137 @@ def winter(page, shot, edge):
     shot("05i-winter")
 
 
-def drawn_strands(page, shot):
-    """String lights drawn by hand: "Tự vẽ dây trên hình" makes the box cover the picture and starts drawing (no white
-    box meanwhile); clicks on the picture put a strand's points, a double-click ends it (into the clip's settings, as
-    places in its box: the renderer lays as many bulbs as "Số bóng trên dây" along them); only the settings that way of
-    laying them uses show; "Bỏ điểm cuối", "Xoá hết dây" and undo."""
+def garland(page, shot):
+    """Dây đèn tự vẽ: a new clip starts drawing at once (no box, nothing to place or turn); clicks put a strand's points
+    (the wire hangs between them) and a double-click on the last one ends it; a press and drag draws a stretch by hand
+    (in one go: a strand of its own). The points are kept as places in the frame, and the renderer lays the bulbs where
+    the page shows them, as many. A strand chosen by a click on its wire: its own sag; a point dragged; a wire pulled
+    into a new point; the strand chosen deleted with its key; Backspace, Ctrl+Z and Ctrl+Y on the strand being drawn;
+    Esc ends it, then the drawing; a click on the picture draws again; Xoá hết dây undone. Its preview clip: light on
+    black over the whole frame."""
     from fx import effects as fx_effects
     page.click('.tab[data-bin="fx"]')
-    page.dblclick('.tile[data-kind="lights"]')
+    page.dblclick('.tile[data-kind="garland"]')
     cid = page.evaluate("S.sel")
-    page.select_option('#ec select[data-param="layout"]', "draw")
     page.wait_for_timeout(300)
     vw, vh = page.evaluate("[info().w, info().h]")
-    state = page.evaluate("""(c => [!!S.wire, c.params.scale, $('#xform').style.display, !!$('#wireDraw'),
-        !!$('#ec [data-param="bulbs"]'), !!$('#ec [data-param="sag"]'), !!$('#ec [data-param="density"]'),
-        !!$('#ec [data-param="amount"]')])(clipById(S.sel))""")
-    check("strands drawn by hand: drawing starts, the box covers the picture, only their own settings show",
-          state[0] and abs(state[1] - 100 * max(vw, vh) / min(vw, vh)) < 0.2 and state[2:] == ["none", True, True,
-                                                                                                True, False, False],
-          str(state))
+    state = page.evaluate("""(c => [c.kind, !!S.wire && S.wire.id === c.id, $('#xform').style.display, !!$('#wireDraw'),
+        !!$('#ec [data-param="gap"]'), !!$('#ec [data-param="scale"]'), !!$('#ec [data-num="rot_x"]'),
+        stage.classList.contains('wiring')])(clipById(S.sel))""")
+    check("Dây đèn tự vẽ: drawing starts at once; no box, nothing to place or turn",
+          state == ["garland", True, "none", True, True, False, False, True], str(state))
     box = page.locator("#screen").bounding_box()
 
     def at(fx_, fy_):
         return box["x"] + box["width"] * fx_, box["y"] + box["height"] * fy_
 
-    first, second = [(0.15, 0.25), (0.5, 0.2), (0.85, 0.3)], [(0.2, 0.7), (0.8, 0.75)]
-    for strand in (first, second):
-        for fx_, fy_ in strand:
-            page.mouse.click(*at(fx_, fy_))
-            page.wait_for_timeout(120)
-        page.mouse.dblclick(*at(*strand[-1]))  # (where its last point is: it ends the strand, no point more)
-        page.wait_for_timeout(300)
-    got = page.evaluate(f"clipById('{cid}').params.strands")
-    r = page.evaluate(f"placed(clipById('{cid}'))")
-    want = [[(fx_ * vw - r["x"]) / r["h"], (fy_ * vh - r["y"]) / r["h"], 1 if i == 0 else 0]
-            for strand in (first, second) for i, (fx_, fy_) in enumerate(strand)]
-    close = len(got) == len(want) and all(abs(a - b) < 0.01 for g, w in zip(got, want) for a, b in zip(g, w))
-    params = page.evaluate(f"clipById('{cid}').params")
-    bulbs = len(fx_effects.make("lights", params, 3, 48, 24, 640, 360).x)
-    check("strands drawn by hand: each click a point, a double-click ends a strand; as many bulbs as asked for",
-          close and abs(bulbs - params["bulbs"]) <= 2, f"{got} / {want}, {bulbs} bulbs")
-    page.mouse.click(*at(0.4, 0.5))  # (a strand begun: drawn over the picture with the others)
-    page.mouse.move(*at(0.6, 0.55))
+    def strands():
+        return page.evaluate(f"clipById('{cid}').params.strands")
+
+    first = [(0.15, 0.3), (0.45, 0.3), (0.75, 0.32)]
+    for fx_, fy_ in first:
+        page.mouse.click(*at(fx_, fy_))
+        page.wait_for_timeout(120)
+    page.mouse.dblclick(*at(*first[-1]))  # (on its last point: it ends the strand, no point more)
     page.wait_for_timeout(300)
-    shot("05j-strands-drawing")
-    page.click("#wireUndo")  # (that point)
-    page.click("#wireUndo")
-    n1 = page.evaluate(f"clipById('{cid}').params.strands.length")
-    page.keyboard.press("Control+z")
+    page.mouse.move(*at(0.2, 0.7))  # drawn by hand in one go
+    page.mouse.down()
+    for i in range(1, 21):
+        page.mouse.move(*at(0.2 + 0.03 * i, 0.7 - 0.12 * math.sin(math.pi * i / 20)), steps=2)
+    page.mouse.up()
+    page.wait_for_timeout(300)
+    got = strands()
+    clicked, hand = got[:3], got[3:]
+    ok_click = ([q[2] for q in clicked] == [1, 0, 0] and abs(clicked[0][3] - 0.35) < 1e-6 and
+                all(abs(a - b) < 0.004 for q, w in zip(clicked, first) for a, b in zip(q[:2], w)))
+    ok_hand = (len(hand) >= 4 and hand[0][2] == 1 and all(q[2] == 0.5 for q in hand[1:]) and
+               abs(hand[0][0] - 0.2) < 0.01 and abs(hand[-1][0] - 0.8) < 0.01)
+    params = page.evaluate(f"clipById('{cid}').params")
+    fx = fx_effects.make("garland", dict(params, jitter=0), 3, 48, 24, vw, vh)
+    shown = page.evaluate(f"wireGuide(clipById('{cid}')).bulbs")
+    off = max((math.hypot(x - fx.x[i] * vh, y - fx.y[i] * vh) for i, (x, y, _) in enumerate(shown)), default=99) \
+        if len(shown) == len(fx.x) else 99
+    info = page.evaluate("$('#wireInfo').textContent")
+    check("Dây đèn tự vẽ: clicks and a double-click make a strand, a drag one drawn by hand; the renderer's bulbs are "
+          "where the page shows them, as many", ok_click and ok_hand and off < 0.6 and f"{len(shown)} bóng" in info,
+          f"{got}, {len(shown)} / {len(fx.x)} bulbs, {off:.3f} px off, {info!r}")
+    page.mouse.click(*at(0.4, 0.55))  # (a strand begun: drawn over the picture with the others)
+    page.mouse.move(*at(0.6, 0.6))
+    page.wait_for_timeout(300)
+    shot("05j-garland-drawing")
+    page.keyboard.press("Escape")  # (a single point: no strand)
+    # the first strand chosen by a click on its wire (hanging between its points), then its own sag
+    droop = 0.35 * 0.3 * vw / vh * 0.25
+    page.mouse.click(*at(0.3, 0.3 + droop))
     page.wait_for_timeout(200)
-    n2 = page.evaluate(f"clipById('{cid}').params.strands.length")
+    chosen = page.evaluate("[S.wire.sel, $('#ec').textContent.includes('dây đang chọn'), !!$('#wireDel') && !$('#wireDel').disabled]")
+    page.evaluate("""(() => { const r = $('#wireSag'); r.value = 0; r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true})); })()""")
+    page.wait_for_timeout(200)
+    sags = [q[3] for q in strands() if q[2] == 1]
+    check("Dây đèn tự vẽ: a click on a wire chooses its strand; the sag slider is that strand's",
+          chosen == [0, True, True] and sags[0] == 0 and abs(sags[1] - 0.35) < 1e-6, str([chosen, sags]))
+    # a point dragged; the (now straight) wire pulled: a new point there
+    page.mouse.move(*at(0.45, 0.3))
+    page.mouse.down()
+    page.mouse.move(*at(0.45, 0.2), steps=6)
+    page.mouse.up()
+    page.wait_for_timeout(200)
+    moved = strands()[1][:2]
+    page.mouse.move(*at(0.3, 0.25))
+    page.mouse.down()
+    page.mouse.move(*at(0.3, 0.42), steps=6)
+    page.mouse.up()
+    page.wait_for_timeout(200)
+    got = strands()
+    pulled = got[1][:3]
+    check("Dây đèn tự vẽ: a point dragged where it is let go; a wire pulled bends at a new point",
+          all(abs(a - b) < 0.004 for a, b in zip(moved, (0.45, 0.2))) and len(got) == len(clicked) + len(hand) + 1
+          and all(abs(a - b) < 0.004 for a, b in zip(pulled, (0.3, 0.42, 0))), str([moved, pulled, len(got)]))
+    n0 = len(got)
+    page.keyboard.press("Delete")  # (the strand chosen, never the clip)
+    page.wait_for_timeout(200)
+    n1 = len(strands())
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(300)
+    n2 = len(strands())
+    # the strand being drawn: Backspace, Ctrl+Z, Ctrl+Y on its points; Esc ends it, then the drawing
+    for fx_, fy_ in [(0.1, 0.9), (0.3, 0.92), (0.5, 0.9)]:
+        page.mouse.click(*at(fx_, fy_))
+        page.wait_for_timeout(100)
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Control+z")
+    a = page.evaluate("S.wire.cur.length")
+    page.keyboard.press("Control+y")
+    b = page.evaluate("S.wire.cur.length")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    n3 = len(strands())
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    off_ = page.evaluate("[!!S.wire, stage.classList.contains('wiring'), S.sel]")
+    check("Dây đèn tự vẽ: Delete removes the strand chosen (undone); Backspace, Ctrl+Z, Ctrl+Y on the strand being "
+          "drawn; Esc ends it, then the drawing", [n1, n2, a, b, n3] == [len(hand), n0, 1, 2, n0 + 2]
+          and off_ == [False, False, cid], str([n0, n1, n2, a, b, n3, off_]))
+    page.mouse.click(*at(0.6, 0.1))  # the clip chosen: a click on the picture draws again
+    page.wait_for_timeout(200)
+    again = page.evaluate("[!!S.wire, S.wire && S.wire.cur.length]")
+    page.keyboard.press("Escape")
     page.click("#wireClear")
-    n3 = page.evaluate(f"clipById('{cid}').params.strands.length")
+    n4 = len(strands())
     page.keyboard.press("Control+z")
+    page.wait_for_timeout(300)
+    n5 = len(strands())
+    page.click("#wireDraw")  # done drawing
     page.wait_for_timeout(200)
-    n4 = page.evaluate(f"clipById('{cid}').params.strands.length")
-    page.click("#wireDraw")  # done drawing: the white box again
-    page.wait_for_timeout(200)
-    after = page.evaluate("[!!S.wire, $('#xform').style.display]")
-    check("strands drawn by hand: Bỏ điểm cuối, Xoá hết dây, each undone; done drawing, the box is back",
-          [n1, n2, n3, n4] == [4, 5, 0, 5] and after == [False, "block"], str([n1, n2, n3, n4, after]))
-    shot("05j-strands")
+    done = page.evaluate("[!!S.wire, $('#polyCanvas').style.display]")
+    check("Dây đèn tự vẽ: a click on the picture draws again; Xoá hết dây undone; done drawing",
+          again == [True, 1] and [n4, n5] == [0, n0 + 2] and done == [False, "none"], str([again, n4, n5, done]))
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.els['{cid}']", timeout=300000)
+    laid = page.evaluate(f"""[S.els['{cid}'].media.getAttribute('src').includes('.mp4'),
+        S.els['{cid}'].wrap.style.mixBlendMode]""")
+    check("Dây đèn tự vẽ: its preview clip, light on black (H.264, Screen)", laid == [True, "screen"], str(laid))
+    shot("05j-garland")
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 
@@ -1108,7 +1171,7 @@ def run(page, folder, edge):
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
           glass == ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "flicker", "lights",
-                    "glow"],
+                    "garland", "glow"],
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
@@ -1653,7 +1716,7 @@ def run(page, folder, edge):
     shot("05b-steam-candle")
     foliage(page, shot)
     winter(page, shot, edge)
-    drawn_strands(page, shot)
+    garland(page, shot)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

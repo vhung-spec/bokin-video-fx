@@ -137,6 +137,25 @@ Bấm một nút trong cột **Công cụ** bên phải hình: **Vùng đứng y
 | Phóng to, kéo hình lúc vẽ | Lăn chuột trên hình. Giữ chuột phải (hoặc phím cách) rồi kéo |
 | Xong | Nút **Xong** ở cuối cột, hoặc `Esc` |
 
+## Vẽ dây đèn (Dây đèn tự vẽ)
+
+Thêm **Dây đèn tự vẽ** từ thẻ **Tạo sẵn**: app vào ngay chế độ vẽ dây. Các nút ở khung **Vẽ dây** đầu Bảng chỉnh hiệu
+ứng. Trên hình: đường dây, chấm tròn là điểm của dây, chấm vàng nhỏ là chỗ bóng đèn.
+
+| Thao tác | Cách làm |
+|---|---|
+| Dây võng (treo giữa các điểm) | Bấm từng điểm. Tới điểm cuối: bấm đúp, hoặc `Enter` |
+| Dây theo tay | Giữ chuột và kéo, thả là xong một dây |
+| Dây khép vòng (quanh cửa sổ) | Bấm từng điểm, cuối cùng bấm lại điểm đầu |
+| Dời một điểm | Kéo chấm tròn |
+| Uốn dây | Kéo ở giữa dây (thêm một điểm ở đó) |
+| Chọn một dây | Bấm vào dây (đổi màu xanh). Kéo thanh **Độ võng** để chỉnh riêng dây đó |
+| Xoá dây đang chọn | Nút **Xoá dây này**, hoặc `Delete` |
+| Bỏ điểm cuối | Nút **Bỏ điểm cuối**, hoặc `Backspace`. Đang vẽ dây: `Ctrl+Z` cũng bỏ điểm vừa bấm |
+| Thưa hay dày bóng | Thanh **Số bóng (thưa ← → dày)** |
+| Xong | Nút **Xong, thôi vẽ**, hoặc `Esc` (đang vẽ một dây: lần đầu là xong dây đó) |
+| Vẽ thêm, sửa sau | Chọn clip rồi bấm lên hình, hoặc nút **Vẽ / sửa dây** |
+
 ## Xem video
 
 | Thao tác | Cách làm |
@@ -191,7 +210,7 @@ Các phím dưới đây là phím mặc định. Phím trong nhóm **Vẽ vùng
 | Dao cắt: bấm vào clip để cắt đôi | `C` |
 | Bật / tắt bám dính (cả lúc đang kéo clip) | `S` |
 | Cắt clip tại đầu phát | `Ctrl+K` |
-| Xoá clip đang chọn | `Delete` hoặc `Backspace` |
+| Xoá clip đang chọn (đang vẽ dây đèn: xoá dây đang chọn) | `Delete` hoặc `Backspace` |
 | Sao chép clip đang chọn (dán được sang track khác, hoặc dự án khác) | `Ctrl+C` |
 | Dán clip đã chép: tại đầu phát, vào track dưới chuột | `Ctrl+V` |
 | Dán thiết lập của clip đã chép (màu, cỡ, vị trí…) vào clip đang chọn | `Ctrl+Alt+V` |
@@ -200,7 +219,7 @@ Các phím dưới đây là phím mặc định. Phím trong nhóm **Vẽ vùng
 
 ### Vẽ vùng
 
-Phím nhóm này chỉ khi đang vẽ vùng. Lúc đó các phím chỉ dùng ngoài lúc vẽ (Phát, Dao cắt…) không chạy.
+Phím nhóm này chỉ khi đang vẽ vùng (hai phím Khép và Bỏ điểm cũng dùng khi vẽ dây đèn). Lúc vẽ vùng, các phím chỉ dùng ngoài lúc vẽ (Phát, Dao cắt…) không chạy.
 
 | Việc | Phím |
 |---|---|
@@ -209,8 +228,8 @@ Phím nhóm này chỉ khi đang vẽ vùng. Lúc đó các phím chỉ dùng ng
 | Đổi Thêm / Bớt | `X` |
 | Cọ nhỏ lại | `[` |
 | Cọ to lên | `]` |
-| Khép vùng đang khoanh | `Enter` |
-| Bỏ điểm vừa khoanh | `Backspace` |
+| Khép vùng đang khoanh (vẽ dây đèn: xong dây đang vẽ) | `Enter` |
+| Bỏ điểm vừa khoanh (vẽ dây đèn: bỏ điểm cuối) | `Backspace` |
 
 ### Chung
 
@@ -224,7 +243,7 @@ Phím nhóm này chỉ khi đang vẽ vùng. Lúc đó các phím chỉ dùng ng
 
 | Phím | Việc |
 |---|---|
-| `Esc` | Thôi: bỏ chọn clip, thôi Bàn tay, bỏ đường đang khoanh, thôi vẽ vùng, đóng cửa sổ đang mở |
+| `Esc` | Thôi: bỏ chọn clip, thôi Bàn tay, bỏ đường đang khoanh, thôi vẽ vùng, xong dây đèn đang vẽ (lần nữa: thôi vẽ dây), đóng cửa sổ đang mở |
 | `Enter` | Trong ô số: giữ số vừa gõ |
 | `Tab` | Chuyển sang nút hoặc ô kế tiếp |
 

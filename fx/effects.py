@@ -125,6 +125,13 @@ def upgrade_in(kind, raw, w, h):
     return upgrade(raw, w, h) if upgrade else raw
 
 
+def moved(kind, raw, w, h):
+    """A `kind` layer saved by an older version that is now another effect (an effect's moved(): string lights drawn
+    by hand are Dây đèn tự vẽ, "garland"), read for a w x h video: (its kind, its settings), or None."""
+    move = getattr(KINDS.get(kind), "moved", None)
+    return move(raw, w, h) if move else None
+
+
 def _rgb(hex_colour):
     return np.array([int(hex_colour[i:i + 2], 16) for i in (1, 3, 5)], np.float32) / 255.0
 
@@ -488,14 +495,15 @@ class Glow(Effect):
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)
 
 
-from . import candle, flicker, foliage, frost, glass, leaves, lights, rain, snow, steam  # (here: they build on the classes above)
+from . import candle, flicker, foliage, frost, garland, glass, leaves, lights, rain, snow, steam  # (here: they build on
+# the classes above)
 
 SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "steam": steam.SCHEMA,
           "candle": candle.SCHEMA, "leaves": leaves.SCHEMA, "foliage": foliage.SCHEMA, "lights": lights.SCHEMA,
-          "frost": frost.SCHEMA, "flicker": flicker.SCHEMA, **SCHEMA}
+          "garland": garland.SCHEMA, "frost": frost.SCHEMA, "flicker": flicker.SCHEMA, **SCHEMA}
 KINDS = {"snow": snow.Snow, "leaves": leaves.Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
          "steam": steam.Steam, "candle": candle.Candle, "foliage": foliage.Foliage, "lights": lights.Lights,
-         "frost": frost.Frost, "flicker": flicker.Flicker}
+         "garland": garland.Garland, "frost": frost.Frost, "flicker": flicker.Flicker}
 
 # Placed and turned like a file clip (Effect.TURNS): the same settings as a file clip's, under the same headings,
 # after the effect's own. A full-frame effect gets a place and a size (at 100 and in the middle: the frame itself, as

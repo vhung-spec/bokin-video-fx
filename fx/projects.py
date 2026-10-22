@@ -68,14 +68,21 @@ def load(pid):
 
 def upgrade_layers(project):
     """Settings of built-in effects saved by an older version that need the video's shape to be read as they were
-    meant (effects.upgrade_in: steam's mark, once centred on its box's bottom edge, now sits inside the box). Done on
-    every load until the project is saved again (each effect knows its old settings: the same result each time)."""
+    meant (effects.upgrade_in: steam's mark, once centred on its box's bottom edge, now sits inside the box), and
+    effects that are now another one (effects.moved: string lights drawn by hand are Dây đèn tự vẽ, the clip keeps
+    its place on the timeline, its area and its own name). Done on every load until the project is saved again (each
+    effect knows its old settings: the same result each time)."""
     info = project.get("video") or {}
     w, h = info.get("w"), info.get("h")
     if not w or not h:
         return project
     for layer in project.get("layers", []):
         if isinstance(layer, dict) and layer.get("kind") in effects.KINDS:
+            now = effects.moved(layer["kind"], layer.get("params"), w, h)
+            if now:
+                if layer.get("name") == effects.SCHEMA[layer["kind"]]["label"]:  # (a name of its own stays)
+                    layer["name"] = effects.SCHEMA[now[0]]["label"]
+                layer["kind"], layer["params"] = now
             layer["params"] = effects.upgrade_in(layer["kind"], layer.get("params"), w, h)
     return project
 

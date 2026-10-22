@@ -14,6 +14,9 @@ SCENE = np.dstack([0.2 + 0.5 * (((_xx // 16) + (_yy // 16)) % 2), 0.3 + 0.4 * _x
     np.float32)  # something to blur and see through (a lens effect changes the picture under it)
 # an area painted over most of the frame, for the effects that work only inside one (Effect.AREA: rustling leaves)
 AREA = (((_xx - W * 0.45) / (W * 0.42)) ** 2 + ((_yy - H * 0.55) / (H * 0.42)) ** 2 < 1).astype(np.float32)
+# what an effect needs drawn by hand to show anything (Dây đèn tự vẽ: its strands)
+DRAWN = {"garland": {"strands": [[0.1, 0.3, 1, 0.4], [0.5, 0.35, 0, 0], [0.9, 0.3, 0, 0], [0.2, 0.8, 1, 0],
+                                 [0.3, 0.7, 0.5, 0], [0.4, 0.75, 0.5, 0]]}}
 
 
 def frame(fx, t, base=0.3, mask=None):
@@ -38,7 +41,7 @@ class Periodic(unittest.TestCase):
             for frames, fps in ((144, 24), (150, 25), (90, 30), (720, 24)):
                 for params in self.CASES + ([{"style": "dust"}] if kind == "glow" else [{"style": "petal"}]):
                     if kind in ("snow", "glow") or frames != 720:
-                        fx = effects.make(kind, params, 3, frames, fps, W, H)
+                        fx = effects.make(kind, dict(params, **DRAWN.get(kind, {})), 3, frames, fps, W, H)
                         diff = np.abs(frame(fx, 0, None) - frame(fx, frames, None)).max()
                         self.assertLess(diff, 1 / 512, f"{kind} {params} P={frames} fps={fps}")
 
@@ -60,7 +63,7 @@ class Periodic(unittest.TestCase):
 
     def test_moves_between(self):
         for kind in KINDS:
-            fx = effects.make(kind, {"amount": 80}, 3, 144, 24, W, H)
+            fx = effects.make(kind, {"amount": 80, **DRAWN.get(kind, {})}, 3, 144, 24, W, H)
             if kind != "glass" or getattr(fx, "moves", True):  # (fogged glass alone does not move)
                 self.assertGreater(np.abs(frame(fx, 0, None) - frame(fx, 36, None)).max(), 0.05, kind)
 

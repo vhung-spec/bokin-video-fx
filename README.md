@@ -54,6 +54,8 @@ Premiere Pro:
     đọng ở mép dưới, bông tuyết đậu lên kính rồi tan, băng lấp lánh (xem mục **Tuyết bám kính** bên dưới).
   - **Dây đèn lấp lánh**: dây đèn nháy quấn quanh cây thông Noel, treo võng, rèm đèn (xem mục **Dây đèn lấp lánh**
     bên dưới).
+  - **Dây đèn tự vẽ**: tự vẽ dây đèn nháy ở bất cứ chỗ nào trên hình: dọc mái nhà, quanh cửa sổ, lan can, cành cây (xem
+    mục **Dây đèn tự vẽ** bên dưới).
 
 Mọi thao tác chuột và phím tắt: [HUONG-DAN.md](HUONG-DAN.md) (trong app: nút **Phím tắt**, thẻ **Hướng dẫn**).
 
@@ -324,7 +326,7 @@ Lúc phát thấy đúng như video xuất ra.
 ### Dây đèn lấp lánh
 
 Dây đèn nháy cho cây thông Noel (hoặc cửa sổ, mái hiên): bóng đèn nhỏ, sáng có quầng, loé tia sáng như máy quay thật.
-Cây thông trong video **đã có sẵn dây đèn** nhưng đèn đứng yên (video làm từ ảnh): xem bước 8.
+Muốn giăng dây theo đúng mái nhà, khung cửa, lan can trên hình: dùng **Dây đèn tự vẽ** (mục ngay sau).
 
 1. Bấm **Tạo sẵn** → **Dây đèn lấp lánh**, kéo xuống một track trống, bấm **Suốt video**.
 2. Kéo khung trắng trên hình trùm lên cây thông, kéo góc khung cho vừa cây (khung vuông: đỉnh cây ở mép trên, gốc cây
@@ -338,37 +340,54 @@ Cây thông trong video **đã có sẵn dây đèn** nhưng đèn đứng yên 
    thẳng hàng, như nằm giữa cành lá), **Bóng phía sau cây lộ ra**, **Cỡ bóng**, **Quầng sáng**, **Tia sáng lấp lánh**,
    **Độ sáng**.
 7. Đèn thừa ra ngoài cây: bấm **Vẽ vùng** của clip này, tô lên cây. Đèn chỉ hiện trong vùng đã tô.
-8. Cây đã có dây đèn trong ảnh: chọn **Cách giăng dây** → **Theo đèn có sẵn trong video**. App tự tìm từng bóng đèn
-   sáng trong khung trắng và cho chính chỗ đó lấp lánh, đúng màu của bóng đó (**Màu đèn**: **Theo màu đèn trong
-   video**; **Bóng đèn**: **Chỉ ánh sáng lấp lánh**, không vẽ thêm bóng). Bảng chỉnh ghi đã thấy bao nhiêu bóng. Dời
-   hay đổi cỡ khung trắng thì app tự tìm lại; bấm **Tìm đèn trong video** để tìm lại bất cứ lúc nào. **Số bóng**: bao
-   nhiêu phần đèn được lấp lánh. Muốn chỉ đèn trên cây (không lấy đèn đường phía sau): **Vẽ vùng** tô lên cây trước, rồi
-   bấm **Tìm đèn trong video**. Với cách giăng này đừng xoay 3D khung trắng.
 
-**Tự vẽ dây** (trang trí bất cứ chỗ nào trên hình: mái hiên, khung cửa, cành cây, lan can…):
-
-1. **Cách giăng dây** → **Tự vẽ dây trên hình**. Khung trắng tự phủ cả hình và app vào chế độ vẽ dây.
-2. Bấm lên hình để đặt từng điểm của dây. Giữa hai điểm dây tự võng xuống như dây thật (**Dây võng giữa hai điểm
-   bấm**: 0 là dây căng thẳng). **Bấm đúp** để kết thúc một dây, rồi bấm tiếp để vẽ dây khác.
-3. Dây dài bao nhiêu thì vẽ bấy nhiêu. **Số bóng trên dây**: tổng số bóng, chia đều trên mọi dây đã vẽ.
-4. **Bỏ điểm cuối**, **Xoá hết dây** (Ctrl+Z để lấy lại). Vẽ xong bấm **Xong, thôi vẽ dây**; bấm **Vẽ dây** để vẽ
-   thêm lúc nào cũng được. Kéo khung trắng là dời cả bộ dây.
-
-Bảng chỉnh chỉ hiện những thanh dùng được cho cách giăng đang chọn.
-
-**Bóng đèn** → **Chỉ ánh sáng lấp lánh (không hiện bóng)** dùng được với mọi cách giăng: chỉ có ánh sáng, quầng và tia
-loé, không có bóng đèn vẽ thêm.
+**Bóng đèn** → **Chỉ ánh sáng lấp lánh (không hiện bóng)**: chỉ có ánh sáng, quầng và tia loé, không có bóng đèn vẽ
+thêm.
 
 Đèn là ánh sáng (hoà trộn Screen): chỉ làm sáng thêm, đẹp nhất trên cảnh tối hoặc chạng vạng. Lúc phát thấy đúng như
 video xuất ra.
 
+### Dây đèn tự vẽ
+
+Tự vẽ dây đèn nháy ở bất cứ chỗ nào trên hình: dọc mái nhà, quanh cửa sổ, vắt qua lan can, cành cây. Không có khung
+trắng: vẽ thẳng lên hình.
+
+1. Bấm **Tạo sẵn** → **Dây đèn tự vẽ**, kéo xuống một track trống, bấm **Suốt video**. App vào ngay chế độ vẽ dây
+   (khung **Vẽ dây** ở đầu Bảng chỉnh hiệu ứng).
+2. Vẽ một dây, có hai cách:
+   - **Bấm từng điểm** dọc chỗ treo dây. Giữa hai điểm dây tự võng xuống như dây thật. Tới điểm cuối thì **bấm đúp**
+     (hoặc Enter). Bấm lại điểm đầu tiên: dây khép thành vòng (quanh cửa sổ).
+   - **Giữ chuột và kéo** theo mép mái, theo cành cây: thả chuột là xong một dây, dây đi đúng theo tay.
+   Trong lúc vẽ, trên hình có đường dây và **chấm vàng nhỏ là chỗ bóng đèn** sẽ nằm.
+3. Vẽ tiếp dây khác ở chỗ khác. Bảng chỉnh ghi đang có bao nhiêu dây, bao nhiêu bóng.
+4. Sửa:
+   - Kéo **chấm tròn** (điểm của dây) để dời điểm. Kéo **giữa dây** để uốn dây (thêm một điểm ở đó).
+   - Bấm vào một dây để **chọn** nó (dây đổi màu xanh). Kéo thanh **Độ võng** để dây đó võng nhiều hay ít (0: căng
+     thẳng, như dây dọc mái nhà). Mỗi dây một độ võng riêng.
+   - **Xoá dây này** (hoặc phím Delete): xoá dây đang chọn. **Bỏ điểm cuối** (hoặc Backspace). **Xoá hết dây**.
+     Ctrl+Z để lấy lại.
+5. **Số bóng (thưa ← → dày)**: khoảng cách giữa các bóng, như dây đèn thật: dây dài thì nhiều bóng hơn.
+6. Chỉnh **Kiểu nháy**, **Màu đèn**, **Cỡ bóng**, **Quầng sáng**, **Tia sáng lấp lánh**, **Độ sáng**, **Tốc độ nháy**
+   như **Dây đèn lấp lánh**. **Bóng đèn** → **Chỉ ánh sáng lấp lánh**: hợp với dây đèn đã có sẵn trong ảnh.
+7. Vẽ xong bấm **Xong, thôi vẽ** (hoặc Esc). Muốn vẽ thêm hay sửa: chọn clip rồi bấm lên hình (hoặc bấm **Vẽ / sửa
+   dây**).
+
+Phóng to hình (Ctrl và +) để vẽ cho trúng mép mái, lan can. Đèn bị vật phía trước che (cành cây, cột): đánh dấu
+**Bay ra sau tiền cảnh** và vẽ tiền cảnh ở V1. Muốn hai kiểu đèn khác nhau (vàng ấm ở mái, nhiều màu ở cây): dùng hai
+clip Dây đèn tự vẽ.
+
+Dự án cũ có dây vẽ bằng **Dây đèn lấp lánh** → **Tự vẽ dây trên hình**: mở ra là thành **Dây đèn tự vẽ**, dây vẫn nằm
+đúng chỗ. Clip **Dây đèn lấp lánh** dùng **Theo đèn có sẵn trong video** (đã bỏ) thành **Quấn quanh cây thông**: xoá
+clip đó nếu không cần.
+
 ### Xoay 3D (ghép hiệu ứng vào ô cửa nhìn chéo)
 
 Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, hạt sáng, nước trên kính, tuyết bám kính,
-khói, dây đèn),
+khói, dây đèn lấp lánh),
 xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng khi cần đặt mưa, ánh sáng…
 nằm đúng một ô cửa kính nhìn từ một góc. Riêng **lửa nến** không xoay: ngọn lửa luôn bốc thẳng lên. **Lá cây lay động**
-cũng không xoay, không dời: nó làm động chính lá cây trong video, ngay tại chỗ.
+cũng không xoay, không dời: nó làm động chính lá cây trong video, ngay tại chỗ. **Dây đèn tự vẽ** cũng không xoay: dây
+vẽ thẳng lên hình.
 
 Hiệu ứng tạo sẵn phủ cả hình (tuyết, mưa, lá, hạt sáng, nước trên kính, tuyết bám kính) giống như một tấm phim bằng đúng khung hình:
 chọn clip là thấy khung trắng quanh cả khung hình. Cỡ 100%, ở giữa, không xoay: y như trước. Thu nhỏ, dời, xoay tấm

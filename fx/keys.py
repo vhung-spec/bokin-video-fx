@@ -22,7 +22,8 @@ import string
 from . import paths
 
 GROUPS = ["Phát và xem", "Hình", "Timeline", "Vẽ vùng", "Chung"]
-GROUP_NOTES = {"Vẽ vùng": "chỉ khi đang vẽ vùng. Lúc đó các phím chỉ dùng ngoài lúc vẽ (Phát, Dao cắt…) không chạy"}
+GROUP_NOTES = {"Vẽ vùng": "chỉ khi đang vẽ vùng (hai phím Khép và Bỏ điểm cũng dùng khi vẽ dây đèn). Lúc vẽ vùng, các "
+                          "phím chỉ dùng ngoài lúc vẽ (Phát, Dao cắt…) không chạy"}
 
 
 def _a(id_, group, label, keys, where="all"):
@@ -53,7 +54,8 @@ ACTIONS = [
     _a("razorTool", "Timeline", "Dao cắt: bấm vào clip để cắt đôi", ["KeyC"], "edit"),
     _a("snap", "Timeline", "Bật / tắt bám dính (cả lúc đang kéo clip)", ["KeyS"], "edit"),
     _a("split", "Timeline", "Cắt clip tại đầu phát", ["Ctrl+KeyK"]),
-    _a("deleteClip", "Timeline", "Xoá clip đang chọn", ["Delete", "Backspace"], "edit"),
+    _a("deleteClip", "Timeline", "Xoá clip đang chọn (đang vẽ dây đèn: xoá dây đang chọn)", ["Delete", "Backspace"],
+       "edit"),
     _a("copyClip", "Timeline", "Sao chép clip đang chọn (dán được sang track khác, hoặc dự án khác)", ["Ctrl+KeyC"], "edit"),
     _a("pasteClip", "Timeline", "Dán clip đã chép: tại đầu phát, vào track dưới chuột", ["Ctrl+KeyV"], "edit"),
     _a("pasteAttrs", "Timeline", "Dán thiết lập của clip đã chép (màu, cỡ, vị trí…) vào clip đang chọn",
@@ -65,8 +67,8 @@ ACTIONS = [
     _a("brushMode", "Vẽ vùng", "Đổi Thêm / Bớt", ["KeyX"], "paint"),
     _a("brushSmaller", "Vẽ vùng", "Cọ nhỏ lại", ["BracketLeft"], "paint"),
     _a("brushBigger", "Vẽ vùng", "Cọ to lên", ["BracketRight"], "paint"),
-    _a("polyClose", "Vẽ vùng", "Khép vùng đang khoanh", ["Enter"], "paint"),
-    _a("polyBack", "Vẽ vùng", "Bỏ điểm vừa khoanh", ["Backspace"], "paint"),
+    _a("polyClose", "Vẽ vùng", "Khép vùng đang khoanh (vẽ dây đèn: xong dây đang vẽ)", ["Enter"], "paint"),
+    _a("polyBack", "Vẽ vùng", "Bỏ điểm vừa khoanh (vẽ dây đèn: bỏ điểm cuối)", ["Backspace"], "paint"),
     _a("save", "Chung", "Lưu dự án (app cũng tự lưu mỗi lần chỉnh)", ["Ctrl+KeyS"]),
     _a("export", "Chung", "Xuất video", ["Ctrl+KeyM"]),
     _a("keys", "Chung", "Mở bảng Phím tắt và hướng dẫn", ["Shift+Slash"]),
@@ -75,7 +77,8 @@ BY_ID = {a["id"]: a for a in ACTIONS}
 
 # Keys that always do the same thing (not in the list above, so not changeable)
 FIXED = [
-    ("Esc", "Thôi: bỏ chọn clip, thôi Bàn tay, bỏ đường đang khoanh, thôi vẽ vùng, đóng cửa sổ đang mở"),
+    ("Esc", "Thôi: bỏ chọn clip, thôi Bàn tay, bỏ đường đang khoanh, thôi vẽ vùng, xong dây đèn đang vẽ (lần nữa: thôi "
+            "vẽ dây), đóng cửa sổ đang mở"),
     ("Enter", "Trong ô số: giữ số vừa gõ"),
     ("Tab", "Chuyển sang nút hoặc ô kế tiếp"),
 ]

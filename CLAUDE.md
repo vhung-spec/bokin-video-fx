@@ -67,8 +67,8 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), hạt sáng, và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
-  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`, `fx/frost.py`, `fx/lights.py`: tuyết, mưa, lá
-  rơi, nước trên kính, khói, lửa nến, tuyết bám kính, dây đèn, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang, nồi,
+  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`, `fx/frost.py`, `fx/lights.py`, `fx/garland.py`:
+  tuyết, mưa, lá rơi, nước trên kính, khói, lửa nến, tuyết bám kính, dây đèn, dây đèn tự vẽ, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang, nồi,
   ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn: `edge`, `side`; `preset` của kiểu
   đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
@@ -160,16 +160,24 @@ hiệu ứng. Cách dùng: `README.md`.
   (`_even`), lệch nhẹ (`jitter`), màu lần lượt dọc dây (`PALETTES`). Mỗi bóng: lõi gần trắng, quầng màu, tia sáng khi
   loé; "Chỉ ánh sáng" (`bulb` = `glow`): không lõi, chỉ quầng mềm + tia. Kiểu nháy (`levels()`): từng bóng, nhóm thở
   lần lượt, chạy đuổi dọc dây (`CHASE` bóng một sóng), hai nhóm, sáng đứng; mọi tần số số nguyên vòng mỗi loop.
-  "Theo đèn có sẵn trong video" (`layout` = `scene`): `fx/bulbs.py` tìm chấm sáng nhỏ (cực đại cục bộ, sáng hơn xung
-  quanh, đỉnh phẳng chỉ một điểm, cách nhau vài px) trong vài khung của video, trong hộp và vùng của clip; lưu trong
-  thông số `spots` (kiểu `points` của schema: `effects._points`, trang không vẽ thanh mà vẽ nút **Tìm đèn trong video**,
-  `pointsRow`, `findBulbs`, `/api/bulbs`; dời / đổi cỡ hộp thì trang tự tìm lại, `refindBulbs`) theo chỗ trong hộp, độ
-  sáng, màu (màu quầng quanh bóng). "Tự vẽ dây trên hình" (`layout` = `draw`): thông số `strands` (kiểu `points`:
-  x, y trong hộp, 1 ở điểm đầu mỗi dây), `bulbs` (số bóng, chia đều theo chiều dài), `sag` (võng giữa hai điểm, nhịp
-  ngang võng nhất: `_drawn`, trang vẽ cùng công thức `wirePath`). Trang: chọn cách này thì hộp phủ cả hình và vào chế độ
-  vẽ (`startWire`, `S.wire`, vẽ trên `polyCanvas`, `#xform` ẩn); bấm là một điểm (`wirePoint`), bấm đúp kết thúc một
-  dây (`endWire`: một bước hoàn tác). Thông số có `show` (ví dụ `{"layout": [...]}`) chỉ hiện khi khớp (`shownParam`).
-  Hộp to (dây vẽ khắp hình): clip xem nhanh cao `PREVIEW` 1280 thay vì 640 (`engine.fx_clip_frame`, hai cỡ).
+  Hộp to (cây gần phủ cả hình): clip xem nhanh cao `PREVIEW` 1280 thay vì 640 (`engine.fx_clip_frame`, hai cỡ). Dây
+  vẽ tay ở chỗ bất kỳ là hiệu ứng riêng (Dây đèn tự vẽ, ngay dưới); "Theo đèn có sẵn trong video" đã bỏ (chủ yêu cầu
+  2026-10-22): clip cũ dùng nó thành cây (`clean_params`).
+- Dây đèn tự vẽ (`fx/garland.py`, mã loại `garland`): hiệu ứng phủ cả hình (không `BOX`, không xoay), lớp con của
+  `lights.Lights` (cùng bóng, màu, kiểu nháy; `_bulbs`, `_seen`, `_frame`). Thông số `strands` (kiểu `points`, 4 số:
+  x, y là phần của chiều rộng / cao khung; loại điểm `START` 1 đầu dây (số thứ tư là độ võng riêng của dây), `CLICK` 0
+  điểm bấm (dây võng từ điểm trước), `HAND` 0,5 điểm vẽ tay (đi thẳng)); `paths()` (võng `SEG` đoạn, nhịp ngang võng
+  nhất), `bulbs_on()` (mọi dây cùng khoảng cách `gap`, nửa bước từ hai đầu, quá `CAP` thì thưa ra). Trang vẽ dây, điểm,
+  chỗ bóng bằng cùng công thức (`wireStrands`, `wirePath`, `wireBulbs`, `wireGuide`; CI so số bóng và chỗ bóng với
+  Python). Công cụ vẽ (`S.wire`, `polyCanvas`): clip mới hoặc clip chưa có dây thì vào vẽ ngay; chọn clip rồi bấm lên
+  hình cũng vào vẽ; bấm là một điểm, giữ chuột kéo là vẽ tay (`simplify`, cả nét là một dây nếu chưa có dây đang vẽ),
+  bấm đúp / Enter xong dây (`endWire`, một bước hoàn tác), bấm lại điểm đầu là khép vòng; kéo chấm tròn dời điểm, kéo
+  giữa dây thêm điểm và uốn (`wireHit`), bấm vào dây là chọn (`S.wire.sel`: thanh độ võng là của dây đó,
+  `S.wireSag` cho dây sắp vẽ); Delete xoá dây đang chọn, Backspace bỏ điểm cuối, Ctrl+Z / Ctrl+Y điểm của dây đang vẽ,
+  Esc xong dây rồi thôi vẽ (phím qua `act`: `polyClose`, `polyBack`, `deleteClip`). Khung vẽ dây nằm đầu Bảng chỉnh
+  (`wireRow`). Dự án cũ có dây vẽ bằng Dây đèn lấp lánh (`layout` = `draw`, điểm trong hộp): `projects.upgrade_layers`
+  chuyển thành clip `garland` (`effects.moved`, `Lights.moved`, `garland.from_lights`: đúng chỗ trên hình, gần đúng số
+  bóng và cỡ bóng).
 - `fx/sprites.py`: hình hạt vẽ bằng mã (chấm, quầng sáng). `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()`
   cho clip suốt video, `playing()` cho clip ngắn hơn, xoay 3D: `homography()`, `quad()`).
 - `fx/sheet.py`: hiệu ứng tạo sẵn dời / đổi cỡ / xoay 3D như clip file (`Effect.TURNS`, nến không xoay). Vẽ trên một

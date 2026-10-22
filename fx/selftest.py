@@ -87,6 +87,9 @@ def periodic_checks():
                      **{p["key"]: True for p in effects.SCHEMA["leaves"]["params"] if p["type"] == "toggle"}}
         if kind == "foliage":  # a strong breeze from the right, gusting
             third = {**effects.SCHEMA["foliage"]["params"][0]["presets"]["strong"], "direction": "left"}
+        if kind == "garland":  # strands drawn by hand: clicked (hanging) and a stretch drawn by hand, chasing
+            third = {"mode": "chase", "speed": 100, "strands": [[0.1, 0.3, 1, 0.4], [0.5, 0.35, 0, 0], [0.9, 0.3, 0, 0],
+                                                                [0.2, 0.8, 1, 0], [0.3, 0.7, 0.5, 0], [0.4, 0.75, 0.5, 0]]}
         for extra in ({}, {"wind": -80, "speed": 100}, third):
             fx = effects.make(kind, extra, 5, P, FPS, 640, 360, light)
             canvas = effects.Canvas(640, 360)
