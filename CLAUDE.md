@@ -159,7 +159,12 @@ hiệu ứng. Cách dùng: `README.md`.
   quanh, đỉnh phẳng chỉ một điểm, cách nhau vài px) trong vài khung của video, trong hộp và vùng của clip; lưu trong
   thông số `spots` (kiểu `points` của schema: `effects._points`, trang không vẽ thanh mà vẽ nút **Tìm đèn trong video**,
   `pointsRow`, `findBulbs`, `/api/bulbs`; dời / đổi cỡ hộp thì trang tự tìm lại, `refindBulbs`) theo chỗ trong hộp, độ
-  sáng, màu (màu quầng quanh bóng).
+  sáng, màu (màu quầng quanh bóng). "Tự vẽ dây trên hình" (`layout` = `draw`): thông số `strands` (kiểu `points`:
+  x, y trong hộp, 1 ở điểm đầu mỗi dây), `bulbs` (số bóng, chia đều theo chiều dài), `sag` (võng giữa hai điểm, nhịp
+  ngang võng nhất: `_drawn`, trang vẽ cùng công thức `wirePath`). Trang: chọn cách này thì hộp phủ cả hình và vào chế độ
+  vẽ (`startWire`, `S.wire`, vẽ trên `polyCanvas`, `#xform` ẩn); bấm là một điểm (`wirePoint`), bấm đúp kết thúc một
+  dây (`endWire`: một bước hoàn tác). Thông số có `show` (ví dụ `{"layout": [...]}`) chỉ hiện khi khớp (`shownParam`).
+  Hộp to (dây vẽ khắp hình): clip xem nhanh cao `PREVIEW` 1280 thay vì 640 (`engine.fx_clip_frame`, hai cỡ).
 - `fx/sprites.py`: hình hạt vẽ bằng mã (chấm, quầng sáng). `fx/overlay.py`: clip từ video/ảnh ngoài (`timeline()`
   cho clip suốt video, `playing()` cho clip ngắn hơn, xoay 3D: `homography()`, `quad()`).
 - `fx/sheet.py`: hiệu ứng tạo sẵn dời / đổi cỡ / xoay 3D như clip file (`Effect.TURNS`, nến không xoay). Vẽ trên một

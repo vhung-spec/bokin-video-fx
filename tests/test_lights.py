@@ -12,6 +12,8 @@ from tests.test_server import request
 from fx import bulbs, effects, engine, lights, projects, server, video
 
 LAYOUTS = [k for k in lights.LAYOUTS if k != "scene"]  # (the lights in the video: their own tests)
+LAID = [k for k in LAYOUTS if k != "draw"]  # (strands drawn by hand: their own test)
+STRANDS = [[0.1, 0.3, 1], [0.5, 0.5, 0], [0.9, 0.3, 0], [0.2, 0.8, 1], [0.8, 0.9, 0]]  # (two drawn by hand)
 MODES = [o["value"] for o in effects.SCHEMA["lights"]["params"][1]["options"]]
 
 
@@ -33,13 +35,14 @@ class Lights(unittest.TestCase):
         for layout in LAYOUTS:
             for mode in MODES:
                 for frames, fps in ((144, 24), (150, 25)):
-                    fx = make({"layout": layout, "mode": mode, "speed": 100}, 320, 180, frames, fps)
+                    fx = make({"layout": layout, "mode": mode, "speed": 100, "strands": STRANDS}, 320, 180, frames,
+                              fps)
                     diff = np.abs(picture(fx, 0, 320, 180) - picture(fx, frames, 320, 180)).max()
                     self.assertLess(diff, 1 / 512, (layout, mode, frames))
 
     def test_bulbs_in_the_box(self):
         """The strands lie inside the box (a nudge off the line at most), as many bulbs as asked for."""
-        for layout in LAYOUTS:
+        for layout in LAID:
             few, many = (make({"layout": layout, "amount": a}) for a in (0, 100))
             self.assertLess(len(few.x), len(many.x), layout)
             self.assertGreater(len(many.x), 300, layout)
@@ -184,6 +187,44 @@ class OnTheLightsInTheVideo(unittest.TestCase):
         self.assertGreater(float(b.max()), 0.2)
         self.assertLess(float(b.max()), 0.85 * float(a.max()))
         self.assertEqual(effects.SCHEMA["lights"]["params"][0]["presets"]["scene"]["bulb"], "glow")
+
+    def test_drawn_by_hand(self):
+        """Strands drawn by hand: as many bulbs as asked for along them, the wire hanging down between two points (a
+        level span the most), nothing before a strand is drawn."""
+        strands = [[0.1, 0.3, 1], [0.9, 0.3, 0], [0.5, 0.6, 1], [0.5, 0.95, 0]]
+        fx = make({"layout": "draw", "strands": strands, "bulbs": 80, "sag": 100, "jitter": 0})
+        self.assertLessEqual(abs(len(fx.x) - 80), 2)
+        level = fx.strand == 0
+        mid = level & (np.abs(fx.x - 0.5) < 0.05)
+        self.assertGreater(float(fx.y[mid].mean()), 0.3 + 0.15)  # (a quarter of the span down in its middle)
+        self.assertLess(float(np.abs(fx.y[level & (fx.x < 0.13)] - 0.3).max()), 0.03)  # (held up at its ends)
+        upright = fx.strand == 1
+        self.assertLess(float(np.abs(fx.x[upright] - 0.5).max()), 1e-6)  # (an upright one hangs straight)
+        straight = make({"layout": "draw", "strands": strands, "bulbs": 80, "sag": 0, "jitter": 0})
+        self.assertLess(float(np.abs(straight.y[straight.strand == 0] - 0.3).max()), 1e-6)
+        self.assertEqual(float(picture(make({"layout": "draw"}), 5, 640, 360).max()), 0.0)
+        p = effects.clean_params("lights", {"strands": [[0.2, 0.2, 1], [3, -2, 0], "x"], "bulbs": 9999})
+        self.assertEqual((p["strands"], p["bulbs"]), ([[0.2, 0.2, 1.0], [1.0, 0.0, 0.0]], 600))
+
+    def test_big_box_sharper_clip(self):
+        """Strands drawn over the whole picture: a preview clip PREVIEW high (tiny bulbs blur at 640), at two sizes
+        only (sizing the box does not make it again and again)."""
+        info = {"w": 1920, "h": 1080, "fps": 24, "frames": 144}
+        size = lambda scale: engine.fx_clip_frame(info, "lights", {"kind": "lights", "params": {"scale": scale}})
+        self.assertEqual(size(60), (640, 640))
+        self.assertEqual(size(100), (1280, 1280))
+        self.assertEqual(size(177.8), (1280, 1280))
+        self.assertEqual(engine.fx_clip_frame(info, "steam", {"kind": "steam", "params": {"scale": 177.8}}),
+                         (640, 640))  # (only an effect with a PREVIEW)
+
+    def test_settings_shown_per_layout(self):
+        """Each way of laying the strands shows only the settings it uses (the page reads "show")."""
+        by = {d["key"]: d for d in effects.SCHEMA["lights"]["params"]}
+        self.assertEqual(by["strands"]["show"], {"layout": ["draw"]})
+        self.assertIn("draw", by["jitter"]["show"]["layout"])
+        self.assertNotIn("draw", by["amount"]["show"]["layout"])
+        self.assertEqual(by["back"]["show"], {"layout": ["tree"]})
+        self.assertNotIn("show", by["size"])
 
     def test_settings_keep_only_points(self):
         p = effects.clean_params("lights", {"spots": [[0.5, 0.5, 1, 1, 0, 0], "junk", [1, 2], [float("nan")] * 6,

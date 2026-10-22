@@ -550,12 +550,18 @@ def sharper_size(info, width):
 def fx_clip_frame(info, kind, layer=None):
     """The size of a built-in effect's preview clip: the video's, small (FX_CLIP_WIDTH wide, or as many pixels as a
     16:9 clip the effect's own PREVIEW wide: small falling leaves and thin rain streaks blur at 640); for a placed effect, its box's shape
-    (one made from the picture under it no bigger than the box is in the video)."""
+    (one made from the picture under it no bigger than the box is in the video; one with a PREVIEW, its PREVIEW high
+    when the box is big in the video)."""
     cls = effects.KINDS[kind]
     box = cls.BOX
     if not box:
         return sharper_size(info, cls.PREVIEW) if cls.PREVIEW else fx_clip_size(info)
     h = min(FX_CLIP_WIDTH, max(64, info["h"]))
+    if cls.PREVIEW and layer is not None and not cls.UNDER:  # (a big box of small things: string lights drawn over
+        # the whole picture get a sharper clip, at two sizes only, so sizing the box does not make it again and again)
+        p = effects.clean_params(kind, layer.get("params"))
+        if min(info["w"] / box[0], info["h"] / box[1]) * p["scale"] / 100 * box[1] > 1.5 * FX_CLIP_WIDTH:
+            h = cls.PREVIEW
     if cls.UNDER and layer is not None:
         p = effects.clean_params(kind, layer.get("params"))
         h = min(h, max(64, math.ceil(min(info["w"] / box[0], info["h"] / box[1]) * p["scale"] / 100 * box[1])))
@@ -868,7 +874,7 @@ def fx_part(project, layer, total, folder, start, end, path):
     if effects.KINDS[layer["kind"]].UNDER:
         return _under_part(project, layer, total, folder, start, end, path)
     info = project["video"]
-    w, h = fx_clip_frame(info, layer["kind"])
+    w, h = fx_clip_frame(info, layer["kind"], layer)
     light, cls = project.get("_light"), effects.KINDS[layer["kind"]]
     if cls.BOX and cls.LIT:  # (lit where its box stands in the video, not in the clip's own frame)
         light = effects.placed_light(layer["kind"], light, layer.get("params"), info["w"], info["h"], rounded=True)

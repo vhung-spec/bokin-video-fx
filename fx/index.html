@@ -1797,7 +1797,7 @@ const TILT_DEG = 0.3;  // degrees of tilt per pixel the "3D" handle is dragged
 function showXform() {  // the box of the selected clip (a file, an effect's sheet or box), over the picture
   spill();
   const c = S.project && clipById(S.sel);
-  const r = c && placeable(c) && !S.paint && !S.playing ? placed(c) : null;
+  const r = c && placeable(c) && !S.paint && !S.wire && !S.playing ? placed(c) : null;
   // nothing to move when the clip is not shown at all (its track hidden, the clip turned off)
   if (!r || !clipOrder().includes(c)) { xform.style.display = xformLab.style.display = xform3d.style.display = "none"; return; }
   const st = stage.getBoundingClientRect(), sc = screenEl.getBoundingClientRect(), W = info().w, H = info().h;
@@ -2282,6 +2282,7 @@ function paintName(name) {
 }
 function enterPaint(name) {
   if (!S.masks[name]) return;
+  stopWire();
   endStroke();
   pause();
   S.paint = name; S.poly = []; S.polyRedo = []; setHand(false);  // a brush in hand: no longer the Hand tool
@@ -2572,6 +2573,7 @@ stage.addEventListener("pointerdown", e => {
     for (const held of [S.spaceKey, S.handKey]) if (held) held.panned = true;  // (their key coming up: no play, no tool change)
     stage.classList.add("panning"); $("#cursor").style.display = "none"; return;
   }
+  if (S.wire && e.button === 0) { wirePoint(e); return; }  // string lights drawn by hand: a point of the strand
   if (!S.paint && e.button === 0) {  // a click on a clip's picture selects it (the top one there)
     const hit = pickAt(e);
     if (hit) pick(e, hit);
@@ -2604,6 +2606,7 @@ stage.addEventListener("pointermove", e => {
     return;
   }
   if (S.paint && S.brush.tool === "poly" && S.poly.length) { S.hover = toMask(e); drawPoly(); }
+  if (S.wire && S.wire.cur.length) { S.wire.hover = toVideo(e); drawWire(); }
 });
 function endStroke() {  // the brush lifted, or the painting stopped while the button was still down
   if (!painting) return;
@@ -2620,6 +2623,7 @@ for (const ev of ["pointercancel", "lostpointercapture"]) stage.addEventListener
 stage.addEventListener("pointerleave", () => { $("#cursor").style.display = "none"; });
 stage.addEventListener("dblclick", e => {
   if (S.paint && S.brush.tool === "poly" && !S.hand) { e.preventDefault(); closePoly(); return; }
+  if (S.wire) { e.preventDefault(); endWire(); return; }
   // on the empty area around the picture (neither click on a clip or its box): "Vừa khung" again
   const sc = screenEl.getBoundingClientRect(), last = (S.xdowns || [])[1];
   const out = e.clientX < sc.left || e.clientX > sc.right || e.clientY < sc.top || e.clientY > sc.bottom;
@@ -3059,6 +3063,7 @@ function deleteClip(c) {
 }
 function select(id) {
   if (S.paint && S.paint !== id && !(id === "base" && (S.paint === "freeze" || S.paint === "fg"))) exitPaint();
+  if (S.wire && S.wire.id !== id) stopWire();
   S.sel = id; renderTimeline(); renderControls(); showXform(); renderTools(); drawArea();
 }
 
@@ -3309,7 +3314,113 @@ async function matchColours(c, btn) {  // "Khớp màu với cảnh": the app me
   } catch (e) { toast(e.message, true, 6000); }
   finally { if (btn.isConnected) { btn.disabled = false; btn.innerHTML = label; } }
 }
-function pointsRow(c, d) {  // string lights on the lights in the video: the ones the app found under the box
+// --- string lights drawn by hand: strands of points on the picture (lights.py: "strands", places in the box) ---
+function wireRow(c, d) {
+  if (c.params.layout !== "draw") return "";
+  const pts = c.params[d.key] || [], strands = pts.filter((q, i) => i === 0 || q[2] >= 0.5).length;
+  const on = !!S.wire && S.wire.id === c.id;
+  return `<div class="btns"><button class="small ${on ? "on" : ""}" id="wireDraw">${icon("pencil", "lead")}${on ? "Xong, thôi vẽ dây" : "Vẽ dây"}</button>` +
+    `<button class="small" id="wireUndo" ${pts.length || (on && S.wire.cur.length) ? "" : "disabled"}>Bỏ điểm cuối</button>` +
+    `<button class="small" id="wireClear" ${pts.length ? "" : "disabled"}>Xoá hết dây</button></div>
+    <p class="note">${on ? "Bấm lên hình để đặt từng điểm của dây; giữa hai điểm dây tự võng xuống như dây thật. Bấm đúp để kết thúc một dây, rồi bấm tiếp để vẽ dây khác." :
+      pts.length ? `Đã vẽ ${strands} dây. Bấm Vẽ dây để vẽ thêm. Số bóng chia đều trên mọi dây đã vẽ.` :
+      "Bấm Vẽ dây, rồi bấm lên hình để đặt từng điểm của dây: dọc mái hiên, quanh khung cửa, vắt qua cành cây… Dây dài bao nhiêu thì vẽ bấy nhiêu; số bóng chỉnh ở thanh Số bóng trên dây."}</p>`;
+}
+function toVideo(e) {  // a pointer's place on the picture, in video pixels
+  const sc = screenEl.getBoundingClientRect();
+  return [(e.clientX - sc.left) / sc.width * info().w, (e.clientY - sc.top) / sc.height * info().h];
+}
+function startWire(c) {  // drawing strands for clip c: the box covers the whole picture first (drawn anywhere on it)
+  if (turned(c)) return toast("Hãy bấm Đặt lại xoay trước khi vẽ dây (dây vẽ trên khung trắng đứng thẳng).", true, 6000);
+  if (S.paint) exitPaint();
+  if (!(c.params.strands || []).length) {
+    const W = info().w, H = info().h;
+    Object.assign(c.params, {x: 0, y: 0, scale: Math.min(300, Math.ceil(1000 * Math.max(W, H) / Math.min(W, H)) / 10)});
+    edited({remember: false});
+  }
+  pause();
+  S.wire = {id: c.id, cur: [], hover: null};
+  polyCanvas.style.display = "block";
+  showXform(); renderControls(); drawWire();
+}
+function stopWire() {
+  if (!S.wire) return;
+  if (S.wire.cur.length >= 2) endWire();
+  S.wire = null;
+  if (!S.paint) { polyCanvas.style.display = "none"; polyCanvas.getContext("2d").clearRect(0, 0, polyCanvas.width, polyCanvas.height); }
+  showXform(); renderControls();
+}
+function wirePoint(e) {
+  const c = clipById(S.wire.id); if (!c) return stopWire();
+  const pt = toVideo(e), cur = S.wire.cur, last = cur[cur.length - 1];
+  if (last && Math.hypot(pt[0] - last[0], pt[1] - last[1]) < 3) return;  // (the second press of a double-click)
+  cur.push(pt); S.wire.hover = null; drawWire();
+  if (cur.length === 1) renderControls();  // its "Bỏ điểm cuối"
+}
+function endWire() {  // the strand being drawn is done: into the clip's settings, as places in its box (one step to undo)
+  const c = clipById(S.wire.id), cur = S.wire.cur;
+  S.wire.cur = []; S.wire.hover = null;
+  if (c && cur.length >= 2) {
+    const r = placed(c), pts = c.params.strands || [];
+    const most = (S.schema.kinds.lights.params.find(d => d.key === "strands") || {}).most || 800;
+    if (pts.length + cur.length > most) { toast("Đã đủ số điểm dây tối đa. Hãy xoá bớt dây trước khi vẽ thêm.", true, 6000); drawWire(); return; }
+    const fit = v => Math.round(clamp(v, 0, 1) * 1e4) / 1e4;
+    c.params.strands = pts.concat(cur.map((q, i) => [fit((q[0] - r.x) / r.h), fit((q[1] - r.y) / r.h), i === 0 ? 1 : 0]));
+    edited();
+  }
+  drawWire();
+}
+function wireUndo(c) {
+  if (S.wire && S.wire.id === c.id && S.wire.cur.length) { S.wire.cur.pop(); drawWire(); renderControls(); return; }
+  const pts = (c.params.strands || []).slice(0, -1);
+  while (pts.length && pts[pts.length - 1][2] >= 0.5 && pts.length === 1) pts.pop();  // (a strand of one point is none)
+  c.params.strands = pts; edited();
+}
+function wirePath(points, sag) {  // a strand's points (video px) as the effect lays it: hanging down between two points
+  const out = [];
+  points.forEach((a, i) => {
+    if (!i) { out.push(a); return; }
+    const b = points[i - 1];
+    for (let k = 1; k <= 16; k++) {
+      const t = k / 16, droop = 0.25 * sag * Math.abs(a[0] - b[0]) * 4 * t * (1 - t);
+      out.push([b[0] + (a[0] - b[0]) * t, b[1] + (a[1] - b[1]) * t + droop]);
+    }
+  });
+  return out;
+}
+let wireQueued = false;
+function drawWire() {  // the strands drawn so far, and the one being drawn, over the picture (polyCanvas: mask pixels)
+  if (wireQueued) return;
+  wireQueued = true;
+  requestAnimationFrame(() => {
+    wireQueued = false;
+    if (S.paint) return;
+    const g = polyCanvas.getContext("2d");
+    g.clearRect(0, 0, polyCanvas.width, polyCanvas.height);
+    const c = S.wire && clipById(S.wire.id);
+    if (!c) return;
+    const kx = polyCanvas.width / info().w, ky = polyCanvas.height / info().h, k = 1 / screenScale();
+    const r = placed(c), sag = (+c.params.sag || 0) / 100, strands = [];
+    for (const q of c.params.strands || []) {
+      if (q[2] >= 0.5 || !strands.length) strands.push([]);
+      strands[strands.length - 1].push([r.x + q[0] * r.h, r.y + q[1] * r.h]);
+    }
+    const line = (pts, colour, dash) => {
+      g.strokeStyle = colour; g.lineWidth = 2 * k; g.setLineDash(dash ? [6 * k, 4 * k] : []);
+      g.beginPath(); wirePath(pts, sag).forEach((q, i) => i ? g.lineTo(q[0] * kx, q[1] * ky) : g.moveTo(q[0] * kx, q[1] * ky)); g.stroke();
+      g.setLineDash([]); g.fillStyle = colour;
+      for (const q of pts) { g.beginPath(); g.arc(q[0] * kx, q[1] * ky, 3.5 * k, 0, 7); g.fill(); }
+    };
+    for (const st of strands) line(st, "rgba(255, 216, 77, .75)", false);
+    const cur = S.wire.cur;
+    if (cur.length) line(S.wire.hover ? [...cur, S.wire.hover] : cur, "#fff", true);
+  });
+}
+function shownParam(c, d) {  // a setting shown only for some values of others (string lights: per way of laying them)
+  return !d.show || Object.entries(d.show).every(([k, values]) => values.includes(c.params[k]));
+}
+function pointsRow(c, d) {
+  if (d.key === "strands") return wireRow(c, d);  // string lights on the lights in the video: the ones the app found under the box
   if (c.kind !== "lights" || c.params.layout !== "scene") return "";
   const n = (c.params[d.key] || []).length;
   return `<div class="btns"><button class="small" id="findBulbs" title="App tìm các bóng đèn sáng trong video, ở trong khung trắng">${icon("lights", "lead")}Tìm đèn trong video</button></div>
@@ -3541,8 +3652,10 @@ function renderControls() {
       ${by.bright}${by.contrast}${by.sat}${by.hue}${by.temp}${by.tint_amt}${by.tint}
       <div class="btns"><button class="small" id="colourReset" ${colourOps(c.params) ? "" : "disabled"}>Đặt lại màu như file gốc</button></div>
       <p class="note">Khớp màu với cảnh: đặt clip vào đúng chỗ, chọn chế độ hoà trộn trước, rồi bấm. Sau đó vẫn kéo tay các thanh được. Phủ một màu: chọn màu rồi kéo thanh "Phủ một màu" lên (ví dụ tuyết trắng thành vàng ấm).</p>`;
-  })() : sch.params.map((d, i) => {  // a heading where the group changes
-    const g = d.group || "Hiệu ứng", head = i === 0 || g !== (sch.params[i - 1].group || "Hiệu ứng") ? `<h4>${esc(g)}</h4>` : "";
+  })() : sch.params.map((d, i) => {  // a heading where the group changes (settings this clip does not use: not shown)
+    if (!shownParam(c, d)) return "";
+    const before = sch.params.slice(0, i).filter(e => shownParam(c, e)).pop();
+    const g = d.group || "Hiệu ứng", head = !before || g !== (before.group || "Hiệu ứng") ? `<h4>${esc(g)}</h4>` : "";
     if (g !== "Xoay 3D") return head + params[i] + (d.key === "y" && sheetKind(c) ? `<p class="note">Cỡ 100%, ở giữa: hiệu ứng phủ đúng cả khung hình. Thu nhỏ rồi kéo khung trắng để hiệu ứng chỉ nằm ở một chỗ (ví dụ một ô cửa sổ).</p>` : "");
     const last = i === sch.params.length - 1 || sch.params[i + 1].group !== g;  // (the same settings as a file clip's)
     return head + numSlider(d, c.params[d.key]) + (last ? turnTail(c) : "");
@@ -3653,6 +3766,9 @@ $("#ec").addEventListener("click", e => {
   if (id === "reseed") { c.seed = Math.floor(Math.random() * 2147483647); edited(); return; }
   if (id === "colourMatch") return matchColours(c, t);
   if (id === "findBulbs") return findBulbs(c, t);
+  if (id === "wireDraw") return S.wire && S.wire.id === c.id ? stopWire() : startWire(c);
+  if (id === "wireUndo") return wireUndo(c);
+  if (id === "wireClear") { c.params.strands = []; if (S.wire) { S.wire.cur = []; drawWire(); } edited(); return; }
   if (id === "colourReset") {  // the file's own colours again
     for (const d of S.schema.kinds.file.params) if (COLOUR_KEYS.includes(d.key)) c.params[d.key] = d.value;
     edited(); return;
@@ -3721,6 +3837,7 @@ $("#ec").addEventListener("input", e => {
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
     else followChoices(c, key);
     if (c.kind === "lights" && (key === "layout" && v === "scene" && !(c.params.spots || []).length || XFORM_KEYS.includes(key))) refindBulbs(c);
+    if (c.kind === "lights" && key === "layout") { if (v === "draw") startWire(c); else stopWire(); }
     if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
     else if (S.els[c.id]) styleLayer(c, S.els[c.id]);
     applyTime(); invalidateExact(); scheduleSave(); renderTimeline(); showXform();

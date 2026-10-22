@@ -10,7 +10,9 @@ tree's branches never hold them in line), each colour in turn along a strand as 
 
 Each bulb is a small hot core (near white), a halo of its colour and the rays a camera lens makes of a bright point;
 or, to twinkle the lights a picture already has ("glow": no bulb of its own), only a soft bloom, its halo and rays.
-Laid "on the lights in the video" ("scene"), the bulbs are the bright small spots the app found in the video under
+Drawn by hand ("draw"): the owner clicks the points of each strand on the picture (kept in the clip's settings as
+places in the box, "strands"); between two points the wire hangs down a little ("sag": a level span the most, an upright
+one not at all), and "bulbs" bulbs sit along all of them at even spacing. Laid "on the lights in the video" ("scene"), the bulbs are the bright small spots the app found in the video under
 the box (fx/bulbs.py: kept in the clip's settings as places in the box, with their colours), so the picture's own
 fairy lights flare and twinkle where they are.
 How bright it is follows the way of twinkling chosen, as a light controller does: each bulb on its own, groups
@@ -41,24 +43,36 @@ DEFAULTS = {"amount": 45, "density": 45, "width": 62, "jitter": 40, "back": 25, 
             "brightness": 75, "speed": 40, "depth": 60}
 LAYOUTS = {"tree": {"width": 62, "density": 45}, "swag": {"width": 100, "density": 30},
            "curtain": {"width": 100, "density": 45}, "scatter": {"width": 80, "density": 45},
-           "scene": {"bulb": "glow", "palette": "video", "amount": 70, "depth": 90, "glow": 45, "rays": 55}}
+           "scene": {"bulb": "glow", "palette": "video", "amount": 70, "depth": 90, "glow": 45, "rays": 55},
+           "draw": {"jitter": 10}}
 SPOTS = 600  # lights found in the video, at most (x, y in the box, how bright, r, g, b)
+STRAND_POINTS = 800  # points of strands drawn by hand, at most (x, y in the box, 1 where a new strand starts)
+# which settings each way of laying the strands uses (the page shows only those)
+LAID = {"tree": ["tree"], "strands": ["tree", "swag", "curtain", "scatter"], "count": ["tree", "swag", "curtain",
+        "scatter", "scene"], "nudge": ["tree", "swag", "curtain", "scatter", "draw"]}
 
 
 def _p(key, label, value, group, lo=0, hi=100):
     return _num(key, label, value, lo, hi, group=group)
 
 
+def _for(laid, item):
+    """A setting the page shows only for some ways of laying the strands."""
+    return dict(item, show={"layout": laid})
+
+
 SCHEMA = {
     "label": "Dây đèn lấp lánh",
     "note": "Kéo khung trắng trùm lên cây thông (hoặc cửa sổ, mái hiên), kéo góc khung cho vừa. Chọn cách giăng dây: "
-            "quấn quanh cây, võng ngang, rèm thả dọc, rải đều, hoặc theo đèn có sẵn trong video (cây đã có dây đèn "
-            "nhưng đèn đứng yên: app tìm từng bóng và cho chính chỗ đó lấp lánh). Muốn đèn chỉ nằm trên cây: bấm Vẽ "
-            "vùng của clip này và tô lên cây.",
+            "quấn quanh cây, võng ngang, rèm thả dọc, rải đều, tự vẽ dây trên hình (bấm từng điểm: dọc mái hiên, quanh "
+            "khung cửa, chỗ nào cũng được), hoặc theo đèn có sẵn trong video (cây đã có dây đèn nhưng đèn đứng yên: app "
+            "tìm từng bóng và cho chính chỗ đó lấp lánh). Muốn đèn chỉ nằm trên cây: bấm Vẽ vùng của clip này và tô "
+            "lên cây.",
     "params": [
         _choice("layout", "Cách giăng dây", "tree",
                 [("tree", "Quấn quanh cây thông"), ("swag", "Dây võng ngang"), ("curtain", "Rèm đèn thả dọc"),
-                 ("scatter", "Rải đều trong khung"), ("scene", "Theo đèn có sẵn trong video")], presets=LAYOUTS,
+                 ("scatter", "Rải đều trong khung"), ("draw", "Tự vẽ dây trên hình"),
+                 ("scene", "Theo đèn có sẵn trong video")], presets=LAYOUTS,
                 group="Kiểu"),
         _choice("bulb", "Bóng đèn", "bulb", [("bulb", "Hiện bóng đèn và ánh sáng"),
                                              ("glow", "Chỉ ánh sáng lấp lánh (không hiện bóng)")], group="Kiểu"),
@@ -68,12 +82,15 @@ SCHEMA = {
         _choice("palette", "Màu đèn", "warm",
                 [("warm", "Vàng ấm"), ("multi", "Nhiều màu"), ("cool", "Trắng lạnh"), ("gold", "Vàng và đỏ"),
                  ("one", "Một màu (chọn ở dưới)"), ("video", "Theo màu đèn trong video")], group="Kiểu"),
-        _points_param("spots", "Đèn có sẵn trong video", 6, SPOTS, group="Dây đèn"),
-        _p("amount", "Số bóng", DEFAULTS["amount"], "Dây đèn"),
-        _p("density", "Dây quấn dày (số vòng, số hàng)", DEFAULTS["density"], "Dây đèn"),
-        _p("width", "Độ rộng (so với khung trắng)", DEFAULTS["width"], "Dây đèn", 10, 100),
-        _p("jitter", "Lộn xộn (không thẳng hàng)", DEFAULTS["jitter"], "Dây đèn"),
-        _p("back", "Bóng phía sau cây lộ ra", DEFAULTS["back"], "Dây đèn"),
+        _for(["scene"], _points_param("spots", "Đèn có sẵn trong video", 6, SPOTS, group="Dây đèn")),
+        _for(["draw"], _points_param("strands", "Dây tự vẽ", 3, STRAND_POINTS, group="Dây đèn")),
+        _for(["draw"], _num("bulbs", "Số bóng trên dây", 60, 2, 600, group="Dây đèn")),
+        _for(["draw"], _p("sag", "Dây võng giữa hai điểm bấm", 35, "Dây đèn")),
+        _for(LAID["count"], _p("amount", "Số bóng", DEFAULTS["amount"], "Dây đèn")),
+        _for(LAID["strands"], _p("density", "Dây quấn dày (số vòng, số hàng)", DEFAULTS["density"], "Dây đèn")),
+        _for(LAID["strands"], _p("width", "Độ rộng (so với khung trắng)", DEFAULTS["width"], "Dây đèn", 10, 100)),
+        _for(LAID["nudge"], _p("jitter", "Lộn xộn (không thẳng hàng)", DEFAULTS["jitter"], "Dây đèn")),
+        _for(LAID["tree"], _p("back", "Bóng phía sau cây lộ ra", DEFAULTS["back"], "Dây đèn")),
         _p("size", "Cỡ bóng", DEFAULTS["size"], "Bóng đèn"),
         _p("glow", "Quầng sáng", DEFAULTS["glow"], "Bóng đèn"),
         _p("rays", "Tia sáng lấp lánh", DEFAULTS["rays"], "Bóng đèn"),
@@ -132,13 +149,14 @@ def _rays(length, fx, fy):
 class Lights(Effect):
     blend = "screen"
     BOX = (1, 1)
-    CAP = 600  # bulbs at most
+    CAP = 1100  # bulbs at most (600 drawn by hand, and one more on each strand; the first ones: the same draws)
+    PREVIEW = 1280  # its preview clip's height when its box is big (strands drawn over the whole picture)
 
     def __init__(self, *a):
         super().__init__(*a)
         p = self.p
         self.bw = self.BOX[0] / self.BOX[1]  # the box's width, in box heights
-        n = int(round(_lerp(20, 360, p["amount"] / 100)))
+        n = int(p["bulbs"]) if p["layout"] == "draw" else int(round(_lerp(20, 360, p["amount"] / 100)))
         dens, width, jitter = p["density"] / 100, p["width"] / 100 * self.bw, p["jitter"] / 100
         layout = p["layout"]
         g = np.random.default_rng([self.seed, 1103, 1])
@@ -219,6 +237,8 @@ class Lights(Effect):
         """The strands as polylines (x, y, z: box heights, y down, z towards the eye)."""
         cx = self.bw / 2
         self.cone_r = width / 2
+        if layout == "draw":
+            return self._drawn(self.p["strands"], self.p["sag"] / 100)
         if layout == "tree":
             turns = _lerp(3, 14, dens)
             s = np.linspace(0, 1, 3000)
@@ -243,6 +263,33 @@ class Lights(Effect):
             return [np.stack([np.full(2, cx - width / 2 + width * (i + 0.5) / m), [0.03, ends[i]], np.zeros(2)], 1)
                     for i in range(m)]
         return []
+
+    def _drawn(self, points, sag):
+        """Strands drawn by hand (points x, y in the box, the third 1 where a new strand starts) as polylines; the
+        wire between two points hangs down, a level span the most (a quarter of its length at "sag" 100)."""
+        strands, cur = [], []
+        for x, y, new in points:
+            if new >= 0.5 and cur:
+                strands.append(cur)
+                cur = []
+            cur.append((x * self.bw, y))
+        if cur:
+            strands.append(cur)
+        lines = []
+        t = np.linspace(0, 1, 64)
+        for strand in strands:
+            if len(strand) < 2:
+                continue
+            parts = []
+            for i, ((ax, ay), (bx, by)) in enumerate(zip(strand[:-1], strand[1:])):
+                span = math.hypot(bx - ax, by - ay)
+                droop = 0.25 * sag * abs(bx - ax) * 4 * t * (1 - t)
+                seg = np.stack([ax + (bx - ax) * t, ay + (by - ay) * t + droop, np.zeros_like(t)], 1)
+                if span > 0:
+                    parts.append(seg if i == 0 else seg[1:])
+            if parts:
+                lines.append(np.concatenate(parts))
+        return lines
 
     def levels(self, tau):
         """How bright each bulb is at phase tau (0..1 of its brightest), and how much it flares (0..1)."""

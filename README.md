@@ -337,6 +337,17 @@ Cây thông trong video **đã có sẵn dây đèn** nhưng đèn đứng yên 
    nhiêu phần đèn được lấp lánh. Muốn chỉ đèn trên cây (không lấy đèn đường phía sau): **Vẽ vùng** tô lên cây trước, rồi
    bấm **Tìm đèn trong video**. Với cách giăng này đừng xoay 3D khung trắng.
 
+**Tự vẽ dây** (trang trí bất cứ chỗ nào trên hình: mái hiên, khung cửa, cành cây, lan can…):
+
+1. **Cách giăng dây** → **Tự vẽ dây trên hình**. Khung trắng tự phủ cả hình và app vào chế độ vẽ dây.
+2. Bấm lên hình để đặt từng điểm của dây. Giữa hai điểm dây tự võng xuống như dây thật (**Dây võng giữa hai điểm
+   bấm**: 0 là dây căng thẳng). **Bấm đúp** để kết thúc một dây, rồi bấm tiếp để vẽ dây khác.
+3. Dây dài bao nhiêu thì vẽ bấy nhiêu. **Số bóng trên dây**: tổng số bóng, chia đều trên mọi dây đã vẽ.
+4. **Bỏ điểm cuối**, **Xoá hết dây** (Ctrl+Z để lấy lại). Vẽ xong bấm **Xong, thôi vẽ dây**; bấm **Vẽ dây** để vẽ
+   thêm lúc nào cũng được. Kéo khung trắng là dời cả bộ dây.
+
+Bảng chỉnh chỉ hiện những thanh dùng được cho cách giăng đang chọn.
+
 **Bóng đèn** → **Chỉ ánh sáng lấp lánh (không hiện bóng)** dùng được với mọi cách giăng: chỉ có ánh sáng, quầng và tia
 loé, không có bóng đèn vẽ thêm.
 

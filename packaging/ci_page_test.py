@@ -576,6 +576,70 @@ def winter(page, shot, edge):
     shot("05i-winter")
 
 
+def drawn_strands(page, shot):
+    """String lights drawn by hand: "Tự vẽ dây trên hình" makes the box cover the picture and starts drawing (no white
+    box meanwhile); clicks on the picture put a strand's points, a double-click ends it (into the clip's settings, as
+    places in its box: the renderer lays as many bulbs as "Số bóng trên dây" along them); only the settings that way of
+    laying them uses show; "Bỏ điểm cuối", "Xoá hết dây" and undo."""
+    from fx import effects as fx_effects
+    page.click('.tab[data-bin="fx"]')
+    page.dblclick('.tile[data-kind="lights"]')
+    cid = page.evaluate("S.sel")
+    page.select_option('#ec select[data-param="layout"]', "draw")
+    page.wait_for_timeout(300)
+    vw, vh = page.evaluate("[info().w, info().h]")
+    state = page.evaluate("""(c => [!!S.wire, c.params.scale, $('#xform').style.display, !!$('#wireDraw'),
+        !!$('#ec [data-param="bulbs"]'), !!$('#ec [data-param="sag"]'), !!$('#ec [data-param="density"]'),
+        !!$('#ec [data-param="amount"]')])(clipById(S.sel))""")
+    check("strands drawn by hand: drawing starts, the box covers the picture, only their own settings show",
+          state[0] and abs(state[1] - 100 * max(vw, vh) / min(vw, vh)) < 0.2 and state[2:] == ["none", True, True,
+                                                                                                True, False, False],
+          str(state))
+    box = page.locator("#screen").bounding_box()
+
+    def at(fx_, fy_):
+        return box["x"] + box["width"] * fx_, box["y"] + box["height"] * fy_
+
+    first, second = [(0.15, 0.25), (0.5, 0.2), (0.85, 0.3)], [(0.2, 0.7), (0.8, 0.75)]
+    for strand in (first, second):
+        for fx_, fy_ in strand:
+            page.mouse.click(*at(fx_, fy_))
+            page.wait_for_timeout(120)
+        page.mouse.dblclick(*at(*strand[-1]))  # (where its last point is: it ends the strand, no point more)
+        page.wait_for_timeout(300)
+    got = page.evaluate(f"clipById('{cid}').params.strands")
+    r = page.evaluate(f"placed(clipById('{cid}'))")
+    want = [[(fx_ * vw - r["x"]) / r["h"], (fy_ * vh - r["y"]) / r["h"], 1 if i == 0 else 0]
+            for strand in (first, second) for i, (fx_, fy_) in enumerate(strand)]
+    close = len(got) == len(want) and all(abs(a - b) < 0.01 for g, w in zip(got, want) for a, b in zip(g, w))
+    params = page.evaluate(f"clipById('{cid}').params")
+    bulbs = len(fx_effects.make("lights", params, 3, 48, 24, 640, 360).x)
+    check("strands drawn by hand: each click a point, a double-click ends a strand; as many bulbs as asked for",
+          close and abs(bulbs - params["bulbs"]) <= 2, f"{got} / {want}, {bulbs} bulbs")
+    page.mouse.click(*at(0.4, 0.5))  # (a strand begun: drawn over the picture with the others)
+    page.mouse.move(*at(0.6, 0.55))
+    page.wait_for_timeout(300)
+    shot("05j-strands-drawing")
+    page.click("#wireUndo")  # (that point)
+    page.click("#wireUndo")
+    n1 = page.evaluate(f"clipById('{cid}').params.strands.length")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    n2 = page.evaluate(f"clipById('{cid}').params.strands.length")
+    page.click("#wireClear")
+    n3 = page.evaluate(f"clipById('{cid}').params.strands.length")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(200)
+    n4 = page.evaluate(f"clipById('{cid}').params.strands.length")
+    page.click("#wireDraw")  # done drawing: the white box again
+    page.wait_for_timeout(200)
+    after = page.evaluate("[!!S.wire, $('#xform').style.display]")
+    check("strands drawn by hand: Bỏ điểm cuối, Xoá hết dây, each undone; done drawing, the box is back",
+          [n1, n2, n3, n4] == [4, 5, 0, 5] and after == [False, "block"], str([n1, n2, n3, n4, after]))
+    shot("05j-strands")
+    page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
+
+
 def shortcuts(page, shot):
     """The Phím tắt window: a key changed, taken from another action, refused, searched; the guide; all back."""
     def row(i):
@@ -1589,6 +1653,7 @@ def run(page, folder, edge):
     shot("05b-steam-candle")
     foliage(page, shot)
     winter(page, shot, edge)
+    drawn_strands(page, shot)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"
