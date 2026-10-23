@@ -521,7 +521,7 @@ class Settings(unittest.TestCase):
         self.assertEqual((defaults["style"], defaults["look"]), ("cup", "light"))
         keys = set(by) - set(PLACE)
         # a style: every setting but the place, the light and the style itself (its own rim and colour)
-        # (smoke from a chimney: Khói ống khói, fx/chimney.py, since 1.0.63)
+        # (smoke from a chimney: Khói ống khói, fx/chimney.py, since 1.0.65)
         self.assertEqual([o["value"] for o in by["style"]["options"]], ["cup", "incense", "pot"])
         for name, preset in by["style"]["presets"].items():
             self.assertEqual(set(preset), keys - {"style", "lit"}, name)

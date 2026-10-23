@@ -1,7 +1,7 @@
 """Smoke and steam rising from one place: steam over a hot cup of coffee or tea, the smoke of an incense stick, steam
 over a pot or a kettle (a placed effect: Effect.BOX; see effects.py for how every effect loops); and wood smoke from a
 chimney leaning in the wind, each chimney's plume of Khói ống khói (fx/chimney.py: its style "chimney", not offered
-here since 1.0.63: a clip with it moves there, moved()).
+here since 1.0.65: a clip with it moves there, moved()).
 
 Smoke is drawn as dye carried by moving air. Points over the surface (the liquid in the cup or the pot, the glowing
 tip of the incense) let go of a little smoke all the time, the air carries it up, and what shows are the streaklines:

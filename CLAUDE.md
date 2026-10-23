@@ -165,7 +165,7 @@ hiệu ứng. Cách dùng: `README.md`.
   sáng làm mờ (`_behind`: kính mờ thật, hơi xám đi) + chút màu riêng (ánh đèn trong phòng, `*_ROOM`); hoa băng sáng
   hơn, nổi khối theo hướng sáng trên trái (`_colours`); tuyết, bông tuyết cũng vậy. Clip xem nhanh cỡ 1280
   (`PREVIEW`).
-- Khói ống khói (`fx/chimney.py`, mã loại `chimney`, từ 1.0.63): hiệu ứng phủ cả hình (không `BOX`, không xoay,
+- Khói ống khói (`fx/chimney.py`, mã loại `chimney`, từ 1.0.65): hiệu ứng phủ cả hình (không `BOX`, không xoay,
   `LIT`), mọi ống khói trong một clip, cùng một gió. Thông số `stacks` (kiểu `points`, 4 số: x, y giữa miệng ống khói là
   phần của chiều rộng / cao khung; độ rộng miệng là phần của chiều rộng khung; khói nhiều ít 0..1, 0,5 như thanh trượt).
   Mỗi ống khói là một cột khói của `fx/steam.py` (kiểu `chimney`, `_Plume`: hộp do ống khói đặt, `box()`) trong hộp
