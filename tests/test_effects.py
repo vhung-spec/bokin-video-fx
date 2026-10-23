@@ -20,9 +20,8 @@ DRAWN = {"garland": {"strands": [[0.1, 0.3, 1, 0.4], [0.5, 0.35, 0, 0], [0.9, 0.
                                  [0.3, 0.7, 0.5, 0], [0.4, 0.75, 0.5, 0]]},
          "chimney": {"stacks": [[0.3, 0.85, 0.05, 0.5]]}}
 MORE = {"hearth": [{"wood": "oak", "stack": "heap", "embers": 100, "frame": "arch"}],  # (more of its own: logs,
-        # the fireplace's opening; pigeons on a ledge, flying round, flying past)
-        "pigeons": [{"mode": "ledge", "amount": 100}, {"mode": "flock", "amount": 100},
-                    {"mode": "pass", "amount": 100}]}
+        # the fireplace's opening; pigeons on a ledge, pecking often)
+        "pigeons": [{"mode": "ledge", "amount": 100}, {"peck": 100, "busy": 0, "coat": "pied", "soft": 100}]}
 
 
 def frame(fx, t, base=0.3, mask=None):

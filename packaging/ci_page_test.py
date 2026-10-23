@@ -1039,9 +1039,9 @@ def fireflies(page, shot):
 
 
 def pigeons(page, shot):
-    """Chim bồ câu: a box on the picture where the renderer puts it, no turn, no mark; the ground's settings only
-    for birds on the ground, the way they fly only for birds flying past; its preview clip (birds on a clear ground,
-    WebM) laid in the box."""
+    """Chim bồ câu: a box on the picture where the renderer puts it, no turn, no mark; on the ground or on a ledge
+    (no birds in the air: the owner only needs them on the ground), every setting shown for both, "Mổ hạt" and "Độ
+    mềm" among them; its preview clip (birds on a clear ground, WebM) laid in the box, made again for a ledge."""
     from fx import effects as fx_effects
     page.click('.tab[data-bin="fx"]')
     page.dblclick('.tile[data-kind="pigeons"]')
@@ -1053,29 +1053,28 @@ def pigeons(page, shot):
         !!$('#ec [data-num="rot_x"]'), $('#xformMark').style.display]""")
     box = page.evaluate(BOX)
     x0, y0, w, h = fx_effects.box_of("pigeons", page.evaluate(f"clipById('{cid}').params"), vw, vh)
-    shown = """['input[data-param="busy"]', 'input[data-param="view"]', 'input[data-param="shadow"]',
-        'select[data-param="way"]'].map(q => !!$('#ec ' + q))"""
+    shown = """['busy', 'peck', 'view', 'shadow', 'soft'].map(k => !!$(`#ec input[data-param="${k}"]`))
+        .concat([!!$('#ec select[data-param="way"]'),
+                 [...$('#ec select[data-param="mode"]').options].map(o => o.value).join()])"""
     ground = page.evaluate(shown)
-    page.select_option('#ec select[data-param="mode"]', "flock")
-    page.wait_for_timeout(300)
-    flock = page.evaluate(shown)
-    page.select_option('#ec select[data-param="mode"]', "pass")
-    page.wait_for_timeout(300)
-    past = page.evaluate(shown)
-    page.select_option('#ec select[data-param="mode"]', "ground")
-    page.wait_for_timeout(300)
-    check("Chim bồ câu: its box where the renderer puts it; no turn, no mark; the ground's settings for birds on the "
-          "ground, the way they fly for birds flying past", ui == ["block", "none", "none", False, "none"] and
-          all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])) and
-          ground == [True, True, True, False] and flock == [False] * 4 and past == [False, False, False, True],
-          str([ui, box, [x0, y0, x0 + w, y0 + h], ground, flock, past]))
     page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want && "
                            f"S.els['{cid}']", timeout=300000)
+    want = page.evaluate(f"S.fx['{cid}'].want")
+    page.select_option('#ec select[data-param="mode"]', "ledge")
+    page.wait_for_timeout(300)
+    ledge = page.evaluate(shown)
+    check("Chim bồ câu: its box where the renderer puts it; no turn, no mark; on the ground or a ledge, every setting "
+          "shown for both (Mổ hạt, Độ mềm too)", ui == ["block", "none", "none", False, "none"] and
+          all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])) and
+          ground == [True] * 5 + [False, "ground,ledge"] and ledge == ground,
+          str([ui, box, [x0, y0, x0 + w, y0 + h], ground, ledge]))
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].want !== '{want}' && "
+                           f"S.fx['{cid}'].shown === S.fx['{cid}'].want && S.els['{cid}']", timeout=300000)
     page.evaluate("applyTime()")
     laid = page.evaluate(f"""(() => {{ const e = S.els['{cid}']; return [e.media.getAttribute('src').includes('.webm'),
         e.wrap.style.mixBlendMode]; }})()""")
-    check("Chim bồ câu: its preview clip, birds on a clear ground (WebM), in its box", laid == [True, "normal"],
-          str(laid))
+    check("Chim bồ câu: its preview clip, birds on a clear ground (WebM), in its box; made again for a ledge",
+          laid == [True, "normal"], str(laid))
     shot("05n-pigeons")
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 

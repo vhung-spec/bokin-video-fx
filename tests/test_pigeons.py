@@ -1,5 +1,5 @@
-"""Pigeons (fx/pigeons.py): a placed effect of rock doves drawn by code, walking about and pecking on the ground or on
-a ledge, or flying round in a flock or past, lit by the scene where their box stands."""
+"""Pigeons (fx/pigeons.py): a placed effect of rock doves drawn by code, walking about on the ground or on a ledge,
+looking round and now and then pecking at seeds, lit by the scene where their box stands."""
 import math
 import unittest
 
@@ -11,7 +11,7 @@ from fx import engine, overlay, pigeons
 
 W, H = 480, 270
 AT = {"scale": 90, "x": 0, "y": 0}
-MODES = ("ground", "ledge", "flock", "pass")
+MODES = ("ground", "ledge")
 DAY = {"lit": 0}  # (lit by daylight, not by a scene)
 
 
@@ -33,14 +33,20 @@ def lowest(part):
 
 def walks(walker, least=2.5):
     """The walks of a walker's day long enough to be at full speed in their middle (start, length: seconds)."""
-    return [(start, d) for kind, start, d in walker.segs if kind == "walk" and d > least]
+    return [(start, d) for kind, start, d, _ in walker.segs if kind == "walk" and d > least]
+
+
+def light():
+    key = np.array([1.1, 1.05, 1.0], np.float32)
+    way = np.array([-0.5, -0.6, 0.8])
+    return key, way / np.linalg.norm(way), np.array([0.45, 0.48, 0.55], np.float32)
 
 
 class Loop(unittest.TestCase):
     def test_frame_p_is_frame_0(self):
         for mode in MODES:
             for frames, fps in ((240, 24), (150, 25)):
-                fx = make({"mode": mode, "amount": 70}, frames, fps)
+                fx = make({"mode": mode, "amount": 70, "peck": 100}, frames, fps)
                 a, b = drawn(fx, 0), drawn(fx, frames)
                 self.assertLess(float(np.abs(a[0] - b[0]).max()), 1e-6, (mode, frames, fps))
                 self.assertLess(float(np.abs(a[1] - b[1]).max()), 1e-6, (mode, frames, fps))
@@ -52,10 +58,10 @@ class Loop(unittest.TestCase):
             self.assertGreater(float(a), 0.5, mode)
 
     def test_each_walker_comes_home(self):
-        """A bird on the ground goes round a closed path of its own, as far as it walks over the loop (once round,
-        or more often round a smaller path): at the loop's end where it started, facing the same way. Along a ledge
-        its path goes no farther from home than its room, however long it walks, and turns round at its ends in a
-        narrow half circle (TURN)."""
+        """A bird goes round a closed path of its own, as far as it walks over the loop (once round, or more often
+        round a smaller path): at the loop's end where it started, facing the same way. Along a ledge its path goes
+        no farther from home than its room, however long it walks, and turns round at its ends in a narrow half
+        circle (TURN)."""
         for seed in range(6):
             for busy in (0.0, 0.5, 1.0):
                 for loop, ledge, room in ((20.0, False, None), (20.0, False, 0.8), (20.0, True, 2.0),
@@ -72,7 +78,7 @@ class Loop(unittest.TestCase):
 
 class Walking(unittest.TestCase):
     """As a pigeon walks: its planted foot stays put on the ground, its head is held still and thrust forward a
-    step at a time; as it pecks, its beak reaches the ground."""
+    step at a time; it stops now and then to peck, its beak reaching the ground."""
 
     def test_a_planted_foot_stays_put(self):
         walker = pigeons.Walker(np.random.default_rng(4), 30.0, 0.8, 1.0)
@@ -120,10 +126,32 @@ class Walking(unittest.TestCase):
         steps = (body[-1] - body[0]) / (pigeons.STRIDE / 2)
         self.assertLessEqual(abs(thrusts - steps), 2.0, (thrusts, steps))
 
+    def test_pecks_now_and_then(self):
+        """"Mổ hạt": never at 0; now and then by default (a few pecks a bird in half a minute, one to three at a
+        time); often at 100. Each peck goes all the way down and back up a little."""
+        def pecks(hungry):
+            out = []
+            for seed in range(30):
+                walker = pigeons.Walker(np.random.default_rng(seed), 30.0, 0.5, 1.0, hungry=hungry)
+                out += [n for kind, _, _, n in walker.segs if kind == "peck"]
+            return out
+        self.assertEqual(pecks(0.0), [])
+        some = pecks(0.4)
+        self.assertTrue(2 <= sum(some) / 30 <= 8, sum(some) / 30)
+        self.assertTrue(all(1 <= n <= 3 for n in some), some)
+        self.assertGreater(sum(pecks(1.0)), 2.5 * sum(some))
+        walker = pigeons.Walker(np.random.default_rng(1), 30.0, 0.5, 1.0, hungry=1.0)
+        kind, start, d, n = next(s for s in walker.segs if s[0] == "peck" and s[3] >= 2)
+        reach = np.array([walker.reach(t) for t in np.linspace(start, start + d, 600)])
+        self.assertEqual(reach[0], 0.0)
+        self.assertLess(reach[-1], 1e-3)
+        downs = np.sum((reach[1:] >= 0.99) & (reach[:-1] < 0.99))
+        self.assertEqual(int(downs), n)  # (all the way down, once a peck)
+
     def test_its_beak_reaches_the_ground(self):
         for seed in range(4):
-            walker = pigeons.Walker(np.random.default_rng(seed), 30.0, 0.2, 1.0)
-            pecks = [(start, d) for kind, start, d in walker.segs if kind == "peck"]
+            walker = pigeons.Walker(np.random.default_rng(seed), 30.0, 0.2, 1.0, hungry=1.0)
+            pecks = [(start, d) for kind, start, d, _ in walker.segs if kind == "peck"]
             self.assertTrue(pecks, seed)
             start, d = pecks[0]
             low = min(lowest([p for p in pigeons.parts(walker.pose(t)) if p[0] == "beak"][0])
@@ -134,13 +162,96 @@ class Walking(unittest.TestCase):
     def test_standing_on_its_feet(self):
         parts = pigeons.parts(pigeons.Pose())
         self.assertAlmostEqual(min(lowest(p) for p in parts), 0.0, places=6)
-        self.assertEqual([p[0] for p in parts if abs(lowest(p)) < 1e-6], ["toe", "toe"])
+        self.assertEqual([p[0] for p in parts if abs(lowest(p)) < 1e-6], ["toe", "toe", "toe", "toe"])
+        self.assertGreater(min(lowest(p) for p in parts[:pigeons.SMOOTH]), 0.05)  # (its body above its legs)
+
+
+class Body(unittest.TestCase):
+    """Its body is one smooth shape: its parts melted into each other where they meet."""
+
+    def test_just_outside_its_parts(self):
+        """Each ray meets the smooth body no later than the plain union of its parts, on its surface, within NEAR of
+        a part; its parts' shares there make up all of it."""
+        allp = pigeons.parts(pigeons.Pose(head_yaw=0.4))
+        body = allp[:pigeons.SMOOTH]
+        g = np.random.default_rng(1)
+        d = np.array([0.3, 0.9, -0.3])
+        d /= np.linalg.norm(d)
+        o = g.uniform(-0.6, 0.6, (4000, 3)) * np.array([1.0, 0.5, 0.6]) + np.array([0.0, 0.0, 0.25]) - 2 * d
+        rays = pigeons._Rays(o[:, 0], o[:, 1], o[:, 2], d)
+        seen = pigeons._Body(rays, body)
+        t = seen.march()
+        both = np.isfinite(seen.union)
+        self.assertGreater(int(both.sum()), 500)
+        self.assertTrue(np.all(np.isfinite(t[both])))
+        self.assertTrue(np.all(t[both] <= seen.union[both] + 1e-6))
+        hit = np.flatnonzero(np.isfinite(t))
+        d_hit, shares = seen.distance(hit, t[hit], shares=True)
+        self.assertLess(float(np.abs(d_hit).max()), 2e-3)  # (on the surface)
+        self.assertLess(float(np.abs(np.sum(shares, axis=0) - 1).max()), 1e-6)
+        p = o[hit] + t[hit, None] * d
+        nearest = np.min([pigeons._distance([((p - c) @ rot)[:, j] / r[j] for j in range(3)], np.zeros(3), r,
+                                            np.zeros(len(p))) for _, c, rot, r in body], axis=0)
+        self.assertLess(float(nearest.max()), pigeons.NEAR + 4e-3)  # (the distances are a bound, not exact)
+
+    def test_no_seams(self):
+        """Across its body (a white dove's: one colour) the picture changes smoothly where its parts meet: no seams,
+        no creases."""
+        coat = pigeons.Coat("white", np.random.default_rng(0))
+        pose = pigeons.Pose()
+        allp = pigeons.parts(pose)
+        body, small = allp[:pigeons.SMOOTH], allp[pigeons.SMOOTH:]
+        tilt, scale = math.radians(18), 200.0
+        fwd, up = np.array([0.0, math.cos(tilt), -math.sin(tilt)]), np.array([0.0, math.sin(tilt), math.cos(tilt)])
+        worst = 0.0
+        for v in np.linspace(0.2, 0.36, 12):  # (rows across the breast, the body, the wing and the neck's foot:
+            # where they melt into each other, away from its outline)
+            u = np.arange(-0.2, 0.12, 1 / scale)
+            o = u[:, None] * np.array([1.0, 0.0, 0.0]) + v * up - 3.0 * fwd
+            rays = pigeons._Rays(o[:, 0], o[:, 1], o[:, 2], fwd)
+            which, best, own, seen = pigeons._trace(rays, body, small)
+            i, rgb = pigeons._shade(rays, which, best, own, seen, small, coat, pose, light(), np.eye(3), 1 / scale)
+            on = which[i] == 0
+            lum = rgb[on] @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+            run = np.diff(i[on]) == 1  # (neighbours along the row, both on the body)
+            if run.any():
+                worst = max(worst, float(np.abs(np.diff(lum))[run].max()))
+        self.assertLess(worst, 0.07)
+
+    def test_soft_as_a_photograph(self):
+        """"Độ mềm": the birds' edges softer as it rises (the same amount of bird)."""
+        def edges(soft):
+            fx = make({"soft": soft, "amount": 30, "size": 70, **DAY}, w=960, h=540)
+            a = drawn(fx, 12)[1]
+            return float(((a > 0.02) & (a < 0.98)).sum()), float(a.sum())
+        sharp, soft = edges(0), edges(100)
+        self.assertGreater(soft[0], sharp[0] * 1.5)
+        self.assertLess(abs(soft[1] - sharp[1]) / sharp[1], 0.08)
+
+    def test_its_shadow(self):
+        """"Bóng dưới chân": the ground darker round each bird's feet (only darker), none at 0."""
+        pic = np.full((540, 960, 3), 0.6, np.float32)
+
+        def frame(shadow):
+            fx = make({"shadow": shadow, "amount": 30, "size": 65, **DAY}, w=960, h=540)
+            canvas = effects.Canvas(960, 540)
+            fx.draw(12, canvas, None)
+            a = canvas.a.copy()  # (before it is laid: laying clears the canvas)
+            out = pic.copy()
+            canvas.flush(out, fx.blend)
+            x0, y0, w, h = fx.box()
+            return out, a, fx._ground(12, x0, y0, w, h)
+        bare, a, birds = frame(0)
+        self.assertLess(float(np.abs(bare - 0.6)[a < 1e-6].max()), 1e-6)  # (none: the ground as it was)
+        dark, _, _ = frame(100)
+        self.assertGreaterEqual(float((bare - dark).min()), -1e-6)  # (only darker)
+        darker = [float((bare - dark)[int(b[1]) - 3:int(b[1]) + 4, int(b[0]) - 6:int(b[0]) + 7].max()) for b in birds]
+        self.assertGreater(float(np.median(darker)), 0.1)
 
 
 class Picture(unittest.TestCase):
     def test_only_in_its_box(self):
-        """Nothing outside the box (its preview clip is the box alone): the birds on the ground walk in it, a flock
-        goes round in it, birds passing come in and go out at its sides."""
+        """Nothing outside the box (its preview clip is the box alone): the birds walk in it."""
         for mode in MODES:
             for params in ({}, {"amount": 100, "size": 100, "depth": 100, "busy": 100, "speed": 100},
                            {"amount": 100, "size": 100, "x": 30, "y": -20, "scale": 40}):
@@ -150,26 +261,6 @@ class Picture(unittest.TestCase):
                 outside[max(0, math.floor(y0)):math.ceil(y0 + h), max(0, math.floor(x0)):math.ceil(x0 + w)] = False
                 for t in (0, 50, 133, 201):
                     self.assertEqual(float(drawn(fx, t)[1][outside].max(initial=0.0)), 0.0, (mode, params, t))
-
-    def test_a_flock_is_whole_in_its_box(self):
-        """A flock's loop is made small enough for its box: the box's edges never cut a bird of it."""
-        cut = []
-        real = pigeons._inside
-
-        def inside(ix, iy, shape, x0, y0, w, h):
-            out = real(ix, iy, shape, x0, y0, w, h)
-            if out is not None and out.min() < 1:
-                cut.append((ix, iy))
-            return out
-        pigeons._inside = inside
-        try:
-            for params in ({}, {"amount": 100, "size": 100, "depth": 100}):
-                fx = make({"mode": "flock", **params})
-                for t in range(0, 240, 20):
-                    drawn(fx, t)
-        finally:
-            pigeons._inside = real
-        self.assertEqual(cut, [])
 
     def test_how_many(self):
         for mode in MODES:
@@ -181,17 +272,21 @@ class Picture(unittest.TestCase):
             self.assertEqual(counts[-1], pigeons.CAP[mode], mode)
 
     def test_their_coats(self):
-        """A white dove is pale, a dark one dark, a brown one reddish, a rock dove grey with a green neck."""
+        """A white dove is pale, a dark one dark, a brown one reddish, a rock dove grey with a green neck; a checker
+        darker than a plain grey one, a pied one paler."""
         def colour(coat):
-            fx = make({"coat": coat, "amount": 60, "size": 100, **DAY}, w=960, h=540)
+            fx = make({"coat": coat, "amount": 60, "size": 70, **DAY}, w=960, h=540)
             rgb, a = drawn(fx, 0)
             return rgb.reshape(-1, 3).sum(axis=0) / max(float(a.sum()), 1e-9)
-        white, grey, dark, brown = (colour(c) for c in ("white", "grey", "dark", "brown"))
+        white, grey, dark, brown, checker, pied = (colour(c) for c in ("white", "grey", "dark", "brown", "checker",
+                                                                        "pied"))
         luma = np.array([0.2126, 0.7152, 0.0722])
         self.assertGreater(white @ luma, grey @ luma)
         self.assertGreater(grey @ luma, dark @ luma)
         self.assertGreater(brown[0], brown[2] * 1.1)
         self.assertLess(abs(grey[0] - grey[2]), 0.12)  # (grey: not red, not blue)
+        self.assertLess(checker @ luma, grey @ luma)
+        self.assertGreater(pied @ luma, grey @ luma)
         coat = pigeons.Coat("grey", np.random.default_rng(0))
         self.assertGreater(coat.c["green"][1], coat.c["green"][0] * 1.3)  # (its sheen)
 
@@ -202,7 +297,7 @@ class Picture(unittest.TestCase):
         warm = np.array([1.0, 0.6, 0.3, 0.5, 0.35, 0.2, 0.0], np.float32)
 
         def colour(params, light):
-            fx = make({"mode": "ground", "amount": 60, "size": 90, **params}, w=960, h=540, light=light)
+            fx = make({"mode": "ground", "amount": 60, "size": 65, **params}, w=960, h=540, light=light)
             rgb, a = drawn(fx, 30)
             return rgb.reshape(-1, 3).sum(axis=0) / max(float(a.sum()), 1e-9)
         day = colour(DAY, None)
@@ -221,7 +316,7 @@ class Picture(unittest.TestCase):
             ys, scales = np.array([b[1] for b in birds]), np.array([b[2] for b in birds])
             if smaller:
                 self.assertGreater(float(np.corrcoef(ys, scales)[0, 1]), 0.8)
-                self.assertGreater(float(scales.max() / scales.min()), 1.4)
+                self.assertGreater(float(scales.max() / scales.min()), 1.8)
             else:
                 self.assertLess(float(np.ptp(scales)), 1e-9)
 
@@ -234,38 +329,14 @@ class Picture(unittest.TestCase):
             self.assertLess(float(np.ptp(feet)), 0.04 * h, t)
             self.assertGreater(float(feet.min()), y0 + 0.9 * h, t)
 
-    def test_passing_birds_cross_the_box(self):
-        """Birds passing go across the box, each way as chosen, facing the way they go."""
-        for way, heading in (("right", 0.0), ("left", math.pi)):
-            fx = make({"mode": "pass", "way": way, "amount": 50}, 480, 24)
-            x0, y0, w, h = fx.box()
-            xs = np.array([[b[0] for b in fx._flying(t, x0, y0, w, h)] for t in range(0, 480, 2)])
-            step = np.diff(xs, axis=0)
-            step = step[np.abs(step) < 0.5 * w]  # (not where one starts again at the other side)
-            self.assertTrue(np.all(step > 0) if way == "right" else np.all(step < 0), way)
-            self.assertLess(float(xs.min()), x0)
-            self.assertGreater(float(xs.max()), x0 + w)
-            for b in fx._flying(33, x0, y0, w, h):
-                self.assertLess(abs(math.remainder(b[3] - heading, math.tau)), 0.2, way)
-
-    def test_a_flock_goes_round(self):
-        """A flock wheels round together: the flock across much of the box, each of its birds round (the inner ones
-        round a smaller loop), with no jumps."""
-        fx = make({"mode": "flock", "amount": 50}, 480, 24)
-        x0, y0, w, h = fx.box()
-        xs = np.array([[b[0] for b in fx._flying(t, x0, y0, w, h)] for t in range(0, 480, 4)])
-        self.assertGreater(float(np.ptp(xs.mean(axis=1))), 0.4 * w)
-        self.assertGreater(float(np.ptp(xs, axis=0).min()), 0.1 * w)
-        step = np.abs(np.diff(xs, axis=0))
-        self.assertLess(float(step.max()), 0.05 * w)
-
 
 class Preview(unittest.TestCase):
     def test_preview_clip_is_the_box_alone(self):
-        """The preview clip (the box alone, at the clip's size) is the box in the whole frame, at another size."""
+        """The preview clip (the box alone, at the clip's size) is the box in the whole frame, at another size (as
+        soft: the softening is a share of a bird's length)."""
         from PIL import Image
         info = {"w": 1920, "h": 1080, "fps": "24", "frames": 240}
-        for mode in ("ground", "flock"):
+        for mode in MODES:
             params = {**AT, "mode": mode, "amount": 50, **DAY}
             layer = {"kind": "pigeons", "params": params}
             cw, ch = engine.fx_clip_frame(info, "pigeons", layer)
@@ -296,21 +367,21 @@ class Settings(unittest.TestCase):
         self.assertEqual(len(keys), len(set(keys)))
         for p in pigeons.SCHEMA["params"]:
             self.assertTrue(p.get("group") and p["label"], p["key"])
+            self.assertIsNone(p.get("show"), p["key"])  # (every setting counts on the ground and on a ledge)
         self.assertFalse(set(overlay.ROTATIONS) & set(keys))
+        self.assertTrue({"peck", "soft", "busy", "view", "shadow"} <= set(keys))
         self.assertTrue(pigeons.SCHEMA["note"])
         self.assertEqual(effects.defaults("pigeons")["mode"], "ground")
-
-    def test_shown_where_they_count(self):
-        """Walking about, the view from above and the shadow: on the ground or a ledge; the way they fly: passing."""
-        show = {p["key"]: p.get("show") for p in pigeons.SCHEMA["params"]}
-        for key in ("busy", "view", "shadow"):
-            self.assertEqual(show[key], {"mode": ["ground", "ledge"]}, key)
-        self.assertEqual(show["way"], {"mode": ["pass"]})
-        for key in ("mode", "coat", "amount", "size", "depth", "speed", "lit"):
-            self.assertIsNone(show[key], key)
-        modes = [o[0] if isinstance(o, (list, tuple)) else o["value"]
-                 for o in next(p for p in pigeons.SCHEMA["params"] if p["key"] == "mode")["options"]]
+        modes = [o["value"] for o in next(p for p in pigeons.SCHEMA["params"] if p["key"] == "mode")["options"]]
         self.assertEqual(sorted(modes), sorted(MODES))
+
+    def test_birds_of_the_air_come_down(self):
+        """A clip of 1.0.71 flying in a flock or past is a clip on the ground now (the owner only needs them there)."""
+        for old in ({"mode": "flock", "way": "left"}, {"mode": "pass"}):
+            p = effects.clean_params("pigeons", old)
+            self.assertEqual(p["mode"], "ground")
+            self.assertNotIn("way", p)
+            self.assertGreater(len(make(old).u), 0)
 
     def test_coats_and_views(self):
         """Each coat a picture of its own; the view from above changes how they are seen."""

@@ -227,22 +227,33 @@ hiệu ứng. Cách dùng: `README.md`.
   (`BLOOM`, chỉ khi đang nháy). Gần mép khung thì mờ (`EDGE`), ánh sáng không ra ngoài khung (`_inside`, mép mềm
   `SOFT`: clip xem nhanh chỉ là cái khung). Mọi độ dài theo chiều cao khung. "Màu ánh sáng" (`tone`, `match`: chọn màu
   tay thì thành "Tự chọn").
-- Chim bồ câu (`fx/pigeons.py`, mã loại `pigeons`, từ 1.0.71): hiệu ứng đặt một chỗ (`BOX` 16:9), vẽ đè (clip xem
-  nhanh WebM trong suốt, `PREVIEW` 1280), không xoay, `LIT` như khói (`light_at`, `rounded_light`: chỗ khung đứng).
-  Mỗi con là các ellipsoid (thân, ức, bụng, cổ, đầu, mỏ, mũi, đuôi, đầu cánh xếp, chân, ngón; bay: cánh là các tấm
-  phẳng: cánh tay, lông phủ, năm lông cánh chính) trong khung riêng của chim (x tới trước, z lên, chân ở 0), dò tia mỗi
-  khung theo dáng lúc đó (`parts`, `Pose`, `draw_bird`: máy quay xa nhìn xuống `tilt`; mỗi phần chỉ dò trong hộp của
-  nó trên hình; pháp tuyến các phần mềm `SOFT` hoà vào nhau chỗ giáp: thân liền, không thành các quả bóng). Màu lông
-  tính tại điểm chạm (`_albedo`: hai vạch đen trên cánh xếp, cổ xanh tím theo góc nhìn, mắt, dải đen cuối đuôi; `COATS`
-  xám xanh, trắng, nâu đỏ, xám đen; `MIXED` như đàn chim phố; vân lông `Coat.grain`). Trên mặt đất (`Walker`: một
-  ngày của mỗi con trong vòng loop: đi, mổ, đứng ngó; đường đi khép kín, đi hết đúng số vòng mỗi loop nên khung P là
-  khung 0; đường nhỏ hơn `room` thì đi nhiều vòng): chân trụ đứng yên trên đất, chân kia nhấc lên bước tới (`STRIDE`),
-  đầu giữ yên rồi vươn tới mỗi bước; mổ thì mỏ chạm đất (`PECK`); chỗ của mỗi con (`_home`) giữ cả đường đi trong
-  khung; xa (đỉnh khung) nhỏ hơn theo "Gần xa"; bóng mềm dưới chân. Đậu trên gờ: đáy khung là gờ, đi qua lại dọc gờ,
-  quay đầu theo nửa vòng hẹp ở hai đầu (`TURN`).
-  Bay: cả đàn lượn chung một vòng (số nguyên vòng mỗi loop), vòng và độ toả của đàn thu nhỏ cho vừa khung (`REACH`:
-  cánh tới đâu quanh tâm chim); bay ngang qua: vào và ra ở hai mép khung (`laps` * 3 lượt mỗi loop); cánh vỗ (số nguyên
-  lần mỗi loop) hay giữ hình chữ V lướt. Mọi thứ cắt ở mép khung (`_inside`: clip xem nhanh chỉ là cái khung).
+- Chim bồ câu (`fx/pigeons.py`, mã loại `pigeons`, từ 1.0.71; làm lại 1.0.72, chủ yêu cầu 2026-10-23 kèm ảnh bồ câu trên
+  vỉa hè: chỉ trên mặt đất, thỉnh thoảng cúi mổ hạt, trông thật): hiệu ứng đặt một chỗ (`BOX` 16:9), vẽ đè (clip xem
+  nhanh WebM trong suốt, `PREVIEW` 1280), không xoay, `LIT` như khói (`light_at`, `rounded_light`: chỗ khung đứng). Thân
+  là một khối liền: các ellipsoid (`BODY`: ức, thân, bụng, phao câu, hai cánh xếp (quay vào trong: đầu cánh gặp nhau
+  trên đuôi, nhìn từ sau thân thon dần vào đuôi), đuôi, đuôi xoè `fan`, đầu cánh nằm trên đuôi; rồi cổ, đầu) hoà vào
+  nhau bằng smooth union (smin đa thức của Inigo Quilez, `BLEND`; đầu cánh, đuôi xoè ít hơn: `TIGHT`, đuôi không dày
+  lên); phần nhỏ (mỏ, mũi, chân, ngón) là ellipsoid gặp thẳng. Máy quay xa nhìn xuống `tilt` (tia song song), chỉ tia
+  trong hộp của các phần trên hình; mỗi tia đi tới mặt hợp thường của các ellipsoid rồi khép vào mặt liền
+  (`_Body.march`, false position: mặt liền nằm ngoài nó không quá `NEAR`, đo trên thân: chỗ nhiều phần gặp nhau như phao
+  câu phồng hơn `BLEND`/4; tia lướt qua đuôi mỏng tìm chỗ đổi dấu đầu tiên từ `near`; tia trượt sát mặt hợp cũng dò).
+  Phần của mỗi ellipsoid trong khoảng cách liền (`shares`, theo đạo hàm của smin) cho cả pháp tuyến và màu lông: không
+  đường nối. Màu lông tính tại điểm chạm (`_albedo`: đầu xám, cổ ánh xanh lá nhìn thẳng, tím nhìn xiên, ức tím xám, lưng
+  và cánh xếp nhạt hơn sườn, hai vạch đen nửa sau cánh, đầu cánh sẫm trên đuôi, dải đen cuối đuôi, mắt cam nhỏ, mũi
+  trắng, chân đỏ; `COATS` xám, xám đen, nâu đỏ, trắng; `Coat`: đốm `checker`, loang trắng `pied`, vân lông `grain`;
+  `MIXED` như đàn chim phố; hoa văn mờ theo cỡ điểm ảnh, `_fade`: không lấp lánh). Chim dài từ `DETAIL` điểm ảnh: một
+  tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần nhất từ `SMALLEST` tới `LARGEST` chiều
+  cao khung (theo hàm mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè
+  theo phần chiều cao khung (`SOFTEST`), không theo cỡ chim: chim to gần máy quay không nhoè hơn chim nhỏ; xem nhanh và
+  video xuất như nhau. Bóng: hai ellipse (đậm ngay dưới thân; rộng, mềm, lệch khỏi nguồn sáng). Mỗi con một ngày trong
+  vòng loop (`Walker`, đoạn `[loại, bắt đầu, dài, số lần mổ]`: đi, đứng ngó, mổ 1–3 cái; "Mổ hạt" `peck` là `hungry`, 0
+  không mổ; `reach()`: cúi `DOWN`, mỗi cái `PECKING`, ngẩng `UP`, mỏ chạm đất `PECK`, đuôi nhấc; đường đi khép kín, đi
+  hết đúng số vòng mỗi loop nên khung P là khung 0; đường nhỏ hơn `room` thì đi nhiều vòng): chân trụ đứng yên trên đất,
+  chân kia bước tới (`STRIDE`), đầu giữ yên rồi vươn tới mỗi bước; chỗ của mỗi con (`_home`) giữ cả đường đi trong
+  khung; xa (đỉnh khung) nhỏ hơn theo "Gần xa". Đậu trên gờ: đáy khung là gờ, đi qua lại dọc gờ, quay đầu theo nửa vòng
+  hẹp ở hai đầu (`TURN`). Không bay nữa: clip bay (`flock`, `pass`) của 1.0.71 thành `ground` (`clean_params`: lựa chọn
+  không còn thì về mặc định). `VERSION` 2: clip xem nhanh làm lại. Mọi thứ cắt ở mép khung (`_inside`: clip xem nhanh
+  chỉ là cái khung).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D
