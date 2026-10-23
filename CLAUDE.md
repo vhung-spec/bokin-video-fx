@@ -72,8 +72,8 @@ hiệu ứng. Cách dùng: `README.md`.
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/hearth.py`, `fx/frost.py`,
-  `fx/lights.py`, `fx/garland.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói ống khói, lửa nến, lửa lò sưởi, tuyết
-  bám kính, dây đèn, dây đèn tự vẽ, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
+  `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói ống khói, lửa
+  nến, lửa lò sưởi, tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
   nồi; và ống khói, chỉ dùng cho Khói ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn:
   `edge`, `side`; `preset` của kiểu đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
@@ -195,6 +195,14 @@ hiệu ứng. Cách dùng: `README.md`.
   (`cover`): chỗ sáng ấm hay trắng của lửa đứng yên trong video thành ánh mờ cùng màu đã làm nhoè (`DIM`). Hằng số và
   bản đồ theo hộp giữ giữa các khung (`_layout`). Chỉ các thông số của ngọn lửa (`k`) làm lại lửa; màu, ánh sáng, chỗ
   đặt thì không.
+- Đom đóm (`fx/fireflies.py`, mã loại `fireflies`, từ 1.0.68): hiệu ứng đặt một chỗ (`BOX` 16:9: khung trên khóm
+  hoa và khoảng trời phía trên), ánh sáng (Screen: clip xem nhanh H.264 nền đen, `PREVIEW` 1280 khi khung to), không
+  xoay. Mỗi con một chỗ ở trong khung, bay lượn bằng ba vòng sin mỗi chiều (số nguyên vòng mỗi loop: `where()`), nháy
+  theo nhịp riêng (số nguyên lần mỗi loop: `flash()`, `flashes()`: lên nhanh `RISE`, giữ `HOLD`, tắt dần `FADE`;
+  "Nhấp nháy" 0 là sáng đều), nháy thì bay lên một chút (`LIFT`). Con gần (`depth`) to, nhoè, tâm tối hơn (cùng lượng ánh sáng); lõi nhạt màu hơn, quầng, quầng rộng
+  (`BLOOM`, chỉ khi đang nháy). Gần mép khung thì mờ (`EDGE`), ánh sáng không ra ngoài khung (`_inside`, mép mềm
+  `SOFT`: clip xem nhanh chỉ là cái khung). Mọi độ dài theo chiều cao khung. "Màu ánh sáng" (`tone`, `match`: chọn màu
+  tay thì thành "Tự chọn").
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D

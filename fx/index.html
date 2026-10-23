@@ -48,7 +48,7 @@
   --k-file: #6b52c8; --k-snow: #2c7299; --k-rain: #3d5fa8; --k-glass: #1a7375; --k-steam: #7d5f4a;
   --k-candle: #9f5417; --k-leaves: #4f7a32; --k-foliage: #2b7649; --k-glow: #9e4686; --k-base: #2c4a70;
   --k-frost: #5a6f86; --k-lights: #a3323f; --k-garland: #8c3a7c; --k-flicker: #9a6a12; --k-chimney: #5f5867;
-  --k-hearth: #ad3f17;
+  --k-hearth: #ad3f17; --k-fireflies: #567318;
   --c-base: var(--k-base); --c-file: var(--k-file); --c-fx: var(--k-snow);   /* (old names) */
   --mix: #7257e6; --mix-line: #c2b4ff; --mix-band: rgba(185, 168, 255, .32); --mix-band-2: rgba(185, 168, 255, .1);
   --playhead: var(--accent);
@@ -532,6 +532,7 @@ header .prep .ic { color: var(--warn); }
 :is(.clip, .tile)[data-kind=steam] { --k: var(--k-steam); }
 :is(.clip, .tile)[data-kind=candle] { --k: var(--k-candle); }
 :is(.clip, .tile)[data-kind=hearth] { --k: var(--k-hearth); }
+:is(.clip, .tile)[data-kind=fireflies] { --k: var(--k-fireflies); }
 :is(.clip, .tile)[data-kind=leaves] { --k: var(--k-leaves); }
 :is(.clip, .tile)[data-kind=foliage] { --k: var(--k-foliage); }
 :is(.clip, .tile)[data-kind=glow] { --k: var(--k-glow); }
@@ -902,6 +903,7 @@ const ICONS = {
   glass: '<path d="M3.5 17.5V5.5a6.5 3 0 0 1 13 0v12z"/><path d="M10 2.5v15M3.5 10h13"/><path d="M13.25 11.4c-.9 1.1-1.4 1.85-1.4 2.45a1.4 1.4 0 0 0 2.8 0c0-.6-.5-1.35-1.4-2.45z"/>',  // a window, a drop on a pane
   steam: '<path d="M4 9.5h10v2.5a4.5 4.5 0 0 1-4.5 4.5h-1A4.5 4.5 0 0 1 4 12z"/><path d="M14 10.5h1a2 2 0 0 1 0 4h-1.4"/><path d="M7.5 3c-.9 1 .9 2.2 0 3.6M11 3c-.9 1 .9 2.2 0 3.6"/>',
   candle: '<rect x="7.3" y="10" width="5.4" height="7.5" rx="1"/><path d="M10 10V8.7"/><path d="M10 2.5c1.7 1.9 2.2 3.1 2.2 4a2.2 2.2 0 0 1-4.4 0c0-.9.5-2.1 2.2-4z"/>',
+  fireflies: '<path d="M6.6 10.6a2.1 3.2 0 1 1 4.2 0"/><path d="M6.6 10.6c0 1.8.9 3.2 2.1 3.2s2.1-1.4 2.1-3.2"/><path d="M7.6 7.7L6.2 5.6M9.8 7.7l1.4-2.1"/><circle cx="14.2" cy="14.2" r="1.6"/><path d="M14.2 10.8v1M14.2 16.6v1M10.8 14.2h1M16.6 14.2h1M11.8 11.8l.6.6M16 16l.6.6M16.6 11.8l-.6.6M11.8 16.6l.6-.6"/>',  // a firefly, a glowing light
   hearth: '<path d="M2.5 5.5h15M3.5 5.5v12h13v-12"/><path d="M6.5 17.5v-6a3.5 3.5 0 0 1 7 0v6"/><path d="M10 11.2c1.3 1.4 1.8 2.4 1.8 3.2a1.8 1.8 0 0 1-3.6 0c0-.8.5-1.8 1.8-3.2z"/>',  // a fireplace, its fire
   leaves: '<path d="M4.5 15.5C4.5 8 9 4 16 4c0 7-4.2 11.5-11.5 11.5z"/><path d="M4.5 15.5l7-7"/>',
   foliage: '<path d="M6 14.5a3.1 3.1 0 0 1-1.3-5.9 3.5 3.5 0 0 1 5-4.3 3.6 3.6 0 0 1 6 2.3 3.1 3.1 0 0 1-.9 6 2.6 2.6 0 0 1-2.3 1.9z"/><path d="M10 14.5v3M8.5 17.5h3"/><path d="M7.5 10.2c.8-.7 1.7-.7 2.5 0M10.6 7.6c.8-.7 1.7-.7 2.5 0"/>',  // a bush, its leaves stirring
@@ -917,7 +919,7 @@ function icon(name, cls = "") {
   return `<svg class="ic ic-${name}${cls ? " " + cls : ""}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" ` +
     `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name] || ""}</svg>`;
 }
-const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", chimney: "chimney", candle: "candle", hearth: "hearth", foliage: "foliage", frost: "frost", lights: "lights", garland: "garland", flicker: "flicker", file: "film"};
+const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", chimney: "chimney", candle: "candle", hearth: "hearth", fireflies: "fireflies", foliage: "foliage", frost: "frost", lights: "lights", garland: "garland", flicker: "flicker", file: "film"};
 function kindIcon(kind, cls) { return icon(KIND_ICON[kind] || "glow", cls); }  // (an effect with no drawing of its own: a sparkle)
 // the buttons of the page's own markup: data-icon names their icon (before their label, if they have one)
 for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.dataset.icon, el.textContent.trim() ? "lead" : ""));
@@ -925,8 +927,8 @@ for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.
 function rangeP(v, min, max) { const k = (+v - min) / ((max - min) || 1); return `--p:${(100 * (k > 0 ? Math.min(k, 1) : 0)).toFixed(1)}%`; }
 function fillRange(r) { const a = +r.min || 0, b = r.max === "" ? 100 : +r.max; r.style.setProperty("--p", rangeP(r.value, a, b).slice(4)); }
 document.addEventListener("input", e => { if (e.target.type === "range") fillRange(e.target); }, true);
-const FX_KINDS = ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "hearth", "leaves", "foliage", "flicker", "lights",
-  "garland"];  // the Tạo sẵn tab, in this order
+const FX_KINDS = ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "hearth", "leaves", "foliage", "fireflies",
+  "flicker", "lights", "garland"];  // the Tạo sẵn tab, in this order
 // (Hạt sáng, "glow": no longer offered, the owner asked 2026-10-23; a clip of it in an older project still plays)
 const BLEND_CSS = {normal: "normal", screen: "screen", add: "plus-lighter", multiply: "multiply"};
 const COLOUR_KEYS = ["bright", "contrast", "sat", "hue", "temp", "tint_amt", "tint"], TONE_POINTS = 33, LUMA = [0.2126, 0.7152, 0.0722];

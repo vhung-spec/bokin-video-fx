@@ -953,6 +953,41 @@ def hearth(page, shot):
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 
+def fireflies(page, shot):
+    """Đom đóm: a box on the picture where the renderer puts it (over the bushes), no turn; a tone sets the colour,
+    a colour chosen by hand is "Tự chọn"; its preview clip light on black (H.264, Screen) laid in the box."""
+    from fx import effects as fx_effects
+    page.click('.tab[data-bin="fx"]')
+    page.dblclick('.tile[data-kind="fireflies"]')
+    cid = page.evaluate("S.sel")
+    page.click("#fullBtn")
+    page.wait_for_timeout(300)
+    vw, vh = page.evaluate("[info().w, info().h]")
+    ui = page.evaluate("""[$('#xform').style.display, $('#xformRot').style.display, $('#xform3d').style.display,
+        !!$('#ec [data-num="rot_x"]'), $('#xformMark').style.display]""")
+    box = page.evaluate(BOX)
+    x0, y0, w, h = fx_effects.box_of("fireflies", page.evaluate(f"clipById('{cid}').params"), vw, vh)
+    check("Đom đóm: its box where the renderer puts it; no turn, no mark", ui == ["block", "none", "none", False, "none"]
+          and all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])), str([ui, box, [x0, y0, x0 + w, y0 + h]]))
+    page.select_option('#ec select[data-param="tone"]', "warm")
+    page.wait_for_timeout(200)
+    warm = page.evaluate(f"[clipById('{cid}').params.color, $('#ec select[data-param=\"tone\"]').value]")
+    page.evaluate("""(() => { const i = $('#ec input[data-param="color"]'); i.value = '#ff8800';
+        i.dispatchEvent(new Event('input', {bubbles: true})); })()""")
+    page.wait_for_timeout(200)
+    own = page.evaluate(f"[clipById('{cid}').params.color, $('#ec select[data-param=\"tone\"]').value]")
+    check("Đom đóm: a tone sets the colour; a colour chosen by hand is Tự chọn",
+          warm == ["#ffe066", "warm"] and own == ["#ff8800", "custom"], str([warm, own]))
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want && "
+                           f"S.els['{cid}']", timeout=300000)
+    page.evaluate("applyTime()")
+    laid = page.evaluate(f"""(() => {{ const e = S.els['{cid}']; return [e.media.getAttribute('src').includes('.mp4'),
+        e.wrap.style.mixBlendMode]; }})()""")
+    check("Đom đóm: its preview clip, light on black (H.264, Screen), in its box", laid == [True, "screen"], str(laid))
+    shot("05m-fireflies")
+    page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
+
+
 def shortcuts(page, shot):
     """The Phím tắt window: a key changed, taken from another action, refused, searched; the guide; all back."""
     def row(i):
@@ -1421,7 +1456,7 @@ def run(page, folder, edge):
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
           glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "hearth", "leaves", "foliage",
-                    "flicker", "lights", "garland"],  # (Hạt sáng no longer offered: an older project's clip still plays)
+                    "fireflies", "flicker", "lights", "garland"],  # (Hạt sáng no longer offered: an old clip still plays)
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
@@ -1971,6 +2006,7 @@ def run(page, folder, edge):
     garland(page, shot)
     chimneys(page, shot)
     hearth(page, shot)
+    fireflies(page, shot)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

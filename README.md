@@ -315,6 +315,24 @@ Lần đầu, và mỗi lần đổi **Lửa rộng**, **Ngọn lửa cao**, **L
 đầu: bản xem nhanh cần chừng nửa phút, dừng hình lần đầu có thể chờ vài giây. Đổi màu, độ sáng, ánh lửa, than hồng,
 chỗ đặt thì không phải tính lại. Lửa không xoay 3D: lửa luôn bốc thẳng lên. Nhiều lò sưởi thì mỗi lò một clip.
 
+### Đom đóm
+
+Đom đóm bay lượn chậm quanh khóm hoa, mỗi con nháy sáng theo nhịp riêng như đom đóm thật: sáng lên nhanh, sáng một
+chút, tắt dần chậm hơn. Con ở gần to và nhoè (như máy quay thấy), con ở xa là chấm nhỏ. Đẹp nhất trong cảnh chiều tối,
+ban đêm.
+
+1. Bấm **Tạo sẵn** → **Đom đóm**, kéo xuống một track trống, bấm **Suốt video**.
+2. Kéo khung trắng tới khóm hoa, kéo góc cho khung phủ khóm hoa và khoảng trời phía trên: đom đóm chỉ bay trong khung,
+   gần mép khung thì mờ dần.
+3. Nhiều khóm hoa: một khung lớn phủ hết; hoặc mỗi khóm một clip (chọn clip, `Ctrl+C`, `Ctrl+V`, rồi kéo khung của
+   clip mới sang khóm khác).
+4. Chọn **Kiểu**: **Đom đóm trong vườn**, **Nhiều đom đóm (mùa đom đóm)**, **Vài con lác đác**, **Mơ màng (to,
+   nhoè)**. **Màu ánh sáng**: vàng chanh (như đom đóm thật), vàng ấm, xanh lá, hoặc tự chọn màu. Chỉnh thêm **Số đom
+   đóm**, **Cỡ**, **Độ sáng**, **Gần xa**, **Nhấp nháy** (0: sáng đều, không nháy), **Nhịp nháy**, **Bay lượn xa**,
+   **Tốc độ bay**.
+5. Muốn đom đóm bay ra sau lá, cành phía trước: bấm **V1 Video gốc** → **Vẽ tiền cảnh**, tô lá, cành đó. Rồi chọn
+   clip Đom đóm, tích **Bay ra sau tiền cảnh**.
+
 ### Lá cây lay động
 
 Làm lá của bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió: mỗi chùm lá lay một chút theo nhịp riêng,
