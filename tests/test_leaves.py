@@ -977,41 +977,48 @@ class Drawing(unittest.TestCase):
 
 
 class Speed(unittest.TestCase):
+    """What a frame costs, against what another costs at the same moment: a busy or slower machine (a test runner
+    shared with others) slows them both, not the one timed later alone."""
+
     @staticmethod
-    def cost(kind, params, size=(1920, 1080)):
-        fx = effects.make(kind, params, 3, 720, 24, *size)
-        canvas = effects.Canvas(*size)
-        pic = np.full((size[1], size[0], 3), 0.3, np.float32)
-        for t in range(0, 720, 40):  # (their pictures made first, as for a video)
-            fx.draw(t, canvas, None)
-            canvas.flush(pic, fx.blend)
-        best = []
-        for t in range(5, 720, 90):
-            t0 = time.perf_counter()
-            fx.draw(t, canvas, None)
-            canvas.flush(pic, fx.blend)
-            best.append(time.perf_counter() - t0)
-        return float(np.median(best))
+    def costs(*setups, size=(1920, 1080), rounds=3):
+        """A frame of each (kind, params) in `setups`, in seconds: the same frames of each drawn in turn, frame by
+        frame, after one untimed go (their pictures made first, as for a video); each its best round of `rounds`
+        (a moment the machine is busy spoils a round, not the measure). At most two clips' worth of leaves' pictures:
+        none made again while timed (leaves.CLIP_SHARE)."""
+        drawn = [(effects.make(kind, params, 3, 720, 24, *size), effects.Canvas(*size),
+                  np.full((size[1], size[0], 3), 0.3, np.float32)) for kind, params in setups]
+        frames = range(5, 720, 90)
+
+        def go():
+            spent = [0.0] * len(drawn)
+            for t in frames:
+                for i, (fx, canvas, pic) in enumerate(drawn):
+                    t0 = time.perf_counter()
+                    fx.draw(t, canvas, None)
+                    canvas.flush(pic, fx.blend)
+                    spent[i] += time.perf_counter() - t0
+            return [s / len(frames) for s in spent]
+        go()
+        return [float(c) for c in np.min([go() for _ in range(rounds)], axis=0)]
 
     def test_a_1080p_frame_costs_about_as_much_as_snow(self):
-        """At the defaults a 1080p frame of leaves takes no more than about twice what one of snow takes (measured:
-        the leaves before their shapes took 55 ms, now 49 ms; snow about 25 ms); every shape at once about as much
-        as the defaults."""
-        snow, leaf = self.cost("snow", {}), self.cost("leaves", {})
+        """At the defaults a 1080p frame of leaves takes no more than about twice what one of snow takes (measured
+        here: both 51 ms, the windy look 80); every shape at once about as much as the defaults (0.85 times)."""
+        snow, leaf, windy = self.costs(("snow", {}), ("leaves", {}),
+                                       ("leaves", dict(leaves.LOOKS["windy"], motion=100)))  # (many, fast, smeared)
         self.assertLess(leaf, 2.5 * snow + 0.01, (leaf, snow))
-        windy = self.cost("leaves", dict(leaves.LOOKS["windy"], motion=100))  # (many leaves, fast, smeared)
         self.assertLess(windy, 4 * snow + 0.01, (windy, snow))
-        every = self.cost("leaves", only(*leaves.SHAPES))
+        leaf, every = self.costs(("leaves", {}), ("leaves", only(*leaves.SHAPES)))
         self.assertLess(every, 1.4 * leaf + 0.005, (every, leaf))
 
     def test_every_kind_of_leaves_costs_about_as_much(self):
         """Each "Loại lá" at 1080p costs no more than about one and a half times the defaults (a ginkgo's long stem
-        or a willow's narrow blade: only the box round the leaf is drawn). Measured: defaults 44 ms, ginkgo 67 (113
-        when its whole square picture was drawn), birch 61, heart 59, the others 36-52 (bound: 1.75x, for noise)."""
-        leaf = self.cost("leaves", {})
+        or a willow's narrow blade: only the box round the leaf is drawn). Measured, times the defaults: ginkgo 1.4
+        (its leaves cover 1.5 times the pixels; 2.6 when its whole square picture was drawn), birch 1.25, heart 1.2,
+        the others 0.75-1.15."""
         for name in leaves.SCENES:
-            leaves._SPRITES.clear()  # (each on its own, as one clip renders)
-            cost = self.cost("leaves", dict(leaves.SCENES[name], scene=name))
+            leaf, cost = self.costs(("leaves", {}), ("leaves", dict(leaves.SCENES[name], scene=name)))
             self.assertLess(cost, 1.75 * leaf + 0.005, (name, cost, leaf))
 
     def test_pictures_made_quickly(self):
