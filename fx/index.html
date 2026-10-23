@@ -4441,6 +4441,7 @@ $("#folderBtn").onclick = () => post("/api/open", {}).catch(fail);
 const UPDATE_FAILED = {  // why the last look for a newer version failed (updater.reason)
   limit: "GitHub tạm không trả lời vì nhiều máy dùng chung mạng này cùng hỏi bản mới.",
   offline: "Không kết nối được tới GitHub: kiểm tra mạng, tường lửa hoặc phần mềm diệt virus.",
+  cert: "Máy này không tin chứng chỉ bảo mật của GitHub: xem ngày giờ của máy có đúng không, hoặc phần mềm diệt virus, mạng công ty đang chặn kết nối bảo mật. Có thể tải bản mới bằng trình duyệt từ trang phát hành.",
   github: "GitHub báo lỗi khi hỏi bản mới.",
   download: "Tải bản mới bị ngắt giữa chừng (mạng chậm hoặc chập chờn), lần sau tải tiếp.",
   other: "Chưa kiểm tra được bản mới.",

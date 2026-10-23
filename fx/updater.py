@@ -12,6 +12,12 @@ installer's SHA-256 is the asset's "digest", else the "SHA-256:" line the workfl
 release whose file cannot be checked is never used. The installer is fetched in the background and kept only if its
 size and SHA-256 are the published ones; a download that breaks off goes on from where it stopped next time.
 
+Certificates: Python checks GitHub's against the roots Windows has. A Windows that has never fetched GitHub's root
+(Windows downloads a root only when something asks it to check a certificate, and Edge and Chrome no longer do: they
+keep their own lists) refuses it: "unable to get local issuer certificate". Then the look is made again with Windows'
+own check (truststore: Windows' chain engine, which fetches a root it lacks, and trusts a root an antivirus or a
+company network added), and every look after it in this run too (system_context()).
+
 The installer runs when the app quits by itself, or at once when the page asks ("Cập nhật ngay"), and then starts
 the app again. Only api.github.com and GitHub's download servers are contacted, with nothing about the computer.
 Whoever can publish releases there can update every installed app: keep that account protected, and the workflow's
@@ -22,6 +28,7 @@ import hashlib
 import json
 import os
 import re
+import ssl
 import subprocess
 import threading
 import time
@@ -47,11 +54,45 @@ def parse_version(text):
     return tuple(int(p) for p in parts)
 
 
+_system = None  # Windows' own certificate check (system_context())
+_system_first = False  # Python's own check refused GitHub's certificate: Windows' from then on, this run of the app
+
+
+def system_context():
+    """An SSL context that checks a certificate as Windows itself does (truststore: the roots Windows has and those
+    it fetches when it lacks one, as Edge did); None where it is not to be had."""
+    global _system
+    if _system is None:
+        try:
+            import truststore
+        except ImportError:  # (a build from the source folder without it, not Windows: Python's own check only)
+            return None
+        _system = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    return _system
+
+
+def _refused(error):
+    """Did the certificate check refuse the server's certificate (not reaching it, or any other error)?"""
+    return isinstance(error, urllib.error.URLError) and isinstance(error.reason, ssl.SSLCertVerificationError)
+
+
 def _open(url, accept, start=0):
+    """GitHub's answer (one thread only: the look's own, AutoUpdate.check()). A certificate Python's own check refuses
+    is checked again as Windows checks it, and from then on so."""
+    global _system_first
     headers = {"Accept": accept, "User-Agent": "BokinFX-update"}
     if start:
         headers["Range"] = f"bytes={start}-"
-    return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60)
+    request = urllib.request.Request(url, headers=headers)
+    if not _system_first:
+        try:
+            return urllib.request.urlopen(request, timeout=60)
+        except urllib.error.URLError as e:
+            if not _refused(e) or system_context() is None:
+                raise
+            print(f"update check: {e.reason}; checked again as Windows checks it", flush=True)
+            _system_first = True
+    return urllib.request.urlopen(request, timeout=60, context=system_context())
 
 
 def _sources():
@@ -165,13 +206,16 @@ def fetch(release, folder):
 
 def reason(error):
     """Why a look failed, for the page: "limit" (GitHub's API refused: its limit of requests for this Internet
-    connection), "github" (GitHub answered with another error), "offline" (GitHub could not be reached: no
-    connection, its name not found, a firewall, a certificate replaced by an antivirus), "other"."""
+    connection), "github" (GitHub answered with another error), "cert" (its certificate refused, Windows' own check
+    too: the computer's clock wrong, an antivirus or a company network replacing it with one this computer does not
+    trust), "offline" (GitHub could not be reached: no connection, its name not found, a firewall), "other"."""
     if isinstance(error, urllib.error.HTTPError):
         if error.code == 429 or (error.code == 403 and (error.headers or {}).get("X-RateLimit-Remaining") == "0"):
             return "limit"
         return "github"
-    if isinstance(error, OSError):  # (URLError, a time-out, a certificate)
+    if _refused(error):
+        return "cert"
+    if isinstance(error, OSError):  # (URLError, a time-out)
         return "offline"
     return "other"
 

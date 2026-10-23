@@ -1,10 +1,14 @@
 import hashlib
 import json
 import os
+import ssl
 import time
 import threading
 import unittest
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest import mock
 
 from tests import helpers
 from fx import updater
@@ -133,6 +137,63 @@ class Updates(unittest.TestCase):
         self.assertIsNone(u.state["error"])
         self.assertIsNone(u.state["reason"])
         self.assertEqual(updater.reason(ValueError("x")), "other")
+
+    def test_a_certificate_only_windows_trusts(self):
+        """Where Python's own check refuses GitHub's certificate ("unable to get local issuer certificate": a Windows
+        that has never fetched GitHub's root, since Edge and Chrome keep their own lists), the look is made again with
+        Windows' own check, which fetches the root, and every look after it is made so at once; another error is not
+        tried again. With no such check to be had, the page says it was the certificate."""
+        real = urllib.request.urlopen
+        windows = object()  # (stands for Windows' own check: the fake GitHub is plain HTTP)
+        asked = []
+
+        def urlopen(request, timeout=None, context=None):  # (Python's own check refuses every certificate)
+            asked.append(context)
+            if context is None and "127.0.0.1:9/" not in request.full_url:
+                raise urllib.error.URLError(ssl.SSLCertVerificationError(
+                    1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer "
+                       "certificate (_ssl.c:1010)"))
+            return real(request, timeout=timeout)
+
+        FakeGitHub.releases = [self.release("fx-v1.0.8")]
+        with mock.patch.object(updater.urllib.request, "urlopen", urlopen), \
+                mock.patch.object(updater, "_system_first", False), \
+                mock.patch.object(updater, "system_context", lambda: windows):
+            u = updater.AutoUpdate("1.0.7", os.path.join(helpers.ROOT, "updates-cert"))
+            u.check()
+            self.assertTrue(u.state["ready"])
+            self.assertIsNone(u.state["reason"])
+            self.assertEqual(asked, [None, windows, windows])  # (the list, then the installer: Windows' check at once)
+            # out of reach: not tried again (the same answer)
+            asked.clear()
+            with mock.patch.object(updater, "_system_first", False):
+                os.environ["BOKIN_UPDATE_API"] = "http://127.0.0.1:9/none"
+                u.check()
+                self.assertEqual((u.state["reason"], asked), ("offline", [None]))
+                os.environ["BOKIN_UPDATE_API"] = self.base + "/releases"
+        # no Windows' check to be had: the page says it was the certificate
+        with mock.patch.object(updater.urllib.request, "urlopen", urlopen), \
+                mock.patch.object(updater, "_system_first", False), \
+                mock.patch.object(updater, "system_context", lambda: None):
+            u = updater.AutoUpdate("1.0.7", os.path.join(helpers.ROOT, "updates-cert2"))
+            u.check()
+            self.assertEqual(u.state["reason"], "cert")
+            self.assertIn("CERTIFICATE_VERIFY_FAILED", u.state["error"])
+
+    @unittest.skipUnless(os.name == "nt", "Windows' own certificate check")
+    def test_windows_checks_github(self):
+        """On Windows, Windows' own check (truststore, in the app) takes GitHub's certificates: the newest release's
+        manifest, github.com handing it on to its download server."""
+        context = updater.system_context()
+        self.assertIsNotNone(context)
+        try:
+            with urllib.request.urlopen(f"{updater.SITE}/releases/latest/download/{updater.MANIFEST}", timeout=30,
+                                        context=context) as r:
+                self.assertIn("version", json.loads(r.read()))
+        except urllib.error.URLError as e:
+            if updater.reason(e) == "cert":
+                raise
+            self.skipTest(f"GitHub out of reach: {e}")
 
     def test_download_goes_on(self):
         """A download that broke off goes on from where it stopped; from the start if the server sends it all."""

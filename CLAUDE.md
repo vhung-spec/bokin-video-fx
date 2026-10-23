@@ -17,7 +17,10 @@ hiệu ứng. Cách dùng: `README.md`.
   2026-10-19): app đọc Releases ở đó không cần đăng nhập (`fx/updater.py`: trước hết `bokin-fx-latest.json` của
   bản mới nhất, tải thường qua `releases/latest/download/`, không qua API, vì API không đăng nhập chỉ trả 60 lần mỗi
   giờ cho một mạng, cả văn phòng dùng chung; không có file đó thì đọc API; tải bị ngắt thì lần sau tải tiếp; trang nói
-  lý do không kiểm tra được: `reason`, `UPDATE_FAILED`; CI đăng file đó bằng `packaging/release_notes.py`), khách tải ở
+  lý do không kiểm tra được: `reason`, `UPDATE_FAILED`; CI đăng file đó bằng `packaging/release_notes.py`; Python từ
+  chối chứng chỉ của GitHub, như trên máy Windows chưa từng tải chứng chỉ gốc của nó vì Edge, Chrome có danh sách riêng:
+  hỏi lại bằng cách Windows tự kiểm tra, rồi cứ thế tới hết lần chạy: `system_context`, thư viện `truststore`, MIT,
+  giấy phép đi kèm bản cài: `copy_metadata` trong `BokinFX.spec`; vẫn bị từ chối: lý do `cert`), khách tải ở
   `…/bokin-fx-releases/releases/latest`. CI đăng bằng secret `RELEASES_TOKEN` (token fine-grained, Contents read/write
   chỉ kho đó, hạn 1 năm: hết hạn thì bước phát hành đỏ, chủ tạo token mới). App 1.0.48 trở về trước đọc Releases của
   kho này (riêng tư, không thấy): cài tay bản mới một lần.
@@ -228,8 +231,9 @@ hiệu ứng. Cách dùng: `README.md`.
   từng cỡ; `svg()`, `small_svg()`; `out/` là file cho mọi app (commit sẵn). Bokin FX: `packaging/make_icon.py` (CI
   chạy trước PyInstaller, `icon.ico` không commit), tab và logo góc trên của trang là `small_svg("fx")`. Đổi logo thì
   chạy lại `python brand/make_icons.py` và dán lại đoạn SVG vào `index.html`.
-- Thư viện: numpy, Pillow, imageio-ffmpeg. **Không dùng OpenCV**: OpenCV cần Media Foundation, mà Windows bản N và
-  Windows Server không có sẵn.
+- Thư viện: numpy, Pillow, imageio-ffmpeg, truststore (chỉ để tự cập nhật kiểm tra chứng chỉ như Windows; MIT, giấy
+  phép đi kèm bản cài). **Không dùng OpenCV**: OpenCV cần Media Foundation, mà Windows bản N và Windows Server không có
+  sẵn.
 
 ## Xem nhanh trên trang
 

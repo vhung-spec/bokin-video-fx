@@ -25,7 +25,7 @@ import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw
 
-from . import effects, engine, keys, library, paths, projects, sheet, timeline, video
+from . import effects, engine, keys, library, paths, projects, sheet, timeline, updater, video
 
 W, H, FPS, P = 1920, 1080, 24, 48
 RESULTS = []
@@ -183,6 +183,8 @@ def run():
         encoders = subprocess.run([video.ffmpeg_exe(), "-hide_banner", "-encoders"], capture_output=True,
                                   stdin=subprocess.DEVNULL, **video.NO_WINDOW).stdout.decode("utf-8", "replace")
         check("ffmpeg with libx264", "libx264" in encoders)
+        # (should Python's own check refuse GitHub's certificate, the updates are checked as Windows checks them)
+        check("updates: Windows' own certificate check bundled", os.name != "nt" or updater.system_context() is not None)
 
         os.environ["BOKIN_FX_DATA"] = os.path.join(work, "data")
         os.environ["BOKIN_FX_OUT"] = os.path.join(work, "out")
