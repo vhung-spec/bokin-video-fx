@@ -7,7 +7,7 @@ import numpy as np
 
 from tests import helpers  # noqa: F401 - temporary data folder
 from fx import effects  # (first: it loads every effect's module)
-from fx import engine, hearth, overlay
+from fx import engine, hearth, logs, overlay
 
 W, H = 480, 270
 AT = {"scale": 80, "x": 0, "y": 5}  # the box over much of the frame
@@ -38,6 +38,16 @@ def box_of(fx):
 def _glow_elsewhere(k, seed, frames, fps, t):
     """(In another process) the glow of a fire at frame t."""
     return hearth._Fire(k, seed, frames, fps).frame(t)[0].tobytes()
+
+
+def _logs_elsewhere(params, t):
+    """(In another process) a frame with logs."""
+    from fx import effects as fx_effects
+    return lens(fx_effects.make("hearth", {**AT, **params}, 3, 96, 24, W, H), t, ROOM).tobytes()
+
+
+LOG_KEYS = {"wood", "stack", "log_size", "char", "view"}
+WITH_LOGS = {"wood": "oak", "light": 0}
 
 
 class Loop(unittest.TestCase):
@@ -209,13 +219,164 @@ class Picture(unittest.TestCase):
         self.assertTrue(np.array_equal(lens(make({"x": -100, "y": -100, "scale": 1}), 5), ROOM))
 
 
+class Logs(unittest.TestCase):
+    """Logs ("Củi"): a pile of logs drawn by code on the bed, charred, lit by the fire, under its flames."""
+
+    def logs_of(self, fx):
+        """Where the logs are (the box's part in the frame: rows, columns) and what is traced there."""
+        (rows, cols), (x0, y0, w, h) = box_of(fx)
+        lay = fx._layout(fx._rect(x0, y0, x0 + w, y0 + h), x0, y0, w, h)
+        px0, py0, px1, py1 = lay["pile"]
+        return (slice(rows.start + py0, rows.start + py1), slice(cols.start + px0, cols.start + px1)), lay["logs"]
+
+    def test_none_as_before(self):
+        """Without logs (a clip made before them, or "none") the fire is drawn as it was."""
+        a, b = make({}), make({"wood": "none", "stack": "heap", "log_size": 90})
+        self.assertIsNone(a.pile)
+        self.assertNotIn("base", a.k)
+        self.assertEqual(a.k, b.k)
+        for t in (0, 30):
+            self.assertTrue(np.array_equal(lens(a, t), lens(b, t)))
+
+    def test_loops(self):
+        for params in ({"wood": "oak"}, {"wood": "birch", "stack": "heap", "embers": 100},
+                       {"wood": "brown", "stack": "two", "char": 100}):
+            fx = make(params)
+            for t in (0, 11):
+                self.assertTrue(np.array_equal(lens(fx, t), lens(fx, t + 96)), (params, t))
+
+    def test_on_the_bed_in_the_box(self):
+        """The logs stand on the bed (its ellipse on the box's bottom edge), about as wide as it, inside the box:
+        nothing outside it changes; they cover what is there."""
+        for params in ({"wood": "oak"}, {"wood": "oak", "bed": 100, "log_size": 100, "stack": "heap"},
+                       {"wood": "birch", "bed": 40, "view": 0}, {"wood": "brown", "view": 100, "x": 30, "scale": 50}):
+            fx = make({**params, "light": 100, "embers": 100})
+            (rows, cols), (x0, y0, w, h) = box_of(fx)
+            out = lens(fx, 20)
+            outside = np.ones((H, W), bool)
+            outside[rows, cols] = False
+            self.assertTrue(np.array_equal(out[outside], ROOM[outside]), params)
+            where, laid = self.logs_of(fx)
+            cover = np.zeros((H, W), np.float32)
+            cover[where] = laid["alpha"]
+            ys, xs = np.nonzero(cover > 0.5)
+            self.assertGreater(len(ys), 0.01 * w * h, params)
+            self.assertFalse((cover[outside] > 0).any(), params)
+            bed = fx.bed * w
+            self.assertGreater(ys.max(), y0 + h - hearth.MARK * bed - 0.03 * h, params)  # (down on the bed)
+            self.assertLess(ys.min(), y0 + h - 0.08 * h, params)
+            self.assertGreater(ys.min(), y0 + 0.35 * h, params)  # (not up in the flames)
+            across = (xs.max() - xs.min()) / bed
+            self.assertTrue(0.7 < across < 1.25 or bed > 0.9 * w, (params, across))
+            self.assertLess(abs((xs.max() + xs.min()) / 2 - (x0 + w / 2)), 0.12 * w, params)
+
+    def test_the_flames_behind_the_logs_in_front(self):
+        """Where a log in front of the fire covers the picture, its charred wood shows, not the flames behind it
+        (their colours have hardly any blue); flames rise above the logs."""
+        fx = make({**WITH_LOGS, "height": 70, "embers": 0})
+        where, laid = self.logs_of(fx)
+        front = (laid["alpha"] > 0.99) & (laid["front"] > 0.99)
+        self.assertGreater(int(front.sum()), 200)
+        above = (slice(where[0].start - (where[0].stop - where[0].start), where[0].start), where[1])
+        for t in (10, 40, 70):
+            out = lens(fx, t, BLACK)
+            wood = out[where][front]
+            self.assertGreater(float(wood[:, 2].sum() / max(wood[:, 0].sum(), 1e-6)), 0.3, t)
+            flames = out[above].reshape(-1, 3)
+            self.assertGreater(float((flames @ LUMA).max()), 0.6, t)
+
+    def test_lit_by_the_fire(self):
+        """The logs are lit by the flames (brighter as they are), more on their tops than under them; their cracks
+        glow low down, breathing."""
+        dim, bright = make({**WITH_LOGS, "bright": 0}), make({**WITH_LOGS, "bright": 100})
+        where, laid = self.logs_of(dim)
+        on = laid["alpha"] > 0.99
+        a = np.mean([lens(dim, t, BLACK)[where][on] @ LUMA for t in (5, 25)])
+        b = np.mean([lens(bright, t, BLACK)[where][on] @ LUMA for t in (5, 25)])
+        self.assertGreater(b, 1.2 * a)
+        frames = [lens(bright, t, BLACK)[where] for t in range(0, 96, 8)]
+        moving = np.std([f[on] @ LUMA for f in frames], axis=0)
+        self.assertGreater(float(moving.mean()), 0.002)  # (flickering with the fire)
+        cold = make({**WITH_LOGS, "embers": 0})
+        hot = make({**WITH_LOGS, "embers": 100})
+        rows = laid["alpha"].shape[0]
+        low = on.copy()
+        low[: int(rows * 0.6)] = False
+        red = [float((lens(f, 30, BLACK)[where][low][:, 0] - lens(f, 30, BLACK)[where][low][:, 2]).mean())
+               for f in (cold, hot)]
+        self.assertGreater(red[1], red[0] + 0.01)  # (the embers in the cracks, glowing)
+
+    def test_each_wood_and_way(self):
+        """Every wood and every way of stacking draws logs of its own look, the settings changing them as they say."""
+        looks = {}
+        for wood in ("oak", "brown", "birch"):
+            fx = make({**WITH_LOGS, "wood": wood, "char": 0})
+            where, laid = self.logs_of(fx)
+            on = laid["alpha"] > 0.99
+            looks[wood] = laid["albedo"][on].mean(axis=0)
+        self.assertGreater(float(looks["birch"].mean()), 2 * float(looks["oak"].mean()))  # (white bark)
+        self.assertGreater(float(looks["brown"][0] / looks["brown"][2]), float(looks["oak"][0] / looks["oak"][2]))
+        counts = {way: len(make({**WITH_LOGS, "stack": way}).pile.logs) for way in ("two", "stack", "heap")}
+        self.assertEqual(counts, {"two": 2, "stack": 3, "heap": 5})
+        small, big = make({**WITH_LOGS, "log_size": 0}).pile, make({**WITH_LOGS, "log_size": 100}).pile
+        self.assertGreater(big.r, 1.5 * small.r)
+        fresh, burnt = make({**WITH_LOGS, "char": 0}), make({**WITH_LOGS, "char": 100})
+        dark = [float(self.logs_of(f)[1]["albedo"][self.logs_of(f)[1]["alpha"] > 0.99].mean()) for f in (fresh, burnt)]
+        self.assertLess(dark[1], dark[0])  # (charred: darker)
+        low, high = make({**WITH_LOGS, "view": 0}), make({**WITH_LOGS, "view": 100})
+        self.assertGreater(self.logs_of(high)[1]["alpha"].sum(), self.logs_of(low)[1]["alpha"].sum())  # (more seen)
+        other = make(WITH_LOGS, seed=4).pile.logs[0].p0  # ("Đổi kiểu ngẫu nhiên": laid otherwise)
+        self.assertNotEqual(other.tolist(), make(WITH_LOGS).pile.logs[0].p0.tolist())
+
+    def test_a_log_where_it_is(self):
+        """A log is where its axis and radius say: rays meet a plain one (no lumps) at its surface, facing out."""
+        rng = np.random.default_rng(1)
+        log = logs.Log((-0.3, 0.0, 0.1), (0.3, 0.0, 0.1), 0.1, "oak", rng)
+        log.shape[:] = 0.0
+        log.shape[:, 0] = 1.0
+        o = np.array([[x, -1.0, 0.1 + dz] for x in (-0.1, 0.0, 0.2) for dz in (-0.05, 0.0, 0.08)])
+        t = log.trace(o, np.array([0.0, 1.0, 0.0]))
+        dz = o[:, 2] - 0.1
+        self.assertLess(float(np.abs(t - (1.0 - np.sqrt(0.1 ** 2 - dz ** 2))).max()), 1e-4)
+        p = o + t[:, None] * np.array([0.0, 1.0, 0.0])
+        n = log.normal(*log.local(p))
+        want = (p - np.array([p[:, 0], np.zeros(len(p)), np.full(len(p), 0.1)]).T) / 0.1
+        self.assertLess(float(np.abs(n - want).max()), 1e-2)
+        past = np.array([[0.0, -1.0, 0.25], [0.45, -1.0, 0.1]])  # (above it, beyond its end)
+        self.assertTrue(np.isinf(log.trace(past, np.array([0.0, 1.0, 0.0]))).all())
+
+    def test_the_same_logs_in_another_process(self):
+        """A video is made in pieces in several processes: each traces the logs, and the same."""
+        params = {"wood": "birch", "stack": "heap"}
+        here = lens(make(params), 40, ROOM).tobytes()
+        with multiprocessing.get_context("spawn").Pool(1) as pool:
+            there = pool.apply(_logs_elsewhere, (params, 40))
+        self.assertEqual(here, there)
+
+    def test_settings(self):
+        """No logs unless chosen; the logs' settings show once a wood is; changing the logs' wood or how burnt makes
+        no new fire, their size or place does (the flames rise from among them)."""
+        by_key = {p["key"]: p for p in hearth.SCHEMA["params"]}
+        self.assertEqual(by_key["wood"]["value"], "none")
+        self.assertEqual({o["value"] for o in by_key["wood"]["options"]} - {"none"}, set(logs.WOODS))
+        for key in LOG_KEYS - {"wood"}:
+            self.assertEqual(by_key[key]["show"], {"wood": list(logs.WOODS)}, key)
+            self.assertEqual(by_key[key]["group"], by_key["wood"]["group"], key)
+        k = make(WITH_LOGS).k
+        self.assertGreater(k["base"], 0)
+        for key, v in (("wood", "birch"), ("char", 10), ("light", 100), ("x", 20)):
+            self.assertEqual(make({**WITH_LOGS, key: v}).k, k, key)
+        for key, v in (("log_size", 90), ("stack", "two"), ("view", 0)):
+            self.assertNotEqual(make({**WITH_LOGS, key: v}).k, k, key)
+
+
 class Preview(unittest.TestCase):
     def test_preview_from_the_picture_under_the_box(self):
         """The box alone (as the preview clip is made) on the picture under the box, resized to the clip, gives
         what the whole frame gives there."""
         from PIL import Image
         info = {"w": W, "h": H, "fps": "24", "frames": 96, "seconds": 4.0}
-        for params in ({}, {"cover": 80, "light": 100, "bed": 50}):
+        for params in ({}, {"cover": 80, "light": 100, "bed": 50}, {"wood": "oak", "stack": "heap"}):
             whole = make(params)
             x0, y0, bw, bh = whole.box()
             layer = {"kind": "hearth", "params": {**AT, **params}}
@@ -258,11 +419,11 @@ class Settings(unittest.TestCase):
         self.assertTrue(hearth.SCHEMA["note"])
 
     def test_looks(self):
-        """Each look sets every setting but where the fire is, how wide, and the old fire put out; the first look
-        is the defaults."""
+        """Each look sets every setting but where the fire is, how wide, the old fire put out, and the logs; the
+        first look is the defaults."""
         look = next(p for p in hearth.SCHEMA["params"] if p["key"] == "look")
         self.assertEqual({o["value"] for o in look["options"]}, set(hearth.LOOKS))
-        keys = {p["key"] for p in hearth.SCHEMA["params"]} - {"look", "bed", "cover", "x", "y", "scale"}
+        keys = {p["key"] for p in hearth.SCHEMA["params"]} - {"look", "bed", "cover", "x", "y", "scale"} - LOG_KEYS
         defaults = effects.defaults("hearth")
         for name, preset in look["presets"].items():
             self.assertEqual(set(preset), keys, name)

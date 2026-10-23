@@ -22,6 +22,7 @@ import threading
 import numpy as np
 from PIL import Image
 
+from . import logs
 from .effects import Effect, _choice, _lerp, _num, _place, blur
 
 TAU = 2 * math.pi
@@ -42,6 +43,13 @@ LUT_TOP = 2.2  # (the fire's colours looked up in a table, brightness 0 to this:
 DIM = 0.28  # the old fire put out ("cover" 100): its glow blurred, this bright
 PACE = 1.2  # seconds of fire a second of video at "speed" 50 (a fire filmed: tongues come and go quickly)
 LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
+# logs ("Củi"): the flames' light on them (times their glow near each light, over REACH box heights), the embers'
+# (times "embers"), the room's (times the picture's mean light round the box), their cracks' glow (times "embers"),
+# and how much they keep the light from the floor right under them
+FLAME_ON_LOGS, EMBERS_ON_LOGS, ROOM_ON_LOGS, CRACKS = 2.6, 0.8, 1.0, 1.1
+REACH = 0.07
+BEHIND = 0.7  # (the bright flames' share seen over a log behind the fire, fainter ones less; none over one in front)
+FLOOR_SHADE = 0.7
 # a real wood fire's colours by brightness (measured from footage: dark red where faint, orange-red, orange, yellow,
 # white-yellow where it burns hottest)
 PAL_I = np.array([0.0, 0.12, 0.3, 0.5, 0.7, 0.9, 1.1, 1.35, 1.8], np.float32)
@@ -57,24 +65,38 @@ LOOKS = {
     "embers": {"height": 12, "amount": 20, "flicker": 35, "bright": 40, "embers": 85, "light": 30},
 }
 
+WITH_LOGS = {"wood": list(logs.WOODS)}  # (the logs' settings show once a wood is chosen)
+
 SCHEMA = {
     "label": "Lửa lò sưởi",
     "note": "Lửa củi cháy trong lò sưởi có sẵn trong video. (1) Bấm Suốt video. (2) Kéo khung trắng tới lò sưởi: hình "
             "bầu dục vàng ở đáy khung đặt lên mặt củi, chỗ lửa bốc lên; kéo thanh Lửa rộng cho nó rộng bằng đống củi; "
             "kéo góc khung cho lửa cao vừa miệng lò. (3) Video có sẵn lửa đứng yên thì kéo Che lửa cũ lên: lửa cũ tối "
             "đi, lửa mới cháy lên trên. Khúc củi phía trước che chân lửa: tô khúc củi đó vào Tiền cảnh rồi bật Bay ra "
-            "sau tiền cảnh cho clip này. Lửa không xoay 3D: lửa luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa cao, Lửa dày, "
-            "Bập bùng, Tốc độ, app tính lại lửa từ đầu: dừng hình lần đầu có thể chờ vài giây.",
+            "sau tiền cảnh cho clip này. Lò trống, chưa có củi: chọn Củi (sồi, vỏ nâu, bạch dương): app vẽ đống củi "
+            "cháy sém đứng trên hình bầu dục vàng (đặt nó lên sàn lò), lửa bốc lên từ giữa các khúc củi, than hồng "
+            "trong vết nứt; chỉnh Cách xếp, Khúc củi to, Cháy sém, Nhìn từ trên xuống cho hợp góc máy. Lửa không xoay "
+            "3D: lửa luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa cao, Lửa dày, Bập bùng, Tốc độ (và cỡ, cách xếp củi), "
+            "app tính lại lửa từ đầu: dừng hình lần đầu có thể chờ vài giây.",
     # for the page: where the fire burns, a flat ellipse sitting on the middle of the box's bottom edge, as wide as
     # "bed" (% of the box's width)
     "mark": {"width": "bed", "ratio": MARK, "sits": True, "label": "chỗ lửa cháy (mặt củi)",
-             "tip": "Đặt hình bầu dục vàng lên mặt củi, chỗ lửa bốc lên; kéo thanh Lửa rộng cho nó rộng bằng đống "
-                    "củi, kéo góc khung cho lửa cao vừa lò sưởi."},
+             "tip": "Đặt hình bầu dục vàng lên mặt củi, chỗ lửa bốc lên (đã chọn Củi: lên sàn lò, chỗ đặt củi); kéo "
+                    "thanh Lửa rộng cho nó rộng bằng đống củi, kéo góc khung cho lửa cao vừa lò sưởi."},
     "params": [
         _choice("look", "Kiểu lửa", "logs", [("logs", "Lửa củi (vừa)"), ("big", "Lửa to, cháy mạnh"),
                                              ("low", "Lửa nhỏ, dịu"), ("embers", "Sắp tàn, than hồng")],
                 presets={k: {key: v for key, v in {**DEFAULTS, **look}.items() if key not in ("bed", "cover")}
                          for k, look in LOOKS.items()}, group="Kiểu"),
+        _choice("wood", "Củi", "none", [("none", "Không thêm (lửa cháy trên củi có sẵn trong video)"),
+                                         ("oak", "Củi sồi (vỏ xám, rãnh sâu)"), ("brown", "Củi vỏ nâu"),
+                                         ("birch", "Củi bạch dương (vỏ trắng)")], group="Củi"),
+        _choice("stack", "Cách xếp", "stack", [("stack", "Ba khúc: hai dưới, một trên"),
+                                              ("heap", "Đống củi (năm khúc)"), ("two", "Hai khúc nằm cạnh nhau")],
+                group="Củi", show=WITH_LOGS),
+        _num("log_size", "Khúc củi to", 50, group="Củi", show=WITH_LOGS),
+        _num("char", "Cháy sém (than đen, vết nứt)", 65, group="Củi", show=WITH_LOGS),
+        _num("view", "Nhìn từ trên xuống (ngang ← → cao)", 50, group="Củi", show=WITH_LOGS),
         _num("bed", "Lửa rộng (hình bầu dục vàng)", DEFAULTS["bed"], 10, 100, group="Ngọn lửa"),
         _num("height", "Ngọn lửa cao", DEFAULTS["height"], group="Ngọn lửa"),
         _num("amount", "Lửa dày", DEFAULTS["amount"], group="Ngọn lửa"),
@@ -134,6 +156,8 @@ class _Fluid:
         self.at = (u * bed + 1) / 2 * gw
         half = MARK * bed * gw / 2  # (the ellipse's half height, cells)
         self.up = 1.5 + half * (1 + 0.7 * np.sqrt(np.maximum(0.0, 1 - u * u)) * g.uniform(-1, 1, n))
+        if "base" in k:  # (logs: burning from between them up to their tops)
+            self.up += k["base"] * g.uniform(0.25, 1.0, n) * np.sqrt(np.maximum(0.0, 1 - (0.8 * u) ** 2))
         self.wide = g.uniform(0.035, 0.07, n) * gw
         self.hz = g.uniform(0.3, 1.2, n) * k["waver"]
         self.ph = g.random(n) * TAU
@@ -346,6 +370,7 @@ class Hearth(Effect):
     blend = "screen"
     lens = True
     UNDER = True  # its preview clip: the picture under the box with the fire in it (the old fire dimmed: "cover")
+    UNDER_FADE = 0.0  # (its change already fades out toward the box's edges; its logs stand on its bottom edge)
     TURNS = False  # a fire always rises straight up
     VERSION = 1
 
@@ -373,6 +398,15 @@ class Hearth(Effect):
         self._gshown = None
         self._laid = None
         self._lut = palette(np.linspace(0.0, LUT_TOP, 1024, dtype=np.float32), self.warmth)
+        self.pile = None
+        self._windows = None
+        if p.get("wood") in logs.WOODS:  # logs under the flames (box heights from the bed's middle)
+            wide = self.BOX[0] / self.BOX[1]
+            self.pile = logs.Pile(p["wood"], p["stack"], p["log_size"] / 100, p["char"] / 100, self.bed * wide,
+                                  math.radians(5 + 0.3 * p["view"]), self.seed, half=wide / 2 * 0.97,
+                                  floor=-MARK * self.bed * wide / 2 + 0.006)
+            _, mid = self.pile.screen(self.pile.fire)  # (the fire among the logs: cells above the bed's middle)
+            self.k["base"] = round(max(0.0, float(mid) * 1.6) * GRID[1], 2)
 
     def frames(self):
         """This clip's fire (made as far as it is asked for, kept for the next clip with the same settings)."""
@@ -456,8 +490,60 @@ class Hearth(Effect):
         if self.cover_k > 0:  # where an old fire is put out: over the bed and above it, not at the box's bottom edge
             lay["zone"] = (_smooth((self.bed * 1.25 - np.abs(xs * 2 - 1)) / 0.15)[None, :] * edge * _smooth(
                 (1 - ys) / (MARK * self.bed * 4 / 3 + 0.02))[:, None]).astype(np.float32)
+        if self.pile is not None:  # the logs: traced over their part of the box (in the frame)
+            cx, cy = x0 + w / 2, y0 + h - MARK * self.bed * w / 2  # (the bed's middle)
+            left, right, bottom, top = self.pile.extent()
+            px0, px1 = max(rx0, math.floor(cx + left * h)), min(rx1, math.ceil(cx + right * h))
+            py0, py1 = max(ry0, math.floor(cy - top * h)), min(ry1, math.ceil(cy - bottom * h))
+            if px0 < px1 and py0 < py1:
+                lay["pile"] = (px0 - rx0, py0 - ry0, px1 - rx0, py1 - ry0)
+                lay["logs"] = self.pile.lay((np.arange(px0, px1) + 0.5 - cx) / h, (cy - np.arange(py0, py1) - 0.5) / h,
+                                            1.0 / h)
         self._laid = (key, lay)
         return lay
+
+    def _light_windows(self):
+        """For each of the logs' flame lights: the part of the grid round it and its weights there (the flames'
+        light on it is their glow there)."""
+        if self._windows is None:
+            gw, gh = GRID
+            wide = self.BOX[0] / self.BOX[1]
+            out = []
+            for at, kind in self.pile.lights:
+                if kind != "flame":
+                    continue
+                x, s = self.pile.screen(at)
+                col = (0.5 + x / wide) * gw
+                row = (1 - (s + MARK * self.bed * wide / 2)) * gh
+                rad = REACH * gh
+                c0, c1 = max(0, int(col - 2 * rad)), min(gw, int(col + 2 * rad) + 1)
+                r0, r1 = max(0, int(row - 2 * rad)), min(gh, int(row + 2 * rad) + 1)
+                yy, xx = np.mgrid[r0:r1, c0:c1].astype(np.float32)
+                wt = np.exp(-((xx + 0.5 - col) ** 2 + (yy + 0.5 - row) ** 2) / (2 * rad * rad))
+                out.append(((slice(r0, r1), slice(c0, c1)), wt / max(float(wt.sum()), 1e-9)))
+            self._windows = out
+        return self._windows
+
+    def _logs(self, t, out, lay, glow, level):
+        """The logs on `out` (the box's part in the frame, changed in place): their shadow on the floor, then them,
+        lit by the room, the flames near each light (`glow`: the flames on the grid) and the embers; their cracks
+        glowing; `level`: how bright the fire is now (1: as on average)."""
+        x0, y0, x1, y1 = lay["pile"]
+        laid = lay["logs"]
+        part = out[y0:y1, x0:x1]
+        alpha = laid["alpha"][..., None]
+        part *= 1 - FLOOR_SHADE * laid["floor"][..., None]
+        room = np.maximum(out[::4, ::4].reshape(-1, 3).mean(axis=0), 0.0) ** logs.GAMMA * ROOM_ON_LOGS
+        bright = self.bright_k * level
+        flames = [float((glow[at] * wt).sum()) * FLAME_ON_LOGS * self.bright_k for at, wt in self._light_windows()]
+        tau = self.tau(t)
+        breathe = sum(math.sin(TAU * m * tau + ph) for m, ph in zip(self.ember_m, self.ember_ph)) / 3
+        ember = EMBERS_ON_LOGS * self.embers_k * (0.85 + 0.15 * breathe) * bright
+        embers = [ember] * sum(kind == "ember" for _, kind in self.pile.lights)
+        colour = self.pile.colour(laid, room, flames, embers, CRACKS * self.embers_k * bright, tau, self.ember_m)
+        np.clip(colour, 0.0, 1.0, out=colour)
+        colour **= 1 / logs.GAMMA
+        part += alpha * (colour - part)
 
     def _halo(self, flame, src, size):
         """The glow round the flames (a camera's): the flames' colours on the grid, blurred on a grid 4 times
@@ -510,24 +596,39 @@ class Hearth(Effect):
         # its light on the firebox round it: brighter as the fire is (multiplying what is there: lit, not hazy)
         if self.light_k > 0:
             out *= 1 + lay["spill"][..., None] * (throws * LIGHT)
+        hide = None
+        if "logs" in lay:  # the logs (opaque), the flames behind those in front of the fire, the embers behind all
+            self._logs(t, out, lay, glow, level)
+            px0, py0, px1, py1 = lay["pile"]
+            hide = (slice(py0, py1), slice(px0, px1)), lay["logs"]["alpha"]
         # the flames and the embers under them (their brightness on the grid, then over the box: crisp edges)
         flame = big(glow)
         flame -= CUT
         np.maximum(flame, 0.0, out=flame)
         flame *= self.bright_k / (1 - CUT)
         flame *= lay["shown"]
+        if hide is not None:  # (over a log in front of the fire none of them; over one behind it only the brighter
+            # tongues: no haze over it)
+            part = flame[hide[0]]
+            hidden = 1 - BEHIND * _smooth((part - 0.5) / 0.7)
+            part *= 1 - hide[1] * (hidden + (1 - hidden) * lay["logs"]["front"])
         gflame = np.maximum(glow - CUT, 0.0) * (self.bright_k / (1 - CUT)) * self._grid_shown()
         if self.embers_k > 0:
             field, phase = self._ember_field()
             tau = self.tau(t)
             breathe = sum(np.sin(TAU * m * tau + ph + 5 * phase) for m, ph in zip(self.ember_m, self.ember_ph)) / 3
             embers = field * ((0.8 + 0.2 * breathe) * (0.7 * self.embers_k * (0.9 + 0.1 * level)))
-            flame += big(embers) * lay["edge"]
+            seen = big(embers) * lay["edge"]
+            if hide is not None:
+                seen[hide[0]] *= 1 - hide[1]
+            flame += seen
             gflame += embers
         fire = self._lut.take((np.minimum(flame, LUT_TOP) * ((len(self._lut) - 1) / LUT_TOP)).astype(np.int32),
                               axis=0)  # (its colours)
         halo = self._halo(gflame, src, size)
         halo *= lay["edge"][..., None]
+        if hide is not None:  # (less of it over the logs: not a haze over them)
+            halo[hide[0]] *= 1 - 0.8 * hide[1][..., None]
         # laid with Screen: 1 - (1 - picture) (1 - flames) (1 - their glow)
         np.subtract(1.0, fire, out=fire)
         np.subtract(1.0, halo, out=halo)

@@ -19,6 +19,7 @@ AREA = (((_xx - W * 0.45) / (W * 0.42)) ** 2 + ((_yy - H * 0.55) / (H * 0.42)) *
 DRAWN = {"garland": {"strands": [[0.1, 0.3, 1, 0.4], [0.5, 0.35, 0, 0], [0.9, 0.3, 0, 0], [0.2, 0.8, 1, 0],
                                  [0.3, 0.7, 0.5, 0], [0.4, 0.75, 0.5, 0]]},
          "chimney": {"stacks": [[0.3, 0.85, 0.05, 0.5]]}}
+MORE = {"hearth": [{"wood": "oak", "stack": "heap", "embers": 100}]}  # (more of an effect's own: its logs)
 
 
 def frame(fx, t, base=0.3, mask=None):
@@ -41,7 +42,8 @@ class Periodic(unittest.TestCase):
     def test_every_kind_returns_to_frame_zero(self):
         for kind in KINDS:
             for frames, fps in ((144, 24), (150, 25), (90, 30), (720, 24)):
-                for params in self.CASES + ([{"style": "dust"}] if kind == "glow" else [{"style": "petal"}]):
+                for params in self.CASES + ([{"style": "dust"}] if kind == "glow" else [{"style": "petal"}]) + \
+                        MORE.get(kind, []):
                     if kind in ("snow", "glow") or frames != 720:
                         fx = effects.make(kind, dict(params, **DRAWN.get(kind, {})), 3, frames, fps, W, H)
                         diff = np.abs(frame(fx, 0, None) - frame(fx, frames, None)).max()

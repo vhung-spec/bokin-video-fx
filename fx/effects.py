@@ -351,6 +351,7 @@ class Effect:
     # with the effect applied; only its change kept), laid with Normal: the live preview then shows what it does. A
     # placed one: the picture under its box; a full-frame one: the frame, the effect inside the clip's area (AREA)
     UNDER = False
+    UNDER_FADE = 0.08  # (its change fades out over this share of its preview clip's smaller side, at its edges)
     # veil: an under effect that only darkens, by a share of each pixel's light that does not depend on what the
     # pixel shows: its preview clip is a black veil (its alpha that share), nothing of the picture in it (veil())
     VEIL = False

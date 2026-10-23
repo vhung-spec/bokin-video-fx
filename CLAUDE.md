@@ -73,7 +73,7 @@ hiệu ứng. Cách dùng: `README.md`.
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/hearth.py`, `fx/frost.py`,
   `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói ống khói, lửa
-  nến, lửa lò sưởi, tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
+  nến, lửa lò sưởi (củi của nó: `fx/logs.py`), tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
   nồi; và ống khói, chỉ dùng cho Khói ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn:
   `edge`, `side`; `preset` của kiểu đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
@@ -195,6 +195,24 @@ hiệu ứng. Cách dùng: `README.md`.
   (`cover`): chỗ sáng ấm hay trắng của lửa đứng yên trong video thành ánh mờ cùng màu đã làm nhoè (`DIM`). Hằng số và
   bản đồ theo hộp giữ giữa các khung (`_layout`). Chỉ các thông số của ngọn lửa (`k`) làm lại lửa; màu, ánh sáng, chỗ
   đặt thì không.
+- Củi của Lửa lò sưởi (`fx/logs.py`, từ 1.0.69; nhóm "Củi": `wood` (`none`: không củi, như cũ: clip cũ giữ nguyên),
+  `stack`, `log_size`, `char`, `view`, hiện khi đã chọn củi: `show`; kiểu lửa không đặt chúng): đống củi vẽ bằng mã.
+  Mỗi khúc là mặt ẩn (`Log.outside`: trụ gồ ghề theo bảng dọc trục, to một đầu, đầu cắt bo tròn) trong cảnh nhỏ trên
+  hình bầu dục (x ngang, y vào trong, z lên, đơn vị chiều cao hộp); máy quay xa (tia song song) nhìn xuống `tilt` (5 tới
+  35°: "Nhìn từ trên xuống"). Tia vào trụ bao, bước `MARCH` rồi khép vào mặt (`trace`; khúc gần trước, phần bị che
+  không dò); một tia mỗi điểm ảnh, `SS`x`SS` ở mép khúc. Vân tính tại điểm chạm từ seed của khúc (giống nhau ở mọi cỡ):
+  than nứt vòng quanh khúc (`char`: dải vòng lượn, chỗ tách riêng mỗi dải, nứt mảnh, mảng đen theo khối, thớ dọc), vỏ
+  (`bark`: rãnh dọc là đường đồng mức của nhiễu kéo dài, tách nhập; bạch dương trắng, vạch ngang, sẹo đen), mặt cắt
+  (`face`: vòng năm, lõi, vết nứt toả), tro xám mặt trên; độ gồ nghiêng pháp tuyến (độ dốc tính thẳng: `_noise_d`).
+  Cháy sém theo `char`, mặt hướng lửa, hai đầu; ranh giới theo khối. `Pile.lay` một lần cho mỗi chỗ đặt (trong
+  `_layout`): màu, pháp tuyến, phần mỗi đèn (đèn cố định: trên đống củi, giữa các khúc, than trước đống; hướng, bóng
+  mềm của khúc khác, xa gần), ánh phòng (khúc quanh che), độ nóng, bóng trên sàn; mỗi khung (`Pile.colour`, `_logs`)
+  chỉ đổi độ sáng đèn (lửa mô phỏng quanh mỗi đèn: `_light_windows`; than: nhịp `ember_m`), ánh phòng (trung bình hình
+  trong hộp) và than hồng trong vết nứt (thở, số nguyên lần mỗi vòng). Củi đục, vẽ trước lửa: khúc trước mặt phẳng lửa
+  che hết lửa, khúc sau chỉ để lộ lưỡi lửa sáng (`BEHIND`), than hồng trên sàn bị che, quầng sáng bớt trên củi. Có củi
+  thì chỗ cháy của mô phỏng lên tới giữa đống củi (`k["base"]`: đổi cỡ, cách xếp, góc nhìn là tính lại lửa; loại củi,
+  cháy sém thì không). Đống củi nằm trong hộp (hẹp lại, lùi vào khi cần), khúc to nhất `BIGGEST`; `UNDER_FADE` = 0:
+  clip xem nhanh không mờ ở mép hộp (củi đứng trên đáy hộp; lửa tự mờ ở mép).
 - Đom đóm (`fx/fireflies.py`, mã loại `fireflies`, từ 1.0.68): hiệu ứng đặt một chỗ (`BOX` 16:9: khung trên khóm
   hoa và khoảng trời phía trên), ánh sáng (Screen: clip xem nhanh H.264 nền đen, `PREVIEW` 1280 khi khung to), không
   xoay. Mỗi con một chỗ ở trong khung, bay lượn bằng ba vòng sin mỗi chiều (số nguyên vòng mỗi loop: `where()`), nháy

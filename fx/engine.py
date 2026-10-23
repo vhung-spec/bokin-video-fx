@@ -852,7 +852,7 @@ def _under_part(project, layer, total, folder, start, end, path):
     alone = effects.make(kind, fx_clip_params(kind, layer.get("params")), seed, total, fps, cw, ch)
     yy, xx = np.mgrid[0:ch, 0:cw].astype(np.float32)
     edge = np.minimum(np.minimum(xx + 0.5, cw - 0.5 - xx), np.minimum(yy + 0.5, ch - 0.5 - yy))
-    fade = np.clip(edge / max(2.0, 0.08 * min(cw, ch)), 0.0, 1.0)
+    fade = np.clip(edge / max(2.0, effects.KINDS[kind].UNDER_FADE * min(cw, ch)), 0.0, 1.0)
     fade = (fade * fade * (3 - 2 * fade))[..., None]
     inside = 0 <= x0 and 0 <= y0 and x0 + bw <= w and y0 + bh <= h
     under = Scene(folder, dict(project, layers=[]), (w, h), total)  # the video with its still area, no clips

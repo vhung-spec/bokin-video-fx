@@ -310,10 +310,21 @@ thật), không phải một video có sẵn, nên vừa mọi lò sưởi và l
    đi thành ánh hồng mờ phía sau, lửa mới cháy lên trên.
 5. Muốn khúc củi phía trước che chân lửa (lửa cháy phía sau củi): bấm **V1 Video gốc** → **Vẽ tiền cảnh**, tô khúc
    củi đó. Rồi chọn clip Lửa lò sưởi, tích **Bay ra sau tiền cảnh**.
+6. Lò sưởi trong video còn trống, chưa có củi (hoặc muốn thay củi): ở mục **Củi** chọn **Củi sồi** (vỏ xám, rãnh
+   sâu), **Củi vỏ nâu** hay **Củi bạch dương** (vỏ trắng). App vẽ một đống củi thật: khúc gỗ tròn cháy sém, than đen
+   nứt thành từng khối, tro xám phủ mặt trên, mặt cắt có vân vòng, than hồng âm ỉ trong vết nứt ở dưới; củi được ánh lửa
+   chiếu sáng, bập bùng theo ngọn lửa; khúc phía trước che chân lửa, lửa bốc lên từ giữa các khúc củi. Đặt **hình bầu
+   dục vàng** lên **sàn lò**, chỗ đặt củi (củi đứng trên nó, rộng bằng nó). Chỉnh thêm:
+   - **Cách xếp**: **Ba khúc: hai dưới, một trên**, **Đống củi (năm khúc)**, **Hai khúc nằm cạnh nhau**.
+   - **Khúc củi to**, **Cháy sém** (0: củi mới còn nguyên vỏ, 100: cháy đen hết).
+   - **Nhìn từ trên xuống**: cho hợp góc máy của video (máy quay ngang tầm lò: kéo về trái; nhìn từ trên cao: kéo
+     sang phải).
+   - Muốn các khúc củi đặt khác đi: bấm **Đổi kiểu ngẫu nhiên** (lửa cũng đổi theo).
 
-Lần đầu, và mỗi lần đổi **Lửa rộng**, **Ngọn lửa cao**, **Lửa dày**, **Bập bùng** hay **Tốc độ**, app tính lửa lại từ
-đầu: bản xem nhanh cần chừng nửa phút, dừng hình lần đầu có thể chờ vài giây. Đổi màu, độ sáng, ánh lửa, than hồng,
-chỗ đặt thì không phải tính lại. Lửa không xoay 3D: lửa luôn bốc thẳng lên. Nhiều lò sưởi thì mỗi lò một clip.
+Lần đầu, và mỗi lần đổi **Lửa rộng**, **Ngọn lửa cao**, **Lửa dày**, **Bập bùng**, **Tốc độ** (hay cỡ, cách xếp, góc
+nhìn của củi), app tính lửa lại từ đầu: bản xem nhanh cần chừng nửa phút, dừng hình lần đầu có thể chờ vài giây. Đổi
+màu, độ sáng, ánh lửa, than hồng, loại củi, cháy sém, chỗ đặt thì không phải tính lại. Lửa không xoay 3D: lửa luôn bốc
+thẳng lên. Nhiều lò sưởi thì mỗi lò một clip.
 
 ### Đom đóm
 

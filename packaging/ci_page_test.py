@@ -920,7 +920,7 @@ def chimneys(page, shot):
 def hearth(page, shot):
     """Lửa lò sưởi: a box on the picture where the renderer puts it, its mark (where the fire burns: an ellipse on the
     box's bottom edge, as wide as "Lửa rộng"), no turn; its preview clip made from the picture under the box, laid
-    just over the video (under every track)."""
+    just over the video (under every track); logs chosen: their settings shown, the preview clip with them."""
     from fx import effects as fx_effects
     page.click('.tab[data-bin="fx"]')
     page.dblclick('.tile[data-kind="hearth"]')
@@ -950,6 +950,26 @@ def hearth(page, shot):
     check("Lửa lò sưởi: Lửa rộng sizes its mark; its preview clip (the picture under the box with the fire in it), laid "
           "just over the video", abs(wide - 0.45) < 0.03 and laid == [True, "normal", True], str([wide, laid]))
     shot("05l-hearth")
+    # logs: their settings show once a wood is chosen; the preview clip made again, with them
+    logs = """['select[data-param="stack"]', 'input[data-param="log_size"]', 'input[data-param="char"]',
+        'input[data-param="view"]'].map(q => !!$('#ec ' + q))"""
+    before = page.evaluate(logs)
+    want = page.evaluate(f"S.fx['{cid}'].want")
+    page.select_option('#ec select[data-param="wood"]', "birch")
+    page.wait_for_timeout(300)
+    after = page.evaluate(logs)
+    page.select_option('#ec select[data-param="stack"]', "heap")
+    page.wait_for_timeout(300)
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].want !== '{want}' && "
+                           f"S.fx['{cid}'].shown === S.fx['{cid}'].want && S.els['{cid}']", timeout=300000)
+    page.evaluate("applyTime()")
+    params = page.evaluate(f"[clipById('{cid}').params.wood, clipById('{cid}').params.stack]")
+    laid = page.evaluate(f"""(() => {{ const e = S.els['{cid}']; return [e.media.getAttribute('src').includes('.webm'),
+        e.wrap.style.mixBlendMode, e.wrap.parentNode === $('#layers').firstChild]; }})()""")
+    check("Lửa lò sưởi: Củi chosen, the logs' settings show; its preview clip made again with them",
+          before == [False] * 4 and after == [True] * 4 and params == ["birch", "heap"] and
+          laid == [True, "normal", True], str([before, after, params, laid]))
+    shot("05l-hearth-logs")
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 
