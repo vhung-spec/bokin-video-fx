@@ -293,6 +293,28 @@ Lúc phát, lửa nến chỉ xem gần đúng (ánh nến hắt ra ngoài khung
 xuất ra. Sau khi dời khung, app cần một lúc để làm lại bản xem nhanh của lửa nến; trong lúc đó, khi phát chỉ thấy
 video gốc ở chỗ ngọn nến. Sau khi vẽ vùng đứng yên lên ngọn nến, bản xem nhanh cũ vẫn phát cho đến khi bản mới xong.
 
+### Lửa lò sưởi
+
+Lửa củi cháy trong lò sưởi có sẵn trong video, như lửa quay thật: ngọn lửa liếm lên, cuộn xoáy, tách ngọn; gốc lửa vàng
+trắng, ngọn cam đỏ; than hồng dưới chân lửa; ánh lửa bập bùng hắt lên lò sưởi. Lửa do app tự tính (như khí nóng bốc lên
+thật), không phải một video có sẵn, nên vừa mọi lò sưởi và lặp liền mạch.
+
+1. Bấm **Tạo sẵn** → **Lửa lò sưởi**, kéo xuống một track trống, bấm **Suốt video**.
+2. Kéo khung trắng tới lò sưởi. Ở đáy khung có **hình bầu dục vàng** (ghi "chỗ lửa cháy"): đặt nó lên **mặt củi**, chỗ
+   lửa bốc lên. Kéo thanh **Lửa rộng** cho hình bầu dục rộng bằng đống củi. Kéo góc khung cho lửa cao vừa miệng lò:
+   lửa chỉ cháy trong khung.
+3. Chọn **Kiểu lửa**: **Lửa củi (vừa)**, **Lửa to, cháy mạnh**, **Lửa nhỏ, dịu**, **Sắp tàn, than hồng**. Chỉnh thêm
+   **Ngọn lửa cao**, **Lửa dày**, **Bập bùng**, **Tốc độ**, **Độ sáng**, **Màu lửa** (vàng ← → đỏ cam), **Than hồng
+   dưới chân lửa**, **Ánh lửa hắt lên lò sưởi**.
+4. Video đã có sẵn lửa đứng yên (ví dụ làm từ ảnh tĩnh): kéo **Che lửa cũ trong video** lên (50 đến 100). Lửa cũ tối
+   đi thành ánh hồng mờ phía sau, lửa mới cháy lên trên.
+5. Muốn khúc củi phía trước che chân lửa (lửa cháy phía sau củi): bấm **V1 Video gốc** → **Vẽ tiền cảnh**, tô khúc
+   củi đó. Rồi chọn clip Lửa lò sưởi, tích **Bay ra sau tiền cảnh**.
+
+Lần đầu, và mỗi lần đổi **Lửa rộng**, **Ngọn lửa cao**, **Lửa dày**, **Bập bùng** hay **Tốc độ**, app tính lửa lại từ
+đầu: bản xem nhanh cần chừng nửa phút, dừng hình lần đầu có thể chờ vài giây. Đổi màu, độ sáng, ánh lửa, than hồng,
+chỗ đặt thì không phải tính lại. Lửa không xoay 3D: lửa luôn bốc thẳng lên. Nhiều lò sưởi thì mỗi lò một clip.
+
 ### Lá cây lay động
 
 Làm lá của bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió: mỗi chùm lá lay một chút theo nhịp riêng,

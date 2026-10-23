@@ -161,7 +161,8 @@ BOX = ("(() => { const r = xform.getBoundingClientRect(), sc = screenEl.getBound
 def live_and_exact(page, name):
     """Screenshots of the picture: the live preview alone, then the exact frame for the project as saved now
     (kept as <name>-live.png, <name>-exact.png)."""
-    page.evaluate("(async () => { S.sel = null; renderControls(); showXform(); await saveNow(); })()")
+    # (nothing chosen: no white box, no green of a painted area over the picture)
+    page.evaluate("(async () => { S.sel = null; renderControls(); showXform(); drawArea(); await saveNow(); })()")
     page.wait_for_timeout(500)
     page.evaluate("exact.style.visibility = 'hidden'")  # the live preview alone
     page.wait_for_timeout(400)
@@ -531,8 +532,6 @@ def flicker(page, edge):
                 e.wrap.style.mixBlendMode, areaLive(c), !!(S.schema.lens[c.kind] && !areaLive(c))]; }})()""")
     check("Nhấp nháy vùng: painting its area makes its preview clip, laid just over the video (under every track); "
           "the live preview counts as exact", laid == [True, True, "normal", True, False], str(laid))
-    if not edge:  # (the Chromium of Playwright plays no H.264: no video under the veil to compare)
-        return
     from fx import effects as fx_effects
     from PIL import ImageFilter
     vw, vh, total, rate, seed, params = page.evaluate(
@@ -550,6 +549,7 @@ def flicker(page, edge):
     page.evaluate(f"seek({t} / fps())")
     page.wait_for_timeout(500)
     on = live_and_exact(page, "05i-flicker-on")
+    shown, seed, params = page.evaluate(f"[curFrame(), clipById('{fl}').seed, clipById('{fl}').params]")
     switch([])
     off = live_and_exact(page, "05i-flicker-off")
     switch(others + [fl])
@@ -561,15 +561,30 @@ def flicker(page, edge):
     ImageDraw.Draw(area).polygon([(x * sw, y * sh) for x, y in outline], fill=255)
     inner = np.asarray(area.filter(ImageFilter.MinFilter(9))) > 0
     far = ~(np.asarray(area.filter(ImageFilter.MaxFilter(61))) > 0)
+    # what the renderer keeps of the area's light at the frame shown (its soft rim too), over the picture there
+    veil = fx_effects.make("flicker", params, seed, total, rate, sw, sh).veil(
+        shown, np.asarray(area, np.float32) * (1 / 255.0))
+    shade = np.ones((sh, sw), np.float32)
+    if veil is not None:
+        (x0, y0, x1, y1), dk = veil
+        shade[y0:y1, x0:x1] -= dk
+    lum = exact_off.mean(axis=2)
+    want = float((lum * shade)[inner].sum() / max(1e-6, float(lum[inner].sum())))
 
     def apart(a, b, where):
         return float(np.abs(a - b).mean(axis=2)[where].mean())
-    kept = [float(a[inner].mean() / max(1e-6, float(b[inner].mean())))
-            for a, b in ((live_on, live_off), (exact_on, exact_off))]
-    got = [apart(live_on, exact_on, inner), apart(live_on, exact_on, far), apart(exact_on, exact_off, far)] + kept
-    check("Nhấp nháy vùng: at its darkest the live picture is the exact frame's: the area as dark (a sign at its "
-          "settings: a fifth as bright), the rest as it is", got[0] < 6 and got[1] < 6 and got[2] < 3 and
-          all(0.08 < k < 0.4 for k in kept) and abs(kept[0] - kept[1]) < 0.08, str([round(v, 3) for v in got]))
+
+    def kept(a, b):
+        return float(a[inner].mean() / max(1e-6, float(b[inner].mean())))
+    got = [shown, t, round(float(dark[shown % total]), 3), want, kept(exact_on, exact_off)]
+    check("Nhấp nháy vùng: at its darkest the exact frame's area is as dark as the renderer makes it (a sign at its "
+          "settings: about a fifth as bright), the rest as it is", shown == t and want < 0.35 and
+          abs(got[4] - want) < 0.05 and apart(exact_on, exact_off, far) < 3, str([round(v, 3) for v in got]))
+    if not edge:  # (the Chromium of Playwright plays no H.264: no video under the veil to compare)
+        return
+    got = [apart(live_on, exact_on, inner), apart(live_on, exact_on, far), kept(live_on, live_off), want]
+    check("Nhấp nháy vùng: at its darkest the live picture is the exact frame's: the area as dark, the rest as it is",
+          got[0] < 6 and got[1] < 6 and abs(got[2] - want) < 0.06, str([round(v, 3) for v in got]))
 
 
 def winter(page, shot, edge):
@@ -899,6 +914,42 @@ def chimneys(page, shot):
     check("Khói ống khói: its preview clip, see-through smoke over the whole frame (WebM, Normal)",
           laid == [True, "normal"], str(laid))
     shot("05k-chimneys")
+    page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
+
+
+def hearth(page, shot):
+    """Lửa lò sưởi: a box on the picture where the renderer puts it, its mark (where the fire burns: an ellipse on the
+    box's bottom edge, as wide as "Lửa rộng"), no turn; its preview clip made from the picture under the box, laid
+    just over the video (under every track)."""
+    from fx import effects as fx_effects
+    page.click('.tab[data-bin="fx"]')
+    page.dblclick('.tile[data-kind="hearth"]')
+    cid = page.evaluate("S.sel")
+    page.click("#fullBtn")
+    page.wait_for_timeout(300)
+    vw, vh = page.evaluate("[info().w, info().h]")
+    mk = page.evaluate("""(() => { const m = $('#xformMark').getBoundingClientRect(),
+        b = $('#xform').getBoundingClientRect(); return [$('#xform').style.display, $('#xformMark').className,
+        $('#xformMark').dataset.lab, $('#xformRot').style.display, $('#xform3d').style.display,
+        !!$('#ec [data-num="rot_x"]'), $('#ec').textContent.includes('không xoay 3D'), m.bottom - b.bottom,
+        m.width / b.width, m.height / m.width]; })()""")
+    box = page.evaluate(BOX)
+    x0, y0, w, h = fx_effects.box_of("hearth", page.evaluate(f"clipById('{cid}').params"), vw, vh)
+    check("Lửa lò sưởi: its box where the renderer puts it; the bed's mark on its bottom edge, as wide as the fire; no "
+          "turn", mk[:7] == ["block", "xmark dot", "chỗ lửa cháy (mặt củi)", "none", "none", False, True] and
+          abs(mk[7]) < 3 and abs(mk[8] - 0.7) < 0.03 and 0.05 < mk[9] < 0.15 and
+          all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])), str([mk, box, [x0, y0, x0 + w, y0 + h]]))
+    page.evaluate(f"(() => {{ clipById('{cid}').params.bed = 45; edited(); renderControls(); showXform(); }})()")
+    page.wait_for_timeout(300)
+    wide = page.evaluate("$('#xformMark').getBoundingClientRect().width / $('#xform').getBoundingClientRect().width")
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want && "
+                           f"S.els['{cid}']", timeout=300000)
+    page.evaluate("applyTime()")
+    laid = page.evaluate(f"""(() => {{ const e = S.els['{cid}']; return [e.media.getAttribute('src').includes('.webm'),
+        e.wrap.style.mixBlendMode, e.wrap.parentNode === $('#layers').firstChild]; }})()""")
+    check("Lửa lò sưởi: Lửa rộng sizes its mark; its preview clip (the picture under the box with the fire in it), laid "
+          "just over the video", abs(wide - 0.45) < 0.03 and laid == [True, "normal", True], str([wide, laid]))
+    shot("05l-hearth")
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 
@@ -1369,8 +1420,8 @@ def run(page, folder, edge):
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
-          glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "leaves", "foliage", "flicker",
-                    "lights", "garland"],  # (Hạt sáng no longer offered: an older project's clip of it still plays)
+          glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "hearth", "leaves", "foliage",
+                    "flicker", "lights", "garland"],  # (Hạt sáng no longer offered: an older project's clip still plays)
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
@@ -1720,7 +1771,8 @@ def run(page, folder, edge):
 
     # the picture itself: the live preview and the exact frame agree inside the turned clip
     turn(dict(rot_x=30, rot_y=-25, rot_z=10, persp=50))
-    page.evaluate("(async () => { S.sel = null; renderControls(); showXform(); await saveNow(); })()")
+    # (nothing chosen: no white box, no green of a painted area over the picture)
+    page.evaluate("(async () => { S.sel = null; renderControls(); showXform(); drawArea(); await saveNow(); })()")
     page.wait_for_timeout(500)
     page.evaluate("exact.style.visibility = 'hidden'")  # the live preview alone
     page.wait_for_timeout(300)
@@ -1918,6 +1970,7 @@ def run(page, folder, edge):
     winter(page, shot, edge)
     garland(page, shot)
     chimneys(page, shot)
+    hearth(page, shot)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

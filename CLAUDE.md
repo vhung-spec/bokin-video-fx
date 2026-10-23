@@ -71,9 +71,9 @@ hiệu ứng. Cách dùng: `README.md`.
   Tạo sẵn, chủ yêu cầu 2026-10-23; clip của dự án cũ vẫn chạy, CI còn dùng nó), và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
-  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/frost.py`, `fx/lights.py`,
-  `fx/garland.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói ống khói, lửa nến, tuyết bám kính, dây đèn, dây đèn tự
-  vẽ, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
+  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/hearth.py`, `fx/frost.py`,
+  `fx/lights.py`, `fx/garland.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói ống khói, lửa nến, lửa lò sưởi, tuyết
+  bám kính, dây đèn, dây đèn tự vẽ, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
   nồi; và ống khói, chỉ dùng cho Khói ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn:
   `edge`, `side`; `preset` của kiểu đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
@@ -179,6 +179,22 @@ hiệu ứng. Cách dùng: `README.md`.
   khói đang chọn, Esc thôi đặt (`act`: `deleteClip`). Khói kiểu "Khói ống khói" của hiệu ứng Khói (1.0.60 tới 1.0.62)
   không còn trong danh sách kiểu khói: clip cũ thành clip `chimney` (`steam.moved`, `chimney.from_steam`: một ống khói
   ở chỗ hình bầu dục cũ trên khung, cả khi đã xoay 3D; "Khói bay cao" theo `rim` cũ).
+- Lửa lò sưởi (`fx/hearth.py`, mã loại `hearth`, từ 1.0.67): hiệu ứng đặt một chỗ như nến (`BOX` 4:3, lens, `UNDER`:
+  clip xem nhanh là hình dưới hộp có lửa, không xoay). Hình bầu dục `mark` ở đáy hộp (thông số `bed`) là mặt củi. Ngọn
+  lửa là mô phỏng chất lưu nhỏ (stable fluids) trên lưới riêng của hộp (`GRID` 192x144, `_Fluid`: nhiên liệu nạp ở vài
+  chỗ cháy trong hình bầu dục, mỗi chỗ cháy to nhỏ theo nhịp riêng, cháy thành nhiệt (bốc lên) và ánh lửa (mờ nhanh),
+  xoáy giữ bằng vorticity confinement, áp suất Jacobi trên dải ô liền (`_project`), ánh lửa và nhiên liệu chở bằng
+  MacCormack (mép lửa sắc), mọi trường float32): `RATE` bước một giây lửa dù fps bao nhiêu, nên hộp đứng một mình và cả
+  khung cho cùng ngọn lửa. Lửa làm lần lượt từng khung, chỉ tới khung được hỏi (`_Fire`: khởi động `WARM` giây, giữ căn
+  bậc hai ánh lửa 8 bit, cả giây trước khung 0; dừng hình giữa vòng không phải chờ cả vòng), giữ cho clip sau cùng thông
+  số (`fire()`, `_FIRES` tới `KEEP` byte); loop bằng hoà dần: giây cuối của vòng trộn dần sang các khung trước khung 0,
+  nên khung P là khung 0. Mỗi tiến trình (các đoạn khi xuất video) tự làm lửa từ đầu, giống hệt nhau (test). Màu lửa đo
+  từ video lửa củi thật (`PAL`, bảng tra `_lut`), quầng sáng tính trên lưới thô (`_halo`), Screen; chân lửa là một đường
+  gợn trong hình bầu dục (`_floor_at`), không là một đường thẳng; than hồng (`_ember_field`); ánh lửa hắt lên lò nhân
+  vào hình (không thành sương), sáng tối theo lửa lúc đó (mức sáng so với trung bình đo lúc khởi động); "Che lửa cũ"
+  (`cover`): chỗ sáng ấm hay trắng của lửa đứng yên trong video thành ánh mờ cùng màu đã làm nhoè (`DIM`). Hằng số và
+  bản đồ theo hộp giữ giữa các khung (`_layout`). Chỉ các thông số của ngọn lửa (`k`) làm lại lửa; màu, ánh sáng, chỗ
+  đặt thì không.
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D
