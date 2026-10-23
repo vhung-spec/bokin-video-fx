@@ -237,31 +237,41 @@ hiệu ứng. Cách dùng: `README.md`.
 - Chim bồ câu (`fx/pigeons.py`, mã loại `pigeons`, từ 1.0.71; làm lại 1.0.72, chủ yêu cầu 2026-10-23 kèm ảnh bồ câu trên
   vỉa hè: chỉ trên mặt đất, thỉnh thoảng cúi mổ hạt, trông thật): hiệu ứng đặt một chỗ (`BOX` 16:9), vẽ đè (clip xem
   nhanh WebM trong suốt, `PREVIEW` 1280), không xoay, `LIT` như khói (`light_at`, `rounded_light`: chỗ khung đứng). Thân
-  là một khối liền: các ellipsoid (`BODY`: ức, thân, bụng, phao câu, hai cánh xếp (quay vào trong: đầu cánh gặp nhau
-  trên đuôi, nhìn từ sau thân thon dần vào đuôi), đuôi, đuôi xoè `fan`, đầu cánh nằm trên đuôi; rồi cổ, đầu) hoà vào
-  nhau bằng smooth union (smin đa thức của Inigo Quilez, `BLEND`; đầu cánh, đuôi xoè ít hơn: `TIGHT`, đuôi không dày
-  lên); phần nhỏ (mỏ, mũi, chân, ngón) là ellipsoid gặp thẳng. Máy quay xa nhìn xuống `tilt` (tia song song), chỉ tia
-  trong hộp của các phần trên hình; mỗi tia đi tới mặt hợp thường của các ellipsoid rồi khép vào mặt liền
-  (`_Body.march`, false position: mặt liền nằm ngoài nó không quá `NEAR`, đo trên thân: chỗ nhiều phần gặp nhau như phao
-  câu phồng hơn `BLEND`/4; tia lướt qua đuôi mỏng tìm chỗ đổi dấu đầu tiên từ `near`; tia trượt sát mặt hợp cũng dò).
-  Phần của mỗi ellipsoid trong khoảng cách liền (`shares`, theo đạo hàm của smin) cho cả pháp tuyến và màu lông: không
-  đường nối. Màu lông tính tại điểm chạm (`_albedo`: đầu xám, cổ ánh xanh lá nhìn thẳng, tím nhìn xiên, ức tím xám, lưng
-  và cánh xếp nhạt hơn sườn, hai vạch đen nửa sau cánh, đầu cánh sẫm trên đuôi, dải đen cuối đuôi, mắt cam nhỏ, mũi
-  trắng, chân đỏ; `COATS` xám, xám đen, nâu đỏ, trắng; `Coat`: đốm `checker`, loang trắng `pied`, vân lông `grain`;
-  `MIXED` như đàn chim phố; hoa văn mờ theo cỡ điểm ảnh, `_fade`: không lấp lánh). Lông (từ 1.0.73, chủ: "cần đẹp và
-  giống thật hơn"; `_feathers`: hàng lông chồng lên nhau, mỗi chiếc sáng dần về đầu lông, chân lông khuất trong bóng
-  chiếc trước, mép đầu lông nhạt; lông phủ nhỏ trên lưng và nửa trước cánh, đốm của bồ câu có đốm nằm gần đầu mỗi chiếc
-  lông phủ; lông cánh dài nghiêng theo vạch cánh; lông đuôi và đầu cánh dài xếp chồng; lông mịn mờ trên ức, sườn; mờ hẳn
-  khi mỗi hàng nhỏ hơn vài điểm ảnh). Lông mềm như nhung: sáng hơn một chút chỗ mặt nhìn xiên (`rim`). Chân to hơn, ba
-  ngón mỗi chân (một ngón quay sau), đỏ san hô. `VERSION` 3. Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh,
-  `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
-  mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao
-  khung (`SOFTEST`), không theo cỡ chim: chim to gần máy quay không nhoè hơn chim nhỏ; xem nhanh và video xuất như nhau.
-  Bóng: hai ellipse (đậm ngay dưới thân; rộng, mềm, lệch khỏi nguồn sáng). Mỗi con một ngày trong vòng loop (`Walker`,
-  đoạn `[loại, bắt đầu, dài, số lần mổ]`: đi, đứng ngó, mổ 1–3 cái; "Mổ hạt" `peck` là `hungry`, 0 không mổ; `reach()`:
-  cúi `DOWN`, mỗi cái `PECKING`, ngẩng `UP`, mỏ chạm đất `PECK`, đuôi nhấc; đường đi khép kín, đi hết đúng số vòng mỗi
-  loop nên khung P là khung 0; đường nhỏ hơn `room` thì đi nhiều vòng): chân trụ đứng yên trên đất, chân kia bước tới
-  (`STRIDE`), đầu giữ yên rồi vươn tới mỗi bước; chỗ của mỗi con (`_home`) giữ cả đường đi trong khung; xa (đỉnh khung)
+  là một khối liền: các ellipsoid (`BODY`: ức, thân, bụng, phao câu, hai cánh xếp phủ hai bên sườn, đuôi, đuôi xoè
+  `fan`, lông cánh chính `prim` mỗi bên một tấm (quay vào trong: đầu gặp nhau trên đuôi, nhìn từ sau thân thon dần vào
+  đuôi); rồi cổ, đầu) hoà vào nhau bằng smooth union (smin đa thức của Inigo Quilez, `BLEND`; đầu cánh, đuôi xoè ít hơn:
+  `TIGHT`, đuôi không dày lên); phần nhỏ (mỏ, mũi, chân, ngón) là ellipsoid gặp thẳng. Máy quay xa nhìn xuống `tilt`
+  (tia song song), chỉ tia trong hộp của các phần trên hình; mỗi tia đi tới mặt hợp thường của các ellipsoid rồi khép
+  vào mặt liền (`_Body.march`, false position: mặt liền nằm ngoài nó không quá `NEAR`, đo trên thân: chỗ nhiều phần gặp
+  nhau như phao câu phồng hơn `BLEND`/4; tia lướt qua đuôi mỏng tìm chỗ đổi dấu đầu tiên từ `near`; tia trượt sát mặt
+  hợp cũng dò). Phần của mỗi ellipsoid trong khoảng cách liền (`shares`, theo đạo hàm của smin) cho cả pháp tuyến và màu
+  lông: không đường nối. Màu lông tính tại điểm chạm, mỗi phần theo chỗ của điểm trên chính phần đó lúc chim đi
+  (`_RESTING`, `_part_colour`: hoa văn đi theo phần ở mọi dáng; trộn theo `shares` mũ 4: màu mỗi phần rõ, chỗ giáp vẫn
+  mượt) (`_albedo`: đầu xám, cổ ánh xanh lá nhìn thẳng, tím nhìn xiên và ở chân cổ, ánh tím tràn ra ức, lưng quanh chân
+  cổ (`HOOD`: cách ellipsoid cổ bao nhiêu); ức, lưng nhạt, sườn sẫm hơn (`_body_colour`); cánh (`_wing_colour`, hoa văn
+  đặt theo khoảng cách từ đầu cánh, `WING`: cánh dài ra khi đứng thẳng thì vạch không trôi): lông phủ nửa trước, hai
+  vạch đen to nghiêng (đầu dưới ra trước) chỉ ở mặt ngoài cánh (nhìn từ sau không thành vòng), viền trắng sau mỗi vạch,
+  lông cánh chính sẫm phía sau; lông cánh chính `prim` sẫm nhất ở mép trên; dải đen cuối đuôi, mắt cam, mũi trắng, chân
+  đỏ; `COATS` xám, xám đen, nâu đỏ, trắng; `Coat`: đốm `checker`, loang trắng `pied`, vân lông `grain`; `MIXED` như đàn
+  chim phố; hoa văn mờ theo cỡ điểm ảnh, `_fade`: không lấp lánh). Lông (từ 1.0.73, chủ: "cần đẹp và giống thật hơn";
+  `_feathers`: hàng lông chồng lên nhau, mỗi chiếc sáng dần về đầu lông, chân lông khuất trong bóng chiếc trước, mép đầu
+  lông nhạt; lông phủ nhỏ trên lưng và nửa trước cánh, đốm của bồ câu có đốm nằm gần đầu mỗi chiếc lông phủ; lông cánh
+  dài nghiêng theo vạch cánh; lông đuôi và đầu cánh dài xếp chồng; lông mịn mờ trên ức, sườn; mờ hẳn khi mỗi hàng nhỏ
+  hơn vài điểm ảnh). Lông mềm như nhung: sáng hơn một chút chỗ mặt nhìn xiên (`rim`). Chân to hơn, ba ngón mỗi chân (một
+  ngón quay sau), đỏ san hô. `VERSION` 3. Từ 1.0.74 (chủ gửi ảnh bồ câu đứng, nhìn ngang: "tôi muốn chim bồ câu như
+  này"): đứng thẳng như ảnh, cánh xếp to phủ sườn, lông cánh chính hai bên dọc lưng xuống đuôi, cổ tím ở chân, mắt to
+  hơn, ngón dài hơn, chân mảnh hơn, mỏ ngắn hơn, mũi trắng rõ; `VERSION` 4. Chim dài từ `DETAIL` điểm ảnh: một tia mỗi
+  điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần nhất từ `SMALLEST` tới `LARGEST` chiều cao khung
+  (theo hàm mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần
+  chiều cao khung (`SOFTEST`), không theo cỡ chim: chim to gần máy quay không nhoè hơn chim nhỏ; xem nhanh và video xuất
+  như nhau. Bóng: hai ellipse (đậm ngay dưới thân; rộng, mềm, lệch khỏi nguồn sáng). Mỗi con một ngày trong vòng loop
+  (`Walker`, đoạn `[loại, bắt đầu, dài, số lần mổ]`: đi, đứng ngó, mổ 1–3 cái; đứng ngó thì đứng thẳng lên, ưỡn ngực,
+  cụp đuôi như ảnh bồ câu chủ gửi 2026-10-23 (`Pose.tall`: mỗi phần đi dần từ `BODY` tới `BODY_UP`, khớp theo đường viền
+  ảnh đó; chân cổ `NECK_UP`, đầu `HEAD_UP`); đi thì thân hơi ngửa `WALK_UP`, đuôi hơi vểnh (`Pose.tail`: quanh
+  `TAIL_AT`, `TAILS`); "Mổ hạt" `peck` là `hungry`, 0 không mổ; `reach()`: cúi `DOWN`, mỗi cái `PECKING`, ngẩng `UP`, mỏ
+  chạm đất `PECK`, đuôi nhấc; đường đi khép kín, đi hết đúng số vòng mỗi loop nên khung P là khung 0; đường nhỏ hơn
+  `room` thì đi nhiều vòng): chân trụ đứng yên trên đất, chân kia bước tới (`STRIDE`), đầu giữ yên rồi vươn tới mỗi
+  bước; chỗ của mỗi con (`_home`) giữ cả đường đi trong khung (chừa chỗ phía trên cho chim đứng thẳng); xa (đỉnh khung)
   nhỏ hơn theo "Gần xa". Đậu trên gờ: đáy khung là gờ, đi qua lại dọc gờ, quay đầu theo nửa vòng hẹp ở hai đầu (`TURN`).
   Không bay nữa: clip bay (`flock`, `pass`) của 1.0.71 thành `ground` (`clean_params`: lựa chọn không còn thì về mặc
   định). `VERSION` 2: clip xem nhanh làm lại. Mọi thứ cắt ở mép khung (`_inside`: clip xem nhanh chỉ là cái khung).
