@@ -165,7 +165,8 @@ Kéo đường kẻ giữa các vùng để đổi cỡ.
 | Nhân đôi (nhân bản) | Nút **Nhân đôi** trong Bảng chỉnh hiệu ứng, hoặc bấm chuột phải vào clip: bản sao nối ngay sau. Giữ `Alt` rồi kéo clip: bản sao đặt ở chỗ thả |
 | Chép sang track khác | Nút **Chép sang track…** (hoặc chuột phải vào clip), chọn V2, V3… hay **Track mới**: bản sao cùng thời điểm, cùng thông số và vùng riêng |
 | Sao chép, dán (cả sang dự án khác) | Chọn clip, `Ctrl+C`. Đặt đầu phát, để chuột trên track muốn dán, `Ctrl+V`; hoặc chuột phải vào chỗ trống trên track: **Dán … vào đây**. Mở dự án khác rồi dán cũng được (vùng riêng chép theo chỗ trên khung hình) |
-| Dán thiết lập (Paste Attributes) | Chọn clip đã chỉnh, `Ctrl+C`. Chọn clip khác, `Ctrl+Alt+V` (hoặc nút **Dán thiết lập…**): tích màu sắc, vị trí và cỡ, xoay 3D, hoà trộn, mờ dần…, dán vào clip đó hoặc mọi clip cùng loại. Clip khác loại: chỉ vị trí, cỡ, xoay, mờ dần |
+| Dán thiết lập (Paste Attributes) | Chọn clip đã chỉnh, `Ctrl+C`. Chọn clip khác, `Ctrl+Alt+V` (hoặc nút **Dán thiết lập…**): tích màu sắc, vị trí và cỡ, xoay 3D, hoà trộn, mờ dần…, và **Vùng đã tô** nếu clip đã chép có vùng, dán vào clip đó hoặc mọi clip cùng loại. Clip khác loại: chỉ vị trí, cỡ, xoay, mờ dần và vùng |
+| Chép vùng sang clip khác | Chọn clip đã tô vùng, bấm **Chép vùng** (dưới **Vẽ vùng** trong Bảng chỉnh hiệu ứng, hoặc chuột phải vào clip). Chọn clip khác, hiệu ứng khác cũng được, bấm **Dán vùng**: vùng của nó thành đúng vùng vừa chép (thay vùng đang có). Sang dự án khác: vùng theo chỗ trên khung hình. `Ctrl+Z` để bỏ |
 | Xoá clip | Chọn clip rồi bấm `Delete` |
 | Hoàn tác / làm lại | `Ctrl+Z` / `Ctrl+Y` (hoặc `Ctrl+Shift+Z`), hoặc hai nút mũi tên cong ở đầu thanh timeline. Hoàn tác được cả vùng đã vẽ (cả lần vẽ là một bước) |
 | Ẩn một track | Bấm hình con mắt ở đầu track (bấm lại để hiện) |
@@ -192,6 +193,11 @@ hiện trong cột đó, hình không bị thu nhỏ.
 
 Vùng của một clip lúc đầu là cả khung hình. Nét tô (hoặc vùng khoanh) đầu tiên thay cả khung hình bằng chỗ bạn tô.
 Mép mềm của vùng clip nằm bên trong đường viền xanh: ra ngoài đường viền là không còn gì của clip.
+
+**Chép vùng sang clip khác**: vùng đã tô cho một clip dùng lại được cho clip khác, hiệu ứng khác cũng được (ví dụ cùng
+một ô cửa sổ cho mưa trên kính và tuyết bám kính, cùng một biển hiệu cho hai kiểu nhấp nháy). Chọn clip đã tô, bấm
+**Chép vùng** (dưới **Vẽ vùng** trong Bảng chỉnh hiệu ứng, hoặc chuột phải vào clip trên timeline). Chọn clip kia, bấm
+**Dán vùng**. Hoặc dùng **Dán thiết lập** (`Ctrl+Alt+V`) và tích **Vùng đã tô**. `Ctrl+Z` để bỏ.
 
 ### Phím tắt
 
@@ -309,25 +315,25 @@ xem nhanh; trong lúc chờ, bản cũ vẫn phát.
 ### Nhấp nháy vùng
 
 Làm một chỗ có sẵn trong video sáng tối nhấp nháy: quả bí ngô có nến bên trong, đèn lồng, lò sưởi, cửa sổ có ánh nến,
-biển hiệu quảng cáo, chữ đèn neon. Chỉ chỗ bạn tô mới nhấp nháy.
+biển hiệu quảng cáo, chữ đèn neon. Chỉ đúng chỗ bạn tô nhấp nháy: cả chỗ tô tối đi rồi sáng lại như trong video, mọi
+chỗ trong đó như nhau, màu và hình giữ nguyên (không méo, không lệch màu); ngoài chỗ tô không đổi gì.
 
 1. Bấm **Tạo sẵn** → **Nhấp nháy vùng**, kéo xuống một track trống, bấm **Suốt video**.
-2. Bấm **Vẽ vùng** (nút có hình bút chì), tô lên chỗ cần nhấp nháy, ví dụ quả bí ngô hay chữ của biển hiệu. Tô cả mặt
-   bàn, bức tường quanh nó (chỗ ánh sáng của nó chiếu tới) để ánh sáng trên đó cũng nháy theo. Chỗ tối trong vùng tô
-   gần như không đổi, nên tô rộng ra cũng không lộ vùng tô. Bấm **Xong**. Chưa tô thì chưa có gì nhấp nháy.
+2. Bấm **Vẽ vùng** (nút có hình bút chì), tô đúng chỗ cần nhấp nháy, ví dụ quả bí ngô hay chữ của biển hiệu. Muốn ánh
+   sáng trên mặt bàn, bức tường quanh nó cũng nháy theo thì tô cả chỗ đó. Bấm **Xong**. Chưa tô thì chưa có gì nhấp
+   nháy. Đã tô vùng đó cho một clip khác rồi thì chép sang được: **Chép vùng**, **Dán vùng** (mục **Vẽ vùng** ở
+   trên).
 3. Chọn **Kiểu nháy**:
-   - **Ánh nến lung linh** (bí ngô, đèn lồng), **Lửa bập bùng** (lò sưởi, đống lửa): sáng hơn rồi tối hơn quanh độ
-     sáng trong video. Nến tối đi thì chỗ cháy sáng trắng trong ảnh hiện màu cam, như nến thật.
+   - **Ánh nến lung linh** (bí ngô, đèn lồng), **Lửa bập bùng** (lò sưởi, đống lửa): phần lớn thời gian sáng như trong
+     video, chốc chốc tối đi, thỉnh thoảng tối sâu một chút rồi sáng lại.
    - **Sáng mờ dần (như thở)**: sáng như trong video rồi mờ dần, sáng lại.
-   - **Bật tắt đều** (biển hiệu, đèn nháy): sáng như trong video, rồi tắt hẳn, đều nhịp.
+   - **Bật tắt đều** (biển hiệu, đèn nháy): sáng như trong video, rồi tắt, đều nhịp.
    - **Chập chờn** (đèn, biển neon hỏng): sáng đều, thỉnh thoảng nháy tắt mấy cái liền, có lúc tắt một lúc rồi mới
      sáng lại.
    - **Sáng lần lượt** (chữ biển hiệu): sáng dần từ đầu này sang đầu kia, sáng cả biển một lúc, nháy hai cái rồi tắt,
      lặp lại. Chọn **Hướng sáng lần lượt**: trái sang phải, phải sang trái, trên xuống dưới, dưới lên trên.
-   Biển hiệu tắt thì chữ và quầng sáng quanh chữ về đúng màu bức tường sau nó.
-4. Chỉnh thêm nếu cần: **Độ nháy** (biển hiệu: càng cao lúc tắt càng tối), **Tốc độ**, **Chỗ sáng nháy nhiều hơn** (chỗ
-   sáng nháy rõ, chỗ tối gần như yên; kéo về 0 thì cả vùng tô nháy như nhau), **Ấm lên khi sáng, đỏ đi khi tối** (biển
-   hiệu để 0), **Mép mềm** (vùng nhấp nháy mềm dần từ mép vào).
+4. Chỉnh thêm nếu cần: **Độ nháy** (lúc tối, tối đi bao nhiêu: 100 là tối hẳn), **Tốc độ**, **Mép mềm** (vùng nhấp
+   nháy mềm dần từ mép vào).
 
 Sau khi tô, app cần một lúc để làm bản xem nhanh; xong rồi thì lúc phát thấy đúng như video xuất ra.
 

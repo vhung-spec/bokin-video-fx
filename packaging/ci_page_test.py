@@ -502,6 +502,76 @@ def foliage(page, shot):
     shot("05h-foliage")
 
 
+def flicker(page, edge):
+    """Nhấp nháy vùng (the clip just added, selected): over the whole video, a sign blinking; its area painted, its
+    preview clip is made (a black veil: nothing of the picture in it), laid just over the video, and the live
+    preview counts as exact; on Edge (it plays the video under it) the live picture at its darkest is the exact
+    frame's, the area as dark, the rest untouched."""
+    fl = page.evaluate("S.sel")
+    page.click("#fullBtn")
+    page.select_option('#ec select[data-param="mode"]', "pulse")
+    page.wait_for_timeout(300)
+    page.wait_for_function(f"S.fx['{fl}'] && S.fx['{fl}'].ready && S.fx['{fl}'].shown", timeout=300000)
+    empty = page.evaluate(f"S.fx['{fl}'].shown")
+    page.click("#paintArea")  # an outline (in a real video: the sign)
+    page.keyboard.press("l")
+    box = page.locator("#screen").bounding_box()
+    outline = [(0.12, 0.28), (0.42, 0.28), (0.42, 0.72), (0.12, 0.72)]
+    for fx_, fy_ in outline:
+        page.mouse.click(box["x"] + box["width"] * fx_, box["y"] + box["height"] * fy_)
+        page.wait_for_timeout(150)
+    page.click("[data-done]")
+    page.evaluate("S.brush.tool = 'brush'")
+    page.wait_for_function(f"S.project.masks.includes('{fl}') && S.fx['{fl}'].want !== {json.dumps(empty)}",
+                           timeout=30000)
+    page.wait_for_function(f"S.fx['{fl}'].ready && S.fx['{fl}'].shown === S.fx['{fl}'].want && S.els['{fl}'] && "
+                           f"S.els['{fl}'].media.readyState >= 2", timeout=300000)
+    laid = page.evaluate(f"""(() => {{ const c = clipById('{fl}'), e = S.els['{fl}'];
+        return [e.wrap.parentNode === $('#layers').firstChild, e.media.getAttribute('src').includes('.webm'),
+                e.wrap.style.mixBlendMode, areaLive(c), !!(S.schema.lens[c.kind] && !areaLive(c))]; }})()""")
+    check("Nhấp nháy vùng: painting its area makes its preview clip, laid just over the video (under every track); "
+          "the live preview counts as exact", laid == [True, True, "normal", True, False], str(laid))
+    if not edge:  # (the Chromium of Playwright plays no H.264: no video under the veil to compare)
+        return
+    from fx import effects as fx_effects
+    from PIL import ImageFilter
+    vw, vh, total, rate, seed, params = page.evaluate(
+        f"[info().w, info().h, total(), fps(), clipById('{fl}').seed, clipById('{fl}').params]")
+    fx = fx_effects.make("flicker", params, seed, total, rate, vw, vh)
+    dark = fx.darkness(np.arange(total) / total)
+    t = int(np.argmax(np.minimum.reduce([np.roll(dark, k) for k in range(-3, 4)])))  # (off a few frames either side)
+    others = page.evaluate(f"S.project.layers.filter(c => c.id !== '{fl}' && c.on !== false).map(c => c.id)")
+
+    def switch(on):
+        page.evaluate(f"""(() => {{ for (const c of S.project.layers) c.on = {json.dumps(on)}.includes(c.id);
+            edited(); }})()""")
+        page.wait_for_timeout(600)
+    switch([fl])
+    page.evaluate(f"seek({t} / fps())")
+    page.wait_for_timeout(500)
+    on = live_and_exact(page, "05i-flicker-on")
+    switch([])
+    off = live_and_exact(page, "05i-flicker-off")
+    switch(others + [fl])
+    page.evaluate(f"select('{fl}')")
+    live_on, exact_on, live_off, exact_off = (np.asarray(Image.open(io.BytesIO(png)).convert("RGB"), np.float32)
+                                              for png in (*on, *off))
+    sh, sw = live_on.shape[:2]
+    area = Image.new("L", (sw, sh), 0)
+    ImageDraw.Draw(area).polygon([(x * sw, y * sh) for x, y in outline], fill=255)
+    inner = np.asarray(area.filter(ImageFilter.MinFilter(9))) > 0
+    far = ~(np.asarray(area.filter(ImageFilter.MaxFilter(61))) > 0)
+
+    def apart(a, b, where):
+        return float(np.abs(a - b).mean(axis=2)[where].mean())
+    kept = [float(a[inner].mean() / max(1e-6, float(b[inner].mean())))
+            for a, b in ((live_on, live_off), (exact_on, exact_off))]
+    got = [apart(live_on, exact_on, inner), apart(live_on, exact_on, far), apart(exact_on, exact_off, far)] + kept
+    check("Nhấp nháy vùng: at its darkest the live picture is the exact frame's: the area as dark (a sign at its "
+          "settings: a fifth as bright), the rest as it is", got[0] < 6 and got[1] < 6 and got[2] < 3 and
+          all(0.08 < k < 0.4 for k in kept) and abs(kept[0] - kept[1]) < 0.08, str([round(v, 3) for v in got]))
+
+
 def winter(page, shot, edge):
     """Frost on the pane and string lights on a tree: frost over the whole picture (a transparent WebM, Normal); the
     lights placed in a box (the white box on the picture, where the renderer puts it), light on black (H.264, Screen)
@@ -566,20 +636,24 @@ def winter(page, shot, edge):
     check("Nhấp nháy vùng: the panel says to paint its area first; its ways of flickering; no box, no turn",
           bool(warn[0]) and "nhấp nháy" in warn[0] and warn[1:] == [True, "none", False], str(warn))
     # its ways: a flame's, a lamp's or a sign's; a sign lit bit by bit has a way to be lit (shown only for it), and a
-    # sign's way sets its own colour and a deep dark
+    # sign's way sets a deep dark; only how dark and how fast (no colour, nothing that bends the picture)
     ways = page.evaluate("""[[...$('#ec select[data-param="mode"]').options].map(o => o.value),
         !!$('#ec select[data-param="way"]')]""")
     page.select_option('#ec select[data-param="mode"]', "sweep")
     page.wait_for_timeout(200)
-    sweep = page.evaluate("""(c => [!!$('#ec select[data-param="way"]'), c.params.warm, c.params.amount,
+    sweep = page.evaluate("""(c => [!!$('#ec select[data-param="way"]'), c.params.amount,
         [...$('#ec select[data-param="way"]').options].map(o => o.value)])(clipById(S.sel))""")
     page.select_option('#ec select[data-param="mode"]', "candle")
     page.wait_for_timeout(200)
-    candle = page.evaluate("""(c => [!!$('#ec select[data-param="way"]'), c.params.warm])(clipById(S.sel))""")
-    check("Nhấp nháy vùng: a flame's ways and a sign's; Sáng lần lượt shows which way it is lit, a sign's way its own "
-          "colour and a deep dark", ways == [["candle", "fire", "breathe", "pulse", "faulty", "sweep"], False]
-          and sweep == [True, 0, 80, ["right", "left", "down", "up"]] and candle == [False, 50],
-          str([ways, sweep, candle]))
+    candle = page.evaluate("""(c => [!!$('#ec select[data-param="way"]'), c.params.amount,
+        [...document.querySelectorAll('#ec input[type=range][data-param]')].map(e => e.dataset.param)
+        .filter(k => !k.startsWith('fade'))])(clipById(S.sel))""")
+    every = ["candle", "fire", "breathe", "pulse", "faulty", "sweep"]
+    check("Nhấp nháy vùng: a flame's ways and a sign's; Sáng lần lượt shows which way it is lit, a sign's way a deep "
+          "dark; only how dark, how fast and the rim to set", ways == [every, False]
+          and sweep == [True, 80, ["right", "left", "down", "up"]]
+          and candle == [False, 50, ["amount", "speed", "edge"]], str([ways, sweep, candle]))
+    flicker(page, edge)
     page.evaluate("deleteClip(clipById(S.sel)); edited()")
     shot("05i-winter")
 
@@ -1884,6 +1958,7 @@ def run(page, folder, edge):
     check("replace V1: its light copy", "proxy-" in state["src"], str(state))
     shot("07-replaced")
     match_and_copy(page, shot, lane_y, x_of)
+    copy_area(page, shot)
     save_project(page, shot)
     paste_elsewhere(page, lane_y, x_of)
     check("no script errors on the page", not errors, "\n".join(errors[:10]))
@@ -1975,6 +2050,59 @@ def match_and_copy(page, shot, lane_y, x_of):
     check("right-click on a track: Dán vào đây", got["tracks"] == tracks + 3 and
           (want == 0 or abs(got["start"] - fps) <= 0.3 * fps), str(got))
     shot("10-copies")
+
+
+def copy_area(page, shot):
+    """Chép vùng, Dán vùng: a clip's painted area onto a clip of another kind (the very same area, sent to the app);
+    Ctrl+Z gives it back the whole frame, Ctrl+Y the area again; Dán thiết lập offers the copied clip's area too
+    (ticked for a clip with none of its own), in the same one undo step as its settings."""
+    src = page.evaluate("S.project.layers.find(l => l.kind === 'snow').id")
+    dst = page.evaluate(f"""(() => {{ const c = S.project.layers.find(l => l.id !== '{src}' && l.kind !== 'snow' &&
+        S.masks[l.id] && S.masks[l.id].full); if (c) return c.id; addClip({{lib: S.lib[0].id}}, null, 0, 48);
+        return S.sel; }})()""")
+    page.evaluate(f"select('{src}')")
+    page.click("#paintArea")
+    page.keyboard.press("l")
+    box = page.locator("#screen").bounding_box()
+    for fx_, fy_ in [(0.55, 0.2), (0.85, 0.25), (0.8, 0.6), (0.6, 0.55)]:
+        page.mouse.click(box["x"] + box["width"] * fx_, box["y"] + box["height"] * fy_)
+        page.wait_for_timeout(150)
+    page.click("[data-done]")
+    page.evaluate("S.brush.tool = 'brush'")
+    page.wait_for_function(f"S.masks['{src}'] && !S.masks['{src}'].full && !S.masks['{src}'].empty", timeout=10000)
+    page.click("#copyArea")
+    page.evaluate(f"select('{dst}')")
+    alike = f"""(() => {{ const px = m => mctx(m).getImageData(0, 0, m.canvas.width, m.canvas.height).data;
+        const a = px(S.masks['{src}']), b = px(S.masks['{dst}']);
+        return [a.length === b.length && a.every((v, i) => v === b[i]), S.masks['{dst}'].full]; }})()"""
+    page.click("#pasteArea")
+    page.wait_for_function(f"S.project.masks.includes('{dst}')", timeout=30000)  # (the app has it)
+    pasted = page.evaluate(alike) + [page.evaluate("/vùng đã (vẽ|tô)/.test($('#ec').textContent)")]
+    shot("09c-copy-area")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(300)
+    undone = page.evaluate(alike)
+    page.keyboard.press("Control+y")
+    page.wait_for_timeout(300)
+    redone = page.evaluate(alike)
+    check("Chép vùng, Dán vùng: the area of a clip onto a clip of another kind, sent to the app; undone, done again",
+          pasted == [True, False, True] and undone == [False, True] and redone == [True, False],
+          str([pasted, undone, redone]))
+    page.keyboard.press("Control+z")
+    page.evaluate(f"select('{src}')")
+    page.keyboard.press("Control+c")
+    page.evaluate(f"select('{dst}')")
+    page.keyboard.press("Control+Alt+v")
+    page.wait_for_selector("#modalBox .pa")
+    ticked = page.evaluate("!!$('#paArea') && $('#paArea').checked")
+    page.click("#mGo")
+    page.wait_for_timeout(300)
+    pasted = page.evaluate(alike)
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(300)
+    undone = page.evaluate(alike)
+    check("Dán thiết lập: the copied clip's area too (ticked: the clip had none), undone with its settings",
+          ticked and pasted == [True, False] and undone == [False, True], str([ticked, pasted, undone]))
 
 
 def paste_elsewhere(page, lane_y, x_of):

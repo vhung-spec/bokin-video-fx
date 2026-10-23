@@ -144,16 +144,16 @@ hiệu ứng. Cách dùng: `README.md`.
   trang hỏi lại khi tô vùng của clip, đặt nó trong `underBox`; clip làm cho đúng vùng hiện tại thì xem nhanh là
   chính xác (`areaLive`: dừng hình không cần khung chính xác).
 - Nhấp nháy vùng (`fx/flicker.py`, mã loại `flicker`): lens trong vùng của clip như lá cây lay động (`AREA`, `UNDER`
-  không hộp, không xoay; "Mép mềm" của chính nó, mềm vào trong mép tô). Ánh sáng tuyến tính (gamma 2) nhân với mức sáng
-  theo thời gian (`level()`, mọi sóng, nháy, đợt chập chờn số nguyên lần mỗi loop). Lửa (nến: lung linh + thỉnh thoảng
-  chao; lửa) sáng tối quanh ánh sáng của video (`STRENGTH`); đèn, biển hiệu (`off`: thở, bật tắt đều, chập chờn
-  `_outages`, sáng lần lượt theo `way`) sáng như video rồi tối đi, tắt hẳn ở Độ nháy 100 (`DARK`; chọn kiểu đặt sẵn
-  `warm` 0, Độ nháy 80: `preset`). Chỉ phần ánh sáng của ngọn lửa / đèn đổi, phần của căn phòng giữ nguyên: lửa thì
-  phần của phòng sáng bằng chỗ tối của vùng (`_room`, `ROOM` theo `focus`), cùng màu của chỗ đó (bí ngô tối đi vẫn
-  cam); đèn, biển hiệu thì là bức tường quanh vùng (`_ring`, `_wall`: lúc tắt chữ và quầng sáng về đúng màu tường, gạch
-  vẫn là gạch). Vùng tô rộng không lộ ra. Chỗ cháy sáng trắng giữ nhiều ánh sáng hơn trắng (`KNEE`: nến tối đi thì
-  miệng bí ngô vàng trắng thành cam). Sáng lên thì trắng hơn, tối đi thì đỏ hơn (`WARM`: xanh dương theo nhiều nhất),
-  lửa lắc làm một bên sáng hơn (`sway`). Lời nhắc khi tô vùng và khi chưa tô lấy từ schema (`area_tip`, `area_empty`).
+  không hộp, không xoay; "Mép mềm" của chính nó, mềm vào trong mép tô). Chủ yêu cầu 2026-10-23: chỉ vùng tô nhấp nháy,
+  không làm méo hình (bản 1.0.62 đổi theo độ sáng từng chỗ: tường quanh chữ biển hiệu thành mảng phẳng, lộ hình vùng tô
+  trên mặt bàn). Nên cả vùng tối đi cùng một phần ánh sáng rồi về đúng như video (`veil()`: không đổi màu, không chỗ nào
+  hơn chỗ nào, không bao giờ sáng hơn video; chỉ mép mềm là ít hơn). Mức tối theo thời gian (`darkness()`, 0 như video
+  .. 1 tắt; mọi sóng, nháy, đợt chập chờn số nguyên lần mỗi loop): lửa (nến, lửa: `level()` quanh 0, lấy nửa tối bình
+  phương: phần lớn sáng như video, chập chờn, thỉnh thoảng tối sâu), đèn, biển hiệu (`off`: thở, bật tắt đều, chập chờn
+  `_outages`, sáng lần lượt theo `way`), nhân với "Độ nháy" (`depth`; chọn kiểu đặt sẵn: lửa, thở 50, biển hiệu 80:
+  `preset`). Clip xem nhanh là màn đen, alpha là phần ánh sáng mất (`VEIL`: `engine._area_part` không đọc video, tên
+  clip chỉ theo vùng tô `engine._veil_key`), nên xem nhanh đúng như video xuất ra ở mọi cỡ. Lời nhắc khi tô vùng và
+  khi chưa tô lấy từ schema (`area_tip`, `area_empty`).
 - Tuyết bám kính (`fx/frost.py`, mã loại `frost`): hiệu ứng vẽ đè (không lens: xem nhanh là chính xác), phủ cả hình,
   xoay được. Hoa băng làm một lần theo chiều cao khung (`_segments`: thân lượn, gai 50° hình lông chim, cành phụ, rẽ
   nhánh `_stem`; nửa số mọc từ mép, nửa từ trong lớp băng, hướng bất kỳ; "Cỡ hoa băng" `fern_k`: nhỏ thì nhiều hơn,
@@ -278,11 +278,15 @@ hiệu ứng. Cách dùng: `README.md`.
   video dán vẫn suốt video; mờ dần 0,5 giây nếu clip gốc nối liền (`joinFades` bỏ lại khi nối tiếp).
   "Dán thiết lập" (Paste Attributes, `Ctrl+Alt+V`, `pasteAttrsDialog`, `pasteAttrs`): thông số của `S.clip` theo nhóm
   như bảng chỉnh (`paramGroups`: clip file `FILE_GROUPS`, hiệu ứng tạo sẵn theo `group` của schema) và của clip
-  (`CLIP_GROUPS`: mờ dần; mép mềm vùng + sau tiền cảnh; không chép hình vùng). Khác loại: chỉ `SHARED_GROUPS` (vị trí và
-  cỡ, xoay 3D) và nhóm của clip. Giá trị kiểm theo schema của clip nhận (`fitValue`). Vào clip đang chọn hoặc mọi clip
-  cùng loại; một bước hoàn tác.
-- Hoàn tác: `S.hist` giữ timeline và cả lần vẽ vùng (mặt nạ trước/sau, chỉ 8 lần gần nhất). Phóng to hình:
-  `zoomPicture` (Ctrl +/-/0/1, `+` `-` khi chuột trên hình); Ctrl + lăn chuột không phóng cả trang.
+  (`CLIP_GROUPS`: mờ dần; mép mềm vùng + sau tiền cảnh), và hình vùng nếu clip đã chép có vùng (ô "Vùng đã tô",
+  `#paArea`: tích sẵn khi clip nhận chưa có vùng). Khác loại: chỉ `SHARED_GROUPS` (vị trí và cỡ, xoay 3D), nhóm của clip
+  và vùng. Giá trị kiểm theo schema của clip nhận (`fitValue`). Vào clip đang chọn hoặc mọi clip cùng loại; một bước
+  hoàn tác. "Chép vùng" / "Dán vùng" (chủ yêu cầu 2026-10-23; nút dưới Vẽ vùng, menu chuột phải của clip: `areaOf`,
+  `copyArea`, `putArea`, `pasteArea`): vùng đã tô của clip sang clip khác, mọi loại; `S.area` giữ cả khi mở dự án khác
+  (theo chỗ trên khung).
+- Hoàn tác: `S.hist` giữ timeline và cả lần vẽ vùng (mặt nạ trước/sau, hoặc danh sách nhiều mặt nạ khi dán vùng; chỉ
+  8 lần gần nhất). Phóng to hình: `zoomPicture` (Ctrl +/-/0/1, `+` `-` khi chuột trên hình); Ctrl + lăn chuột không
+  phóng cả trang.
 - Dời hình như Premiere (`layoutScreen`, `panBy`, `unfit`): `S.zoom` là `"fit"` (giữa, vừa khung) hoặc số điểm ảnh
   video trên một điểm màn hình, nhỏ tới 10% (`minScale`); `S.panX/Y` dời ở mọi mức (bàn tay `H`/`#handBtn`, chuột
   phải/giữa, phím cách, hai ngón trên bàn di chuột, Shift + lăn: `wheelPans`), luôn còn `PAN_KEEP` điểm của khung

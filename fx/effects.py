@@ -351,6 +351,9 @@ class Effect:
     # with the effect applied; only its change kept), laid with Normal: the live preview then shows what it does. A
     # placed one: the picture under its box; a full-frame one: the frame, the effect inside the clip's area (AREA)
     UNDER = False
+    # veil: an under effect that only darkens, by a share of each pixel's light that does not depend on what the
+    # pixel shows: its preview clip is a black veil (its alpha that share), nothing of the picture in it (veil())
+    VEIL = False
     # area: it works inside the clip's painted area only (rustling leaves: never the whole picture); with no area
     # (None: the whole frame) it changes nothing
     AREA = False

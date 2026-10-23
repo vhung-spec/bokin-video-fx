@@ -1013,7 +1013,8 @@ const S = {schema: null, state: null, project: null, lib: [], time: 0, playing: 
   jobsSeen: {}, bin: "lib", binSel: null, filter: "", els: {}, trackEls: {}, mixRole: {}, drag: null, dragItem: null, onlyBase: false,
   savedAt: 0, saveFailed: false, keymap: null, keys: {}, keyAll: new Set(), keyWait: null, keyMsg: null, keyTab: "keys", keyFind: "", guide: null,
   wireSag: 0.35,  // (Dây đèn tự vẽ: how much the next strand drawn hangs, 0..1)
-  stackW: 0};  // (Khói ống khói: how wide the next chimney put is, a share of the frame's width; 0: as a new one is)
+  stackW: 0,  // (Khói ống khói: how wide the next chimney put is, a share of the frame's width; 0: as a new one is)
+  area: null};  // (Chép vùng: a clip's area copied, kept while the page is open: areaOf())
 
 function fpsValue(fps) { const [a, b] = String(fps).split("/"); return (+a) / (+b || 1); }
 function info() { return S.project.video; }
@@ -1211,8 +1212,9 @@ async function sendSave(p) {  // the project as it is now, not as it was when th
   } catch (e) { if (S.project === p) S.saveFailed = true; fail(e); return false; }
 }
 
-// undo / redo: S.hist holds {tl: the timeline (snapshot), paint: null or a painting session's mask before and after};
-// strokes while painting have their own undo (undoPaint), the whole session is one step here
+// undo / redo: S.hist holds {tl: the timeline (snapshot), paint: null, or a painting session's mask before and after,
+// or a list of them (an area pasted onto clips)}; strokes while painting have their own undo (undoPaint), the whole
+// session is one step here
 function snapshot() { const p = S.project; return JSON.stringify({length: p.length, tracks: p.tracks, layers: p.layers}); }
 function remember() {
   if (!S.project) return;
@@ -1253,11 +1255,12 @@ function polyStep(redo) {
 function history(step) {
   const at = S.histAt + step;
   if (!S.project || at < 0 || at >= S.hist.length) return;
-  const area = (step < 0 ? S.hist[S.histAt] : S.hist[at]).paint;  // the step undone or done again painted a mask
+  const areas = [].concat((step < 0 ? S.hist[S.histAt] : S.hist[at]).paint || []);  // masks the step undone or done
+  // again painted
   S.histAt = at;
   undoState();
-  if (area && S.masks[area.name]) {
-    const m = S.masks[area.name];
+  for (const area of areas) {
+    const m = S.masks[area.name]; if (!m) continue;
     mctx(m).putImageData(step < 0 ? area.before : area.after, 0, 0);
     maskChanged(area.name, null);
   }
@@ -3180,6 +3183,8 @@ tlLanes.addEventListener("contextmenu", e => {
     ["Sao chép", () => copyClip(c), keyName("copyClip"), "copy"],
     ["Chép sang track…", () => trackMenu(c, x, y), "", "copy"],
     [S.clip ? `Dán thiết lập của "${S.clip.clip.name}"…` : "Dán thiết lập… (chưa chép clip nào)", () => pasteAttrsDialog(c), keyName("pasteAttrs"), "paste"],
+    ["Chép vùng", () => copyArea(c), "", "copy"],
+    [S.area ? `Dán vùng của "${S.area.name}"` : "Dán vùng (chưa chép vùng nào)", () => pasteArea(c), "", "paste"],
     [c.on === false ? "Bật clip" : "Tắt clip", () => { c.on = c.on === false; edited(); }, "", c.on === false ? "eye" : "eyeOff"],
     ...(clipBefore(c) ? [[c.mix > 0 ? "Bỏ Mix với clip trước" : "Mix với clip trước", () => setMix(c, c.mix > 0 ? 0 : 0.5), "", "mix"]] : []),
     ...(clipAfter(c) ? [[clipAfter(c).mix > 0 ? "Bỏ Mix với clip sau" : "Mix với clip sau", () => { const b = clipAfter(c); setMix(b, b.mix > 0 ? 0 : 0.5); }, "", "mix"]] : []),
@@ -3214,6 +3219,44 @@ function copyClip(c) {
   if (!c || !S.project) return toast("Hãy chọn một clip trước.", true);
   S.clip = clipboardOf(c); clipButtons();
   toast(`Đã chép "${c.name}". Dán clip: để chuột trên track muốn dán, đặt đầu phát rồi bấm ${keyName("pasteClip")} (hoặc chuột phải vào chỗ trống trên track). Chỉ lấy thiết lập (màu, cỡ, vị trí…): chọn clip khác rồi bấm ${keyName("pasteAttrs")}.`, false, 8000);
+}
+// a clip's area onto other clips (Chép vùng, Dán vùng; Dán thiết lập: "Vùng đã tô"), of any kind: where the copied
+// clip shows, they show (rustling leaves, a flicker: where they work). S.area is kept while the page is open: onto a
+// clip of another project too, where it was on the frame
+function areaOf(c) {  // a copy of the clip's own painted area (null: none, the whole frame)
+  const m = c && S.masks[c.id];
+  if (!m || m.full || m.empty) return null;
+  const area = document.createElement("canvas"); area.width = m.canvas.width; area.height = m.canvas.height;
+  area.getContext("2d").drawImage(m.canvas, 0, 0);
+  return area;
+}
+function copyArea(c) {
+  const area = areaOf(c);
+  if (!area) return toast("Clip này chưa tô vùng: bấm Vẽ vùng để tô trước.", true);
+  S.area = {project: S.project.id, name: c.name, area};
+  renderControls();
+  toast(`Đã chép vùng của "${c.name}". Chọn clip khác (hiệu ứng khác cũng được) rồi bấm Dán vùng.`, false, 6000);
+}
+function putArea(targets, area) {  // the area as these clips' own: [{name, before, after}] (their masks), for undo
+  if (S.paint) exitPaint();
+  const done = [];
+  for (const c of targets) {
+    const m = S.masks[c.id] || newMask(c.id, S.project), g = mctx(m), w = m.canvas.width, h = m.canvas.height;
+    const before = g.getImageData(0, 0, w, h);
+    g.clearRect(0, 0, w, h); g.drawImage(area, 0, 0, w, h);
+    done.push({name: c.id, before, after: g.getImageData(0, 0, w, h)});
+    maskChanged(c.id, null);  // (the live preview, the panel and the app follow)
+  }
+  return done;
+}
+function pasteArea(c) {  // one undo step
+  const src = S.area;
+  if (!c) return toast("Hãy chọn clip muốn dán vùng vào.", true);
+  if (!src) return toast("Chưa chép vùng nào: chọn clip đã tô vùng, bấm Chép vùng.", true);
+  pushHist({tl: snapshot(), paint: putArea([c], src.area)});
+  renderControls(); renderTimeline(); drawArea();
+  const elsewhere = src.project !== S.project.id ? " Vùng được chép theo chỗ trên khung hình: nếu cảnh khác, hãy tô lại vùng." : "";
+  toast(`Đã dán vùng của "${src.name}" vào "${c.name}".${elsewhere} ${keyName("undo")} để bỏ.`, false, elsewhere ? 7000 : 4000);
 }
 function clipButtons() {
   const c = $("#copyBtn"), v = $("#pasteBtn");
@@ -3308,7 +3351,7 @@ function pasteAttrsDialog(c) {
     <label><input type="radio" name="paTo" value="one" checked> Clip đang chọn: <b>${esc(c.name)}</b></label>
     ${all.length > 1 ? `<label><input type="radio" name="paTo" value="all"> Mọi clip ${esc(kindName)} trong dự án (${all.length} clip)</label>` : ""}
     <p>Thiết lập dán:</p>
-    <div class="groups">${groups.map((g, i) => `<label><input type="checkbox" data-pa="${i}" ${g.name === "Phát file" ? "" : "checked"}> ${esc(g.name)}</label>`).join("")}</div>
+    <div class="groups">${groups.map((g, i) => `<label><input type="checkbox" data-pa="${i}" ${g.name === "Phát file" ? "" : "checked"}> ${esc(g.name)}</label>`).join("")}${cb.area ? `<label><input type="checkbox" id="paArea" ${areaOf(c) ? "" : "checked"}> Vùng đã tô (chỗ hiệu ứng hiện)</label>` : ""}</div>
     ${src.kind !== c.kind ? `<p style="color:var(--dim)">Hai clip khác loại: chỉ dán được vị trí, cỡ, xoay, mờ dần và vùng.</p>` : ""}
     <div class="acts"><button id="mCancel">Huỷ</button><button class="primary" id="mGo">Dán</button></div></div>`;
   $("#modal").style.display = "flex";
@@ -3316,12 +3359,13 @@ function pasteAttrsDialog(c) {
   $("#mGo").onclick = () => {
     const chosen = groups.filter((g, i) => box.querySelector(`[data-pa="${i}"]`).checked);
     const to = box.querySelector('[name="paTo"]:checked').value === "all" ? all : [c];
+    const area = cb.area && box.querySelector("#paArea").checked ? cb.area : null;
     closeModal();
-    if (!chosen.length) return toast("Chưa chọn thiết lập nào để dán.", true);
-    pasteAttrs(src, to, chosen);
+    if (!chosen.length && !area) return toast("Chưa chọn thiết lập nào để dán.", true);
+    pasteAttrs(src, to, chosen, area);
   };
 }
-function pasteAttrs(src, targets, groups) {  // one undo step for all of them
+function pasteAttrs(src, targets, groups, area = null) {  // one undo step for all of them (area: its area too)
   let reversed = false;
   for (const c of targets) {
     const defs = new Map(S.schema.kinds[c.kind].params.map(d => [d.key, d]));
@@ -3338,9 +3382,12 @@ function pasteAttrs(src, targets, groups) {  // one undo step for all of them
       }
     }
   }
-  edited();
+  const painted = area ? putArea(targets, area) : null;
+  edited({remember: !painted});
+  if (painted) pushHist({tl: snapshot(), paint: painted});
   if (reversed) pollSoon();  // another file plays: its own copy
-  toast(`Đã dán thiết lập (${groups.map(g => g.name).join(", ")}) vào ${targets.length === 1 ? `"${targets[0].name}"` : targets.length + " clip"}. ${keyName("undo")} để bỏ.`, false, 5000);
+  const said = groups.map(g => g.name).concat(area ? ["Vùng đã tô"] : []).join(", ");
+  toast(`Đã dán thiết lập (${said}) vào ${targets.length === 1 ? `"${targets[0].name}"` : targets.length + " clip"}. ${keyName("undo")} để bỏ.`, false, 5000);
 }
 async function matchColours(c, btn) {  // "Khớp màu với cảnh": the app measures the scene under the clip (colourmatch.py)
   const p = S.project, label = btn.innerHTML;
@@ -4065,6 +4112,7 @@ function renderControls() {
     <div class="row"><div class="lab"><span>Hiệu ứng hiện ở</span><b>${where}</b></div></div>
     ${areaKind(c) && !painted ? `<p class="warn">${icon("warn", "lead")}${esc(sch.area_empty || "")}</p>` : ""}
     <div class="btns"><button class="small ${S.paint === c.id ? "on" : ""}" id="paintArea">${icon("pencil", "lead")}Vẽ vùng</button>${hasArea && !areaKind(c) ? '<button class="small" id="clearArea">Cả khung hình</button>' : ""}</div>
+    <div class="btns"><button class="small" id="copyArea" ${painted ? "" : "disabled"} title="Chép vùng đã tô của clip này, để dán sang clip khác (hiệu ứng khác cũng được)">${icon("copy", "lead")}Chép vùng</button><button class="small" id="pasteArea" ${S.area ? "" : "disabled"} title="${esc(S.area ? `Dán vùng của "${S.area.name}" vào clip này (thay vùng đang có)` : "Chưa chép vùng nào: chọn clip đã tô vùng, bấm Chép vùng")}">${icon("paste", "lead")}Dán vùng</button></div>
     ${areaKind(c) ? "" : slider("feather", "Độ mềm mép vùng (điểm ảnh)", c.feather || 0, 0, 200, 1, 'data-clipnum="feather"')}
     <label class="check"><input type="checkbox" id="behind" ${c.behind ? "checked" : ""}> Bay ra sau tiền cảnh (bị tiền cảnh che)</label>
     <h4>Clip</h4>
@@ -4149,6 +4197,8 @@ $("#ec").addEventListener("click", e => {
   if (!c) return;
   if (id === "paintArea") return S.paint === c.id ? exitPaint() : (enterPaint(c.id), renderControls());
   if (id === "clearArea") return clear(c.id, "all");
+  if (id === "copyArea") return copyArea(c);
+  if (id === "pasteArea") return pasteArea(c);
   if (id === "reseed") { c.seed = Math.floor(Math.random() * 2147483647); edited(); return; }
   if (id === "colourMatch") return matchColours(c, t);
   if (id === "wireDraw") return S.wire && S.wire.id === c.id ? stopWire() : startWire(c);

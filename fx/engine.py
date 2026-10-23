@@ -665,6 +665,12 @@ def _under_key(project, layer):
     return key + [feather, painted, picture or ["frame", still.get("frame", 0)]]
 
 
+def _veil_key(project, layer):
+    """What a veil's preview clip (Effect.VEIL: nothing of the picture under it) is made of: its area as painted."""
+    area = _area_painted(_folder_of(project), layer["id"])
+    return ["veil", area[0] if area else "nowhere"]
+
+
 def fx_clip_params(kind, params):
     """The settings its preview clip is made with: not its place or turn (the page lays the clip there, turned, so
     turning is instant and the clip's name stays), and a placed effect fills the clip (effects.sheet_params)."""
@@ -687,11 +693,11 @@ def fx_clip_name(project, layer):
         tone = effects.placed_light(layer["kind"], scene_light(_folder_of(project), project), p, info["w"], info["h"],
                                     rounded=True)
         at = [["at", [round(float(v), 6) for v in tone]]] if tone is not None else []
+    under = [p, (_veil_key if cls.VEIL else _under_key)(project, layer), 2] if cls.UNDER else []
     key = json.dumps([layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1),
                       project_frames(project), info["fps"],
                       fx_clip_frame(info, layer["kind"], layer)] + [cls.VERSION] * (cls.VERSION > 1)  # (1: as before)
-                     + ([p, _under_key(project, layer), 2] if cls.UNDER else [])
-                     + [["light", info.get("file")]] * lit + at, sort_keys=True)
+                     + under + [["light", info.get("file")]] * lit + at, sort_keys=True)
     alpha = cls.blend != "screen" or cls.UNDER  # (made from the picture under its box: soft edges)
     return f"fx-{hashlib.sha1(key.encode()).hexdigest()[:12]}" + (".webm" if alpha else ".mp4")
 
@@ -782,7 +788,8 @@ def _area_part(project, layer, total, folder, start, end, path):
     """fx_part of a full-frame effect made from the picture under the clip's area (Effect.UNDER without a box:
     rustling leaves): the video and its still area at the preview clip's size, the effect applied there inside the
     clip's own area, as Scene does; only its change is kept (change_rgba), so it sits on the video the page plays
-    under it, and lets the clips of lower tracks show where nothing changes."""
+    under it, and lets the clips of lower tracks show where nothing changes. A veil (Effect.VEIL: an area flickering
+    darker) is black, as see-through as the light it keeps: the video is not read."""
     info = project["video"]
     kind = layer["kind"]
     size = cw, ch = fx_clip_frame(info, kind)
@@ -793,17 +800,23 @@ def _area_part(project, layer, total, folder, start, end, path):
         rects = _bands_of(area > 0, 8)  # (change_rgba spreads its alpha a little)
     fx = effects.make(kind, fx_clip_params(kind, layer.get("params")), layer.get("seed", 1), total,
                       video.fps_value(info["fps"]), cw, ch)
-    # the video with its still area, no clips (nothing painted: an empty clip, the video not even read)
-    under = Scene(folder, dict(project, layers=[]), size, total) if rects else None
+    veil = bool(rects) and fx.VEIL
+    # the video with its still area, no clips (nothing painted, or a veil: the video not even read)
+    under = Scene(folder, dict(project, layers=[]), size, total) if rects and not veil else None
     writer = video.ClipWriter(path, cw, ch, info["fps"], True, getattr(fx, "PREVIEW_CRF", None), bt709=True)
     out = np.zeros((ch, cw, 4), np.uint8)  # (nothing changes outside the area: there it stays see-through)
-    bases = base_frames(folder, project, size, start, end) if rects else (None for _ in range(start, end))
+    bases = base_frames(folder, project, size, start, end) if under else (None for _ in range(start, end))
     try:
         for t, base in zip(range(start, end), bases):
             if _stopped():
                 writer.abort()
                 return False
-            if rects:
+            if veil:
+                v = fx.veil(t, area)
+                if v is not None:
+                    (x0, y0, x1, y1), dark = v
+                    out[y0:y1, x0:x1, 3] = (dark * 255.0 + 0.5).astype(np.uint8)
+            elif rects:
                 picture = np.asarray(under.image(t, base), np.float32) * (1 / 255.0)
                 # each band worked out with 8 rows round it (the alpha's spread reaches across bands), its own kept
                 before = [picture[max(0, y0 - 8):y1 + 8, x0:x1].copy() for x0, y0, x1, y1 in rects]
