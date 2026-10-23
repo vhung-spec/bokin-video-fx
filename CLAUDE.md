@@ -64,7 +64,8 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/library.py`: thư viện hiệu ứng dùng chung trong `%APPDATA%\Bokin\FX\library\<id>` (file gốc, ảnh nhỏ, bản nhẹ).
 - `fx/engine.py`: ghép một khung (video → vùng đứng yên → các clip theo track, mờ dần), kết xuất song song nhiều đoạn,
   khung chính xác cho trang (`Looks`), clip xem nhanh của hiệu ứng tạo sẵn (`fx_clip`), bản nhẹ của video gốc.
-- `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), hạt sáng, và danh sách `KINDS`
+- `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), hạt sáng (`glow`: đã bỏ khỏi thẻ
+  Tạo sẵn, chủ yêu cầu 2026-10-23; clip của dự án cũ vẫn chạy, CI còn dùng nó), và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`, `fx/frost.py`, `fx/lights.py`, `fx/garland.py`:
@@ -139,10 +140,16 @@ hiệu ứng. Cách dùng: `README.md`.
   trang hỏi lại khi tô vùng của clip, đặt nó trong `underBox`; clip làm cho đúng vùng hiện tại thì xem nhanh là
   chính xác (`areaLive`: dừng hình không cần khung chính xác).
 - Nhấp nháy vùng (`fx/flicker.py`, mã loại `flicker`): lens trong vùng của clip như lá cây lay động (`AREA`, `UNDER`
-  không hộp, không xoay; "Mép mềm" của chính nó, mềm vào trong mép tô). Nhân hình với mức sáng theo thời gian (`level()`:
-  tổng sóng số nguyên vòng mỗi loop; nến: lung linh + thỉnh thoảng chao, lửa, nhấp nháy đều, thở, đèn chập chờn), chỗ
-  sáng theo nhiều hơn (`focus`), sáng lên thì trắng hơn, tối đi thì đỏ hơn (`WARM`: xanh dương theo nhiều nhất), lửa
-  lắc làm một bên sáng hơn (`sway`). Lời nhắc khi tô vùng và khi chưa tô lấy từ schema (`area_tip`, `area_empty`).
+  không hộp, không xoay; "Mép mềm" của chính nó, mềm vào trong mép tô). Ánh sáng tuyến tính (gamma 2) nhân với mức sáng
+  theo thời gian (`level()`, mọi sóng, nháy, đợt chập chờn số nguyên lần mỗi loop). Lửa (nến: lung linh + thỉnh thoảng
+  chao; lửa) sáng tối quanh ánh sáng của video (`STRENGTH`); đèn, biển hiệu (`off`: thở, bật tắt đều, chập chờn
+  `_outages`, sáng lần lượt theo `way`) sáng như video rồi tối đi, tắt hẳn ở Độ nháy 100 (`DARK`; chọn kiểu đặt sẵn
+  `warm` 0, Độ nháy 80: `preset`). Chỉ phần ánh sáng của ngọn lửa / đèn đổi, phần của căn phòng giữ nguyên: lửa thì
+  phần của phòng sáng bằng chỗ tối của vùng (`_room`, `ROOM` theo `focus`), cùng màu của chỗ đó (bí ngô tối đi vẫn
+  cam); đèn, biển hiệu thì là bức tường quanh vùng (`_ring`, `_wall`: lúc tắt chữ và quầng sáng về đúng màu tường, gạch
+  vẫn là gạch). Vùng tô rộng không lộ ra. Chỗ cháy sáng trắng giữ nhiều ánh sáng hơn trắng (`KNEE`: nến tối đi thì
+  miệng bí ngô vàng trắng thành cam). Sáng lên thì trắng hơn, tối đi thì đỏ hơn (`WARM`: xanh dương theo nhiều nhất),
+  lửa lắc làm một bên sáng hơn (`sway`). Lời nhắc khi tô vùng và khi chưa tô lấy từ schema (`area_tip`, `area_empty`).
 - Tuyết bám kính (`fx/frost.py`, mã loại `frost`): hiệu ứng vẽ đè (không lens: xem nhanh là chính xác), phủ cả hình,
   xoay được. Hoa băng làm một lần theo chiều cao khung (`_segments`: thân lượn, gai 50° hình lông chim, cành phụ, rẽ
   nhánh `_stem`; nửa số mọc từ mép, nửa từ trong lớp băng, hướng bất kỳ; "Cỡ hoa băng" `fern_k`: nhỏ thì nhiều hơn,

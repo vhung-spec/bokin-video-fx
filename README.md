@@ -13,8 +13,9 @@ Premiere Pro:
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
   khoanh cho kỹ.
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
-- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói (cà phê, trà, nhang, nồi), lửa nến, lá rơi, lá cây lay động, đom đóm / bụi
-  sáng. App tự vẽ, chỉnh được mật độ, cỡ, gió…
+- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói (cà phê, trà, nhang, nồi, ống khói), lửa nến, lá rơi, lá cây
+  lay động, nhấp nháy vùng, tuyết bám kính, dây đèn. App tự vẽ, chỉnh được mật độ, cỡ, gió… (**Hạt sáng**, tức đom đóm /
+  bụi sáng, đã bỏ khỏi thẻ Tạo sẵn; clip Hạt sáng trong dự án cũ vẫn chạy như trước, không cần thì xoá clip đó.)
   - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
     dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt xa mảnh và rơi
     chậm, hạt gần to, nhanh và nhoè), màn mưa bay theo gió, hơi nước, chớp sáng. Khi có mặt đất trong hình (mục **Mặt
@@ -48,8 +49,8 @@ Premiere Pro:
   - **Khói** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói, lửa nến** bên dưới).
   - **Lá cây lay động**: bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió (xem mục **Lá cây lay động**
     bên dưới).
-  - **Nhấp nháy vùng**: một chỗ trong video sáng tối nhấp nháy, như quả bí ngô có nến bên trong, đèn lồng, lò sưởi
-    (xem mục **Nhấp nháy vùng** bên dưới).
+  - **Nhấp nháy vùng**: một chỗ trong video sáng tối nhấp nháy, như quả bí ngô có nến bên trong, đèn lồng, lò sưởi,
+    biển hiệu quảng cáo, đèn neon (xem mục **Nhấp nháy vùng** bên dưới).
   - **Tuyết bám kính**: băng giá bám quanh viền ô kính (hoa băng như lông chim, sương muối li ti, kính mờ đục), tuyết
     đọng ở mép dưới, bông tuyết đậu lên kính rồi tan, băng lấp lánh (xem mục **Tuyết bám kính** bên dưới).
   - **Dây đèn lấp lánh**: dây đèn nháy quấn quanh cây thông Noel, treo võng, rèm đèn (xem mục **Dây đèn lấp lánh**
@@ -287,16 +288,26 @@ xem nhanh; trong lúc chờ, bản cũ vẫn phát.
 
 ### Nhấp nháy vùng
 
-Làm một chỗ có sẵn trong video sáng tối nhấp nháy: quả bí ngô có nến bên trong, đèn lồng, lò sưởi, cửa sổ có ánh nến.
-Chỉ chỗ bạn tô mới nhấp nháy.
+Làm một chỗ có sẵn trong video sáng tối nhấp nháy: quả bí ngô có nến bên trong, đèn lồng, lò sưởi, cửa sổ có ánh nến,
+biển hiệu quảng cáo, chữ đèn neon. Chỉ chỗ bạn tô mới nhấp nháy.
 
 1. Bấm **Tạo sẵn** → **Nhấp nháy vùng**, kéo xuống một track trống, bấm **Suốt video**.
-2. Bấm **Vẽ vùng** (nút có hình bút chì), tô lên chỗ cần nhấp nháy, ví dụ quả bí ngô. Muốn ánh sáng trên mặt bàn
-   quanh nó cũng chập chờn theo thì tô cả chỗ đó. Bấm **Xong**. Chưa tô thì chưa có gì nhấp nháy.
-3. Chọn **Kiểu nháy**: **Ánh nến lung linh** (bí ngô, đèn lồng), **Lửa bập bùng** (lò sưởi, đống lửa), **Nhấp nháy
-   đều**, **Sáng mờ dần (như thở)**, **Đèn chập chờn** (sáng đều, thỉnh thoảng tắt vụt).
-4. Chỉnh thêm nếu cần: **Độ nháy** (sáng tối mạnh hay nhẹ), **Tốc độ**, **Chỗ sáng nháy nhiều hơn** (mắt, miệng bí ngô
-   nháy rõ, chỗ tối gần như yên), **Ấm lên khi sáng, đỏ đi khi tối**, **Mép mềm** (vùng nhấp nháy mềm dần từ mép vào).
+2. Bấm **Vẽ vùng** (nút có hình bút chì), tô lên chỗ cần nhấp nháy, ví dụ quả bí ngô hay chữ của biển hiệu. Tô cả mặt
+   bàn, bức tường quanh nó (chỗ ánh sáng của nó chiếu tới) để ánh sáng trên đó cũng nháy theo. Chỗ tối trong vùng tô
+   gần như không đổi, nên tô rộng ra cũng không lộ vùng tô. Bấm **Xong**. Chưa tô thì chưa có gì nhấp nháy.
+3. Chọn **Kiểu nháy**:
+   - **Ánh nến lung linh** (bí ngô, đèn lồng), **Lửa bập bùng** (lò sưởi, đống lửa): sáng hơn rồi tối hơn quanh độ
+     sáng trong video. Nến tối đi thì chỗ cháy sáng trắng trong ảnh hiện màu cam, như nến thật.
+   - **Sáng mờ dần (như thở)**: sáng như trong video rồi mờ dần, sáng lại.
+   - **Bật tắt đều** (biển hiệu, đèn nháy): sáng như trong video, rồi tắt hẳn, đều nhịp.
+   - **Chập chờn** (đèn, biển neon hỏng): sáng đều, thỉnh thoảng nháy tắt mấy cái liền, có lúc tắt một lúc rồi mới
+     sáng lại.
+   - **Sáng lần lượt** (chữ biển hiệu): sáng dần từ đầu này sang đầu kia, sáng cả biển một lúc, nháy hai cái rồi tắt,
+     lặp lại. Chọn **Hướng sáng lần lượt**: trái sang phải, phải sang trái, trên xuống dưới, dưới lên trên.
+   Biển hiệu tắt thì chữ và quầng sáng quanh chữ về đúng màu bức tường sau nó.
+4. Chỉnh thêm nếu cần: **Độ nháy** (biển hiệu: càng cao lúc tắt càng tối), **Tốc độ**, **Chỗ sáng nháy nhiều hơn** (chỗ
+   sáng nháy rõ, chỗ tối gần như yên; kéo về 0 thì cả vùng tô nháy như nhau), **Ấm lên khi sáng, đỏ đi khi tối** (biển
+   hiệu để 0), **Mép mềm** (vùng nhấp nháy mềm dần từ mép vào).
 
 Sau khi tô, app cần một lúc để làm bản xem nhanh; xong rồi thì lúc phát thấy đúng như video xuất ra.
 
@@ -382,14 +393,14 @@ clip đó nếu không cần.
 
 ### Xoay 3D (ghép hiệu ứng vào ô cửa nhìn chéo)
 
-Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, hạt sáng, nước trên kính, tuyết bám kính,
-khói, dây đèn lấp lánh),
+Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyết, mưa, lá rơi, nước trên kính, tuyết bám kính, khói, dây
+đèn lấp lánh),
 xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng khi cần đặt mưa, ánh sáng…
 nằm đúng một ô cửa kính nhìn từ một góc. Riêng **lửa nến** không xoay: ngọn lửa luôn bốc thẳng lên. **Lá cây lay động**
 cũng không xoay, không dời: nó làm động chính lá cây trong video, ngay tại chỗ. **Dây đèn tự vẽ** cũng không xoay: dây
 vẽ thẳng lên hình.
 
-Hiệu ứng tạo sẵn phủ cả hình (tuyết, mưa, lá, hạt sáng, nước trên kính, tuyết bám kính) giống như một tấm phim bằng đúng khung hình:
+Hiệu ứng tạo sẵn phủ cả hình (tuyết, mưa, lá, nước trên kính, tuyết bám kính) giống như một tấm phim bằng đúng khung hình:
 chọn clip là thấy khung trắng quanh cả khung hình. Cỡ 100%, ở giữa, không xoay: y như trước. Thu nhỏ, dời, xoay tấm
 phim đó như một ảnh ngoài; hạt rơi tới mép tấm phim thì bị cắt ở mép.
 
@@ -438,7 +449,7 @@ lọc màu). Clip dùng Screen (hiệu ứng trên nền đen) chỉ bị làm t
 
 ## Bản quyền hình và video
 
-Chỉ dùng video, ảnh và hiệu ứng mà công ty sở hữu hoặc có giấy phép. Hình lá, tuyết, mưa, đom đóm của app đều do mã
+Chỉ dùng video, ảnh và hiệu ứng mà công ty sở hữu hoặc có giấy phép. Hình lá, tuyết, mưa, khói, đèn của app đều do mã
 tự vẽ, không lấy từ đâu.
 
 ## Dữ liệu nằm ở đâu

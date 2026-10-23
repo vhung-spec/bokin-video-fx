@@ -565,6 +565,21 @@ def winter(page, shot, edge):
         $('#xform').style.display, !!$('#ec [data-num="rot_x"]')]""")
     check("Nhấp nháy vùng: the panel says to paint its area first; its ways of flickering; no box, no turn",
           bool(warn[0]) and "nhấp nháy" in warn[0] and warn[1:] == [True, "none", False], str(warn))
+    # its ways: a flame's, a lamp's or a sign's; a sign lit bit by bit has a way to be lit (shown only for it), and a
+    # sign's way sets its own colour and a deep dark
+    ways = page.evaluate("""[[...$('#ec select[data-param="mode"]').options].map(o => o.value),
+        !!$('#ec select[data-param="way"]')]""")
+    page.select_option('#ec select[data-param="mode"]', "sweep")
+    page.wait_for_timeout(200)
+    sweep = page.evaluate("""(c => [!!$('#ec select[data-param="way"]'), c.params.warm, c.params.amount,
+        [...$('#ec select[data-param="way"]').options].map(o => o.value)])(clipById(S.sel))""")
+    page.select_option('#ec select[data-param="mode"]', "candle")
+    page.wait_for_timeout(200)
+    candle = page.evaluate("""(c => [!!$('#ec select[data-param="way"]'), c.params.warm])(clipById(S.sel))""")
+    check("Nhấp nháy vùng: a flame's ways and a sign's; Sáng lần lượt shows which way it is lit, a sign's way its own "
+          "colour and a deep dark", ways == [["candle", "fire", "breathe", "pulse", "faulty", "sweep"], False]
+          and sweep == [True, 0, 80, ["right", "left", "down", "up"]] and candle == [False, 50],
+          str([ways, sweep, candle]))
     page.evaluate("deleteClip(clipById(S.sel)); edited()")
     shot("05i-winter")
 
@@ -1171,7 +1186,7 @@ def run(page, folder, edge):
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
           glass == ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "flicker", "lights",
-                    "garland", "glow"],
+                    "garland"],  # (Hạt sáng no longer offered: an older project's clip of it still plays)
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)

@@ -916,7 +916,8 @@ for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.
 function rangeP(v, min, max) { const k = (+v - min) / ((max - min) || 1); return `--p:${(100 * (k > 0 ? Math.min(k, 1) : 0)).toFixed(1)}%`; }
 function fillRange(r) { const a = +r.min || 0, b = r.max === "" ? 100 : +r.max; r.style.setProperty("--p", rangeP(r.value, a, b).slice(4)); }
 document.addEventListener("input", e => { if (e.target.type === "range") fillRange(e.target); }, true);
-const FX_KINDS = ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "flicker", "lights", "garland", "glow"];  // the Tạo sẵn tab, in this order
+const FX_KINDS = ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "flicker", "lights", "garland"];  // the Tạo sẵn tab, in this order
+// (Hạt sáng, "glow": no longer offered, the owner asked 2026-10-23; a clip of it in an older project still plays)
 const BLEND_CSS = {normal: "normal", screen: "screen", add: "plus-lighter", multiply: "multiply"};
 const COLOUR_KEYS = ["bright", "contrast", "sat", "hue", "temp", "tint_amt", "tint"], TONE_POINTS = 33, LUMA = [0.2126, 0.7152, 0.0722];
 function colourOps(p) {  // as overlay.colour_ops: {curve, mat} for a file clip's colours, or null when they change nothing
