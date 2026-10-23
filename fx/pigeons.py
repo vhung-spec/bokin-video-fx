@@ -107,9 +107,9 @@ def _feathers(a, b, size, aspect, fp):
 
 COATS = {  # sRGB: a rock dove (blue bar), a dark one, a red (ash-red) one, a white dove
     "grey": {"head": (96, 106, 140), "neck": (74, 82, 104), "green": (46, 146, 104), "purple": (124, 66, 144),
-             "breast": (166, 168, 194), "back": (178, 184, 202), "flank": (142, 148, 170), "bar": (28, 28, 34),
+             "breast": (150, 148, 176), "back": (178, 184, 202), "flank": (142, 148, 170), "bar": (28, 28, 34),
              "prim": (52, 53, 60), "tail": (96, 100, 116), "band": (30, 30, 36), "belly": (148, 154, 176),
-             "beak": (62, 60, 66), "cere": (230, 228, 222), "iris": (222, 112, 36), "feet": (214, 72, 76),
+             "beak": (62, 60, 66), "cere": (206, 202, 196), "iris": (222, 112, 36), "feet": (214, 72, 76),
              "spot": (58, 60, 70), "sheen": 1.0},
     "dark": {"head": (52, 54, 60), "neck": (44, 48, 52), "green": (46, 104, 78), "purple": (96, 60, 104),
              "breast": (58, 56, 64), "back": (66, 68, 76), "flank": (58, 60, 68), "bar": (34, 34, 38),
@@ -170,7 +170,7 @@ class Coat:
 
 HIP = np.array([-0.01, 0.0, 0.12])  # the body tips about this (pecking)
 NECK = np.array([0.1, 0.0, 0.31])  # where the neck leaves the shoulders (standing)
-HEAD = np.array([0.182, 0.0, 0.405])  # its head's middle (standing)
+HEAD = np.array([0.182, 0.0, 0.43])  # its head's middle (standing)
 HEAD_R = np.array([0.059, 0.045, 0.052])
 # the body as it walks: name, centre, radii, pitch (degrees, the nose up), and the folded wings' and their primaries'
 # turn (degrees: their rear ends in, so the primaries' tips meet over the tail and it narrows smoothly to the tail seen
@@ -242,7 +242,7 @@ def parts(pose):
     out.append(("beak", head + turn @ np.array([0.066, 0.0, -0.012]), turn @ _rot(pitch=-0.35),
                 np.array([0.031, 0.0105, 0.0115])))
     out.append(("cere", head + turn @ np.array([0.056, 0.0, 0.003]), turn @ _rot(pitch=-0.35),
-                np.array([0.019, 0.0135, 0.0115])))
+                np.array([0.017, 0.012, 0.0105])))
     for side, foot in zip((1, -1), pose.feet):
         hip = np.array([0.0, side * 0.03, 0.11])
         f = np.array(foot, np.float64)
@@ -396,7 +396,7 @@ class _Body:
 
 
 _RESTING = []
-HOOD = 0.06  # how far the neck's iridescent feathers reach past it (units)
+HOOD = 0.045  # how far the neck's iridescent feathers reach past it (units)
 
 
 def _sheen(c, facing):
@@ -469,7 +469,7 @@ def _part_colour(name, q, local, rad, nz, facing, hood, c, coat, fp):
     if name in ("body", "belly", "vent", "breast"):  # (iridescent, purple, round the neck's foot)
         out = _body_colour(q, nz, c, fp) * (0.95 if name == "vent" else 1.0) if name != "breast" else c["breast"]
         sheen = _sheen(c, facing)
-        sheen = sheen + (c["purple"] - sheen) * (0.7 if c["sheen"] else 0.0)
+        sheen = sheen + (c["purple"] - sheen) * (0.5 if c["sheen"] else 0.0)
         return out + (sheen - out) * hood[:, None]
     if name == "neck":  # (green, purple toward its foot)
         sheen = _sheen(c, facing)
