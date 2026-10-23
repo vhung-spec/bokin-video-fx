@@ -92,6 +92,8 @@ def periodic_checks():
                                                                 [0.2, 0.8, 1, 0], [0.3, 0.7, 0.5, 0], [0.4, 0.75, 0.5, 0]]}
         if kind == "hearth":  # a heap of logs under the flames, glowing, in an arched fireplace
             third = {"wood": "oak", "stack": "heap", "embers": 100, "frame": "arch"}
+        if kind == "pigeons":  # a big flock wheeling round, wings beating and gliding
+            third = {"mode": "flock", "amount": 100}
         if kind == "chimney":  # chimneys near and far, a gusty wind from the right
             third = {"breeze": -80, "gust": 100, "stacks": [[0.25, 0.85, 0.05, 0.5], [0.6, 0.6, 0.025, 1.0],
                                                             [0.85, 0.5, 0.012, 0.3]]}

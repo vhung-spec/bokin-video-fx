@@ -72,8 +72,9 @@ hiệu ứng. Cách dùng: `README.md`.
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/hearth.py`, `fx/frost.py`,
-  `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói ống khói, lửa
-  nến, lửa lò sưởi (củi của nó: `fx/logs.py`), tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
+  `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`, `fx/pigeons.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói
+  ống khói, lửa nến, lửa lò sưởi (củi của nó: `fx/logs.py`), tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, chim bồ
+  câu, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
   nồi; và ống khói, chỉ dùng cho Khói ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn:
   `edge`, `side`; `preset` của kiểu đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
@@ -226,6 +227,22 @@ hiệu ứng. Cách dùng: `README.md`.
   (`BLOOM`, chỉ khi đang nháy). Gần mép khung thì mờ (`EDGE`), ánh sáng không ra ngoài khung (`_inside`, mép mềm
   `SOFT`: clip xem nhanh chỉ là cái khung). Mọi độ dài theo chiều cao khung. "Màu ánh sáng" (`tone`, `match`: chọn màu
   tay thì thành "Tự chọn").
+- Chim bồ câu (`fx/pigeons.py`, mã loại `pigeons`, từ 1.0.71): hiệu ứng đặt một chỗ (`BOX` 16:9), vẽ đè (clip xem
+  nhanh WebM trong suốt, `PREVIEW` 1280), không xoay, `LIT` như khói (`light_at`, `rounded_light`: chỗ khung đứng).
+  Mỗi con là các ellipsoid (thân, ức, bụng, cổ, đầu, mỏ, mũi, đuôi, đầu cánh xếp, chân, ngón; bay: cánh là các tấm
+  phẳng: cánh tay, lông phủ, năm lông cánh chính) trong khung riêng của chim (x tới trước, z lên, chân ở 0), dò tia mỗi
+  khung theo dáng lúc đó (`parts`, `Pose`, `draw_bird`: máy quay xa nhìn xuống `tilt`; mỗi phần chỉ dò trong hộp của
+  nó trên hình; pháp tuyến các phần mềm `SOFT` hoà vào nhau chỗ giáp: thân liền, không thành các quả bóng). Màu lông
+  tính tại điểm chạm (`_albedo`: hai vạch đen trên cánh xếp, cổ xanh tím theo góc nhìn, mắt, dải đen cuối đuôi; `COATS`
+  xám xanh, trắng, nâu đỏ, xám đen; `MIXED` như đàn chim phố; vân lông `Coat.grain`). Trên mặt đất (`Walker`: một
+  ngày của mỗi con trong vòng loop: đi, mổ, đứng ngó; đường đi khép kín, đi hết đúng số vòng mỗi loop nên khung P là
+  khung 0; đường nhỏ hơn `room` thì đi nhiều vòng): chân trụ đứng yên trên đất, chân kia nhấc lên bước tới (`STRIDE`),
+  đầu giữ yên rồi vươn tới mỗi bước; mổ thì mỏ chạm đất (`PECK`); chỗ của mỗi con (`_home`) giữ cả đường đi trong
+  khung; xa (đỉnh khung) nhỏ hơn theo "Gần xa"; bóng mềm dưới chân. Đậu trên gờ: đáy khung là gờ, đi qua lại dọc gờ,
+  quay đầu theo nửa vòng hẹp ở hai đầu (`TURN`).
+  Bay: cả đàn lượn chung một vòng (số nguyên vòng mỗi loop), vòng và độ toả của đàn thu nhỏ cho vừa khung (`REACH`:
+  cánh tới đâu quanh tâm chim); bay ngang qua: vào và ra ở hai mép khung (`laps` * 3 lượt mỗi loop); cánh vỗ (số nguyên
+  lần mỗi loop) hay giữ hình chữ V lướt. Mọi thứ cắt ở mép khung (`_inside`: clip xem nhanh chỉ là cái khung).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D

@@ -1038,6 +1038,48 @@ def fireflies(page, shot):
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 
+def pigeons(page, shot):
+    """Chim bồ câu: a box on the picture where the renderer puts it, no turn, no mark; the ground's settings only
+    for birds on the ground, the way they fly only for birds flying past; its preview clip (birds on a clear ground,
+    WebM) laid in the box."""
+    from fx import effects as fx_effects
+    page.click('.tab[data-bin="fx"]')
+    page.dblclick('.tile[data-kind="pigeons"]')
+    cid = page.evaluate("S.sel")
+    page.click("#fullBtn")
+    page.wait_for_timeout(300)
+    vw, vh = page.evaluate("[info().w, info().h]")
+    ui = page.evaluate("""[$('#xform').style.display, $('#xformRot').style.display, $('#xform3d').style.display,
+        !!$('#ec [data-num="rot_x"]'), $('#xformMark').style.display]""")
+    box = page.evaluate(BOX)
+    x0, y0, w, h = fx_effects.box_of("pigeons", page.evaluate(f"clipById('{cid}').params"), vw, vh)
+    shown = """['input[data-param="busy"]', 'input[data-param="view"]', 'input[data-param="shadow"]',
+        'select[data-param="way"]'].map(q => !!$('#ec ' + q))"""
+    ground = page.evaluate(shown)
+    page.select_option('#ec select[data-param="mode"]', "flock")
+    page.wait_for_timeout(300)
+    flock = page.evaluate(shown)
+    page.select_option('#ec select[data-param="mode"]', "pass")
+    page.wait_for_timeout(300)
+    past = page.evaluate(shown)
+    page.select_option('#ec select[data-param="mode"]', "ground")
+    page.wait_for_timeout(300)
+    check("Chim bồ câu: its box where the renderer puts it; no turn, no mark; the ground's settings for birds on the "
+          "ground, the way they fly for birds flying past", ui == ["block", "none", "none", False, "none"] and
+          all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])) and
+          ground == [True, True, True, False] and flock == [False] * 4 and past == [False, False, False, True],
+          str([ui, box, [x0, y0, x0 + w, y0 + h], ground, flock, past]))
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want && "
+                           f"S.els['{cid}']", timeout=300000)
+    page.evaluate("applyTime()")
+    laid = page.evaluate(f"""(() => {{ const e = S.els['{cid}']; return [e.media.getAttribute('src').includes('.webm'),
+        e.wrap.style.mixBlendMode]; }})()""")
+    check("Chim bồ câu: its preview clip, birds on a clear ground (WebM), in its box", laid == [True, "normal"],
+          str(laid))
+    shot("05n-pigeons")
+    page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
+
+
 def shortcuts(page, shot):
     """The Phím tắt window: a key changed, taken from another action, refused, searched; the guide; all back."""
     def row(i):
@@ -1506,7 +1548,8 @@ def run(page, folder, edge):
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
           glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "hearth", "leaves", "foliage",
-                    "fireflies", "flicker", "lights", "garland"],  # (Hạt sáng no longer offered: an old clip still plays)
+                    "fireflies", "pigeons", "flicker", "lights", "garland"],  # (Hạt sáng no longer offered: an old
+          # clip still plays)
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
@@ -2057,6 +2100,7 @@ def run(page, folder, edge):
     chimneys(page, shot)
     hearth(page, shot)
     fireflies(page, shot)
+    pigeons(page, shot)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

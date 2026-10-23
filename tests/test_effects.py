@@ -19,8 +19,10 @@ AREA = (((_xx - W * 0.45) / (W * 0.42)) ** 2 + ((_yy - H * 0.55) / (H * 0.42)) *
 DRAWN = {"garland": {"strands": [[0.1, 0.3, 1, 0.4], [0.5, 0.35, 0, 0], [0.9, 0.3, 0, 0], [0.2, 0.8, 1, 0],
                                  [0.3, 0.7, 0.5, 0], [0.4, 0.75, 0.5, 0]]},
          "chimney": {"stacks": [[0.3, 0.85, 0.05, 0.5]]}}
-MORE = {"hearth": [{"wood": "oak", "stack": "heap", "embers": 100, "frame": "arch"}]}  # (more of its own: logs,
-# the fireplace's opening)
+MORE = {"hearth": [{"wood": "oak", "stack": "heap", "embers": 100, "frame": "arch"}],  # (more of its own: logs,
+        # the fireplace's opening; pigeons on a ledge, flying round, flying past)
+        "pigeons": [{"mode": "ledge", "amount": 100}, {"mode": "flock", "amount": 100},
+                    {"mode": "pass", "amount": 100}]}
 
 
 def frame(fx, t, base=0.3, mask=None):

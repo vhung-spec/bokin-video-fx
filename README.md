@@ -349,6 +349,35 @@ ban đêm.
 5. Muốn đom đóm bay ra sau lá, cành phía trước: bấm **V1 Video gốc** → **Vẽ tiền cảnh**, tô lá, cành đó. Rồi chọn
    clip Đom đóm, tích **Bay ra sau tiền cảnh**.
 
+### Chim bồ câu
+
+Chim bồ câu do app vẽ (không phải ảnh có sẵn), làm như chim thật: đi từng bước, đầu gật tới trước mỗi bước, cúi mổ
+thức ăn, đứng ngó quanh; hoặc bay lượn thành đàn, bay ngang qua, cánh vỗ rồi lướt. Bồ câu xám xanh có hai vạch đen trên
+cánh, cổ ánh xanh tím, mắt cam, chân đỏ; còn có bồ câu trắng, nâu đỏ, xám đen. Chim sáng tối theo ánh sáng trong video
+và có bóng dưới chân.
+
+1. Bấm **Tạo sẵn** → **Chim bồ câu**, kéo xuống một track trống, bấm **Suốt video**.
+2. Chọn **Kiểu**, rồi kéo khung trắng tới chỗ chim. Chim chỉ ở trong khung.
+   - **Đi lại, mổ thức ăn trên sân**: kéo khung tới sân, vỉa hè, quảng trường, kéo góc cho khung phủ chỗ chim đi. Đáy
+     khung là chỗ gần máy quay, đỉnh khung là chỗ xa: chim ở xa nhỏ hơn.
+   - **Đậu trên gờ tường, mái nhà**: kéo khung cho **đáy khung nằm trên gờ**. Chim đứng trên đáy khung, đi qua đi
+     lại dọc gờ.
+   - **Bay lượn thành đàn**: kéo khung tới khoảng trời chim bay. Cả đàn lượn vòng trong khung.
+   - **Bay ngang qua**: chim bay vào ở một mép khung, ra ở mép bên kia. Kéo khung rộng hết chiều ngang hình (hoặc từ
+     mép nhà này tới mép nhà kia) để chim như bay từ ngoài vào. Chọn **Hướng bay**.
+3. Chọn **Màu lông**: **Nhiều màu như đàn chim phố**, **Xám xanh**, **Bồ câu trắng**, **Nâu đỏ**, **Xám đen**.
+   Chỉnh **Số chim**, **Cỡ chim** (chim ở đáy khung, so với chiều cao khung), **Gần xa** (chim xa nhỏ đi bao nhiêu).
+4. Chim trên sân, trên gờ: **Nhìn từ trên xuống** cho hợp góc máy (máy quay ngang tầm chim: kéo về trái; nhìn từ
+   trên cao: kéo sang phải), **Bóng dưới chân**, **Đi lại nhiều** (trái: hay mổ, đứng; phải: đi nhiều), **Tốc độ**.
+5. **Sáng theo cảnh**: chim lấy ánh sáng chỗ khung đứng trong video (cảnh tối thì chim tối, đèn vàng thì chim ấm).
+   Kéo về 0: chim sáng như ban ngày.
+6. Muốn chim đi ra sau cột, chậu cây phía trước: bấm **V1 Video gốc** → **Vẽ tiền cảnh**, tô vật đó. Rồi chọn clip
+   Chim bồ câu, tích **Bay ra sau tiền cảnh**.
+7. Muốn chim đứng chỗ khác, đi đường khác: bấm **Đổi kiểu ngẫu nhiên**. Chim ở nhiều chỗ (sân và mái nhà): mỗi chỗ
+   một clip (chọn clip, `Ctrl+C`, `Ctrl+V`, rồi kéo khung của clip mới sang chỗ khác, đổi **Kiểu**).
+
+Chim không xoay 3D: chim luôn đứng thẳng trên mặt đất.
+
 ### Lá cây lay động
 
 Làm lá của bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió: mỗi chùm lá lay một chút theo nhịp riêng,

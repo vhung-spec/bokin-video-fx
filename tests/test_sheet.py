@@ -128,13 +128,14 @@ class Plain(unittest.TestCase):
     def test_settings(self):
         """Every effect but the candle and the rustling leaves has a file clip's place and turn settings, under the
         same headings; the candle and the fire in a fireplace have no turn at all (flames rise straight up), nor the
-        fireflies (a swarm of points); the rustling leaves neither a turn nor a place (they move the picture's own
-        leaves where they are), nor a painted area flickering, nor string lights drawn by hand on the picture, nor
-        the smoke of its chimneys (where its things are)."""
+        fireflies (a swarm of points), nor the pigeons (they stand on the ground, fly level); the rustling leaves
+        neither a turn nor a place (they move the picture's own leaves where they are), nor a painted area
+        flickering, nor string lights drawn by hand on the picture, nor the smoke of its chimneys (where its things
+        are)."""
         file = {p["key"]: p for p in overlay.SCHEMA["params"]}
         for kind, cls in effects.KINDS.items():
             by = {p["key"]: p for p in effects.SCHEMA[kind]["params"]}
-            if kind in ("candle", "hearth", "fireflies", "foliage", "flicker", "garland", "chimney"):
+            if kind in ("candle", "hearth", "fireflies", "pigeons", "foliage", "flicker", "garland", "chimney"):
                 self.assertFalse(cls.TURNS)
                 self.assertFalse(set(overlay.ROTATIONS) & set(by))
                 self.assertFalse(effects.on_sheet(kind, {"rot_x": 30, "rot_z": 10}))
