@@ -187,18 +187,36 @@ class Picture(unittest.TestCase):
         self.assertGreater(min(gain), 1.03)
         self.assertGreater(max(gain) - min(gain), 0.02)  # (it flickers)
 
+    def test_sparks(self):
+        """Sparks fly up from the fire now and then (more for a thicker fire): little bright streaks above it, in
+        the box; none for no fire."""
+        fx = make({"amount": 100})
+        (rows, cols), (x0, y0, w, h) = box_of(fx)
+        r = fx._rect(x0, y0, x0 + w, y0 + h)
+        lay = fx._layout(r, x0, y0, w, h)
+        seen = [fx._sparks(t, r[:2], lay, x0, y0, w, h) for t in range(0, 96, 2)]
+        lit = [sp for sp in seen if sp is not None and float(sp.max()) > 0.3]
+        self.assertGreater(len(lit), 4)
+        for sp in lit:
+            ys = np.nonzero((sp @ LUMA) > 0.1)[0]
+            self.assertLess(float(ys.max()), 0.97 * h)  # (above the bed)
+            self.assertLess(float((sp @ LUMA > 0.1).mean()), 0.01)  # (small)
+        self.assertGreater(len(fx.sparks["born"]), len(make({"amount": 10}).sparks["born"]))
+        self.assertIsNone(make({"amount": 0})._sparks(30, r[:2], lay, x0, y0, w, h))
+
     def test_an_old_fire_put_out(self):
         """A still, bright fire in the video ("Che lửa cũ" 100): its bright places dimmed under the new flames to
         a dim glow; the dark firebox round it as it was."""
         pic = np.full((H, W, 3), 0.06, np.float32)
-        fx0 = make({"cover": 0, "light": 0})
+        middling = {"amount": 50, "height": 50, "bright": 50}  # (new flames not so big that they hide the old fire)
+        fx0 = make({"cover": 0, "light": 0, **middling})
         (rows, cols), (x0, y0, w, h) = box_of(fx0)
         yy, xx = np.mgrid[0:H, 0:W]
         old = (((xx - (x0 + 0.5 * w)) / (0.25 * w)) ** 2 + ((yy - (y0 + 0.7 * h)) / (0.2 * h)) ** 2) < 1
         pic[old] = (1.0, 0.62, 0.15)
         pic[old & ((((xx - (x0 + 0.5 * w)) / (0.1 * w)) ** 2 + ((yy - (y0 + 0.75 * h)) / (0.08 * h)) ** 2) < 1)] = (
             1.0, 0.97, 0.85)  # (its burnt-out white core)
-        fx1 = make({"cover": 100, "light": 0})
+        fx1 = make({"cover": 100, "light": 0, **middling})
         a, b = lens(fx0, 30, pic), lens(fx1, 30, pic)
         self.assertLess(float((b[old] @ LUMA).mean()), 0.75 * float((a[old] @ LUMA).mean()))
         far = np.zeros((H, W), bool)
@@ -306,6 +324,33 @@ class Logs(unittest.TestCase):
         red = [float((lens(f, 30, BLACK)[where][low][:, 0] - lens(f, 30, BLACK)[where][low][:, 2]).mean())
                for f in (cold, hot)]
         self.assertGreater(red[1], red[0] + 0.01)  # (the embers in the cracks, glowing)
+
+    def test_bark_where_unburnt_red_where_burning(self):
+        """Where the fire has not reached the logs (their ends) their bark shows; where it burns hottest (between
+        them, low down, at the fire's heart) they glow red: more of them as they are more burnt ("Cháy sém"); none
+        without embers ("Than hồng" 0)."""
+        shares = []
+        for char in (20, 65, 100):
+            fx = make({**WITH_LOGS, "char": char, "embers": 100})
+            where, laid = self.logs_of(fx)
+            on = laid["alpha"] > 0.99
+            hot = (laid["crack"] + laid["skin"]) > 0.15
+            shares.append(float(hot[on].mean()))
+            if char < 100:
+                cols = np.flatnonzero(on.any(axis=0))
+                span = cols[-1] - cols[0]
+                ends = np.zeros_like(on)
+                ends[:, :cols[0] + span // 8] = True
+                ends[:, cols[-1] - span // 8:] = True
+                self.assertLess(float(hot[on & ends].mean()), 0.05, char)  # (not reached)
+            if char == 65:
+                cold = make({**WITH_LOGS, "char": char, "embers": 0})
+                a, b = lens(cold, 20, BLACK)[where], lens(fx, 20, BLACK)[where]
+                self.assertGreater(float((b[..., 0] - a[..., 0])[on & hot].mean()), 0.15)  # (glowing red)
+                self.assertGreater(float((b[..., 0] - b[..., 2])[on & hot].mean()), 0.3)
+        self.assertGreater(shares[1], 0.04)
+        self.assertLess(shares[0], shares[1])
+        self.assertLess(shares[1], shares[2])
 
     def test_each_wood_and_way(self):
         """Every wood and every way of stacking draws logs of its own look, the settings changing them as they say."""

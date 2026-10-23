@@ -2,6 +2,7 @@
 looking round and now and then pecking at seeds, lit by the scene where their box stands."""
 import math
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -162,7 +163,7 @@ class Walking(unittest.TestCase):
     def test_standing_on_its_feet(self):
         parts = pigeons.parts(pigeons.Pose())
         self.assertAlmostEqual(min(lowest(p) for p in parts), 0.0, places=6)
-        self.assertEqual([p[0] for p in parts if abs(lowest(p)) < 1e-6], ["toe", "toe", "toe", "toe"])
+        self.assertEqual([p[0] for p in parts if abs(lowest(p)) < 1e-6], ["toe"] * 6)  # (three toes a foot)
         self.assertGreater(min(lowest(p) for p in parts[:pigeons.SMOOTH]), 0.05)  # (its body above its legs)
 
 
@@ -195,8 +196,12 @@ class Body(unittest.TestCase):
         self.assertLess(float(nearest.max()), pigeons.NEAR + 4e-3)  # (the distances are a bound, not exact)
 
     def test_no_seams(self):
-        """Across its body (a white dove's: one colour) the picture changes smoothly where its parts meet: no seams,
-        no creases."""
+        """Across its body (a white dove's: one colour; its feathers' rows left out) the picture changes smoothly where
+        its parts meet: no seams, no creases."""
+        with mock.patch.object(pigeons, "_feathers", lambda *a: None):
+            self.seams()
+
+    def seams(self):
         coat = pigeons.Coat("white", np.random.default_rng(0))
         pose = pigeons.Pose()
         allp = pigeons.parts(pose)
@@ -217,6 +222,18 @@ class Body(unittest.TestCase):
             if run.any():
                 worst = max(worst, float(np.abs(np.diff(lum))[run].max()))
         self.assertLess(worst, 0.07)
+
+    def test_its_feathers(self):
+        """Rows of feathers on its folded wing, seen on a big bird (each a little lighter toward its tip, the next
+        one's base in its shade); on a small one, faded out (they would only shimmer)."""
+        x = np.linspace(-0.2, 0.05, 400)
+        b = np.full_like(x, 0.05)
+        big = pigeons._feathers(-x, b, 0.03, 0.7, 0.0015)
+        self.assertIsNotNone(big)
+        light = big[0]
+        self.assertGreater(float(light.max() - light.min()), 0.1)
+        self.assertGreater(int((np.abs(np.diff(light)) > 0.05).sum()), 4)  # (a tip's edge every feather)
+        self.assertIsNone(pigeons._feathers(-x, b, 0.03, 0.7, 0.02))  # (a pixel as big as a feather)
 
     def test_soft_as_a_photograph(self):
         """"Độ mềm": the birds' edges softer as it rises (the same amount of bird)."""

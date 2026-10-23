@@ -78,26 +78,51 @@ def _fade(freq, fp):
 
 # --- its feathers ----------------------------------------------------------------------------------------------------
 
+def _feathers(a, b, size, aspect, fp):
+    """Rows of overlapping feathers `size` units long, the rows `aspect` times as wide apart, at points (a: along the
+    bird toward its tail, b: across the rows; units), each one's rounded tip pointing back over the next: how light
+    each point is (about 1: darker just past the tip before it, lighter toward its own), how near a tip's edge (0..1),
+    a random number of its feather, and a mark near its tip (0..1: a checker's spot); faded out where the feathers
+    are smaller than a few pixels (`fp`: a pixel's width, units). None where they would only shimmer."""
+    k = float(np.clip((aspect * size / max(fp, 1e-9) - 2.0) / 3.0, 0.0, 1.0))
+    if k <= 0:
+        return None
+    r = b / (aspect * size)
+    row = np.floor(r)
+    fr = r - row
+    tip = 0.3 * (1 - (2 * fr - 1) ** 2)  # (each tip's edge: furthest back in the middle of its row)
+    c = a / size + 0.5 * np.mod(row, 2) - tip
+    col = np.floor(c)
+    t = c - col  # (0: just past the tip before it, in its shade .. 1: at its own tip)
+    width = max(0.04, 1.2 * fp / size)
+    edge = 1 - _smooth(np.minimum(t, 1 - t) / width)
+    rnd = np.sin(col * 12.9898 + row * 78.233) * 43758.5453
+    rnd -= np.floor(rnd)
+    light = 1 + k * (0.09 * t - 0.03 - 0.09 * (1 - _smooth(t / 0.3)) - 0.05 * (1 - _smooth(fr / 0.25)))
+    mark = _smooth((t - 0.42) / 0.1) * _smooth((0.93 - t) / 0.05) * _smooth((0.72 - np.abs(2 * fr - 1)) / 0.15)
+    return light, k * edge, rnd, k * mark
+
+
 COATS = {  # sRGB: a rock dove (blue bar), a dark one, a red (ash-red) one, a white dove
     "grey": {"head": (92, 100, 116), "neck": (70, 78, 90), "green": (64, 118, 96), "purple": (118, 84, 124),
-             "breast": (112, 108, 126), "back": (162, 168, 178), "flank": (122, 128, 142), "bar": (40, 40, 46),
+             "breast": (112, 108, 126), "back": (148, 154, 165), "flank": (118, 124, 138), "bar": (40, 40, 46),
              "prim": (68, 70, 78), "tail": (110, 116, 128), "band": (38, 38, 42), "belly": (124, 130, 144),
-             "beak": (48, 46, 48), "cere": (222, 220, 212), "iris": (210, 110, 42), "feet": (204, 104, 106),
+             "beak": (48, 46, 48), "cere": (222, 220, 212), "iris": (210, 110, 42), "feet": (196, 86, 90),
              "spot": (58, 60, 70), "sheen": 1.0},
     "dark": {"head": (52, 54, 60), "neck": (44, 48, 52), "green": (46, 104, 78), "purple": (96, 60, 104),
              "breast": (58, 56, 64), "back": (66, 68, 76), "flank": (58, 60, 68), "bar": (34, 34, 38),
              "prim": (40, 42, 46), "tail": (54, 56, 62), "band": (30, 30, 34), "belly": (64, 66, 74),
-             "beak": (36, 34, 36), "cere": (212, 210, 204), "iris": (210, 110, 42), "feet": (194, 96, 98),
+             "beak": (36, 34, 36), "cere": (212, 210, 204), "iris": (210, 110, 42), "feet": (188, 82, 86),
              "spot": (34, 34, 38), "sheen": 1.1},
     "brown": {"head": (150, 118, 104), "neck": (140, 104, 96), "green": (128, 118, 98), "purple": (156, 104, 120),
               "breast": (150, 112, 104), "back": (196, 172, 156), "flank": (164, 134, 120), "bar": (122, 74, 58),
               "prim": (150, 124, 112), "tail": (176, 152, 138), "band": (142, 102, 88), "belly": (170, 146, 134),
-              "beak": (196, 160, 146), "cere": (232, 226, 218), "iris": (210, 110, 42), "feet": (206, 106, 106),
+              "beak": (196, 160, 146), "cere": (232, 226, 218), "iris": (210, 110, 42), "feet": (198, 90, 92),
               "spot": (138, 92, 76), "sheen": 0.5},
     "white": {"head": (232, 232, 228), "neck": (230, 230, 226), "green": (226, 232, 224), "purple": (232, 226, 230),
               "breast": (234, 232, 228), "back": (238, 238, 234), "flank": (228, 228, 224), "bar": (234, 234, 230),
               "prim": (224, 224, 220), "tail": (234, 234, 230), "band": (230, 230, 226), "belly": (232, 232, 228),
-              "beak": (206, 168, 156), "cere": (238, 232, 226), "iris": (64, 38, 28), "feet": (214, 118, 118),
+              "beak": (206, 168, 156), "cere": (238, 232, 226), "iris": (64, 38, 28), "feet": (204, 100, 104),
               "spot": (232, 232, 228), "sheen": 0.0},
 }
 MIXED = (("grey", 0.42), ("checker", 0.18), ("dark", 0.09), ("brown", 0.07), ("pied", 0.14), ("white", 0.1))  # (a
@@ -149,7 +174,7 @@ HEAD_R = np.array([0.056, 0.043, 0.049])
 # rear ends in, so their tips meet over the tail and it narrows smoothly to the tail seen from behind)
 BODY = (("breast", (0.08, 0.0, 0.262), (0.132, 0.106, 0.132), 16),
         ("body", (-0.055, 0.0, 0.245), (0.2, 0.108, 0.125), 5),
-        ("belly", (-0.01, 0.0, 0.158), (0.14, 0.088, 0.075), 4),
+        ("belly", (-0.01, 0.0, 0.15), (0.14, 0.088, 0.075), 4),
         ("vent", (-0.2, 0.0, 0.188), (0.11, 0.058, 0.05), -9),
         ("wing", (-0.09, 0.055, 0.255), (0.175, 0.044, 0.066), 8, 12),
         ("wing", (-0.09, -0.055, 0.255), (0.175, 0.044, 0.066), 8, -12),
@@ -195,10 +220,12 @@ def parts(pose):
         f = np.array(foot, np.float64)
         knee = f + np.array([0.0, 0.0, 0.018])
         out.append(("leg", (hip + knee) / 2, _along(knee, hip),
-                    np.array([0.014, 0.014, max(0.03, float(np.linalg.norm(hip - knee)) / 2 + 0.008)])))
-        out.append(("toe", f + np.array([0.026, 0.0, 0.006]), _rot(yaw=side * 0.16), np.array([0.036, 0.0095, 0.006])))
-        out.append(("toe", f + np.array([0.018, side * 0.016, 0.006]), _rot(yaw=side * 0.75),
-                    np.array([0.03, 0.009, 0.006])))
+                    np.array([0.0175, 0.0175, max(0.03, float(np.linalg.norm(hip - knee)) / 2 + 0.008)])))
+        out.append(("toe", f + np.array([0.026, 0.0, 0.007]), _rot(yaw=side * 0.16), np.array([0.036, 0.011, 0.007])))
+        out.append(("toe", f + np.array([0.018, side * 0.016, 0.007]), _rot(yaw=side * 0.75),
+                    np.array([0.03, 0.0105, 0.007])))
+        out.append(("toe", f + np.array([-0.014, -side * 0.004, 0.007]), _rot(yaw=side * 0.2),
+                    np.array([0.02, 0.0095, 0.007])))  # (the one pointing back)
     return out
 
 
@@ -355,17 +382,28 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
     wing = _smooth((z - low) / 0.02) * _smooth((0.1 - x) / 0.05)
     pale = np.maximum(top * _smooth((0.1 - x) / 0.06), wing)
     body_c = c["flank"] + (c["back"] - c["flank"]) * pale[:, None]
-    if coat.checker:  # (a dark spot at the end of each feather of the wing: rows, every other one half a feather on)
-        rows = (0.33 - z) / 0.026
-        row = np.floor(rows)
-        u = (x + 0.25) / 0.034 + 0.5 * (row % 2)
-        cell = np.floor(u)
-        rnd = np.sin(cell * 12.9898 + row * 78.233) * 43758.5453
-        rnd = rnd - np.floor(rnd)
-        spot = _smooth((0.32 - np.hypot(u - cell - 0.5, (rows - row - 0.7) * 1.4)) / max(0.1, fp / 0.034))
-        spot *= (0.55 + 0.45 * rnd) * wing * _smooth((x + 0.22) / 0.04) * _smooth((0.06 - x) / 0.04)
-        spot *= 0.15 + 0.85 * _fade(TAU / 0.034, fp)
-        body_c = body_c + (c["spot"] - body_c) * spot[:, None]
+    # its feathers: rows of small ones over its back and the front of its folded wings, their tips pale-edged; long
+    # ones across the wings' rear half; faint ones on its breast and flanks
+    side = np.abs(q[:, 1])
+    rows_b = (0.34 - z) + 0.8 * side  # (down its side, and out across its back from its spine)
+    covert = _feathers(-x, rows_b, 0.03, 0.7, fp)
+    if covert is not None:
+        light, edge, rnd, mark = covert
+        on = pale * _smooth((x + 0.2) / 0.03)
+        body_c = body_c * (1 + on * (light - 1))[:, None] + (0.03 * on * edge)[:, None] * c["back"]
+        if coat.checker:  # (a dark mark near the tip of each covert: a checker)
+            spot = mark * (0.55 + 0.45 * rnd) * wing * _smooth((0.06 - x) / 0.04)
+            body_c = body_c + (c["spot"] - body_c) * spot[:, None]
+    elif coat.checker:  # (too small to see each feather: the checker's mean)
+        body_c = body_c + (c["spot"] - body_c) * (0.3 * wing * _smooth((0.06 - x) / 0.04))[:, None]
+    long_ = _feathers(-(x + 0.3 * (0.33 - z)), rows_b, 0.09, 0.28, fp)  # (the secondaries, slanting as the bars)
+    if long_ is not None:
+        on = wing * _smooth((-0.08 - x) / 0.03)
+        body_c = body_c * (1 + on * (long_[0] - 1))[:, None]
+    soft = _feathers(-x, (0.34 - z) + 0.5 * side, 0.02, 0.8, fp)
+    if soft is not None:
+        on = 0.5 * (1 - pale)
+        body_c = body_c * (1 + on * (soft[0] - 1))[:, None]
     bars = np.zeros(count)
     for xb in (-0.105, -0.17):
         s = x - xb + 0.3 * (0.33 - z)
@@ -382,8 +420,13 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
                                               + 0.5 * (c["purple"] - c["neck"]) * (1 - facing) ** 1.5), 0.0, 1.0)
     breast = c["breast"] + (sheen - c["breast"]) * _smooth((z - 0.28) / 0.06)[:, None]
     tail = c["tail"] + (c["band"] - c["tail"]) * _smooth((-x - 0.455) / 0.02)[:, None]
+    quills = _feathers(-x, side + 0.3 * (0.25 - z), 0.16, 0.13, fp)  # (the tail's and the wingtips' long feathers)
+    tips = c["prim"]
+    if quills is not None:
+        tail = tail * quills[0][:, None] * (1 - 0.25 * quills[1])[:, None]
+        tips = tips * (quills[0] * (1 - 0.35 * quills[1]))[:, None]
     cols = {"breast": breast, "body": body_c, "belly": body_c, "vent": body_c * 0.95, "wing": body_c, "tail": tail,
-            "fan": tail, "prim": c["prim"], "neck": sheen, "head": c["head"]}
+            "fan": tail, "prim": tips, "neck": sheen, "head": c["head"]}
     out = np.zeros((count, 3), np.float32)
     for name, s in w.items():
         out += s[:, None] * cols[name]
@@ -457,7 +500,9 @@ def _shade(rays, which, best, own, seen, small, coat, pose, light, turn, fp):
     nw = nrm @ turn.T  # (the scene's frame)
     lam = np.clip((nw @ way + 0.35) / 1.35, 0.0, 1.0)  # (feathers: the light wraps round a little)
     sky = 0.55 + 0.45 * np.clip(0.5 + 0.5 * nw[:, 2], 0.0, 1.0)
-    rgb[:] = alb * (ambient * sky[:, None] + key * lam[:, None])
+    # feathers soft as velvet: a little more light where the surface is seen edge on
+    rim = (1 - np.clip(np.abs(nrm @ rays.d), 0.0, 1.0)) ** 3
+    rgb[:] = alb * (ambient * sky[:, None] + key * lam[:, None] + (0.35 * rim)[:, None] * (key + ambient))
     return i, rgb
 
 
@@ -783,7 +828,7 @@ class Pigeons(Effect):
     TURNS = False
     LIT = True
     PREVIEW = 1280
-    VERSION = 2  # (2: one smooth body, a rock dove's feathers, pecking now and then: its preview clips made again)
+    VERSION = 3  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
 

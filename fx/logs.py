@@ -40,14 +40,16 @@ WOODS = {  # (the kinds of wood)
               "deep": 0.025},
     "birch": {"plate": (226, 221, 207), "furrow": (40, 37, 34)},
 }
-CHAR = _lin((30, 27, 25))  # charcoal (black patches)
-SHEEN = _lin((88, 78, 68))  # (charred wood coated with a little ash: dark grey-brown)
+CHAR = _lin((22, 20, 19))  # charcoal (black patches)
+SCORCH = _lin((46, 30, 20))  # (bark browned and darkened by the heat, next to where it has charred)
+SHEEN = _lin((60, 54, 48))  # (charred wood coated with a little ash: dark grey-brown)
 ASH = _lin((160, 156, 150))
 CRACK = _lin((8, 7, 7))
 EARLY, LATE = _lin((205, 162, 112)), _lin((150, 104, 64))  # a cut end's wood: spring and summer rings
 HEART = _lin((158, 102, 60))  # (its heartwood, darker)
 EMBER_I = np.array([0.0, 0.2, 0.45, 0.75, 1.1, 1.6], np.float32)  # embers' colours by how hot (sRGB)
 EMBER = _lin([(0, 0, 0), (82, 12, 3), (190, 45, 8), (252, 105, 18), (255, 165, 50), (255, 222, 140)])
+GLOW_CRACK, GLOW_SKIN = 2.4, 2.4  # how hot a burning log's cracks and the char between them glow (times "glow")
 FLAME_LIGHT = np.array([1.0, 0.72, 0.45], np.float32)  # the flames' light on the logs (linear)
 EMBER_LIGHT = np.array([1.0, 0.38, 0.1], np.float32)  # and the embers'
 
@@ -372,13 +374,13 @@ class Log:
             width = (0.012 + 0.025 * rr) / np.maximum(rr, 0.05) + step
             start = 0.15 + 0.55 * rng.random()
             checks = np.maximum(checks, (1 - _smooth(dphi / width)) * _smooth((rr - start) / 0.1))
-        checks *= 0.4 + 0.6 * burnt
+        checks = checks * (0.4 + 0.6 * burnt)
         rim = WOODS[self.wood]["plate" if self.wood == "birch" else "furrow"]
         bark = _smooth((rho - 0.9) / 0.04)
         colour = wood * (1 - bark[..., None]) + _lin(rim) * 0.8 * bark[..., None]
         colour = colour * (1 - checks[..., None]) + CRACK * checks[..., None]
         # blackened from the rim in, as far as it has burnt
-        black = _smooth((rho - (1.02 - 0.9 * burnt) + 0.15 * wob) / 0.18) * min(1.0, 0.3 + burnt)
+        black = _smooth((rho - (1.02 - 0.9 * burnt) + 0.15 * wob) / 0.18) * np.minimum(1.0, 0.3 + burnt)
         colour = colour * (1 - black[..., None]) + CHAR * (0.8 + 0.4 * grain[..., None]) * black[..., None]
         relief = 0.01 * grain - 0.02 * checks - 0.02 * bark
         return colour, relief, np.maximum(checks * black, checks * 0.3)
@@ -415,6 +417,7 @@ class Pile:
         self.top = max(max(lg.p0[2], lg.end()[2]) + lg.reach for lg in self.logs)
         ys = [y for lg in self.logs for y in (lg.p0[1], lg.end()[1])]
         self.fire = np.array([0.0, (min(ys) + max(ys)) / 2, 0.4 * self.top])  # (the fire's middle, among the logs)
+        self.spread = 0.22 * self.width  # (its heart: a line across the pile this far each side of its middle)
         self.lights = self._lights()
 
     @staticmethod
@@ -533,6 +536,7 @@ class Pile:
         normal = np.zeros((n, 3))
         pos = np.zeros((n, 3))
         crack = np.zeros(n, np.float32)
+        skin = np.zeros(n, np.float32)
         front = np.zeros(n, np.float32)
         for k, lg in enumerate(self.logs):
             i = np.flatnonzero(seen & (near == k))
@@ -541,9 +545,10 @@ class Pile:
             p = rays[i] + rdist[k, i, None] * f
             hh, x1, x2 = lg.local(p)
             nrm = lg.normal(hh, x1, x2)
-            albedo[i], normal[i], crack[i] = self._looks(lg, p, hh, x1, x2, nrm, px / lg.r)
+            albedo[i], normal[i], crack[i], skin[i] = self._looks(lg, p, hh, x1, x2, nrm, px / lg.r)
             pos[i] = p
-            front[i] = _smooth((self.fire[1] - p[:, 1]) / (0.8 * lg.r) + 0.5)
+            front[i] = _smooth((self.fire[1] + 1.5 * lg.r - p[:, 1]) / (0.8 * lg.r) + 0.5)  # (none of the flames
+            # over it unless it is well behind the fire's middle)
         wt = weight * seen
         size = h * w
 
@@ -555,69 +560,100 @@ class Pile:
         some = np.maximum(alpha, 1e-9)
         out = {"alpha": alpha.astype(np.float32),
                "albedo": (pixels(albedo) / some[..., None]).astype(np.float32),
-               "glow": (pixels(crack) / some).astype(np.float32),
+               "crack": (pixels(crack) / some).astype(np.float32),
+               "skin": (pixels(skin) / some).astype(np.float32),
                "front": (pixels(front) / some).astype(np.float32)}
         nrm = pixels(normal)
         nrm /= np.maximum(np.linalg.norm(nrm, axis=-1, keepdims=True), 1e-9)
         p = pixels(pos) / some[..., None]
         on = alpha > 0
-        out["light"], out["room"], out["hot"] = self._shading(p[on], nrm[on], on)
+        out["light"], out["room"] = self._shading(p[on], nrm[on], on)
         out["phase"] = self._phase(p[on], on)
         out["floor"] = self._floor(xs, ss)
         return out
 
+    def _heat(self, lg, p, nrm, ragged):
+        """How far the fire has burnt points on a log (about 0: not reached .. 1.5 and more: burning red): near the
+        fire's heart (a line across the pile, among the logs: its middle part burns, its ends do not), facing it,
+        between two logs (the fire burns in the gaps) and low down (on the embers), unevenly (`ragged`: a noise of
+        the log)."""
+        fire, r = self.fire, self.r
+        q = np.stack([np.clip(p[:, 0], fire[0] - self.spread, fire[0] + self.spread), np.full(len(p), fire[1]),
+                      np.full(len(p), fire[2])], 1)
+        to = q - p
+        d = np.linalg.norm(to, axis=1)
+        facing = np.einsum("ij,ij->i", nrm, to) / np.maximum(d, 1e-9)
+        core = np.exp(-(d / (2.4 * r)) ** 2)
+        wide = np.exp(-(d / (3.5 * r)) ** 2)
+        gap = np.full(len(p), np.inf)
+        for other in self.logs:
+            if other is not lg:
+                gap = np.minimum(gap, np.linalg.norm(p - self._nearest_on(other, p), axis=1) - other.r)
+        between = np.exp(-(np.maximum(gap, 0.0) / (0.7 * r)) ** 2)
+        low = np.exp(-(np.maximum(p[:, 2], 0.0) / (0.45 * r)) ** 2)
+        side = np.exp(-(np.maximum(np.abs(p[:, 0] - fire[0]) - self.spread, 0.0) / (1.3 * r)) ** 2)  # (its ends: cool)
+        return (core * (0.7 + 0.3 * facing) + 0.7 * between * wide + 0.9 * low * wide) * (0.4 + 0.6 * side) + \
+            0.4 * (ragged - 0.5)
+
     def _looks(self, lg, p, hh, x1, x2, nrm, step):
-        """What a log looks like at points on it: colour (linear), the way it faces with its relief, its cracks'
-        glow (how much they can glow: where it is charred). `step`: a pixel's size, radii."""
+        """What a log looks like at points on it: colour (linear), the way it faces with its relief, and how much its
+        cracks and the char between them glow (where it is burning). `step`: a pixel's size, radii.
+
+        Where the fire has not reached it, its bark (browned next to where it has charred); where it has, charred
+        wood, ash on its tops; where it is hottest (`_heat`), burning: its cracks and its char glowing."""
         a, q = hh / lg.r, np.mod(np.arctan2(x2, x1), TAU)
         along = nrm @ lg.d  # (how much of it is a cut end, by the way it faces: the rounded edge between)
         cap = _smooth((np.abs(along) - 0.55) / 0.3)
-        to_fire = self.fire - p
-        to_fire /= np.maximum(np.linalg.norm(to_fire, axis=1, keepdims=True), 1e-9)
-        facing = np.clip(np.einsum("ij,ij->i", nrm, to_fire), -1, 1)
         coal, c_sa, c_sq, c_crack, tone, ragged, ash = lg.char(a, q, step)
-        ends = np.minimum(hh, lg.length - hh) / lg.r  # (radii from the nearer end: ends burn first)
         burnt = self.burnt
-        level = burnt * 1.7 - 0.45 + 0.5 * facing + 0.3 * _smooth(1 - ends / 1.5) + 0.35 * (ragged - 0.5)
-        charred = _smooth((level - 0.2 * (tone - 0.5)) / 0.06)  # (block by block: its edge along the cracks)
+        heat = self._heat(lg, p, nrm, ragged)
+        edge = heat - (0.95 - 0.75 * burnt) - 0.15 * (tone - 0.5)  # (charred block by block: its edge along cracks)
+        charred = _smooth(edge / 0.05)
+        scorched = _smooth((edge + 0.3) / 0.3) * (1 - charred)
+        burning = _smooth((edge - 0.22) / 0.35) * charred
         colour = coal * charred[:, None]
         sa, sq = c_sa * charred, c_sq * charred
         some_bark = np.flatnonzero(charred < 0.999)
         if len(some_bark):
             bark, b_sa, b_sq = lg.bark(a[some_bark], q[some_bark], step)
+            sc = scorched[some_bark, None]
+            bark = bark * (1 - 0.55 * sc) + SCORCH * (0.55 * sc)
             keep = (1 - charred[some_bark])
             colour[some_bark] += bark * keep[:, None]
             sa[some_bark] += b_sa * keep
             sq[some_bark] += b_sq * keep
-        ashy = (0.2 + 0.8 * ash) * _smooth((nrm[:, 2] + 0.1) / 0.9) * charred * (0.1 + 0.22 * burnt)
+        ashy = (0.2 + 0.8 * ash) * _smooth((nrm[:, 2] + 0.1) / 0.9) * charred * (0.1 + 0.22 * burnt) * (1 - burning)
         colour = colour * (1 - ashy[:, None]) + ASH * (0.75 + 0.5 * ragged[:, None]) * ashy[:, None]
-        glow = c_crack * charred * (1 - ashy)
+        spots = _smooth((0.75 - ash) / 0.5)  # (some patches hotter than others; none under ash)
+        crack = c_crack * burning * (0.55 + 0.45 * spots)
+        skin = burning * (0.3 + 0.7 * (1 - tone) ** 1.5) * (0.35 + 0.65 * spots) * (1 - 0.5 * ashy)
         # the relief: the surface tilted by its slopes along the log and round it
         tang = np.cross(lg.d, nrm)
         tang /= np.maximum(np.linalg.norm(tang, axis=1, keepdims=True), 1e-9)
         bump = sa[:, None] * lg.d + sq[:, None] * tang
-        # the cut ends (seen from outside each: u mirrored at the far end)
+        # the cut ends (seen from outside each: u mirrored at the far end), burnt as far as the fire has reached them
         ci = np.flatnonzero(cap > 0.001)
         if len(ci):
             flip = np.where(along[ci] < 0, -1.0, 1.0)
             u, v = x1[ci] / lg.r * flip, x2[ci] / lg.r
             d = 0.03
-            wood, rel, f_crack = lg.face(u, v, burnt, step)
-            ru, rv = lg.face(u + d, v, burnt, step)[1], lg.face(u, v + d, burnt, step)[1]
+            done = np.clip(edge[ci] / 0.4 + 0.5, 0.0, 1.0)
+            wood, rel, f_crack = lg.face(u, v, done, step)
+            ru, rv = lg.face(u + d, v, done, step)[1], lg.face(u, v + d, done, step)[1]
             c = cap[ci, None]
             colour[ci] = colour[ci] * (1 - c) + wood * c
-            glow[ci] = glow[ci] * (1 - cap[ci]) + f_crack * cap[ci] * np.clip(charred[ci], 0.3, 1)
+            crack[ci] = crack[ci] * (1 - cap[ci]) + f_crack * cap[ci] * burning[ci]
             bump_end = ((ru - rel) / d * flip)[:, None] * lg.e1 + ((rv - rel) / d)[:, None] * lg.e2
             bump[ci] = bump[ci] * (1 - c) + bump_end * c
         bump -= np.einsum("ij,ij->i", bump, nrm)[:, None] * nrm  # (in the surface)
         nb = nrm - bump
         nb /= np.maximum(np.linalg.norm(nb, axis=1, keepdims=True), 1e-9)
-        return colour.astype(np.float32), nb, glow.astype(np.float32)
+        return colour.astype(np.float32), nb, crack.astype(np.float32), skin.astype(np.float32)
 
     def _shading(self, p, nrm, on):
         """For pixels on the logs (points p, facing nrm): how much of each light reaches each (lights x pixels:
-        facing it, not in another log's shadow, less far off), the room's light (less where logs round it hide the
-        room), how hot it is there (near the fire's heart and low: its cracks glow)."""
+        facing it, not in another log's shadow, less far off), and the room's light (less where logs round it hide
+        the room)."""
         lights = np.zeros((len(self.lights),) + on.shape, np.float32)
         p32, n32 = p.astype(np.float32), nrm.astype(np.float32)
         start = p32 + n32 * np.float32(0.02 * self.r)
@@ -638,16 +674,9 @@ class Pile:
             cos = np.clip(np.einsum("ij,ij->i", nrm, v) / np.maximum(dd, 1e-9), 0, 1)
             room *= 1 - np.clip(cos * (lg.r / np.maximum(dd, lg.r)) ** 2 * 1.3, 0, 0.9)
         room *= 0.55 + 0.45 * _smooth((nrm[:, 2] + 0.6) / 1.2)  # (facing down: the dark floor)
-        to_fire = self.fire - p
-        heart = np.linalg.norm(to_fire / [1.0, 1.0, 1.4], axis=1) / (2.4 * self.r)
-        facing = np.einsum("ij,ij->i", nrm, to_fire) / np.maximum(np.linalg.norm(to_fire, axis=1), 1e-9)
-        hot = (1 - _smooth(heart / 0.9)) * _smooth((facing + 0.3) / 0.8)
-        hot = np.maximum(hot, _smooth((0.6 * self.r - p[:, 2]) / (0.5 * self.r)))  # (low down: on the embers)
         full = np.zeros(on.shape, np.float32)
-        full_hot = np.zeros(on.shape, np.float32)
         full[on] = room
-        full_hot[on] = hot
-        return lights, full, full_hot
+        return lights, full
 
     @staticmethod
     def _nearest_on(lg, p):
@@ -702,10 +731,10 @@ class Pile:
     # --- each frame ------------------------------------------------------------------------------------------------
 
     def colour(self, laid, room, flames, embers, glow, tau, beats):
-        """The logs now (linear RGB, h x w x 3, laid over the picture by laid["alpha"]): lit by the room (`room`: its
-        light, linear RGB), each light as bright as `flames` / `embers` say (one number each, in the order of
-        self.lights of that kind), their cracks glowing `glow` bright (breathing at `beats`: whole cycles a loop, at
-        loop phase tau)."""
+        """The logs now (linear RGB, h x w x 3, laid over the picture by laid["alpha"]) and the light their burning
+        wood gives off (linear RGB, or None): lit by the room (`room`: its light, linear RGB), each light as bright as
+        `flames` / `embers` say (one number each, in the order of self.lights of that kind), where they burn glowing
+        `glow` bright (breathing at `beats`: whole cycles a loop, at loop phase tau)."""
         lights = laid["light"]
         fl = np.zeros(lights.shape[1:], np.float32)
         em = np.zeros(lights.shape[1:], np.float32)
@@ -718,11 +747,15 @@ class Pile:
         light = laid["room"][..., None] * np.asarray(room, np.float32) + fl[..., None] * FLAME_LIGHT + \
             em[..., None] * EMBER_LIGHT
         out = laid["albedo"] * light
-        if glow > 0:
-            ph = laid["phase"] * TAU
-            breathe = sum(np.sin(TAU * m * tau + ph * (2 + i)) for i, m in enumerate(beats)) / max(1, len(beats))
-            heat = laid["glow"] * laid["hot"] * (glow * (0.75 + 0.25 * breathe))
-            heat += laid["hot"] ** 3 * (0.25 * glow) * (0.8 + 0.2 * breathe)  # (the char itself, red hot low down)
-            for c in range(3):
-                out[..., c] += np.interp(heat, EMBER_I, EMBER[:, c]).astype(np.float32)
-        return out
+        if glow <= 0:
+            return out, None
+        # where it is burning: its cracks glowing orange, the char between them red, breathing
+        ph = laid["phase"] * TAU
+        breathe = sum(np.sin(TAU * m * tau + ph * (2 + i)) for i, m in enumerate(beats)) / max(1, len(beats))
+        live = glow * (0.8 + 0.2 * breathe)
+        heat = laid["crack"] * (GLOW_CRACK * live) + laid["skin"] * (GLOW_SKIN * live)
+        given = np.empty_like(out)
+        for c in range(3):
+            given[..., c] = np.interp(heat, EMBER_I, EMBER[:, c])
+        out += given
+        return out, given

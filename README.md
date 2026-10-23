@@ -296,8 +296,8 @@ video gốc ở chỗ ngọn nến. Sau khi vẽ vùng đứng yên lên ngọn 
 ### Lửa lò sưởi
 
 Lửa củi cháy trong lò sưởi có sẵn trong video, như lửa quay thật: ngọn lửa liếm lên, cuộn xoáy, tách ngọn; gốc lửa vàng
-trắng, ngọn cam đỏ; than hồng dưới chân lửa; ánh lửa bập bùng hắt lên lò sưởi. Lửa do app tự tính (như khí nóng bốc lên
-thật), không phải một video có sẵn, nên vừa mọi lò sưởi và lặp liền mạch.
+trắng, ngọn cam đỏ; than hồng dưới chân lửa; thỉnh thoảng tia lửa nhỏ bay lên; ánh lửa bập bùng hắt lên lò sưởi. Lửa do
+app tự tính (như khí nóng bốc lên thật), không phải một video có sẵn, nên vừa mọi lò sưởi và lặp liền mạch.
 
 1. Bấm **Tạo sẵn** → **Lửa lò sưởi**, kéo xuống một track trống, bấm **Suốt video**.
 2. Kéo khung trắng tới lò sưởi. Ở đáy khung có **hình bầu dục vàng** (ghi "chỗ lửa cháy"): đặt nó lên **mặt củi**, chỗ
@@ -316,12 +316,16 @@ thật), không phải một video có sẵn, nên vừa mọi lò sưởi và l
    các thanh **Khung lò rộng**, **Khung lò cao**, **Độ cong**). Lửa, ánh lửa và củi chỉ còn ở trong viền cam, như
    cháy thật trong lò; ngọn lửa cao chạm nóc lò thì khuất vào trong.
 7. Lò sưởi trong video còn trống, chưa có củi (hoặc muốn thay củi): ở mục **Củi** chọn **Củi sồi** (vỏ xám, rãnh
-   sâu), **Củi vỏ nâu** hay **Củi bạch dương** (vỏ trắng). App vẽ một đống củi thật: khúc gỗ tròn cháy sém, than đen
-   nứt thành từng khối, tro xám phủ mặt trên, mặt cắt có vân vòng, than hồng âm ỉ trong vết nứt ở dưới; củi được ánh lửa
-   chiếu sáng, bập bùng theo ngọn lửa; khúc phía trước che chân lửa, lửa bốc lên từ giữa các khúc củi. Đặt **hình bầu
-   dục vàng** lên **sàn lò**, chỗ đặt củi (củi đứng trên nó, rộng bằng nó). Chỉnh thêm:
+   sâu), **Củi vỏ nâu** hay **Củi bạch dương** (vỏ trắng). App vẽ một đống củi thật, cháy như củi thật:
+   - chỗ lửa chưa cháy tới (hai đầu khúc củi, mặt ngoài) còn nguyên vỏ cây, mặt cắt gỗ có vân vòng;
+   - cạnh đó vỏ sém nâu, rồi than đen nứt thành từng khối, tro xám phủ mặt trên;
+   - chỗ lửa nóng nhất (khe giữa các khúc, đáy củi, giữa đống) đang cháy đỏ: vết nứt đỏ cam rực, than đỏ âm ỉ, thở
+     theo nhịp lửa, có quầng sáng nhẹ.
+   Củi được ánh lửa chiếu sáng, bập bùng theo ngọn lửa; khúc phía trước che chân lửa, lửa bốc lên từ giữa các khúc
+   củi. Đặt **hình bầu dục vàng** lên **sàn lò**, chỗ đặt củi (củi đứng trên nó, rộng bằng nó). Chỉnh thêm:
    - **Cách xếp**: **Ba khúc: hai dưới, một trên**, **Đống củi (năm khúc)**, **Hai khúc nằm cạnh nhau**.
-   - **Khúc củi to**, **Cháy sém** (0: củi mới còn nguyên vỏ, 100: cháy đen hết).
+   - **Khúc củi to**, **Cháy sém** (kéo về trái: củi mới, phần lớn còn vỏ, chỉ khe giữa đỏ; kéo sang phải: cháy lan
+     rộng, nhiều chỗ đỏ rực). **Than hồng dưới chân lửa** càng lớn thì chỗ cháy đỏ càng rực; 0 là không đỏ.
    - **Nhìn từ trên xuống**: cho hợp góc máy của video (máy quay ngang tầm lò: kéo về trái; nhìn từ trên cao: kéo
      sang phải).
    - Muốn các khúc củi đặt khác đi: bấm **Đổi kiểu ngẫu nhiên** (lửa cũng đổi theo).
@@ -353,9 +357,10 @@ ban đêm.
 
 Chim bồ câu do app vẽ (không phải ảnh có sẵn), trông như bồ câu thật trên vỉa hè: thân tròn liền một khối, đầu nhỏ, đi
 từng bước, đầu gật tới trước mỗi bước, đứng ngó quanh, thỉnh thoảng cúi xuống mổ hạt vài cái (mỏ chạm đất) rồi ngẩng
-lên. Bồ câu xám có lưng nhạt hơn cánh, hai vạch đen trên cánh, đầu cánh và cuối đuôi sẫm, cổ ánh xanh tím đổi theo góc
-nhìn, mắt cam, chân đỏ; còn có bồ câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối theo ánh sáng trong
-video và có bóng mềm dưới chân.
+lên. Bồ câu xám có lưng và cánh xám nhạt, hai vạch đen trên cánh, đầu cánh và cuối đuôi sẫm, cổ ánh xanh tím đổi theo
+góc nhìn, mắt cam, chân đỏ san hô ba ngón; nhìn gần thấy từng hàng lông trên lưng, trên cánh, lông dài ở đuôi và đầu
+cánh, lông mềm như nhung. Còn có bồ câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối theo ánh sáng
+trong video và có bóng mềm dưới chân.
 
 1. Bấm **Tạo sẵn** → **Chim bồ câu**, kéo xuống một track trống, bấm **Suốt video**.
 2. Chọn **Kiểu**, rồi kéo khung trắng tới chỗ chim. Chim chỉ ở trong khung.

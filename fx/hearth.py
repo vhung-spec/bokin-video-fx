@@ -33,12 +33,12 @@ JOIN = 1.0  # seconds of the crossfade that closes the loop
 MARK = 0.09  # the bed's mark on the page: a flat ellipse this high for its width, on the box's bottom edge
 CUT = 0.12  # glow this faint is not drawn (no lingering haze above the flames)
 STORE = 3.0  # (the glow is kept as 8 bits: its square root, up to this)
-LEVEL = 0.155  # a fire's mean glow at the default settings (a bigger fire throws more light on the room)
+LEVEL = 0.155  # a middling fire's mean glow (a bigger fire throws more light on the room)
 KEEP = 240e6  # bytes of fires kept for later (the newest)
 HALO = 0.35  # the glow round the flames (a camera's), as bright as the flames blurred times this
 HALO_R = 0.07  # (its blur: box heights)
 LIGHT = np.array([1.0, 0.62, 0.3], np.float32)  # the fire's light on what is round it (its colour)
-LIGHT_K = 1.0  # (how much brighter it makes what is near it, at "light" 100, a fire of the default size)
+LIGHT_K = 1.0  # (how much brighter it makes what is near it, at "light" 100, a middling fire)
 LUT_TOP = 2.2  # (the fire's colours looked up in a table, brightness 0 to this: brighter is as white)
 DIM = 0.28  # the old fire put out ("cover" 100): its glow blurred, this bright
 PACE = 1.2  # seconds of fire a second of video at "speed" 50 (a fire filmed: tongues come and go quickly)
@@ -46,23 +46,27 @@ LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
 # logs ("Củi"): the flames' light on them (times their glow near each light, over REACH box heights), the embers'
 # (times "embers"), the room's (times the picture's mean light round the box), their cracks' glow (times "embers"),
 # and how much they keep the light from the floor right under them
-FLAME_ON_LOGS, EMBERS_ON_LOGS, ROOM_ON_LOGS, CRACKS = 2.6, 0.8, 1.0, 1.1
+FLAME_ON_LOGS, EMBERS_ON_LOGS, ROOM_ON_LOGS, CRACKS = 4.5, 1.6, 1.0, 1.1
 REACH = 0.07
-BEHIND = 0.7  # (the bright flames' share seen over a log behind the fire, fainter ones less; none over one in front)
+BEHIND = 0.5  # (the bright flames' share seen over a log behind the fire, fainter ones less; none over one in front)
 FLOOR_SHADE = 0.7
+SPARKS = 1.4  # sparks flying up a second at "amount" 100 (fewer for a smaller fire)
+SPARK_R = 0.0036  # (a spark's size: box heights)
+EMBER_HALO, EMBER_HALO_R = 0.5, 0.012  # (the glow round the logs' burning wood: as bright as it blurred times this; box
+# heights)
 # a real wood fire's colours by brightness (measured from footage: dark red where faint, orange-red, orange, yellow,
 # white-yellow where it burns hottest)
 PAL_I = np.array([0.0, 0.12, 0.3, 0.5, 0.7, 0.9, 1.1, 1.35, 1.8], np.float32)
 PAL = np.array([[0, 0, 0], [52, 12, 3], [169, 58, 15], [244, 95, 14], [251, 145, 8], [253, 195, 14],
                 [253, 228, 94], [254, 239, 173], [255, 250, 228]], np.float32) / 255
 
-DEFAULTS = {"bed": 70, "height": 50, "amount": 50, "flicker": 50, "speed": 50, "bright": 50, "warmth": 50,
-            "embers": 40, "light": 45, "cover": 0}
+DEFAULTS = {"bed": 70, "height": 52, "amount": 70, "flicker": 50, "speed": 50, "bright": 58, "warmth": 50,
+            "embers": 45, "light": 50, "cover": 0}
 LOOKS = {
     "logs": {},
-    "big": {"height": 75, "amount": 75, "flicker": 60, "bright": 60, "embers": 50, "light": 60},
-    "low": {"height": 30, "amount": 35, "flicker": 40, "bright": 45, "embers": 55, "light": 35},
-    "embers": {"height": 12, "amount": 20, "flicker": 35, "bright": 40, "embers": 85, "light": 30},
+    "big": {"height": 72, "amount": 90, "flicker": 60, "bright": 65, "embers": 55, "light": 65},
+    "low": {"height": 32, "amount": 45, "flicker": 40, "bright": 50, "embers": 55, "light": 40},
+    "embers": {"height": 12, "amount": 22, "flicker": 35, "bright": 45, "embers": 90, "light": 35},
 }
 
 WITH_LOGS = {"wood": list(logs.WOODS)}  # (the logs' settings show once a wood is chosen)
@@ -400,7 +404,7 @@ class Hearth(Effect):
     UNDER = True  # its preview clip: the picture under the box with the fire in it (the old fire dimmed: "cover")
     UNDER_FADE = 0.0  # (its change already fades out toward the box's edges; its logs stand on its bottom edge)
     TURNS = False  # a fire always rises straight up
-    VERSION = 1
+    VERSION = 2  # (2: logs burnt where the fire reaches them, glowing red; fuller flames)
 
     def __init__(self, *a):
         super().__init__(*a)
@@ -430,6 +434,15 @@ class Hearth(Effect):
         self.frame_w, self.frame_h = p.get("frame_w", 80) / 100, p.get("frame_h", 85) / 100
         self.pile = None
         self._windows = None
+        # sparks flying up from the fire: whole sparks a loop, each born at its own moment of it, rising, wavering,
+        # fading out (the loop's last frame runs on into its first)
+        g = np.random.default_rng([self.seed, 7103, 5])
+        count = int(round(SPARKS * (0.25 + 0.75 * n) * self.loop_s))
+        self.sparks = {"born": (np.arange(count) + g.random(count)) / max(count, 1), "x": g.uniform(-0.42, 0.42, count),
+                       "life": g.uniform(0.6, 1.5, count), "rise": g.uniform(0.3, 0.7, count),
+                       "wob": g.uniform(0.008, 0.03, count), "hz": g.uniform(1.5, 4.0, count),
+                       "ph": g.random(count) * TAU, "drift": g.uniform(-0.06, 0.06, count),
+                       "hot": g.uniform(0.5, 1.0, count)}
         if p.get("wood") in logs.WOODS:  # logs under the flames (box heights from the bed's middle)
             wide = self.BOX[0] / self.BOX[1]
             half = wide / 2 * (0.97 if self.frame is None else 0.95 * self.frame_w)  # (in the box, in its opening)
@@ -510,7 +523,7 @@ class Hearth(Effect):
         ys = (np.arange(ry0, ry1, dtype=np.float32) + 0.5 - y0) / h  # (0..1 down the box)
         xs = (np.arange(rx0, rx1, dtype=np.float32) + 0.5 - x0) / w
         edge = self._edge(xs, ys)
-        lay = {"size": (rx1 - rx0, ry1 - ry0), "edge": edge, "shown": self._shown(xs, ys),
+        lay = {"size": (rx1 - rx0, ry1 - ry0), "edge": edge, "shown": self._shown(xs, ys), "box_h": h,
                # (the part of the grid that shows: whole pixels, up to a pixel more than the box at its edges)
                "src": (max(0.0, (rx0 - x0) / w * gw), max(0.0, (ry0 - y0) / h * gh), min(gw, (rx1 - x0) / w * gw),
                        min(gh, (ry1 - y0) / h * gh))}
@@ -593,10 +606,16 @@ class Hearth(Effect):
         breathe = sum(math.sin(TAU * m * tau + ph) for m, ph in zip(self.ember_m, self.ember_ph)) / 3
         ember = EMBERS_ON_LOGS * self.embers_k * (0.85 + 0.15 * breathe) * bright
         embers = [ember] * sum(kind == "ember" for _, kind in self.pile.lights)
-        colour = self.pile.colour(laid, room, flames, embers, CRACKS * self.embers_k * bright, tau, self.ember_m)
+        colour, given = self.pile.colour(laid, room, flames, embers, CRACKS * self.embers_k * bright, tau,
+                                         self.ember_m)
         np.clip(colour, 0.0, 1.0, out=colour)
         colour **= 1 / logs.GAMMA
         part += alpha * (colour - part)
+        if given is not None:  # (the glow round the burning wood, a camera's: over the logs and past their edges)
+            halo = _soft(given * alpha, max(1.0, EMBER_HALO_R * lay["box_h"]))
+            np.clip(halo * EMBER_HALO, 0.0, 1.0, out=halo)
+            halo **= 1 / logs.GAMMA
+            part += halo * (1 - part)
 
     def _halo(self, flame, src, size):
         """The glow round the flames (a camera's): the flames' colours on the grid, blurred on a grid 4 times
@@ -607,6 +626,48 @@ class Hearth(Effect):
         img = Image.fromarray((np.clip(small, 0, 255) + 0.5).astype(np.uint8)).resize(
             size, Image.Resampling.BILINEAR, box=tuple(v / 4 for v in src))
         return np.asarray(img, np.float32) * (1 / 255.0)
+
+    def _sparks(self, t, at, lay, x0, y0, w, h):
+        """The sparks flying up now over the box's part in the frame (`at`: its top left corner; colours, 0..1), or
+        None: each a little streak (as a camera sees a spark), from the top of the logs (or the bed) up, wavering,
+        fading out."""
+        sp = self.sparks
+        if not len(sp["born"]) or self.p["amount"] <= 0:
+            return None
+        sec = (t % self.P) / self.fps
+        age = np.mod(sec - sp["born"] * self.loop_s, self.loop_s)
+        live = np.flatnonzero(age < sp["life"])
+        if not len(live):
+            return None
+        width, height = lay["size"]
+        acc = np.zeros((height, width), np.float32)
+        if self.pile is not None:
+            start = max(0.0, 0.7 * self.pile.extent()[3]) + MARK * self.bed * w / h / 2
+        else:
+            start = MARK * self.bed * 4 / 3 * 0.6
+        sigma = max(0.6, SPARK_R * h)
+        rad = int(math.ceil(3 * sigma))
+        offs = np.arange(-rad, rad + 1, dtype=np.float32)
+        for i in live:
+            a, life = float(age[i]), float(sp["life"][i])
+            bright = float(sp["hot"][i]) * (1 - (a / life) ** 2) * min(1.0, a / 0.06)
+            for k in range(3):  # (a streak: where it was over a share of the frame's time, to where it is)
+                b = max(0.0, a - k * 0.18 / self.fps)
+                up = start + float(sp["rise"][i]) * (b / life) ** 0.75
+                across = float(sp["x"][i]) * self.bed + float(sp["drift"][i]) * b + float(sp["wob"][i]) * math.sin(
+                    TAU * float(sp["hz"][i]) * b + float(sp["ph"][i]))
+                cx, cy = x0 + w * (0.5 + across) - at[0], y0 + h * (1 - up) - at[1]  # (across: box widths)
+                ix, iy = int(round(cx)), int(round(cy))
+                if ix + rad < 0 or iy + rad < 0 or ix - rad >= width or iy - rad >= height:
+                    continue
+                gx = np.exp(-((offs + ix - cx) / sigma) ** 2 / 2)
+                gy = np.exp(-((offs + iy - cy) / sigma) ** 2 / 2)
+                c0, c1, r0, r1 = max(0, ix - rad), min(width, ix + rad + 1), max(0, iy - rad), min(height, iy + rad + 1)
+                acc[r0:r1, c0:c1] += (bright / 3) * np.outer(gy[r0 - iy + rad:r1 - iy + rad],
+                                                            gx[c0 - ix + rad:c1 - ix + rad])
+        acc *= lay["edge"]
+        return self._lut.take((np.minimum(acc * 2.2, LUT_TOP) * ((len(self._lut) - 1) / LUT_TOP)).astype(np.int32),
+                              axis=0)
 
     def draw(self, t, canvas, mask):
         """Nothing laid over the picture: apply() changes it."""
@@ -683,10 +744,13 @@ class Hearth(Effect):
         halo *= lay["edge"][..., None]
         if hide is not None:  # (less of it over the logs: not a haze over them)
             halo[hide[0]] *= 1 - 0.8 * hide[1][..., None]
-        # laid with Screen: 1 - (1 - picture) (1 - flames) (1 - their glow)
+        # laid with Screen: 1 - (1 - picture) (1 - flames) (1 - their glow) (1 - sparks)
         np.subtract(1.0, fire, out=fire)
         np.subtract(1.0, halo, out=halo)
         fire *= halo
+        sparks = self._sparks(t, (rx0, ry0), lay, x0, y0, w, h)
+        if sparks is not None:
+            fire *= 1.0 - sparks
         np.subtract(1.0, out, out=out)
         out *= fire
         np.subtract(1.0, out, out=out)

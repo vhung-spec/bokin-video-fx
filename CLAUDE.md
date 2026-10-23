@@ -195,29 +195,36 @@ hiệu ứng. Cách dùng: `README.md`.
   vào hình (không thành sương), sáng tối theo lửa lúc đó (mức sáng so với trung bình đo lúc khởi động); "Che lửa cũ"
   (`cover`): chỗ sáng ấm hay trắng của lửa đứng yên trong video thành ánh mờ cùng màu đã làm nhoè (`DIM`). Hằng số và
   bản đồ theo hộp giữ giữa các khung (`_layout`). Chỉ các thông số của ngọn lửa (`k`) làm lại lửa; màu, ánh sáng, chỗ
-  đặt thì không. "Khung lò" (từ 1.0.70; `frame`: `none` như cũ, `rect`, `arch`, `round`; `frame_w`, `frame_h`: phần
-  của hộp, `curve`): miệng lò trong ảnh, đứng trên đáy hộp, hai góc trên bo theo `frame_radii` (như CSS bo góc: trang
-  vẽ viền cam `#xformFrame` cùng công thức, `frameRadii`; ba ô kéo hai bên và cạnh trên: `frameL`, `frameR`,
-  `frameT`, nằm trong `XFORM_KEYS`). Mọi thay đổi của lửa trong hộp (lửa, quầng, ánh lửa, che lửa cũ, củi) nhân với
-  mặt nạ miệng lò (`_opening`: mềm ở hai bên và trên, không ở đáy); đống củi hẹp lại cho vừa miệng lò. Không làm lại
-  lửa.
+  đặt thì không. "Khung lò" (từ 1.0.70; `frame`: `none` như cũ, `rect`, `arch`, `round`; `frame_w`, `frame_h`: phần của
+  hộp, `curve`): miệng lò trong ảnh, đứng trên đáy hộp, hai góc trên bo theo `frame_radii` (như CSS bo góc: trang vẽ
+  viền cam `#xformFrame` cùng công thức, `frameRadii`; ba ô kéo hai bên và cạnh trên: `frameL`, `frameR`, `frameT`, nằm
+  trong `XFORM_KEYS`). Mọi thay đổi của lửa trong hộp (lửa, quầng, ánh lửa, che lửa cũ, củi) nhân với mặt nạ miệng lò
+  (`_opening`: mềm ở hai bên và trên, không ở đáy); đống củi hẹp lại cho vừa miệng lò. Không làm lại lửa. Tia lửa (từ
+  1.0.73, `_sparks`: số nguyên tia mỗi vòng theo `SPARKS` và "Lửa dày", mỗi tia sinh một lúc trong vòng, bay lên từ đỉnh
+  đống củi hay chân lửa, lượn, tắt dần; vệt nhỏ như máy quay thấy, Screen; không làm lại lửa). Chủ thấy lửa chưa đẹp
+  (2026-10-23): `DEFAULTS` từ 1.0.73 lửa dày, sáng hơn (`amount` 70, `bright` 58); `VERSION` 2.
 - Củi của Lửa lò sưởi (`fx/logs.py`, từ 1.0.69; nhóm "Củi": `wood` (`none`: không củi, như cũ: clip cũ giữ nguyên),
-  `stack`, `log_size`, `char`, `view`, hiện khi đã chọn củi: `show`; kiểu lửa không đặt chúng): đống củi vẽ bằng mã.
-  Mỗi khúc là mặt ẩn (`Log.outside`: trụ gồ ghề theo bảng dọc trục, to một đầu, đầu cắt bo tròn) trong cảnh nhỏ trên
-  hình bầu dục (x ngang, y vào trong, z lên, đơn vị chiều cao hộp); máy quay xa (tia song song) nhìn xuống `tilt` (5 tới
-  35°: "Nhìn từ trên xuống"). Tia vào trụ bao, bước `MARCH` rồi khép vào mặt (`trace`; khúc gần trước, phần bị che
-  không dò); một tia mỗi điểm ảnh, `SS`x`SS` ở mép khúc. Vân tính tại điểm chạm từ seed của khúc (giống nhau ở mọi cỡ):
-  than nứt vòng quanh khúc (`char`: dải vòng lượn, chỗ tách riêng mỗi dải, nứt mảnh, mảng đen theo khối, thớ dọc), vỏ
-  (`bark`: rãnh dọc là đường đồng mức của nhiễu kéo dài, tách nhập; bạch dương trắng, vạch ngang, sẹo đen), mặt cắt
-  (`face`: vòng năm, lõi, vết nứt toả), tro xám mặt trên; độ gồ nghiêng pháp tuyến (độ dốc tính thẳng: `_noise_d`).
-  Cháy sém theo `char`, mặt hướng lửa, hai đầu; ranh giới theo khối. `Pile.lay` một lần cho mỗi chỗ đặt (trong
-  `_layout`): màu, pháp tuyến, phần mỗi đèn (đèn cố định: trên đống củi, giữa các khúc, than trước đống; hướng, bóng
-  mềm của khúc khác, xa gần), ánh phòng (khúc quanh che), độ nóng, bóng trên sàn; mỗi khung (`Pile.colour`, `_logs`)
-  chỉ đổi độ sáng đèn (lửa mô phỏng quanh mỗi đèn: `_light_windows`; than: nhịp `ember_m`), ánh phòng (trung bình hình
-  trong hộp) và than hồng trong vết nứt (thở, số nguyên lần mỗi vòng). Củi đục, vẽ trước lửa: khúc trước mặt phẳng lửa
-  che hết lửa, khúc sau chỉ để lộ lưỡi lửa sáng (`BEHIND`), than hồng trên sàn bị che, quầng sáng bớt trên củi. Có củi
-  thì chỗ cháy của mô phỏng lên tới giữa đống củi (`k["base"]`: đổi cỡ, cách xếp, góc nhìn là tính lại lửa; loại củi,
-  cháy sém thì không). Đống củi nằm trong hộp (hẹp lại, lùi vào khi cần), khúc to nhất `BIGGEST`; `UNDER_FADE` = 0:
+  `stack`, `log_size`, `char`, `view`, hiện khi đã chọn củi: `show`; kiểu lửa không đặt chúng): đống củi vẽ bằng mã. Mỗi
+  khúc là mặt ẩn (`Log.outside`: trụ gồ ghề theo bảng dọc trục, to một đầu, đầu cắt bo tròn) trong cảnh nhỏ trên hình
+  bầu dục (x ngang, y vào trong, z lên, đơn vị chiều cao hộp); máy quay xa (tia song song) nhìn xuống `tilt` (5 tới 35°:
+  "Nhìn từ trên xuống"). Tia vào trụ bao, bước `MARCH` rồi khép vào mặt (`trace`; khúc gần trước, phần bị che không dò);
+  một tia mỗi điểm ảnh, `SS`x`SS` ở mép khúc. Vân tính tại điểm chạm từ seed của khúc (giống nhau ở mọi cỡ): than nứt
+  vòng quanh khúc (`char`: dải vòng lượn, chỗ tách riêng mỗi dải, nứt mảnh, mảng đen theo khối, thớ dọc), vỏ (`bark`:
+  rãnh dọc là đường đồng mức của nhiễu kéo dài, tách nhập; bạch dương trắng, vạch ngang, sẹo đen), mặt cắt (`face`: vòng
+  năm, lõi, vết nứt toả), tro xám mặt trên; độ gồ nghiêng pháp tuyến (độ dốc tính thẳng: `_noise_d`). Lửa cháy tới đâu
+  (từ 1.0.73, chủ yêu cầu 2026-10-23: củi có chỗ chưa cháy tới, chỗ đang cháy đỏ; `Pile._heat`: gần lõi lửa, một đường
+  ngang giữa đống `spread`, hướng về nó, khe giữa hai khúc, sát sàn; hai đầu khúc nguội; loang theo nhiễu) chia vùng
+  theo `char`, ranh giới theo khối: còn vỏ (sém nâu `SCORCH` sát vùng than), than đen nứt khối có tro, đang cháy đỏ
+  (`burning`: vết nứt `crack` và mặt than `skin` phát sáng `GLOW_CRACK`, `GLOW_SKIN` lần "Than hồng", chỗ nóng chỗ không
+  `spots`, thở theo nhịp; mặt cắt cháy theo chỗ của nó). `Pile.colour` trả cả ánh sáng củi phát ra: quầng sáng quanh chỗ
+  cháy đỏ (`EMBER_HALO`, `_soft` trên phần củi, tràn ra ngoài mép khúc). `Pile.lay` một lần cho mỗi chỗ đặt (trong
+  `_layout`): màu, pháp tuyến, phần mỗi đèn (đèn cố định: trên đống củi, giữa các khúc, than trước đống; hướng, bóng mềm
+  của khúc khác, xa gần), ánh phòng (khúc quanh che), bóng trên sàn; mỗi khung (`Pile.colour`, `_logs`) chỉ đổi độ sáng
+  đèn (lửa mô phỏng quanh mỗi đèn: `_light_windows`; than: nhịp `ember_m`), ánh phòng (trung bình hình trong hộp) và chỗ
+  cháy đỏ (thở, số nguyên lần mỗi vòng). Củi đục, vẽ trước lửa: khúc trước mặt phẳng lửa (và tới 1,5 bán kính sau nó)
+  che hết lửa, khúc sau nữa chỉ để lộ lưỡi lửa sáng (`BEHIND`), than hồng trên sàn bị che, quầng sáng bớt trên củi. Có
+  củi thì chỗ cháy của mô phỏng lên tới giữa đống củi (`k["base"]`: đổi cỡ, cách xếp, góc nhìn là tính lại lửa; loại
+  củi, cháy sém thì không). Đống củi nằm trong hộp (hẹp lại, lùi vào khi cần), khúc to nhất `BIGGEST`; `UNDER_FADE` = 0:
   clip xem nhanh không mờ ở mép hộp (củi đứng trên đáy hộp; lửa tự mờ ở mép).
 - Đom đóm (`fx/fireflies.py`, mã loại `fireflies`, từ 1.0.68): hiệu ứng đặt một chỗ (`BOX` 16:9: khung trên khóm
   hoa và khoảng trời phía trên), ánh sáng (Screen: clip xem nhanh H.264 nền đen, `PREVIEW` 1280 khi khung to), không
@@ -241,19 +248,23 @@ hiệu ứng. Cách dùng: `README.md`.
   đường nối. Màu lông tính tại điểm chạm (`_albedo`: đầu xám, cổ ánh xanh lá nhìn thẳng, tím nhìn xiên, ức tím xám, lưng
   và cánh xếp nhạt hơn sườn, hai vạch đen nửa sau cánh, đầu cánh sẫm trên đuôi, dải đen cuối đuôi, mắt cam nhỏ, mũi
   trắng, chân đỏ; `COATS` xám, xám đen, nâu đỏ, trắng; `Coat`: đốm `checker`, loang trắng `pied`, vân lông `grain`;
-  `MIXED` như đàn chim phố; hoa văn mờ theo cỡ điểm ảnh, `_fade`: không lấp lánh). Chim dài từ `DETAIL` điểm ảnh: một
-  tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần nhất từ `SMALLEST` tới `LARGEST` chiều
-  cao khung (theo hàm mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè
-  theo phần chiều cao khung (`SOFTEST`), không theo cỡ chim: chim to gần máy quay không nhoè hơn chim nhỏ; xem nhanh và
-  video xuất như nhau. Bóng: hai ellipse (đậm ngay dưới thân; rộng, mềm, lệch khỏi nguồn sáng). Mỗi con một ngày trong
-  vòng loop (`Walker`, đoạn `[loại, bắt đầu, dài, số lần mổ]`: đi, đứng ngó, mổ 1–3 cái; "Mổ hạt" `peck` là `hungry`, 0
-  không mổ; `reach()`: cúi `DOWN`, mỗi cái `PECKING`, ngẩng `UP`, mỏ chạm đất `PECK`, đuôi nhấc; đường đi khép kín, đi
-  hết đúng số vòng mỗi loop nên khung P là khung 0; đường nhỏ hơn `room` thì đi nhiều vòng): chân trụ đứng yên trên đất,
-  chân kia bước tới (`STRIDE`), đầu giữ yên rồi vươn tới mỗi bước; chỗ của mỗi con (`_home`) giữ cả đường đi trong
-  khung; xa (đỉnh khung) nhỏ hơn theo "Gần xa". Đậu trên gờ: đáy khung là gờ, đi qua lại dọc gờ, quay đầu theo nửa vòng
-  hẹp ở hai đầu (`TURN`). Không bay nữa: clip bay (`flock`, `pass`) của 1.0.71 thành `ground` (`clean_params`: lựa chọn
-  không còn thì về mặc định). `VERSION` 2: clip xem nhanh làm lại. Mọi thứ cắt ở mép khung (`_inside`: clip xem nhanh
-  chỉ là cái khung).
+  `MIXED` như đàn chim phố; hoa văn mờ theo cỡ điểm ảnh, `_fade`: không lấp lánh). Lông (từ 1.0.73, chủ: "cần đẹp và
+  giống thật hơn"; `_feathers`: hàng lông chồng lên nhau, mỗi chiếc sáng dần về đầu lông, chân lông khuất trong bóng
+  chiếc trước, mép đầu lông nhạt; lông phủ nhỏ trên lưng và nửa trước cánh, đốm của bồ câu có đốm nằm gần đầu mỗi chiếc
+  lông phủ; lông cánh dài nghiêng theo vạch cánh; lông đuôi và đầu cánh dài xếp chồng; lông mịn mờ trên ức, sườn; mờ hẳn
+  khi mỗi hàng nhỏ hơn vài điểm ảnh). Lông mềm như nhung: sáng hơn một chút chỗ mặt nhìn xiên (`rim`). Chân to hơn, ba
+  ngón mỗi chân (một ngón quay sau), đỏ san hô. `VERSION` 3. Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh,
+  `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
+  mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao
+  khung (`SOFTEST`), không theo cỡ chim: chim to gần máy quay không nhoè hơn chim nhỏ; xem nhanh và video xuất như nhau.
+  Bóng: hai ellipse (đậm ngay dưới thân; rộng, mềm, lệch khỏi nguồn sáng). Mỗi con một ngày trong vòng loop (`Walker`,
+  đoạn `[loại, bắt đầu, dài, số lần mổ]`: đi, đứng ngó, mổ 1–3 cái; "Mổ hạt" `peck` là `hungry`, 0 không mổ; `reach()`:
+  cúi `DOWN`, mỗi cái `PECKING`, ngẩng `UP`, mỏ chạm đất `PECK`, đuôi nhấc; đường đi khép kín, đi hết đúng số vòng mỗi
+  loop nên khung P là khung 0; đường nhỏ hơn `room` thì đi nhiều vòng): chân trụ đứng yên trên đất, chân kia bước tới
+  (`STRIDE`), đầu giữ yên rồi vươn tới mỗi bước; chỗ của mỗi con (`_home`) giữ cả đường đi trong khung; xa (đỉnh khung)
+  nhỏ hơn theo "Gần xa". Đậu trên gờ: đáy khung là gờ, đi qua lại dọc gờ, quay đầu theo nửa vòng hẹp ở hai đầu (`TURN`).
+  Không bay nữa: clip bay (`flock`, `pass`) của 1.0.71 thành `ground` (`clean_params`: lựa chọn không còn thì về mặc
+  định). `VERSION` 2: clip xem nhanh làm lại. Mọi thứ cắt ở mép khung (`_inside`: clip xem nhanh chỉ là cái khung).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D
