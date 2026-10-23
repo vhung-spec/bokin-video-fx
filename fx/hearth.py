@@ -66,6 +66,8 @@ LOOKS = {
 }
 
 WITH_LOGS = {"wood": list(logs.WOODS)}  # (the logs' settings show once a wood is chosen)
+FRAMES = ("rect", "arch", "round")  # the fireplace's opening ("Khung lò"): square, a round arch, rounded top corners
+WITH_FRAME = {"frame": list(FRAMES)}
 
 SCHEMA = {
     "label": "Lửa lò sưởi",
@@ -73,21 +75,34 @@ SCHEMA = {
             "bầu dục vàng ở đáy khung đặt lên mặt củi, chỗ lửa bốc lên; kéo thanh Lửa rộng cho nó rộng bằng đống củi; "
             "kéo góc khung cho lửa cao vừa miệng lò. (3) Video có sẵn lửa đứng yên thì kéo Che lửa cũ lên: lửa cũ tối "
             "đi, lửa mới cháy lên trên. Khúc củi phía trước che chân lửa: tô khúc củi đó vào Tiền cảnh rồi bật Bay ra "
-            "sau tiền cảnh cho clip này. Lò trống, chưa có củi: chọn Củi (sồi, vỏ nâu, bạch dương): app vẽ đống củi "
-            "cháy sém đứng trên hình bầu dục vàng (đặt nó lên sàn lò), lửa bốc lên từ giữa các khúc củi, than hồng "
-            "trong vết nứt; chỉnh Cách xếp, Khúc củi to, Cháy sém, Nhìn từ trên xuống cho hợp góc máy. Lửa không xoay "
-            "3D: lửa luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa cao, Lửa dày, Bập bùng, Tốc độ (và cỡ, cách xếp củi), "
-            "app tính lại lửa từ đầu: dừng hình lần đầu có thể chờ vài giây.",
+            "sau tiền cảnh cho clip này. Miệng lò trong ảnh hẹp, cao hay hình vòm: chọn Khung lò (chữ nhật, vòm tròn, "
+            "bo hai góc trên), kéo ô cam hai bên và ở cạnh trên cho viền cam trùng miệng lò: lửa, ánh lửa và củi chỉ "
+            "ở trong miệng lò, không tràn ra mặt lò. Lò trống, chưa có củi: chọn Củi (sồi, vỏ nâu, bạch dương): app "
+            "vẽ đống củi cháy sém đứng trên hình bầu dục vàng (đặt nó lên sàn lò), lửa bốc lên từ giữa các khúc củi, "
+            "than hồng trong vết nứt; chỉnh Cách xếp, Khúc củi to, Cháy sém, Nhìn từ trên xuống cho hợp góc máy. Lửa "
+            "không xoay 3D: lửa luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa cao, Lửa dày, Bập bùng, Tốc độ (và cỡ, cách "
+            "xếp củi), app tính lại lửa từ đầu: dừng hình lần đầu có thể chờ vài giây.",
     # for the page: where the fire burns, a flat ellipse sitting on the middle of the box's bottom edge, as wide as
     # "bed" (% of the box's width)
     "mark": {"width": "bed", "ratio": MARK, "sits": True, "label": "chỗ lửa cháy (mặt củi)",
              "tip": "Đặt hình bầu dục vàng lên mặt củi, chỗ lửa bốc lên (đã chọn Củi: lên sàn lò, chỗ đặt củi); kéo "
                     "thanh Lửa rộng cho nó rộng bằng đống củi, kéo góc khung cho lửa cao vừa lò sưởi."},
+    # for the page: the fireplace's opening (an outline on the box's bottom edge, its width and height shares of the
+    # box's, its top corners rounded as frame_radii says; its handles change them)
+    "frame": {"shape": "frame", "width": "frame_w", "height": "frame_h", "curve": "curve", "label": "miệng lò",
+              "tip": "Kéo ô cam hai bên và ở giữa cạnh trên cho viền cam trùng miệng lò sưởi trong ảnh: lửa, ánh lửa "
+                     "và củi chỉ ở trong miệng lò."},
     "params": [
         _choice("look", "Kiểu lửa", "logs", [("logs", "Lửa củi (vừa)"), ("big", "Lửa to, cháy mạnh"),
                                              ("low", "Lửa nhỏ, dịu"), ("embers", "Sắp tàn, than hồng")],
                 presets={k: {key: v for key, v in {**DEFAULTS, **look}.items() if key not in ("bed", "cover")}
                          for k, look in LOOKS.items()}, group="Kiểu"),
+        _choice("frame", "Khung lò (miệng lò trong ảnh)", "none",
+                [("none", "Không (lửa trong cả khung trắng)"), ("rect", "Chữ nhật"), ("arch", "Vòm tròn"),
+                 ("round", "Bo hai góc trên")], group="Khung lò"),
+        _num("frame_w", "Khung lò rộng (% khung trắng)", 80, 20, 100, group="Khung lò", show=WITH_FRAME),
+        _num("frame_h", "Khung lò cao (% khung trắng)", 85, 20, 100, group="Khung lò", show=WITH_FRAME),
+        _num("curve", "Độ cong (vòm, góc bo)", 60, group="Khung lò", show={"frame": ["arch", "round"]}),
         _choice("wood", "Củi", "none", [("none", "Không thêm (lửa cháy trên củi có sẵn trong video)"),
                                          ("oak", "Củi sồi (vỏ xám, rãnh sâu)"), ("brown", "Củi vỏ nâu"),
                                          ("birch", "Củi bạch dương (vỏ trắng)")], group="Củi"),
@@ -128,6 +143,19 @@ def _soft(a, radius):
         p = blur(np.asarray(p, np.float32), radius / step)
         out.append(np.asarray(Image.fromarray(p, "F").resize((w, h), Image.Resampling.BILINEAR), np.float32))
     return out[0] if a.ndim == 2 else np.stack(out, 2)
+
+
+def frame_radii(shape, fw, fh, curve):
+    """The opening's top corners for a frame fw x fh wide and high (any unit): the radii (rx across, ry down) of the
+    quarter ellipses that round them, as CSS draws border radii: none (rect), a round arch over the whole width
+    ("arch", as high as `curve` says, 0..100: up to a half circle), or rounded corners ("round")."""
+    k = min(max(curve, 0.0), 100.0) / 100
+    if shape == "arch":
+        return fw / 2, min(fh, k * fw / 2)
+    if shape == "round":
+        r = k * 0.6 * min(fw / 2, fh)
+        return r, r
+    return 0.0, 0.0
 
 
 def palette(i, warmth=0.5):
@@ -398,12 +426,15 @@ class Hearth(Effect):
         self._gshown = None
         self._laid = None
         self._lut = palette(np.linspace(0.0, LUT_TOP, 1024, dtype=np.float32), self.warmth)
+        self.frame = p.get("frame", "none") if p.get("frame") in FRAMES else None  # (the fireplace's opening)
+        self.frame_w, self.frame_h = p.get("frame_w", 80) / 100, p.get("frame_h", 85) / 100
         self.pile = None
         self._windows = None
         if p.get("wood") in logs.WOODS:  # logs under the flames (box heights from the bed's middle)
             wide = self.BOX[0] / self.BOX[1]
+            half = wide / 2 * (0.97 if self.frame is None else 0.95 * self.frame_w)  # (in the box, in its opening)
             self.pile = logs.Pile(p["wood"], p["stack"], p["log_size"] / 100, p["char"] / 100, self.bed * wide,
-                                  math.radians(5 + 0.3 * p["view"]), self.seed, half=wide / 2 * 0.97,
+                                  math.radians(5 + 0.3 * p["view"]), self.seed, half=half,
                                   floor=-MARK * self.bed * wide / 2 + 0.006)
             _, mid = self.pile.screen(self.pile.fire)  # (the fire among the logs: cells above the bed's middle)
             self.k["base"] = round(max(0.0, float(mid) * 1.6) * GRID[1], 2)
@@ -490,6 +521,8 @@ class Hearth(Effect):
         if self.cover_k > 0:  # where an old fire is put out: over the bed and above it, not at the box's bottom edge
             lay["zone"] = (_smooth((self.bed * 1.25 - np.abs(xs * 2 - 1)) / 0.15)[None, :] * edge * _smooth(
                 (1 - ys) / (MARK * self.bed * 4 / 3 + 0.02))[:, None]).astype(np.float32)
+        if self.frame is not None:  # the fireplace's opening: all of it inside, nothing outside
+            lay["frame"] = self._opening(np.arange(rx0, rx1) + 0.5 - x0, np.arange(ry0, ry1) + 0.5 - y0, w, h)
         if self.pile is not None:  # the logs: traced over their part of the box (in the frame)
             cx, cy = x0 + w / 2, y0 + h - MARK * self.bed * w / 2  # (the bed's middle)
             left, right, bottom, top = self.pile.extent()
@@ -501,6 +534,26 @@ class Hearth(Effect):
                                             1.0 / h)
         self._laid = (key, lay)
         return lay
+
+    def _opening(self, xs, ys, w, h):
+        """How much of the fire shows at points of the box (xs across, ys down: pixels from its top left corner):
+        inside the fireplace's opening ("Khung lò": on the box's bottom edge, frame_w of its width and frame_h of its
+        height, its top corners rounded as frame_radii says), none outside it, softly at its sides and top (not along
+        its bottom: the floor of the fireplace)."""
+        fw, fh = self.frame_w * w, self.frame_h * h
+        rx, ry = frame_radii(self.frame, fw, fh, self.p.get("curve", 60))
+        u = np.asarray(xs, np.float64) - (w - fw) / 2
+        side = np.minimum(u, fw - u)[None, :]  # (from the nearer side, pixels)
+        down = (np.asarray(ys, np.float64) - (h - fh))[:, None]  # (from the top)
+        d = np.minimum(side, down)
+        if rx > 0.5 and ry > 0.5:  # (the corners: quarter ellipses; the distance to one about, by its slope)
+            a, b = (side - rx) / rx, (down - ry) / ry
+            q = np.sqrt(a * a + b * b)
+            slope = np.sqrt((a / rx) ** 2 + (b / ry) ** 2) / np.maximum(q, 1e-9)
+            corner = (side < rx) & (down < ry)
+            d = np.where(corner, np.minimum(d, (1 - q) / np.maximum(slope, 1e-9)), d)
+        soft = max(1.0, 0.006 * h)
+        return _smooth(d / (2 * soft) + 0.5).astype(np.float32)
 
     def _light_windows(self):
         """For each of the logs' flame lights: the part of the grid round it and its weights there (the flames'
@@ -571,7 +624,8 @@ class Hearth(Effect):
         lay = self._layout(r, x0, y0, w, h)
         src, size = lay["src"], lay["size"]
         orig = picture[ry0:ry1, rx0:rx1]
-        out = orig if mask is None and gain >= 1 else orig.copy()
+        opening = lay.get("frame")
+        out = orig if mask is None and gain >= 1 and opening is None else orig.copy()
         fire = self.frames()
         glow, level = fire.frame(t)
         level = min(max(level / fire.mean, 0.5), 1.5)  # (how bright the fire is now: 1 as on average)
@@ -638,4 +692,6 @@ class Hearth(Effect):
         np.subtract(1.0, out, out=out)
         if out is not orig:
             k = gain if mask is None else gain * mask[ry0:ry1, rx0:rx1, None]
+            if opening is not None:  # (only inside the fireplace's opening)
+                k = k * opening[..., None]
             orig += k * (out - orig)

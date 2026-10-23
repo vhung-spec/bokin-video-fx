@@ -194,7 +194,12 @@ hiệu ứng. Cách dùng: `README.md`.
   vào hình (không thành sương), sáng tối theo lửa lúc đó (mức sáng so với trung bình đo lúc khởi động); "Che lửa cũ"
   (`cover`): chỗ sáng ấm hay trắng của lửa đứng yên trong video thành ánh mờ cùng màu đã làm nhoè (`DIM`). Hằng số và
   bản đồ theo hộp giữ giữa các khung (`_layout`). Chỉ các thông số của ngọn lửa (`k`) làm lại lửa; màu, ánh sáng, chỗ
-  đặt thì không.
+  đặt thì không. "Khung lò" (từ 1.0.70; `frame`: `none` như cũ, `rect`, `arch`, `round`; `frame_w`, `frame_h`: phần
+  của hộp, `curve`): miệng lò trong ảnh, đứng trên đáy hộp, hai góc trên bo theo `frame_radii` (như CSS bo góc: trang
+  vẽ viền cam `#xformFrame` cùng công thức, `frameRadii`; ba ô kéo hai bên và cạnh trên: `frameL`, `frameR`,
+  `frameT`, nằm trong `XFORM_KEYS`). Mọi thay đổi của lửa trong hộp (lửa, quầng, ánh lửa, che lửa cũ, củi) nhân với
+  mặt nạ miệng lò (`_opening`: mềm ở hai bên và trên, không ở đáy); đống củi hẹp lại cho vừa miệng lò. Không làm lại
+  lửa.
 - Củi của Lửa lò sưởi (`fx/logs.py`, từ 1.0.69; nhóm "Củi": `wood` (`none`: không củi, như cũ: clip cũ giữ nguyên),
   `stack`, `log_size`, `char`, `view`, hiện khi đã chọn củi: `show`; kiểu lửa không đặt chúng): đống củi vẽ bằng mã.
   Mỗi khúc là mặt ẩn (`Log.outside`: trụ gồ ghề theo bảng dọc trục, to một đầu, đầu cắt bo tròn) trong cảnh nhỏ trên

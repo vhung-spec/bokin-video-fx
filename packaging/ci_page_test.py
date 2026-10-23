@@ -920,7 +920,8 @@ def chimneys(page, shot):
 def hearth(page, shot):
     """Lửa lò sưởi: a box on the picture where the renderer puts it, its mark (where the fire burns: an ellipse on the
     box's bottom edge, as wide as "Lửa rộng"), no turn; its preview clip made from the picture under the box, laid
-    just over the video (under every track); logs chosen: their settings shown, the preview clip with them."""
+    just over the video (under every track); logs chosen: their settings shown, the preview clip with them; the
+    fireplace's opening (Khung lò): its outline on the box, dragged by its handles."""
     from fx import effects as fx_effects
     page.click('.tab[data-bin="fx"]')
     page.dblclick('.tile[data-kind="hearth"]')
@@ -970,6 +971,35 @@ def hearth(page, shot):
           before == [False] * 4 and after == [True] * 4 and params == ["birch", "heap"] and
           laid == [True, "normal", True], str([before, after, params, laid]))
     shot("05l-hearth-logs")
+    # Khung lò: an orange outline on the box's bottom edge, as wide and high as its settings, its top an arch; its
+    # handles drag its sides and top (the settings follow)
+    page.select_option('#ec select[data-param="frame"]', "arch")
+    page.wait_for_timeout(300)
+    frame = """(() => { const f = $('#xformFrame').getBoundingClientRect(), b = $('#xform').getBoundingClientRect();
+        return [$('#xformFrame').style.display, f.width / b.width, f.height / b.height, (f.left + f.right) / 2 -
+        (b.left + b.right) / 2, b.bottom - f.bottom, parseFloat(getComputedStyle($('#xformFrame')).borderTopLeftRadius),
+        !!$('#ec input[data-param="frame_w"]'), !!$('#ec input[data-param="curve"]')]; })()"""
+    shown = page.evaluate(frame)
+    right = page.locator('#xformFrame i[data-h="frameR"]').bounding_box()
+    top = page.locator('#xformFrame i[data-h="frameT"]').bounding_box()
+    box = page.locator("#xform").bounding_box()
+    page.mouse.move(right["x"] + right["width"] / 2, right["y"] + right["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["width"] * 0.8, right["y"] + right["height"] / 2, steps=5)
+    page.mouse.up()
+    page.mouse.move(top["x"] + top["width"] / 2, top["y"] + top["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(top["x"] + top["width"] / 2, box["y"] + box["height"] * 0.5, steps=5)
+    page.mouse.up()
+    page.wait_for_timeout(300)
+    dragged = page.evaluate(f"[clipById('{cid}').params.frame_w, clipById('{cid}').params.frame_h]")
+    after = page.evaluate(frame)
+    check("Lửa lò sưởi: Khung lò: an arched outline on the box's bottom edge; its handles drag its sides and top",
+          shown[0] == "block" and abs(shown[1] - 0.8) < 0.02 and abs(shown[2] - 0.85) < 0.02 and abs(shown[3]) < 2
+          and abs(shown[4]) < 2 and shown[5] > 10 and shown[6:] == [True, True] and abs(dragged[0] - 60) < 3 and
+          abs(dragged[1] - 50) < 3 and abs(after[1] - dragged[0] / 100) < 0.02 and abs(after[2] - dragged[1] / 100) < 0.02,
+          str([shown, dragged, after]))
+    shot("05l-hearth-frame")
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 

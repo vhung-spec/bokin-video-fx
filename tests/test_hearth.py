@@ -47,6 +47,7 @@ def _logs_elsewhere(params, t):
 
 
 LOG_KEYS = {"wood", "stack", "log_size", "char", "view"}
+FRAME_KEYS = {"frame", "frame_w", "frame_h", "curve"}
 WITH_LOGS = {"wood": "oak", "light": 0}
 
 
@@ -370,13 +371,96 @@ class Logs(unittest.TestCase):
             self.assertNotEqual(make({**WITH_LOGS, key: v}).k, k, key)
 
 
+class Frame(unittest.TestCase):
+    """Khung lò: the fireplace's opening in the picture (an outline on the box's bottom edge); the fire, its light
+    and its logs only inside it."""
+
+    def opening(self, fx):
+        """Which pixels of the frame are inside the opening (well inside, well outside: past its soft edge)."""
+        (rows, cols), (x0, y0, w, h) = box_of(fx)
+        fw, fh = fx.frame_w * w, fx.frame_h * h
+        rx, ry = hearth.frame_radii(fx.frame, fw, fh, fx.p["curve"])
+        yy, xx = np.mgrid[0:H, 0:W] + 0.5
+        u = xx - (x0 + (w - fw) / 2)
+        v = yy - (y0 + h - fh)
+        inside = (u >= 0) & (u <= fw) & (v >= 0) & (yy <= y0 + h)
+        for corner, cx in (((u < rx), rx), ((u > fw - rx), fw - rx)):  # (the top corners: quarter ellipses)
+            corner = corner & (v < ry)
+            inside &= ~corner | (((u - cx) / max(rx, 1e-9)) ** 2 + ((v - ry) / max(ry, 1e-9)) ** 2 <= 1)
+        from PIL import Image, ImageFilter
+        img = Image.fromarray((inside * 255).astype(np.uint8))
+        well_in = np.asarray(img.filter(ImageFilter.MinFilter(7))) > 0
+        well_out = np.asarray(img.filter(ImageFilter.MaxFilter(7))) == 0
+        return well_in, well_out
+
+    def test_none_as_before(self):
+        a, b = make({}), make({"frame": "none", "frame_w": 30, "frame_h": 40, "curve": 100})
+        for t in (0, 30):
+            self.assertTrue(np.array_equal(lens(a, t), lens(b, t)))
+
+    def test_only_inside_the_opening(self):
+        """Nothing outside the opening changes (past its soft edge: not the flames, their glow, their light, an old
+        fire put out, the logs); inside it the fire burns as without the frame, down to the floor."""
+        for params in ({"frame": "rect", "frame_w": 60, "frame_h": 70},
+                       {"frame": "arch", "frame_w": 50, "frame_h": 90, "curve": 100},
+                       {"frame": "round", "frame_w": 85, "frame_h": 60, "curve": 80, "wood": "oak"}):
+            fx = make({**params, "light": 100, "cover": 100, "embers": 100, "height": 100})
+            free = make({"light": 100, "cover": 100, "embers": 100, "height": 100, "wood": params.get("wood", "none")})
+            well_in, well_out = self.opening(fx)
+            for t in (10, 50):
+                out, whole = lens(fx, t), lens(free, t)
+                self.assertTrue(np.array_equal(out[well_out], ROOM[well_out]), (params, t))
+                if "wood" not in params:  # (the same fire inside; with logs, the pile fits the opening instead)
+                    self.assertLess(float(np.abs(out[well_in] - whole[well_in]).max()), 1e-5, (params, t))
+                self.assertGreater(float(np.abs(out[well_in] - ROOM[well_in]).max()), 0.2, (params, t))
+
+    def test_the_opening_as_the_page_draws_it(self):
+        """Its top corners as CSS rounds a box's corners (the page draws the outline so): square; an arch over the
+        whole width, a half circle at 100; rounded corners."""
+        self.assertEqual(hearth.frame_radii("rect", 100, 80, 60), (0.0, 0.0))
+        self.assertEqual(hearth.frame_radii("arch", 100, 80, 100), (50.0, 50.0))
+        self.assertEqual(hearth.frame_radii("arch", 100, 30, 100), (50.0, 30.0))  # (no higher than the opening)
+        self.assertEqual(hearth.frame_radii("arch", 100, 80, 50), (50.0, 25.0))
+        rx, ry = hearth.frame_radii("round", 100, 80, 100)
+        self.assertEqual(rx, ry)
+        self.assertLess(rx, 50)
+        fx = make({"frame": "arch", "frame_w": 50, "frame_h": 90, "curve": 100})
+        (rows, cols), (x0, y0, w, h) = box_of(fx)
+        lay = fx._layout(fx._rect(x0, y0, x0 + w, y0 + h), x0, y0, w, h)
+        opening = lay["frame"]
+        fw = 0.5 * w
+        top = int(round(0.1 * h)) + 2  # (just under the top of the arch, at its middle: inside)
+        self.assertGreater(float(opening[top, int(w / 2)]), 0.9)
+        self.assertLess(float(opening[top, int((w - fw) / 2) + 2]), 0.1)  # (beside it, in the corner: outside)
+        self.assertGreater(float(opening[-1, int(w / 2)]), 0.99)  # (the floor: not faded)
+
+    def test_settings(self):
+        """The frame's sizes show once a shape is chosen, its curve for an arch or rounded corners; the page has its
+        outline's keys; it makes no new fire; logs fit in it."""
+        by_key = {p["key"]: p for p in hearth.SCHEMA["params"]}
+        self.assertEqual(by_key["frame"]["value"], "none")
+        self.assertEqual({o["value"] for o in by_key["frame"]["options"]} - {"none"}, set(hearth.FRAMES))
+        for key in ("frame_w", "frame_h"):
+            self.assertEqual(by_key[key]["show"], {"frame": list(hearth.FRAMES)}, key)
+        self.assertEqual(by_key["curve"]["show"], {"frame": ["arch", "round"]})
+        spec = hearth.SCHEMA["frame"]
+        self.assertEqual([spec[k] for k in ("shape", "width", "height", "curve")], ["frame", "frame_w", "frame_h",
+                                                                                     "curve"])
+        self.assertTrue(spec["label"] and spec["tip"])
+        self.assertEqual(make({"frame": "arch", "frame_w": 40}).k, make({}).k)
+        narrow = make({"frame": "rect", "frame_w": 40, "wood": "oak", "bed": 100}).pile
+        xs = [abs(x) for lg in narrow.logs for x in (lg.p0[0], lg.end()[0])]
+        self.assertLess(max(xs) + narrow.r, 0.4 * 4 / 3 / 2 + 1e-6)
+
+
 class Preview(unittest.TestCase):
     def test_preview_from_the_picture_under_the_box(self):
         """The box alone (as the preview clip is made) on the picture under the box, resized to the clip, gives
         what the whole frame gives there."""
         from PIL import Image
         info = {"w": W, "h": H, "fps": "24", "frames": 96, "seconds": 4.0}
-        for params in ({}, {"cover": 80, "light": 100, "bed": 50}, {"wood": "oak", "stack": "heap"}):
+        for params in ({}, {"cover": 80, "light": 100, "bed": 50}, {"wood": "oak", "stack": "heap"},
+                       {"frame": "arch", "frame_w": 60, "curve": 100, "light": 100}):
             whole = make(params)
             x0, y0, bw, bh = whole.box()
             layer = {"kind": "hearth", "params": {**AT, **params}}
@@ -419,11 +503,12 @@ class Settings(unittest.TestCase):
         self.assertTrue(hearth.SCHEMA["note"])
 
     def test_looks(self):
-        """Each look sets every setting but where the fire is, how wide, the old fire put out, and the logs; the
-        first look is the defaults."""
+        """Each look sets every setting but where the fire is, how wide, the old fire put out, the logs and the
+        fireplace's opening; the first look is the defaults."""
         look = next(p for p in hearth.SCHEMA["params"] if p["key"] == "look")
         self.assertEqual({o["value"] for o in look["options"]}, set(hearth.LOOKS))
-        keys = {p["key"] for p in hearth.SCHEMA["params"]} - {"look", "bed", "cover", "x", "y", "scale"} - LOG_KEYS
+        keys = {p["key"] for p in hearth.SCHEMA["params"]} - {"look", "bed", "cover", "x", "y", "scale"} - LOG_KEYS - \
+            FRAME_KEYS
         defaults = effects.defaults("hearth")
         for name, preset in look["presets"].items():
             self.assertEqual(set(preset), keys, name)

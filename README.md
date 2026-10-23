@@ -310,7 +310,12 @@ thật), không phải một video có sẵn, nên vừa mọi lò sưởi và l
    đi thành ánh hồng mờ phía sau, lửa mới cháy lên trên.
 5. Muốn khúc củi phía trước che chân lửa (lửa cháy phía sau củi): bấm **V1 Video gốc** → **Vẽ tiền cảnh**, tô khúc
    củi đó. Rồi chọn clip Lửa lò sưởi, tích **Bay ra sau tiền cảnh**.
-6. Lò sưởi trong video còn trống, chưa có củi (hoặc muốn thay củi): ở mục **Củi** chọn **Củi sồi** (vỏ xám, rãnh
+6. Miệng lò trong ảnh hẹp, cao hay hình vòm (lửa, ánh lửa tràn ra mặt đá quanh lò): ở mục **Khung lò** chọn **Chữ
+   nhật**, **Vòm tròn** hay **Bo hai góc trên**. Trên hình hiện **viền cam** ("miệng lò") đứng trên đáy khung trắng.
+   Kéo **ô cam** hai bên cho viền rộng bằng miệng lò, kéo **ô cam ở cạnh trên** cho viền cao bằng miệng lò (hoặc kéo
+   các thanh **Khung lò rộng**, **Khung lò cao**, **Độ cong**). Lửa, ánh lửa và củi chỉ còn ở trong viền cam, như
+   cháy thật trong lò; ngọn lửa cao chạm nóc lò thì khuất vào trong.
+7. Lò sưởi trong video còn trống, chưa có củi (hoặc muốn thay củi): ở mục **Củi** chọn **Củi sồi** (vỏ xám, rãnh
    sâu), **Củi vỏ nâu** hay **Củi bạch dương** (vỏ trắng). App vẽ một đống củi thật: khúc gỗ tròn cháy sém, than đen
    nứt thành từng khối, tro xám phủ mặt trên, mặt cắt có vân vòng, than hồng âm ỉ trong vết nứt ở dưới; củi được ánh lửa
    chiếu sáng, bập bùng theo ngọn lửa; khúc phía trước che chân lửa, lửa bốc lên từ giữa các khúc củi. Đặt **hình bầu

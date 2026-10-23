@@ -328,6 +328,15 @@ header .prep .ic { color: var(--warn); }
 .xform .xmark[data-lab]::after { content: attr(data-lab); position: absolute; left: 100%; top: -8px; margin-left: 5px;
   font-size: 11px; line-height: 14px; color: #ffd84d; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
 .xform .xmark.dot[data-lab]::after { top: 50%; margin-top: -7px; }
+/* a fireplace's opening (Khung lò): an orange outline on the box's bottom edge, its sides and top dragged */
+.xform .xframe { position: absolute; z-index: 1; display: none; pointer-events: none; border: 2px dashed #ff9a3c; border-bottom: 0;
+  box-shadow: 0 0 0 1px #0006; }
+.xform .xframe[data-lab]::before { content: attr(data-lab); position: absolute; right: 4px; top: 4px; font-size: 11px; line-height: 14px;
+  color: #ff9a3c; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
+.xform .xframe i { width: 10px; height: 10px; pointer-events: auto; background: #ff9a3c; border-color: #fff; border-radius: 50%; }
+.xform .xframe i[data-h=frameL] { left: -7px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.xform .xframe i[data-h=frameR] { right: -7px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.xform .xframe i[data-h=frameT] { left: 50%; top: -7px; margin-left: -6px; cursor: ns-resize; }
 /* the clip's name tag and numbers: only while its box is dragged, in the picture area's top left corner */
 .xlab { position: absolute; z-index: 72; display: none; padding: 2px 8px; border-radius: var(--r-sm); background: rgba(10, 11, 13, .85);
   color: #fff; font-size: 11px; line-height: 16px; white-space: nowrap; pointer-events: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06); }
@@ -747,7 +756,7 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
           <canvas id="polyCanvas"></canvas>
         </div>
         <div class="frame" id="frame"></div>
-        <div class="xform" id="xform" title="Kéo để di chuyển, kéo góc để đổi cỡ: góc đối diện đứng yên (Alt: đổi cỡ quanh tâm). Shift: đi thẳng, Alt: không bám giữa"><span class="xmark" id="xformMark"></span><span class="xmark tip" id="xformTip"></span><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i><b class="xrot" id="xformRot" data-h="rot" title="Kéo để xoay phẳng (Shift: từng nấc 15°). Bấm đúp: về 0°"></b></div>
+        <div class="xform" id="xform" title="Kéo để di chuyển, kéo góc để đổi cỡ: góc đối diện đứng yên (Alt: đổi cỡ quanh tâm). Shift: đi thẳng, Alt: không bám giữa"><span class="xmark" id="xformMark"></span><span class="xmark tip" id="xformTip"></span><span class="xframe" id="xformFrame"><i data-h="frameL" title="Kéo cho khung lò rộng bằng miệng lò trong ảnh"></i><i data-h="frameR" title="Kéo cho khung lò rộng bằng miệng lò trong ảnh"></i><i data-h="frameT" title="Kéo cho khung lò cao bằng miệng lò trong ảnh"></i></span><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i><b class="xrot" id="xformRot" data-h="rot" title="Kéo để xoay phẳng (Shift: từng nấc 15°). Bấm đúp: về 0°"></b></div>
         <span class="xlab" id="xformLab"></span>
         <div class="x3d" id="xform3d" title="Kéo để nghiêng 3D: kéo sang trái / phải là xoay trái / phải, kéo lên / xuống là nghiêng trước / sau (Shift: một hướng). Bấm đúp: thẳng lại">3D</div>
         <div class="cursor" id="cursor"></div>
@@ -1889,6 +1898,21 @@ function showXform() {  // the box of the selected clip (a file, an effect's she
     mk.className = "xmark"; line(mk, sch.anchor, 0.5 * bw, sch.anchor_hint, sch.anchor_label);
     if (sch.tip) line(tip, sch.tip, 0.3 * bw, sch.tip_hint, sch.tip_label);
   } else mk.style.display = "none";
+  const fr = $("#xformFrame"), fs = sch.frame, shape = fs && c.params[fs.shape];
+  if (fs && shape && shape !== "none") {  // the fireplace's opening: as wide and high as its settings, its top rounded
+    const fw = Math.max(8, bw * clamp(+c.params[fs.width] || 0, 0, 100) / 100);
+    const fh = Math.max(8, bh * clamp(+c.params[fs.height] || 0, 0, 100) / 100);
+    const [rx, ry] = frameRadii(shape, fw, fh, +c.params[fs.curve] || 0);
+    Object.assign(fr.style, {display: "block", left: (bw - fw) / 2 - 1 + "px", width: fw + "px", height: fh + "px",
+      top: "", bottom: "-1px", borderRadius: `${rx}px ${rx}px 0 0 / ${ry}px ${ry}px 0 0`});
+    fr.title = fs.tip || ""; fr.dataset.lab = fs.label || "";
+  } else fr.style.display = "none";
+}
+function frameRadii(shape, fw, fh, curve) {  // a fireplace's opening: its top corners' radii (as frame_radii in hearth.py)
+  const k = clamp(curve, 0, 100) / 100;
+  if (shape === "arch") return [fw / 2, Math.min(fh, k * fw / 2)];
+  if (shape === "round") { const r = k * 0.6 * Math.min(fw / 2, fh); return [r, r]; }
+  return [0, 0];
 }
 function num(v) { return String(+(+v).toFixed(2)); }
 function keepAnchor(c, was) {  // after a new size: x, y moved so the anchor (a candle's wick) is where it was with `was`
@@ -1928,7 +1952,7 @@ function startXdrag(e, el = xform) {  // a press on the selected clip's box, on 
   invalidateExact();
   if (S.schema.under[c.kind]) applyTime();  // its preview clip hides while it moves
 }
-const XFORM_KEYS = ["x", "y", "scale", ...ROT_KEYS];
+const XFORM_KEYS = ["x", "y", "scale", ...ROT_KEYS, "frame_w", "frame_h"];  // (and a fireplace's opening)
 function blurField() {  // a press on the picture: a field of the panel lets go (Ctrl+Z, the arrows, Space are the app's again)
   const a = document.activeElement;
   if (a && a !== document.body && a.matches("input, select, textarea")) a.blur();
@@ -1975,6 +1999,12 @@ function moveXdrag(e) {
     if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
     pr.rot_y = placeParam(c, "rot_y", (+d.p0.rot_y || 0) + dx * TILT_DEG);
     pr.rot_x = placeParam(c, "rot_x", (+d.p0.rot_x || 0) - dy * TILT_DEG);
+  } else if (d.h.startsWith("frame")) {  // a fireplace's opening: its sides (as far each side of the middle), its top
+    const fs = S.schema.kinds[c.kind].frame, r = d.r0, W = info().w, H = info().h;
+    const bx = d.sc.left + r.x / W * d.sc.width, bw = r.w / W * d.sc.width;  // (the box on the screen)
+    const by = d.sc.top + r.y / H * d.sc.height, bh = r.h / H * d.sc.height;
+    if (d.h === "frameT") pr[fs.height] = placeParam(c, fs.height, (by + bh - e.clientY) / bh * 100);
+    else pr[fs.width] = placeParam(c, fs.width, Math.abs(e.clientX - (bx + bw / 2)) * 2 / bw * 100);
   } else if (d.scale && (e.altKey || turned(c))) {  // around the middle (a turned clip: always)
     pr.scale = placeParam(c, "scale", d.p0.scale * Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.d0);
     pr.x = d.p0.x; pr.y = d.p0.y;
