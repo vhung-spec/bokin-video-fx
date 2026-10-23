@@ -1,6 +1,7 @@
 """Smoke and steam rising from one place: steam over a hot cup of coffee or tea, the smoke of an incense stick, steam
-over a pot or a kettle, wood smoke from a chimney leaning in the wind (a placed effect: Effect.BOX; see effects.py for
-how every effect loops).
+over a pot or a kettle (a placed effect: Effect.BOX; see effects.py for how every effect loops); and wood smoke from a
+chimney leaning in the wind, each chimney's plume of Khói ống khói (fx/chimney.py: its style "chimney", not offered
+here since 1.0.63: a clip with it moves there, moved()).
 
 Smoke is drawn as dye carried by moving air. Points over the surface (the liquid in the cup or the pot, the glowing
 tip of the incense) let go of a little smoke all the time, the air carries it up, and what shows are the streaklines:
@@ -140,21 +141,20 @@ def _p(key, label, value, group, lo=0, hi=100):
 
 SCHEMA = {
     "label": "Khói",
-    "note": "Chọn kiểu khói: hơi nóng bốc lên từ cốc cà phê, trà; khói nhang; hơi nước từ nồi, ấm; hay khói ống khói "
-            "(nhà có lò sưởi). Kéo khung trắng trên hình đến chỗ khói bốc lên: hình bầu dục vàng nằm ở đáy khung, đặt "
-            "nó trùng miệng cốc (mặt nồi, miệng vòi ấm, miệng ống khói), hoặc chấm vàng vào đầu que nhang. Kéo góc "
-            "khung cho hình vàng rộng bằng miệng cốc. Khói chỉ bay trong khung. Khói tự sáng theo đèn trong cảnh (đèn "
-            "bên cạnh, cửa sổ phía sau). Khói ống khói bay nghiêng theo gió: chỉnh Gió nghiêng.",
+    "note": "Chọn kiểu khói: hơi nóng bốc lên từ cốc cà phê, trà; khói nhang; hơi nước từ nồi, ấm. Kéo khung trắng "
+            "trên hình đến chỗ khói bốc lên: hình bầu dục vàng nằm ở đáy khung, đặt nó trùng miệng cốc (mặt nồi, miệng "
+            "vòi ấm), hoặc chấm vàng vào đầu que nhang. Kéo góc khung cho hình vàng rộng bằng miệng cốc. Khói chỉ bay "
+            "trong khung. Khói tự sáng theo đèn trong cảnh (đèn bên cạnh, cửa sổ phía sau). Khói ống khói: dùng hiệu "
+            "ứng Khói ống khói.",
     # for the page: a mark where the smoke rises from, a flat ellipse (`ratio`: height / width) sitting on the middle
     # of the box's bottom edge, inside the box, as wide as the setting "rim" (% of the box's width), and a tip
     "mark": {"width": "rim", "ratio": MARK, "sits": True, "label": "chỗ khói bốc lên",
-             "tip": "Đặt hình bầu dục vàng trùng miệng cốc (mặt nồi, miệng vòi ấm, miệng ống khói), hoặc chấm vàng vào "
-                    "đầu que nhang, rồi kéo góc khung cho hình vàng rộng bằng miệng cốc."},
+             "tip": "Đặt hình bầu dục vàng trùng miệng cốc (mặt nồi, miệng vòi ấm), hoặc chấm vàng vào đầu que nhang, "
+                    "rồi kéo góc khung cho hình vàng rộng bằng miệng cốc."},
     "params": [
         _choice("style", "Kiểu khói", "cup",
-                [("cup", "Hơi nóng cốc cà phê, trà"), ("incense", "Khói nhang"), ("pot", "Hơi nước nồi, ấm"),
-                 ("chimney", "Khói ống khói")],
-                presets=STYLE_PRESETS, group="Kiểu"),
+                [("cup", "Hơi nóng cốc cà phê, trà"), ("incense", "Khói nhang"), ("pot", "Hơi nước nồi, ấm")],
+                presets={k: v for k, v in STYLE_PRESETS.items() if k != "chimney"}, group="Kiểu"),
         _choice("look", "Dáng khói", "light",
                 [("light", "Nhẹ nhàng"), ("thick", "Đậm"), ("long", "Bay cao, lượn dài"),
                  ("breeze", "Bay nghiêng theo gió")], presets=LOOKS, group="Kiểu"),
@@ -171,6 +171,15 @@ SCHEMA = {
         _p("lit", "Sáng theo đèn trong cảnh (0: chỉ một màu)", LIT, "Màu và ánh sáng"),
         _colour("color", "Màu khói", STYLES["cup"]["colour"], group="Màu và ánh sáng"),
         *_place(45)]}
+
+
+def moved(raw, w, h):
+    """Smoke from a chimney made with this effect (its style "chimney", 1.0.60 to 1.0.62) is Khói ống khói now, for a
+    w x h video: ("chimney", its settings: one chimney where its mark was), or None."""
+    if not isinstance(raw, dict) or raw.get("style") != "chimney":
+        return None
+    from . import chimney  # (it builds on this one)
+    return "chimney", chimney.from_steam(raw, w, h)
 
 
 def upgrade(raw):
@@ -294,6 +303,7 @@ class Steam(Effect):
     LIT = True
     upgrade = staticmethod(upgrade)
     upgrade_in = staticmethod(upgrade_in)
+    moved = staticmethod(moved)
     light_at = staticmethod(light_at)
     rounded_light = staticmethod(rounded_light)
 

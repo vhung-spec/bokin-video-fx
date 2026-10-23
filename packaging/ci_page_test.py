@@ -718,6 +718,116 @@ def garland(page, shot):
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 
+def chimneys(page, shot):
+    """Khói ống khói: a new clip starts putting chimneys at once (no box, nothing to place or turn); a click puts one
+    where it is (a yellow ellipse), as wide as a new one is, and chooses it; its end dragged makes it wider (the next
+    one put as wide as the one chosen); its ellipse dragged moves it. The renderer's plumes stand in the boxes the page
+    lays. A click chooses one: its own smoke; Delete removes the one chosen (undone); Esc ends; a click on the picture
+    puts again; Xoá hết undone. Its preview clip: see-through smoke over the whole frame (WebM, Normal)."""
+    from fx import chimney as fx_chimney, effects as fx_effects
+    page.click('.tab[data-bin="fx"]')
+    page.dblclick('.tile[data-kind="chimney"]')
+    cid = page.evaluate("S.sel")
+    page.wait_for_timeout(300)
+    vw, vh = page.evaluate("[info().w, info().h]")
+    state = page.evaluate("""(c => [c.kind, !!S.stack && S.stack.id === c.id, $('#xform').style.display,
+        !!$('#stackPlace'), !!$('#ec [data-param="tall"]'), !!$('#ec [data-param="scale"]'),
+        !!$('#ec [data-num="rot_x"]'), stage.classList.contains('stacking'),
+        [...document.querySelectorAll('#ec h4')].map(h => h.textContent).filter(t => t.includes('khói'))])(clipById(S.sel))""")
+    check("Khói ống khói: putting chimneys starts at once; no box, nothing to place or turn; no empty heading for the "
+          "chimneys (put on the picture)", state == ["chimney", True, "none", True, True, False, False, True, []],
+          str(state))
+    box = page.locator("#screen").bounding_box()
+
+    def at(fx_, fy_):
+        return box["x"] + box["width"] * fx_, box["y"] + box["height"] * fy_
+
+    def stacks():
+        return page.evaluate(f"clipById('{cid}').params.stacks")
+
+    def drag(a, b):
+        page.mouse.move(*at(*a))
+        page.mouse.down()
+        page.mouse.move(*at(*b), steps=6)
+        page.mouse.up()
+        page.wait_for_timeout(200)
+
+    def near(q, want, tol=0.004):
+        return all(abs(a - b) < tol for a, b in zip(q, want))
+
+    mouth, much = page.evaluate("[S.schema.kinds.chimney.mouth, S.schema.kinds.chimney.much]")
+    for fx_, fy_ in [(0.3, 0.6), (0.7, 0.45)]:
+        page.mouse.click(*at(fx_, fy_))
+        page.wait_for_timeout(150)
+    got, sel = stacks(), page.evaluate("S.stack.sel")
+    check("Khói ống khói: a click puts a chimney where it is, as wide as a new one, and chooses it",
+          len(got) == 2 and near(got[0], (0.3, 0.6, mouth, much)) and near(got[1], (0.7, 0.45, mouth, much))
+          and sel == 1, str([got, sel]))
+    drag((0.7 + mouth / 2, 0.45), (0.7 + mouth / 2 + 0.02, 0.45))  # its right end: wider (the left one mirrors it)
+    wide = stacks()[1]
+    page.mouse.click(*at(0.5, 0.3))  # a new one: as wide as the one chosen
+    page.wait_for_timeout(200)
+    third = stacks()[2]
+    drag((0.3, 0.6), (0.35, 0.62))  # the first one's ellipse: moved
+    got = stacks()
+    check("Khói ống khói: an end dragged makes it wider, the next one put as wide; an ellipse dragged moves it",
+          near(wide, (0.7, 0.45, mouth + 0.04)) and near(third, (0.5, 0.3, wide[2], much))
+          and near(got[0], (0.35, 0.62, mouth)), str([wide, third, got[0]]))
+    # the renderer's plumes, in the boxes the page lays
+    params = page.evaluate(f"clipById('{cid}').params")
+    fx = fx_effects.make("chimney", params, 3, 48, 24, vw, vh)
+    shown = page.evaluate(f"(c => c.params.stacks.map(q => stackBox(c, q)))(clipById('{cid}'))")
+    want = sorted((round(b[0], 2), round(b[1], 2), round(b[2], 2)) for b in (p_.box()[:3] for p_ in fx.plumes))
+    have = sorted((round(b[0], 2), round(b[1], 2), round(b[2], 2)) for b in shown)
+    mine = sorted(tuple(round(v, 2) for v in fx_chimney.plume_box(*q[:3], params["tall"], vw, vh)) for q in got)
+    off = max((abs(a - b) for w_, h_ in zip(want, have) for a, b in zip(w_, h_)), default=99)
+    check("Khói ống khói: the renderer's plumes stand in the boxes the page lays", len(want) == 3 and want == mine
+          and off < 0.05, f"{want} / {have}, {off:.3f} px")
+    page.mouse.move(*at(0.5, 0.5))
+    shot("05k-chimneys-putting")
+    # a click on one chooses it: its own smoke; Delete removes it (undone); Esc ends; a click on the picture again
+    page.mouse.click(*at(0.35, 0.62))
+    page.wait_for_timeout(200)
+    chosen = page.evaluate("[S.stack.sel, !!$('#stackMuch'), !!$('#stackDel') && !$('#stackDel').disabled]")
+    page.evaluate("""(() => { const r = $('#stackMuch'); r.value = 100; r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true})); })()""")
+    page.wait_for_timeout(200)
+    own = [q[3] for q in stacks()]
+    check("Khói ống khói: a click on a chimney chooses it; its own smoke slider is that chimney's",
+          chosen == [0, True, True] and own == [1.0, much, much], str([chosen, own]))
+    page.keyboard.press("Delete")  # (the chimney chosen, never the clip)
+    page.wait_for_timeout(200)
+    n1 = len(stacks())
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(300)
+    n2 = len(stacks())
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    off_ = page.evaluate("[!!S.stack, stage.classList.contains('stacking'), S.sel]")
+    page.mouse.click(*at(0.7, 0.45))  # the clip chosen: a click on the picture puts again (here: chooses that one)
+    page.wait_for_timeout(200)
+    again = page.evaluate("[!!S.stack, S.stack && S.stack.sel]")
+    n3 = len(stacks())
+    page.click("#stackClear")
+    n4 = len(stacks())
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(300)
+    n5 = len(stacks())
+    page.click("#stackPlace")  # done
+    page.wait_for_timeout(200)
+    done = page.evaluate("[!!S.stack, $('#polyCanvas').style.display]")
+    check("Khói ống khói: Delete removes the chimney chosen (undone); Esc ends; a click on the picture puts again; Xoá "
+          "hết undone; done", [n1, n2, n3, n4, n5] == [2, 3, 3, 0, 3] and off_ == [False, False, cid]
+          and again == [True, 1] and done == [False, "none"], str([n1, n2, off_, again, n3, n4, n5, done]))
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.els['{cid}']", timeout=300000)
+    laid = page.evaluate(f"""[S.els['{cid}'].media.getAttribute('src').includes('.webm'),
+        S.els['{cid}'].wrap.style.mixBlendMode || 'normal']""")
+    check("Khói ống khói: its preview clip, see-through smoke over the whole frame (WebM, Normal)",
+          laid == [True, "normal"], str(laid))
+    shot("05k-chimneys")
+    page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
+
+
 def shortcuts(page, shot):
     """The Phím tắt window: a key changed, taken from another action, refused, searched; the guide; all back."""
     def row(i):
@@ -1185,8 +1295,8 @@ def run(page, folder, edge):
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
-          glass == ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "flicker", "lights",
-                    "garland"],  # (Hạt sáng no longer offered: an older project's clip of it still plays)
+          glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "leaves", "foliage", "flicker",
+                    "lights", "garland"],  # (Hạt sáng no longer offered: an older project's clip of it still plays)
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
@@ -1656,7 +1766,8 @@ def run(page, folder, edge):
             check("steam: its mark sits inside the box on its bottom edge", abs(sits[0]) < 3 and 0.15 < sits[1] < 0.4
                   and sits[2] > 4, str(sits))
             styles = page.evaluate("[...$('#ec select[data-param=\"style\"]').options].map(o => o.value)")
-            check("steam: its styles to choose from", styles == ["cup", "incense", "pot", "chimney"], str(styles))
+            check("steam: its styles to choose from (smoke from a chimney: Khói ống khói)",
+                  styles == ["cup", "incense", "pot"], str(styles))
             shot("05b-steam")
         spin = page.evaluate("[$('#xformRot').style.display, $('#xform3d').style.display, !!$('#ec [data-num=\"rot_x\"]')]")
         if kind == "steam":  # turned as a file clip, its box the sheet; a flame always rises straight up
@@ -1732,6 +1843,7 @@ def run(page, folder, edge):
     foliage(page, shot)
     winter(page, shot, edge)
     garland(page, shot)
+    chimneys(page, shot)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

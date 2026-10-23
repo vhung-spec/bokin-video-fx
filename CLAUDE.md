@@ -68,10 +68,11 @@ hiệu ứng. Cách dùng: `README.md`.
   Tạo sẵn, chủ yêu cầu 2026-10-23; clip của dự án cũ vẫn chạy, CI còn dùng nó), và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
-  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/candle.py`, `fx/frost.py`, `fx/lights.py`, `fx/garland.py`:
-  tuyết, mưa, lá rơi, nước trên kính, khói, lửa nến, tuyết bám kính, dây đèn, dây đèn tự vẽ, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang, nồi,
-  ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn: `edge`, `side`; `preset` của kiểu
-  đặt sẵn gió, lượng khói;
+  `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/frost.py`, `fx/lights.py`,
+  `fx/garland.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói ống khói, lửa nến, tuyết bám kính, dây đèn, dây đèn tự
+  vẽ, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
+  nồi; và ống khói, chỉ dùng cho Khói ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn:
+  `edge`, `side`; `preset` của kiểu đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
   (streakline) theo luồng khí: điểm toả khói trên cả hình bầu dục, đi lang thang (không thành răng lược); luồng khí
   gom về vài chỗ bốc mạnh đang trôi; sóng dài / vừa / ngắn; xoáy (`_whirls`: cột điểm trôi theo khí, sinh số nguyên
@@ -161,6 +162,20 @@ hiệu ứng. Cách dùng: `README.md`.
   sáng làm mờ (`_behind`: kính mờ thật, hơi xám đi) + chút màu riêng (ánh đèn trong phòng, `*_ROOM`); hoa băng sáng
   hơn, nổi khối theo hướng sáng trên trái (`_colours`); tuyết, bông tuyết cũng vậy. Clip xem nhanh cỡ 1280
   (`PREVIEW`).
+- Khói ống khói (`fx/chimney.py`, mã loại `chimney`, từ 1.0.63): hiệu ứng phủ cả hình (không `BOX`, không xoay,
+  `LIT`), mọi ống khói trong một clip, cùng một gió. Thông số `stacks` (kiểu `points`, 4 số: x, y giữa miệng ống khói là
+  phần của chiều rộng / cao khung; độ rộng miệng là phần của chiều rộng khung; khói nhiều ít 0..1, 0,5 như thanh trượt).
+  Mỗi ống khói là một cột khói của `fx/steam.py` (kiểu `chimney`, `_Plume`: hộp do ống khói đặt, `box()`) trong hộp
+  vuông đứng trên miệng như hộp khói đứng trên cốc (`plume_box`: hình bầu dục `MARK` trùng miệng, rộng bằng miệng; cao
+  `TALL` lần độ rộng miệng ở "Khói bay cao" 50, `SIDE` lần mỗi nửa thanh: ống khói xa nhỏ thì khói nhỏ), hạt giống riêng
+  mỗi ống khói (không phả khói cùng nhịp), sáng theo chỗ nó đứng; ống khói cao hơn trên hình (xa hơn) vẽ trước. Trang:
+  công cụ đặt ống khói (`S.stack`, `polyCanvas`, `stackBox` cùng công thức; CI so hộp trang với Python): clip mới hay
+  clip chưa có ống khói thì vào đặt ngay; chọn clip rồi bấm lên hình cũng vào đặt; bấm chỗ trống là thêm (rộng bằng
+  ống khói đang chọn, hoặc vừa kéo rộng: `S.stackW`), kéo hình bầu dục là dời, kéo hai chấm hai đầu là đổi độ rộng
+  (`stackHit`), bấm là chọn (thanh **Miệng ống khói này rộng**, **Khói của ống khói này**: `stackSet`); Delete xoá ống
+  khói đang chọn, Esc thôi đặt (`act`: `deleteClip`). Khói kiểu "Khói ống khói" của hiệu ứng Khói (1.0.60 tới 1.0.62)
+  không còn trong danh sách kiểu khói: clip cũ thành clip `chimney` (`steam.moved`, `chimney.from_steam`: một ống khói
+  ở chỗ hình bầu dục cũ trên khung, cả khi đã xoay 3D; "Khói bay cao" theo `rim` cũ).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D

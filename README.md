@@ -13,8 +13,8 @@ Premiere Pro:
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
   khoanh cho kỹ.
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
-- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói (cà phê, trà, nhang, nồi, ống khói), lửa nến, lá rơi, lá cây
-  lay động, nhấp nháy vùng, tuyết bám kính, dây đèn. App tự vẽ, chỉnh được mật độ, cỡ, gió… (**Hạt sáng**, tức đom đóm /
+- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói (cà phê, trà, nhang, nồi), khói ống khói, lửa nến, lá rơi, lá
+  cây lay động, nhấp nháy vùng, tuyết bám kính, dây đèn. App tự vẽ, chỉnh được mật độ, cỡ, gió… (**Hạt sáng**, tức đom đóm /
   bụi sáng, đã bỏ khỏi thẻ Tạo sẵn; clip Hạt sáng trong dự án cũ vẫn chạy như trước, không cần thì xoá clip đó.)
   - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
     dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt xa mảnh và rơi
@@ -47,6 +47,8 @@ Premiere Pro:
     **Mưa** ở track dưới, cũng khoanh vùng ô kính. Lúc phát chỉ xem gần đúng; độ nhoè và cảnh trong giọt nước thấy khi
     dừng hình và trong video xuất ra.
   - **Khói** và **Lửa nến**: đặt vào một chỗ trong hình (xem mục **Khói, lửa nến** bên dưới).
+  - **Khói ống khói**: khói bốc lên từ mọi ống khói trong hình (một căn nhà, cả làng tuyết), cùng một hướng gió (xem
+    mục **Khói ống khói** bên dưới).
   - **Lá cây lay động**: bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió (xem mục **Lá cây lay động**
     bên dưới).
   - **Nhấp nháy vùng**: một chỗ trong video sáng tối nhấp nháy, như quả bí ngô có nến bên trong, đèn lồng, lò sưởi,
@@ -223,7 +225,7 @@ phóng to (vài loại chuột lăn mượt, không có nấc), giữ `Ctrl` r�
 Hai hiệu ứng này nằm ở một chỗ trong hình, không phủ cả khung. Khi chọn clip, hình có một **khung trắng**: kéo khung để
 dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong Bảng chỉnh hiệu ứng).
 
-**Khói** (hơi nóng cốc cà phê, trà; khói nhang; hơi nước nồi, ấm; khói ống khói)
+**Khói** (hơi nóng cốc cà phê, trà; khói nhang; hơi nước nồi, ấm; khói ống khói: hiệu ứng **Khói ống khói** ở dưới)
 
 1. Bấm **Tạo sẵn** → **Khói**, kéo xuống một track trống (hàng ghi **trống**).
 2. Chọn **Kiểu khói**:
@@ -232,10 +234,6 @@ dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong 
    - **Hơi nước nồi, ấm**: một lớp hơi mỏng phủ đều mặt nước, bốc lên thành từng đám cuộn rồi tan. Với ấm đun nước:
      đặt hình vàng vào miệng vòi ấm, kéo góc khung cho hình vàng nhỏ bằng miệng vòi; hơi phụt nhanh ra, cách miệng
      vòi một chút mới thấy (như hơi thật), rồi uốn lượn và tan.
-   - **Khói ống khói** (nhà có lò sưởi): một cột khói xám đặc bốc lên từ miệng ống khói, nghiêng theo gió, to dần
-     thành từng cuộn mềm rồi loãng đi. Đặt hình vàng vào miệng ống khói, kéo góc khung cho hình vàng rộng bằng miệng
-     ống khói (khung sẽ to hơn ống khói nhiều: chỗ cho khói bay). **Gió nghiêng**: khói bay sang trái hay phải, nghiêng
-     nhiều hay ít (0: bay thẳng lên). Muốn khói bay xa hơn: kéo khung to hơn và giảm **Độ rộng chỗ khói bốc lên**.
 3. Kéo khung trắng đến chỗ khói bốc lên. Ở đáy khung có **hình bầu dục vàng** (ghi "chỗ khói bốc lên"): đặt nó trùng
    miệng cốc (mặt nồi), rồi kéo góc khung cho hình vàng rộng bằng miệng cốc. Với khói nhang, hình vàng chỉ là một chấm:
    đặt chấm vào đầu que nhang, rồi kéo góc khung cho khung cao bằng chỗ khói bay lên.
@@ -248,6 +246,26 @@ dời, kéo góc để đổi cỡ (hoặc chỉnh **Vị trí và cỡ** trong 
 Dời khung khói sang chỗ sáng tối khác, app làm lại bản xem nhanh cho đúng ánh sáng chỗ mới (một lúc); trong lúc đó vẫn
 phát bản cũ. Dời nhích một chút để căn cho khớp thì không phải làm lại.
 Dự án cũ: khói cũ vẫn mở được, vẫn nằm đúng trên cốc, và đẹp hơn (vẽ theo cách mới).
+
+### Khói ống khói
+
+Khói gỗ xám bốc lên từ các ống khói có sẵn trong hình: một căn nhà gỗ, một trang trại, cả một làng tuyết. Mọi ống khói
+nằm trong một clip, cùng một hướng gió như ngoài trời thật; mỗi ống khói phả khói theo nhịp riêng.
+
+1. Bấm **Tạo sẵn** → **Khói ống khói**, kéo xuống một track trống, bấm **Suốt video**. App vào ngay chế độ đặt ống khói.
+2. Bấm lên **miệng** từng ống khói trên hình: ở đó có một **hình bầu dục vàng**, khói bốc lên từ đó. Khung mờ phía trên
+   là chỗ khói của nó bay lên.
+3. Ống khói đang chọn có màu xanh, hai đầu có hai chấm: **kéo một chấm** cho hình bầu dục rộng bằng miệng ống khói (ống
+   khói ở xa thì nhỏ, khói của nó cũng nhỏ). Ống khói đặt sau rộng bằng ống khói đang chọn. **Kéo hình bầu dục** để dời.
+4. Bấm vào một ống khói để chọn nó, rồi chỉnh riêng nó: **Miệng ống khói này rộng**, **Khói của ống khói này** (ít hay
+   nhiều; 0 là không có khói). Xoá: nút **Xoá ống khói này** hoặc phím `Delete`.
+5. Chỉnh chung cho mọi ống khói: **Khói bay cao** (thấp ← → cao), **Lượng khói**, **Độ loe khi bay lên**, **Độ mềm,
+   nhoè**, **Tốc độ bay lên**, **Uốn lượn, cuộn xoáy**, **Gió nghiêng** (trái ← → phải, 0: bay thẳng lên), **Gió lay
+   qua lại**, **Độ đậm**, **Màu khói**. Khói tự sáng theo đèn trong cảnh như hiệu ứng **Khói**.
+6. Xong: nút **Xong, thôi đặt** hoặc `Esc`. Muốn thêm hay sửa sau: chọn clip rồi bấm lên hình.
+
+Dự án làm bằng bản cũ có khói ống khói (hiệu ứng **Khói**, kiểu **Khói ống khói**): mở ra thành clip **Khói ống khói**,
+một ống khói ở đúng chỗ cũ, khói cao như cũ.
 
 **Lửa nến** (sửa ngọn nến bị lỗi trong video gốc)
 
@@ -398,7 +416,7 @@ Video hoặc ảnh nhập từ ngoài, và cả hiệu ứng tạo sẵn (tuyế
 xoay được như trong After Effects: nghiêng trước / sau, xoay trái / phải, xoay phẳng. Dùng khi cần đặt mưa, ánh sáng…
 nằm đúng một ô cửa kính nhìn từ một góc. Riêng **lửa nến** không xoay: ngọn lửa luôn bốc thẳng lên. **Lá cây lay động**
 cũng không xoay, không dời: nó làm động chính lá cây trong video, ngay tại chỗ. **Dây đèn tự vẽ** cũng không xoay: dây
-vẽ thẳng lên hình.
+vẽ thẳng lên hình. **Khói ống khói** cũng vậy: khói bốc thẳng lên từ ống khói, đặt ngay trên hình.
 
 Hiệu ứng tạo sẵn phủ cả hình (tuyết, mưa, lá, nước trên kính, tuyết bám kính) giống như một tấm phim bằng đúng khung hình:
 chọn clip là thấy khung trắng quanh cả khung hình. Cỡ 100%, ở giữa, không xoay: y như trước. Thu nhỏ, dời, xoay tấm

@@ -47,7 +47,7 @@
   /* clips: one colour per kind, white text on each >= 5 : 1 */
   --k-file: #6b52c8; --k-snow: #2c7299; --k-rain: #3d5fa8; --k-glass: #1a7375; --k-steam: #7d5f4a;
   --k-candle: #9f5417; --k-leaves: #4f7a32; --k-foliage: #2b7649; --k-glow: #9e4686; --k-base: #2c4a70;
-  --k-frost: #5a6f86; --k-lights: #a3323f; --k-garland: #8c3a7c; --k-flicker: #9a6a12;
+  --k-frost: #5a6f86; --k-lights: #a3323f; --k-garland: #8c3a7c; --k-flicker: #9a6a12; --k-chimney: #5f5867;
   --c-base: var(--k-base); --c-file: var(--k-file); --c-fx: var(--k-snow);   /* (old names) */
   --mix: #7257e6; --mix-line: #c2b4ff; --mix-band: rgba(185, 168, 255, .32); --mix-band-2: rgba(185, 168, 255, .1);
   --playhead: var(--accent);
@@ -296,6 +296,10 @@ header .prep .ic { color: var(--warn); }
 .stage.wiring, .stage.wiring * { cursor: crosshair; user-select: none; }
 .stage.wiring[data-wire=point], .stage.wiring[data-wire=point] * { cursor: move; }
 .stage.wiring[data-wire=line], .stage.wiring[data-wire=line] * { cursor: pointer; }
+/* placing chimneys (Khói ống khói): a click puts one; its ellipse is moved, its ends set its width */
+.stage.stacking, .stage.stacking * { cursor: crosshair; user-select: none; }
+.stage.stacking[data-stack=body], .stage.stacking[data-stack=body] * { cursor: move; }
+.stage.stacking[data-stack=end], .stage.stacking[data-stack=end] * { cursor: ew-resize; }
 .stage.grab, .stage.grab * { cursor: grab !important; }
 .stage.panning, .stage.panning * { cursor: grabbing !important; }
 .stage.grab .xform, .stage.grab .xform *, .stage.grab .x3d { pointer-events: none !important; }  /* a drag on the clip's box moves the picture */
@@ -532,6 +536,7 @@ header .prep .ic { color: var(--warn); }
 :is(.clip, .tile)[data-kind=frost] { --k: var(--k-frost); }
 :is(.clip, .tile)[data-kind=lights] { --k: var(--k-lights); }
 :is(.clip, .tile)[data-kind=garland] { --k: var(--k-garland); }
+:is(.clip, .tile)[data-kind=chimney] { --k: var(--k-chimney); }
 :is(.clip, .tile)[data-kind=flicker] { --k: var(--k-flicker); }
 .clip:not(.off):not(.sel):hover { filter: brightness(1.1); }
 .clip.base { --k: var(--k-base); background: var(--k-base) center/auto 100% repeat-x; cursor: pointer; border-radius: var(--r-xs); }
@@ -901,6 +906,7 @@ const ICONS = {
   frost: '<rect x="3" y="3" width="14" height="14" rx="1.5"/><path d="M3.5 16.5l6.5-6.5M5.4 14.6v-2.1M5.4 14.6h2.1M7.3 12.7v-2M7.3 12.7h2M16.5 3.5l-3.6 3.6M14.7 5.3v1.8M14.7 5.3h-1.8"/>',  // ice ferns on a pane
   lights: '<path d="M2.5 6c2.2 2.2 5.3 2.2 7.5 0s5.3-2.2 7.5 0"/><path d="M6.2 7.6V9M13.8 4.4v1.4"/><path d="M6.2 9c-1.1 1.4-1.6 2.4-1.6 3.2a1.6 1.6 0 0 0 3.2 0c0-.8-.5-1.8-1.6-3.2zM13.8 5.8c-1.1 1.4-1.6 2.4-1.6 3.2a1.6 1.6 0 0 0 3.2 0c0-.8-.5-1.8-1.6-3.2z"/><path d="M6.2 15.4v1.4M3.8 14.3l-1 .7M8.6 14.3l1 .7"/>',  // a string of bulbs, one shining
   garland: '<path d="M2 4.5c2.6 3.4 5.4 3.4 8 0s5.4-3.4 8 0"/><path d="M6 7.4v1M14 7.4v1"/><circle cx="6" cy="10" r="1.3"/><circle cx="14" cy="10" r="1.3"/><path d="M8.6 12.6l2.2 2.2-5.4 5.4-2.9.6.6-2.9z"/>',  // a string of bulbs drawn with a pen
+  chimney: '<path d="M2.5 12.5L10 6.5l7.5 6"/><path d="M4.5 11v6.5h11V11"/><path d="M13.2 9V5.5h2.6v5.6"/><path d="M14.6 4c-1.1-.8.2-1.9-.8-2.7"/>',  // a roof, its chimney, its smoke
   flicker: '<path d="M10 3.5c2.4 2.6 3.4 4.5 3.4 6.2a3.4 3.4 0 0 1-6.8 0c0-1.7 1-3.6 3.4-6.2z"/><path d="M10 9.6c.9 1 1.3 1.8 1.3 2.4a1.3 1.3 0 0 1-2.6 0c0-.6.4-1.4 1.3-2.4z"/><path d="M3.5 7.5l1.6.7M16.5 7.5l-1.6.7M4 13.5l1.7-.3M16 13.5l-1.7-.3M10 17.2v-1.4"/>',  // a flame and its light
   film: '<rect x="3" y="4" width="14" height="12" rx="1.8"/><path d="M6.5 4v12M13.5 4v12M3 8h3.5M3 12h3.5M13.5 8H17M13.5 12H17"/>',
 };
@@ -908,7 +914,7 @@ function icon(name, cls = "") {
   return `<svg class="ic ic-${name}${cls ? " " + cls : ""}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" ` +
     `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name] || ""}</svg>`;
 }
-const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", candle: "candle", foliage: "foliage", frost: "frost", lights: "lights", garland: "garland", flicker: "flicker", file: "film"};
+const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", chimney: "chimney", candle: "candle", foliage: "foliage", frost: "frost", lights: "lights", garland: "garland", flicker: "flicker", file: "film"};
 function kindIcon(kind, cls) { return icon(KIND_ICON[kind] || "glow", cls); }  // (an effect with no drawing of its own: a sparkle)
 // the buttons of the page's own markup: data-icon names their icon (before their label, if they have one)
 for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.dataset.icon, el.textContent.trim() ? "lead" : ""));
@@ -916,7 +922,7 @@ for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.
 function rangeP(v, min, max) { const k = (+v - min) / ((max - min) || 1); return `--p:${(100 * (k > 0 ? Math.min(k, 1) : 0)).toFixed(1)}%`; }
 function fillRange(r) { const a = +r.min || 0, b = r.max === "" ? 100 : +r.max; r.style.setProperty("--p", rangeP(r.value, a, b).slice(4)); }
 document.addEventListener("input", e => { if (e.target.type === "range") fillRange(e.target); }, true);
-const FX_KINDS = ["snow", "rain", "glass", "frost", "steam", "candle", "leaves", "foliage", "flicker", "lights", "garland"];  // the Tạo sẵn tab, in this order
+const FX_KINDS = ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "leaves", "foliage", "flicker", "lights", "garland"];  // the Tạo sẵn tab, in this order
 // (Hạt sáng, "glow": no longer offered, the owner asked 2026-10-23; a clip of it in an older project still plays)
 const BLEND_CSS = {normal: "normal", screen: "screen", add: "plus-lighter", multiply: "multiply"};
 const COLOUR_KEYS = ["bright", "contrast", "sat", "hue", "temp", "tint_amt", "tint"], TONE_POINTS = 33, LUMA = [0.2126, 0.7152, 0.0722];
@@ -1006,7 +1012,8 @@ const S = {schema: null, state: null, project: null, lib: [], time: 0, playing: 
   zoom: "fit", scale: 1, panX: 0, panY: 0, masks: {}, fx: {}, hist: [], histAt: -1, edits: 0, saveTimer: 0,
   jobsSeen: {}, bin: "lib", binSel: null, filter: "", els: {}, trackEls: {}, mixRole: {}, drag: null, dragItem: null, onlyBase: false,
   savedAt: 0, saveFailed: false, keymap: null, keys: {}, keyAll: new Set(), keyWait: null, keyMsg: null, keyTab: "keys", keyFind: "", guide: null,
-  wireSag: 0.35};  // (Dây đèn tự vẽ: how much the next strand drawn hangs, 0..1)
+  wireSag: 0.35,  // (Dây đèn tự vẽ: how much the next strand drawn hangs, 0..1)
+  stackW: 0};  // (Khói ống khói: how wide the next chimney put is, a share of the frame's width; 0: as a new one is)
 
 function fpsValue(fps) { const [a, b] = String(fps).split("/"); return (+a) / (+b || 1); }
 function info() { return S.project.video; }
@@ -1128,7 +1135,7 @@ async function openProject(id) {
   }
   const ticket = S.opening = (S.opening || 0) + 1; S.openingId = id;  // a quicker second click wins
   try {
-    if (S.project) { pause(); exitPaint(); stopWire(); await readyToRender(); }  // the open project's last changes go to it first
+    if (S.project) { pause(); exitPaint(); stopWire(); stopStack(); await readyToRender(); }  // the open project's last changes go to it first
     const p = await get("/api/project?id=" + id);  // then read: the same project opened again has them
     if (ticket !== S.opening) return;
     p.saved = new Set(p.layers.map(l => l.id));
@@ -1264,6 +1271,7 @@ function history(step) {
   if (snap.length !== before) for (const c of p.layers) if (c.kind !== "file") delete S.fx[c.id];  // made for the other length
   renderAll(); scheduleSave(0); seek(S.time);  // the selection stays: a clip that comes back is selected again
   if (S.wire) { if (clipById(S.wire.id)) drawWire(); else stopWire(); }
+  if (S.stack) { if (clipById(S.stack.id)) drawStack(); else stopStack(); }
   toast(step < 0 ? "Đã hoàn tác." : "Đã làm lại.", false, 1200);
 }
 function edited(opts = {}) {  // after a change of the timeline or of a clip
@@ -1577,7 +1585,7 @@ function layoutScreen() {
   zoomMenu(f);
   // a turned clip's perspective is in pixels of the picture's own size (a zoom scales it with the picture)
   if (S.layoutW !== f.w) { S.layoutW = f.w; for (const c of S.project.layers) if (S.els[c.id] && turned(c)) styleLayer(c, S.els[c.id]); }
-  drawPoly(); showXform(); drawArea(); if (S.wire) drawWire();
+  drawPoly(); showXform(); drawArea(); if (S.wire) drawWire(); if (S.stack) drawStack();
   // a stroke goes on where the mouse is, though the picture moved or was zoomed under it
   if (S.paintRect) { S.paintRect = paintCanvas.getBoundingClientRect(); S.stageRect = stage.getBoundingClientRect(); }
 }
@@ -2293,7 +2301,7 @@ function paintName(name) {
 }
 function enterPaint(name) {
   if (!S.masks[name]) return;
-  stopWire();
+  stopWire(); stopStack();
   endStroke();
   pause();
   S.paint = name; S.poly = []; S.polyRedo = []; setHand(false);  // a brush in hand: no longer the Hand tool
@@ -2585,9 +2593,11 @@ stage.addEventListener("pointerdown", e => {
     stage.classList.add("panning"); $("#cursor").style.display = "none"; return;
   }
   if (S.wire && e.button === 0) { wireDown(e); return; }  // Dây đèn tự vẽ: a point, a stretch drawn by hand, a strand
+  if (S.stack && e.button === 0) { stackDown(e); return; }  // Khói ống khói: a chimney put, moved, made wider, chosen
   if (!S.paint && e.button === 0) {  // a click on a clip's picture selects it (the top one there)
     const sel = clipById(S.sel);
     if (sel && sel.kind === "garland" && inPicture(e)) { startWire(sel); wireDown(e); return; }  // (its strands: drawn there)
+    if (sel && sel.kind === "chimney" && inPicture(e)) { startStack(sel); stackDown(e); return; }  // (its chimneys: there)
     const hit = pickAt(e);
     if (hit) pick(e, hit);
     return;
@@ -2620,6 +2630,7 @@ stage.addEventListener("pointermove", e => {
   }
   if (S.paint && S.brush.tool === "poly" && S.poly.length) { S.hover = toMask(e); drawPoly(); }
   if (S.wire) wireMove(e);
+  if (S.stack) stackMove(e);
 });
 function endStroke() {  // the brush lifted, or the painting stopped while the button was still down
   if (!painting) return;
@@ -2631,12 +2642,16 @@ function endPan() { panning = null; stage.classList.remove("panning"); }  // (th
 stage.addEventListener("pointerup", e => {
   if (panning) { endPan(); return; }
   if (S.wire && S.wire.drag) { wireUp(e); return; }
+  if (S.stack && S.stack.drag) { stackUp(e); return; }
   endStroke();
 });
-for (const ev of ["pointercancel", "lostpointercapture"]) stage.addEventListener(ev, e => { endPan(); endStroke(); if (S.wire && S.wire.drag) wireUp(e, true); });
+for (const ev of ["pointercancel", "lostpointercapture"]) stage.addEventListener(ev, e => {
+  endPan(); endStroke(); if (S.wire && S.wire.drag) wireUp(e, true); if (S.stack && S.stack.drag) stackUp(e, true);
+});
 stage.addEventListener("pointerleave", () => {
   $("#cursor").style.display = "none";
   if (S.wire && !S.wire.drag) { S.wire.hover = S.wire.near = null; drawWire(); }
+  if (S.stack && !S.stack.drag) { S.stack.near = null; delete stage.dataset.stack; drawStack(); }
 });
 function inPicture(e) {  // a pointer on the video's frame (not on the area around it)
   const sc = screenEl.getBoundingClientRect();
@@ -2645,6 +2660,7 @@ function inPicture(e) {  // a pointer on the video's frame (not on the area arou
 stage.addEventListener("dblclick", e => {
   if (S.paint && S.brush.tool === "poly" && !S.hand) { e.preventDefault(); closePoly(); return; }
   if (S.wire) { e.preventDefault(); endWire(); return; }
+  if (S.stack) { e.preventDefault(); return; }  // (its second click chose the chimney the first one put)
   // on the empty area around the picture (neither click on a clip or its box): "Vừa khung" again
   const sc = screenEl.getBoundingClientRect(), last = (S.xdowns || [])[1];
   const out = e.clientX < sc.left || e.clientX > sc.right || e.clientY < sc.top || e.clientY > sc.bottom;
@@ -3080,15 +3096,18 @@ function deleteClip(c) {
   fadesBack(Object.assign({}, c, {track: null}), c);  // a clip that ran on from it (or into it) fades again there
   if (S.paint === c.id) exitPaint();
   if (S.wire && S.wire.id === c.id) { S.wire.cur = []; stopWire(); }  // (its strand being drawn: gone with it)
+  if (S.stack && S.stack.id === c.id) stopStack();
   if (S.sel === c.id) S.sel = null;
   edited();
 }
 function select(id) {
   if (S.paint && S.paint !== id && !(id === "base" && (S.paint === "freeze" || S.paint === "fg"))) exitPaint();
   if (S.wire && S.wire.id !== id) stopWire();
+  if (S.stack && S.stack.id !== id) stopStack();
   S.sel = id; renderTimeline(); renderControls(); showXform(); renderTools(); drawArea();
   const c = clipById(id);
   if (c && c.kind === "garland" && !S.wire && !S.paint && !(c.params.strands || []).length) startWire(c);
+  if (c && c.kind === "chimney" && !S.stack && !S.paint && !(c.params.stacks || []).length) startStack(c);
 }
 
 // the track heads
@@ -3422,6 +3441,7 @@ function toVideo(e) {  // a pointer's place on the picture, in video pixels
 }
 function startWire(c) {  // drawing and fixing the strands of clip c on the picture
   if (S.paint) exitPaint();
+  stopStack();
   pause();
   S.wire = {id: c.id, cur: [], redo: [], sel: -1, drag: null, hover: null, near: null};
   polyCanvas.style.display = "block"; stage.classList.add("wiring");
@@ -3431,7 +3451,7 @@ function stopWire() {
   if (!S.wire) return;
   if (S.wire.cur.length >= 2) endWire();
   S.wire = null; stage.classList.remove("wiring"); delete stage.dataset.wire;
-  if (!S.paint) { polyCanvas.style.display = "none"; polyCanvas.getContext("2d").clearRect(0, 0, polyCanvas.width, polyCanvas.height); }
+  if (!S.paint && !S.stack) { polyCanvas.style.display = "none"; polyCanvas.getContext("2d").clearRect(0, 0, polyCanvas.width, polyCanvas.height); }
   showXform(); renderControls();
 }
 function segDist(p, a, b) {  // from a point to a segment
@@ -3648,6 +3668,160 @@ function drawWire() {  // the strands, their points and where their bulbs go, ov
     });
   });
 }
+// --- Khói ống khói (chimney.py): the chimneys' mouths, put on the picture -----------------------------------------
+// Each is in the clip's settings ("stacks": [x, y, width, how much]: its mouth's middle as shares of the frame's width
+// and height, its width a share of the frame's width, how much smoke it gives, 0..1, 0.5 as the sliders say). While
+// they are being put (S.stack), each mouth is a yellow ellipse over the picture (polyCanvas), with the box its smoke
+// rises in, laid as chimney.plume_box lays it (stackBox); the one chosen is blue, with a handle at each end: its width.
+function stackPlume() { return S.schema.kinds.chimney.plume; }
+function stackBox(c, q) {  // as chimney.plume_box (video px): [x0, y0, side] of the box a chimney's smoke rises in
+  const m = stackPlume(), W = info().w, H = info().h, mw = q[2] * W;
+  const side = mw * m.tall * Math.pow(m.side, ((c.params.tall ?? 50) - 50) / 50);
+  return [q[0] * W - side / 2, q[1] * H + m.ratio / 2 * mw - side, side];
+}
+function stackInfo(c) {  // how many chimneys, and what to do now
+  const n = (c.params.stacks || []).length, on = !!S.stack && S.stack.id === c.id, count = n ? `${n} ống khói. ` : "";
+  if (!on) return count + (n ? "Bấm Đặt / sửa ống khói (hoặc bấm lên hình) để thêm hay sửa." : "Bấm Đặt ống khói rồi bấm lên miệng ống khói trên hình.");
+  return count + "Bấm lên miệng một ống khói để thêm (hình bầu dục vàng). Kéo hình bầu dục để dời, kéo hai đầu nó cho rộng bằng miệng ống khói. Bấm vào một ống khói để chọn nó. Khung mờ là chỗ khói của nó bay lên.";
+}
+function stackRow(c) {  // its panel: put chimneys; the one chosen: its width, its smoke, deleted; all deleted
+  const on = !!S.stack && S.stack.id === c.id, has = (c.params.stacks || []).length > 0;
+  const q = on ? (c.params.stacks || [])[S.stack.sel] : null;
+  let html = `<div class="btns"><button class="small ${on ? "on" : "primary"}" id="stackPlace">${icon("pencil", "lead")}${on ? "Xong, thôi đặt" : has ? "Đặt / sửa ống khói" : "Đặt ống khói"}</button>` +
+    (on ? `<button class="small" id="stackDel" ${q ? "" : "disabled"} title="Xoá ống khói đang chọn (${esc(keyName("deleteClip"))})">Xoá ống khói này</button>` : "") +
+    `<button class="small" id="stackClear" ${has ? "" : "disabled"}>Xoá hết</button></div>`;
+  if (q) {
+    const w = Math.round(q[2] * 1000) / 10, much = Math.round(q[3] * 100);
+    html += `<div class="row"><div class="lab"><span>Miệng ống khói này rộng (% khung hình)</span><b id="v-stackW">${w}</b></div>
+      <input type="range" id="stackW" min="0.2" max="15" step="0.1" value="${w}" style="${rangeP(w, 0.2, 15)}"></div>
+      <div class="row"><div class="lab"><span>Khói của ống khói này (ít ← → nhiều)</span><b id="v-stackMuch">${much}</b></div>
+      <input type="range" id="stackMuch" min="0" max="100" step="1" value="${much}" style="${rangeP(much, 0, 100)}"></div>`;
+  }
+  return html + `<p class="note" id="stackInfo">${esc(stackInfo(c))}</p>`;
+}
+function startStack(c) {  // putting, moving and sizing the chimneys of clip c on the picture
+  if (S.paint) exitPaint();
+  stopWire();
+  pause();
+  S.stack = {id: c.id, sel: -1, drag: null, near: null};
+  polyCanvas.style.display = "block"; stage.classList.add("stacking");
+  showXform(); renderControls(); drawStack();
+}
+function stopStack() {
+  if (!S.stack) return;
+  S.stack = null; stage.classList.remove("stacking"); delete stage.dataset.stack;
+  if (!S.paint && !S.wire) { polyCanvas.style.display = "none"; polyCanvas.getContext("2d").clearRect(0, 0, polyCanvas.width, polyCanvas.height); }
+  showXform(); renderControls();
+}
+function stackHit(c, pt) {  // what a press there takes: an end of the chimney chosen (its width), a chimney (to move or
+  // choose); null: a new chimney goes there
+  const st = S.stack, W = info().w, H = info().h, per = wirePer(), all = c.params.stacks || [], sel = all[st.sel];
+  if (sel) for (const side of [-1, 1]) {
+    if (Math.hypot(pt[0] - (sel[0] + side * sel[2] / 2) * W, pt[1] - sel[1] * H) <= 7 * per) return {type: "end", index: st.sel, side};
+  }
+  let best = null;
+  all.forEach((q, i) => {  // (inside its ellipse, or near it: a small one is still easy to take)
+    const a = Math.max(q[2] * W / 2, 7 * per), b = Math.max(stackPlume().ratio * q[2] * W / 2, 7 * per);
+    const d = Math.hypot((pt[0] - q[0] * W) / a, (pt[1] - q[1] * H) / b) - (i === st.sel ? 0.01 : 0);
+    if (d <= 1 && (!best || d < best.d)) best = {type: "body", index: i, d};
+  });
+  return best;
+}
+function stackDown(e) {
+  const st = S.stack, c = clipById(st.id); if (!c) return stopStack();
+  const pt = toVideo(e);
+  st.drag = {hit: stackHit(c, pt), from: pt, moved: false};
+  e.preventDefault();  // (no text selected, nothing dragged away by the browser)
+  window.getSelection().removeAllRanges();
+  stage.setPointerCapture(e.pointerId);
+}
+function stackMove(e) {
+  const st = S.stack, c = clipById(st.id); if (!c) return;
+  const pt = toVideo(e), d = st.drag, W = info().w, H = info().h;
+  if (!d) {  // over the picture: what a press would take
+    st.near = stackHit(c, pt);
+    if (st.near) stage.dataset.stack = st.near.type; else delete stage.dataset.stack;
+    drawStack(); return;
+  }
+  if (!d.hit || (!d.moved && Math.hypot(pt[0] - d.from[0], pt[1] - d.from[1]) < 3 * wirePer())) return;  // (a click
+  // wobbles a little; a press on nothing puts a chimney when it is let go)
+  const q = c.params.stacks[d.hit.index];
+  if (!d.moved) { d.moved = true; d.start = q.slice(); st.sel = d.hit.index; renderControls(); }
+  if (d.hit.type === "end") q[2] = wireFit(Math.max(2, 2 * Math.abs(pt[0] - q[0] * W)) / W);  // (the other end mirrors it)
+  else { q[0] = wireFit(d.start[0] + (pt[0] - d.from[0]) / W); q[1] = wireFit(d.start[1] + (pt[1] - d.from[1]) / H); }
+  drawStack(); stackSliders(q);
+}
+function stackSliders(q) {  // the panel's sliders of the chimney chosen, as it is now
+  const w = Math.round(q[2] * 1000) / 10, el = $("#stackW"), lab = $("#v-stackW");
+  if (el) { el.value = w; fillRange(el); } if (lab) lab.textContent = w;
+}
+function stackUp(e, cancelled) {  // (cancelled: the browser took the pointer away)
+  const st = S.stack, d = st && st.drag; if (!d) return;
+  st.drag = null;
+  const c = clipById(st.id); if (!c) return stopStack();
+  if (d.hit) {  // a chimney chosen (moved, or made wider)
+    const q = c.params.stacks[d.hit.index], was = st.sel;
+    st.sel = d.hit.index;
+    if (d.moved) { if (d.hit.type === "end") S.stackW = q[2]; edited(); }  // (the next one put: as wide)
+    else if (was !== st.sel) renderControls();
+    drawStack(); return;
+  }
+  if (cancelled) return;
+  const all = c.params.stacks || [], ch = S.schema.kinds.chimney, most = ch.stacks_most || 64;
+  if (all.length >= most) { toast(`Đã đủ ${most} ống khói. Hãy xoá bớt trước khi thêm.`, true, 6000); return; }
+  const W = info().w, H = info().h, wid = (all[st.sel] && all[st.sel][2]) || S.stackW || ch.mouth;  // (as wide as the one
+  // chosen, or as the one last made wider)
+  c.params.stacks = all.concat([[wireFit(d.from[0] / W), wireFit(d.from[1] / H), wireFit(wid), ch.much]]);
+  st.sel = c.params.stacks.length - 1;
+  edited(); drawStack();
+}
+function stackDelete() {  // the chimney chosen, gone (one step to undo)
+  const st = S.stack, c = st && clipById(st.id); if (!c || !(c.params.stacks || [])[st.sel]) return;
+  c.params.stacks = c.params.stacks.filter((_, i) => i !== st.sel); st.sel = -1;
+  edited(); drawStack();
+}
+function stackSet(c, id, v) {  // the sliders of the chimney chosen: its width (the next one put as wide), its smoke
+  const q = S.stack && (c.params.stacks || [])[S.stack.sel]; if (!q) return;
+  if (id === "stackW") { q[2] = wireFit(v / 100); S.stackW = q[2]; } else q[3] = wireFit(v / 100);
+  $("#v-" + id).textContent = v;
+  edited({controls: false, remember: false}); drawStack();
+}
+let stackQueued = false;
+function drawStack() {  // the chimneys' mouths and the boxes their smoke rises in, over the picture (polyCanvas: mask pixels)
+  if (stackQueued) return;
+  stackQueued = true;
+  requestAnimationFrame(() => {
+    stackQueued = false;
+    if (S.paint || S.wire) return;
+    const g = polyCanvas.getContext("2d");
+    g.clearRect(0, 0, polyCanvas.width, polyCanvas.height);
+    const st = S.stack, c = st && clipById(st.id);
+    if (!c) return;
+    const W = info().w, H = info().h, kx = polyCanvas.width / W, ky = polyCanvas.height / H;
+    const shown = polyCanvas.getBoundingClientRect().width, k = shown ? polyCanvas.width / shown : 1;  // (its pixels in a
+    // screen pixel: lines and handles as thick at any zoom)
+    const all = c.params.stacks || [];
+    if (st.sel >= all.length) st.sel = -1;  // (gone with an undo)
+    all.forEach((q, i) => {  // where its smoke rises
+      const [x0, y0, side] = stackBox(c, q);
+      g.setLineDash([5 * k, 4 * k]); g.lineWidth = k;
+      g.strokeStyle = i === st.sel ? "rgba(92, 200, 255, .6)" : "rgba(255, 255, 255, .25)";
+      g.strokeRect(x0 * kx, y0 * ky, side * kx, side * ky); g.setLineDash([]);
+    });
+    all.forEach((q, i) => {  // its mouth (a dark edge under it: seen on light and dark pictures)
+      const chosen = i === st.sel, hot = !!st.near && st.near.index === i && !st.drag;
+      const cx = q[0] * W * kx, cy = q[1] * H * ky, a = Math.max(q[2] * W * kx / 2, 2 * k), b = Math.max(stackPlume().ratio * a, 1.5 * k);
+      g.beginPath(); g.ellipse(cx, cy, a, b, 0, 0, 7);
+      g.lineWidth = (chosen || hot ? 2.2 : 1.6) * k + 2 * k; g.strokeStyle = "rgba(0, 0, 0, .5)"; g.stroke();
+      g.lineWidth = (chosen || hot ? 2.2 : 1.6) * k; g.strokeStyle = chosen ? "#5cc8ff" : hot ? "#fff3b8" : "#ffd84d"; g.stroke();
+      if (chosen) for (const s of [-1, 1]) {  // its ends: its width
+        const on = !!st.near && st.near.type === "end" && st.near.side === s;
+        g.beginPath(); g.arc(cx + s * a, cy, 4.2 * k, 0, 7); g.fillStyle = on ? "#5cc8ff" : "rgba(20, 22, 26, .85)"; g.fill();
+        g.lineWidth = 1.5 * k; g.strokeStyle = "#5cc8ff"; g.stroke();
+      }
+    });
+  });
+}
 function shownParam(c, d) {  // a setting shown only for some values of others (string lights: per way of laying them)
   return !d.show || Object.entries(d.show).every(([k, values]) => values.includes(c.params[k]));
 }
@@ -3781,6 +3955,7 @@ function addClip(item, trackId, s, en) {
   if (kind !== "file") setTimeout(() => requestFx(c), 400);
   if (S.schema.placed[kind]) toast("Kéo khung trắng trên hình đến đúng chỗ (xem hướng dẫn trong Bảng chỉnh hiệu ứng).", false, 6000);
   if (kind === "garland") { startWire(c); toast("Bấm lên hình để vẽ dây đèn: bấm từng điểm, hoặc giữ chuột và kéo. Bấm đúp để xong một dây.", false, 7000); }
+  if (kind === "chimney") { startStack(c); toast("Bấm lên miệng từng ống khói trên hình. Kéo hai đầu hình bầu dục vàng cho rộng bằng miệng ống khói.", false, 7000); }
   if (S.time * fps() < s || S.time * fps() >= en) seek(s / fps());
 }
 
@@ -3838,7 +4013,8 @@ function renderControls() {
     source = `<div class="file"><b>${kindIcon(c.kind, "lead")}${esc(sch.label)}</b> (app tự vẽ)${!fx || !fx.ready ? `<br>${icon("wait", "lead")}Đang chuẩn bị xem nhanh… Dừng hình để xem khung chính xác.` : ""}${S.schema.lens[c.kind] && !areaKind(c) || litMoved(c) ? "<br>Lúc phát chỉ xem gần đúng; dừng hình để thấy đúng như video xuất ra." : ""}</div>
       ${sch.note ? `<p class="note">${esc(sch.note)}</p>` : ""}
       <div class="btns"><button class="small" id="reseed" title="Cùng thông số, vị trí các hạt khác đi">${icon("dice", "lead")}Đổi kiểu ngẫu nhiên</button></div>
-      ${c.kind === "garland" ? `<div class="wirebox">${wireRow(c)}</div>` : ""}`;
+      ${c.kind === "garland" ? `<div class="wirebox">${wireRow(c)}</div>` : ""}
+      ${c.kind === "chimney" ? `<div class="wirebox">${stackRow(c)}</div>` : ""}`;
   }
   const params = sch.params.map(d => {
     const v = c.params[d.key];
@@ -3860,9 +4036,11 @@ function renderControls() {
       ${by.bright}${by.contrast}${by.sat}${by.hue}${by.temp}${by.tint_amt}${by.tint}
       <div class="btns"><button class="small" id="colourReset" ${colourOps(c.params) ? "" : "disabled"}>Đặt lại màu như file gốc</button></div>
       <p class="note">Khớp màu với cảnh: đặt clip vào đúng chỗ, chọn chế độ hoà trộn trước, rồi bấm. Sau đó vẫn kéo tay các thanh được. Phủ một màu: chọn màu rồi kéo thanh "Phủ một màu" lên (ví dụ tuyết trắng thành vàng ấm).</p>`;
-  })() : sch.params.map((d, i) => {  // a heading where the group changes (settings this clip does not use: not shown)
-    if (!shownParam(c, d)) return "";
-    const before = sch.params.slice(0, i).filter(e => shownParam(c, e)).pop();
+  })() : sch.params.map((d, i) => {  // a heading where the group changes (settings this clip does not use, and points
+    // put on the picture (its tools at the panel's top): not shown)
+    const listed = e => shownParam(c, e) && e.type !== "points";
+    if (!listed(d)) return "";
+    const before = sch.params.slice(0, i).filter(listed).pop();
     const g = d.group || "Hiệu ứng", head = !before || g !== (before.group || "Hiệu ứng") ? `<h4>${esc(g)}</h4>` : "";
     if (g !== "Xoay 3D") return head + params[i] + (d.key === "y" && sheetKind(c) ? `<p class="note">Cỡ 100%, ở giữa: hiệu ứng phủ đúng cả khung hình. Thu nhỏ rồi kéo khung trắng để hiệu ứng chỉ nằm ở một chỗ (ví dụ một ô cửa sổ).</p>` : "");
     const last = i === sch.params.length - 1 || sch.params[i + 1].group !== g;  // (the same settings as a file clip's)
@@ -3974,6 +4152,12 @@ $("#ec").addEventListener("click", e => {
   if (id === "reseed") { c.seed = Math.floor(Math.random() * 2147483647); edited(); return; }
   if (id === "colourMatch") return matchColours(c, t);
   if (id === "wireDraw") return S.wire && S.wire.id === c.id ? stopWire() : startWire(c);
+  if (id === "stackPlace") return S.stack && S.stack.id === c.id ? stopStack() : startStack(c);
+  if (id === "stackDel") return stackDelete();
+  if (id === "stackClear") {  // (Ctrl+Z brings them back)
+    c.params.stacks = []; if (S.stack) { S.stack.sel = -1; drawStack(); } edited();
+    toast(`Đã xoá hết ống khói. Bấm ${keyName("undo")} để lấy lại.`, false, 3000); return;
+  }
   if (id === "wireBack") return wireBack();
   if (id === "wireDel") return wireDelete();
   if (id === "wireClear") {  // (Ctrl+Z brings them back)
@@ -4021,6 +4205,7 @@ $("#ec").addEventListener("input", e => {
   }
   if (t.id === "clipName") { c.name = t.value; scheduleSave(); renderTimeline(); return; }
   if (t.id === "wireSag") return wireSag(c, +t.value);
+  if (t.id === "stackW" || t.id === "stackMuch") return stackSet(c, t.id, +t.value);
   if (t.dataset.clipnum) {
     const v = +t.value; $("#v-" + t.dataset.clipnum).textContent = v;
     c[t.dataset.clipnum] = v;
@@ -4048,6 +4233,7 @@ $("#ec").addEventListener("input", e => {
     if (def && def.presets && def.presets[v]) { Object.assign(c.params, def.presets[v]); renderControls(); }
     else followChoices(c, key);
     if (c.kind === "garland") { drawWire(); renderWireInfo(); }  // (how many bulbs)
+    if (c.kind === "chimney" && S.stack) drawStack();  // (how high its smoke goes)
     if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
     else if (S.els[c.id]) styleLayer(c, S.els[c.id]);
     applyTime(); invalidateExact(); scheduleSave(); renderTimeline(); showXform();
@@ -4776,6 +4962,10 @@ document.addEventListener("keydown", e => {
     if (k === "Escape") return did(() => S.wire.cur.length ? endWire() : stopWire());
     if (is("polyBack")) return did(wireBack);
     if (is("deleteClip")) return did(wireDelete);  // (never the clip itself while drawing on it)
+  }
+  if (S.stack) {  // placing chimneys (Khói ống khói): the one chosen deleted; Esc: done
+    if (k === "Escape") return did(stopStack);
+    if (is("deleteClip")) return did(stackDelete);  // (never the clip itself while placing them)
   }
   if (is("selectTool")) { S.tool = "select"; renderTimeline(); }
   else if (is("razorTool")) { S.tool = "razor"; renderTimeline(); }

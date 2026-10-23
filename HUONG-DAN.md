@@ -156,6 +156,22 @@ Thêm **Dây đèn tự vẽ** từ thẻ **Tạo sẵn**: app vào ngay chế �
 | Xong | Nút **Xong, thôi vẽ**, hoặc `Esc` (đang vẽ một dây: lần đầu là xong dây đó) |
 | Vẽ thêm, sửa sau | Chọn clip rồi bấm lên hình, hoặc nút **Vẽ / sửa dây** |
 
+## Đặt ống khói (Khói ống khói)
+
+Thêm **Khói ống khói** từ thẻ **Tạo sẵn**: app vào ngay chế độ đặt ống khói. Các nút ở khung đầu Bảng chỉnh hiệu ứng.
+Trên hình: mỗi ống khói là một hình bầu dục vàng ở miệng ống khói, khung mờ phía trên là chỗ khói của nó bay lên.
+
+| Thao tác | Cách làm |
+|---|---|
+| Thêm ống khói | Bấm lên miệng ống khói trên hình |
+| Rộng bằng miệng ống khói | Bấm chọn ống khói (đổi màu xanh), kéo một trong hai chấm ở hai đầu hình bầu dục. Ống khói đặt sau rộng bằng ống khói vừa chỉnh |
+| Dời | Kéo hình bầu dục |
+| Khói của riêng một ống khói | Chọn ống khói, kéo thanh **Khói của ống khói này** (0: không có khói) |
+| Khói bay cao, gió | Thanh **Khói bay cao**, **Gió nghiêng**: chung cho mọi ống khói |
+| Xoá ống khói đang chọn | Nút **Xoá ống khói này**, hoặc `Delete` |
+| Xong | Nút **Xong, thôi đặt**, hoặc `Esc` |
+| Đặt thêm, sửa sau | Chọn clip rồi bấm lên hình, hoặc nút **Đặt / sửa ống khói** |
+
 ## Xem video
 
 | Thao tác | Cách làm |
@@ -210,7 +226,7 @@ Các phím dưới đây là phím mặc định. Phím trong nhóm **Vẽ vùng
 | Dao cắt: bấm vào clip để cắt đôi | `C` |
 | Bật / tắt bám dính (cả lúc đang kéo clip) | `S` |
 | Cắt clip tại đầu phát | `Ctrl+K` |
-| Xoá clip đang chọn (đang vẽ dây đèn: xoá dây đang chọn) | `Delete` hoặc `Backspace` |
+| Xoá clip đang chọn (đang vẽ dây đèn, đặt ống khói: xoá dây, ống khói đang chọn) | `Delete` hoặc `Backspace` |
 | Sao chép clip đang chọn (dán được sang track khác, hoặc dự án khác) | `Ctrl+C` |
 | Dán clip đã chép: tại đầu phát, vào track dưới chuột | `Ctrl+V` |
 | Dán thiết lập của clip đã chép (màu, cỡ, vị trí…) vào clip đang chọn | `Ctrl+Alt+V` |
@@ -243,7 +259,7 @@ Phím nhóm này chỉ khi đang vẽ vùng (hai phím Khép và Bỏ điểm c�
 
 | Phím | Việc |
 |---|---|
-| `Esc` | Thôi: bỏ chọn clip, thôi Bàn tay, bỏ đường đang khoanh, thôi vẽ vùng, xong dây đèn đang vẽ (lần nữa: thôi vẽ dây), đóng cửa sổ đang mở |
+| `Esc` | Thôi: bỏ chọn clip, thôi Bàn tay, bỏ đường đang khoanh, thôi vẽ vùng, xong dây đèn đang vẽ (lần nữa: thôi vẽ dây), thôi đặt ống khói, đóng cửa sổ đang mở |
 | `Enter` | Trong ô số: giữ số vừa gõ |
 | `Tab` | Chuyển sang nút hoặc ô kế tiếp |
 
