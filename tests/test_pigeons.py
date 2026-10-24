@@ -149,6 +149,48 @@ class Walking(unittest.TestCase):
         downs = np.sum((reach[1:] >= 0.99) & (reach[:-1] < 0.99))
         self.assertEqual(int(downs), n)  # (all the way down, once a peck)
 
+    def test_no_jumps(self):
+        """Nothing about a bird jumps from one moment to the next, all its day, about or along a ledge: its head and
+        its body glide (no faster than its head goes as it thrusts it forward), it turns no faster than its path bends
+        (never round on the spot), and its feet are together where each walk starts and stops."""
+        fps = 240
+        for ledge in (False, True):
+            for seed in range(4):
+                walker = pigeons.Walker(np.random.default_rng(seed), 20.0, 0.7, 1.0, ledge, 1.2, hungry=0.6)
+                ts = np.arange(0.0, 20.0, 1 / fps)
+                head, breast, heading = [], [], []
+                for t in ts:
+                    x, y, a = walker.where(t)
+                    allp = pigeons.parts(walker.pose(t))
+                    turn = pigeons._rot(yaw=a)
+                    head.append(np.array([x, y, 0.0]) + turn @ allp[pigeons.SMOOTH - 1][1])
+                    breast.append(np.array([x, y, 0.0]) + turn @ allp[0][1])
+                    heading.append(a)
+                speed = [np.linalg.norm(np.diff(np.array(p), axis=0), axis=1) * fps for p in (head, breast)]
+                self.assertLess(float(speed[0].max()), 2.5, (ledge, seed))  # (units a second: the bird is 0.86)
+                self.assertLess(float(speed[1].max()), 1.0, (ledge, seed))
+                spin = np.abs(np.angle(np.exp(1j * np.diff(heading)))) * fps
+                bend = 1 / pigeons.TURN if ledge else 1 / pigeons.BEND
+                self.assertLess(float(spin.max()), bend * walker.speed * 1.15, (ledge, seed))
+                for i, (kind, start, d, _) in enumerate(walker.segs):
+                    if kind == "walk":
+                        for t in (start + 1e-6, start + d - 1e-6):
+                            feet = walker.pose(t).feet
+                            self.assertLess(max(abs(feet[0][0]), abs(feet[1][0])), 0.004, (ledge, seed, t))
+                            self.assertLess(max(feet[0][2], feet[1][2]), 1e-3, (ledge, seed, t))
+
+    def test_paths_bend_gently(self):
+        """A bird's path about is a smooth wobbly loop of its own: never sharper than BEND (a short path: a
+        circle)."""
+        for seed in range(40):
+            walker = pigeons.Walker(np.random.default_rng(seed), 30.0, 0.5, 1.0, room=1.0 + seed % 3)
+            x, y = walker.px, walker.py
+            dx, dy = (np.roll(x, -1) - np.roll(x, 1)) / 2, (np.roll(y, -1) - np.roll(y, 1)) / 2
+            ddx, ddy = np.roll(x, -1) - 2 * x + np.roll(x, 1), np.roll(y, -1) - 2 * y + np.roll(y, 1)
+            bend = np.abs(dx * ddy - dy * ddx) / (dx * dx + dy * dy) ** 1.5
+            most = max(1 / pigeons.BEND, math.tau / walker.length)
+            self.assertLess(float(bend.max()), most * 1.05, seed)
+
     def test_its_beak_reaches_the_ground(self):
         for seed in range(4):
             walker = pigeons.Walker(np.random.default_rng(seed), 30.0, 0.2, 1.0, hungry=1.0)
@@ -222,6 +264,42 @@ class Body(unittest.TestCase):
             if run.any():
                 worst = max(worst, float(np.abs(np.diff(lum))[run].max()))
         self.assertLess(worst, 0.07)
+
+    def test_drawn_to_a_fraction_of_a_pixel(self):
+        """A bird is drawn where it is to a fraction of a pixel: moved by part of a pixel, its picture moves as much
+        (it glides, not jumping a whole pixel at a time)."""
+        coat = pigeons.Coat("grey", np.random.default_rng(1))
+
+        def middle(at):
+            rgb, a, feet = pigeons.draw_bird(pigeons.Pose(), coat, 0.3, 120.0, 0.3, light(), 2, at)
+            ys, xs = np.mgrid[0:a.shape[0], 0:a.shape[1]]
+            return np.array([(xs * a).sum(), (ys * a).sum()]) / a.sum() - np.array(feet)
+        still = middle((0.0, 0.0))
+        for at in ((0.25, 0.0), (0.5, 0.5), (0.0, 0.75)):
+            moved = middle(at) - still
+            self.assertLess(float(np.abs(moved - np.array(at)).max()), 0.1, (at, moved))
+
+    def test_creases_shaded(self):
+        """Less of the light round it reaches into the creases of its body (where its folded wing lies on its
+        side, under its neck) than onto its open back (ambient occlusion from its smooth body)."""
+        body = pigeons.parts(pigeons.Pose())[:pigeons.SMOOTH]
+        down = np.array([0.0, 0.0, -1.0])
+        top = pigeons._Rays(np.array([-0.06]), np.array([0.0]), np.array([1.0]), down)
+        t = pigeons._Body(top, body).march()
+        p = np.array([[-0.06, 0.0, 1.0 - t[0]]])
+        self.assertGreater(float(pigeons._occlusion(p, -down[None, :], body)[0]), 0.95)  # (its back: open)
+        across = np.array([0.0, -1.0, 0.0])  # (rays onto its left side, all down it)
+        zs = np.linspace(0.12, 0.38, 60)
+        xs = np.linspace(-0.25, 0.15, 40)
+        gx, gz = np.meshgrid(xs, zs)
+        rays = pigeons._Rays(gx.ravel(), np.full(gx.size, 1.0), gz.ravel(), across)
+        seen = pigeons._Body(rays, body)
+        t = seen.march()
+        hit = np.flatnonzero(np.isfinite(t))
+        p = np.stack([rays.ox[hit], rays.oy[hit], rays.oz[hit]], 1) + t[hit, None] * across
+        n = np.array([pigeons._sdf(p + e, body) - pigeons._sdf(p - e, body) for e in np.eye(3) * 1e-4]).T
+        n /= np.linalg.norm(n, axis=1, keepdims=True)
+        self.assertLess(float(pigeons._occlusion(p, n, body).min()), 0.85)  # (somewhere down its side: a crease)
 
     def test_its_feathers(self):
         """Rows of feathers on its folded wing, seen on a big bird (each a little lighter toward its tip, the next

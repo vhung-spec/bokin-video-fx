@@ -355,13 +355,15 @@ ban đêm.
 
 ### Chim bồ câu
 
-Chim bồ câu do app vẽ (không phải ảnh có sẵn), trông như bồ câu thật: thân tròn liền một khối, đầu nhỏ, đi từng bước,
-đầu gật tới trước mỗi bước, thỉnh thoảng cúi xuống mổ hạt vài cái (mỏ chạm đất) rồi ngẩng lên. Khi dừng lại, chim đứng
-thẳng lên, ưỡn ngực, cụp đuôi, ngó quanh, như bồ câu trong ảnh mẫu. Bồ câu xám có cổ ánh xanh lá, tím ở chân cổ (đổi
-theo góc nhìn), ức và cánh xám nhạt, cánh xếp phủ kín hai bên thân, hai vạch đen to trên cánh có viền trắng, lông cánh
-chính xám đen dọc lưng xuống đuôi, dải đen cuối đuôi, mắt cam, chân đỏ san hô ba ngón; nhìn gần thấy từng hàng lông
-trên cánh, lông dài ở đuôi, lông mềm như nhung. Còn có bồ câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng
-tối theo ánh sáng trong video và có bóng mềm dưới chân.
+Chim bồ câu do app vẽ (không phải ảnh có sẵn), trông như bồ câu thật: thân tròn liền một khối, đầu nhỏ, đi từng bước
+theo đường lượn mềm (không quay ngoắt), thân lắc nhẹ theo bước chân, đầu gật tới trước mỗi bước, thỉnh thoảng cúi xuống
+mổ hạt vài cái (mỏ chạm đất) rồi ngẩng lên; bắt đầu đi, dừng lại, đứng lên, cúi xuống đều nhẹ nhàng. Khi dừng lại, chim
+đứng thẳng lên, ưỡn ngực, cụp đuôi, ngó quanh, như bồ câu trong ảnh mẫu. Bồ câu xám có màu đo theo ảnh mẫu: cổ xanh lá,
+tím ở chân cổ, lấp lánh từng chiếc lông nhỏ (đổi theo góc nhìn), ức xám tím, cánh xếp gần trắng phủ kín hai bên thân,
+hai vạch đen to trên cánh có viền trắng, lông cánh chính xám đen dọc lưng xuống đuôi, dải đen cuối đuôi, mắt cam có ánh
+sáng, chân đỏ san hô ba ngón có móng; nhìn gần thấy từng hàng lông trên cánh, lông dài ở đuôi, lông mềm như nhung, chỗ
+khe giữa cánh và thân tối hơn. Còn có bồ câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối theo ánh
+sáng trong video và có bóng mềm dưới chân.
 
 1. Bấm **Tạo sẵn** → **Chim bồ câu**, kéo xuống một track trống, bấm **Suốt video**.
 2. Chọn **Kiểu**, rồi kéo khung trắng tới chỗ chim. Chim chỉ ở trong khung.

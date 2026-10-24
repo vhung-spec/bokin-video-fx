@@ -11,18 +11,23 @@ stands up tall, breast out, its tail down, as the rock dove of a photograph the 
 union of the ellipsoids (a few steps: the smooth surface lies just outside it). Its small parts (beak, cere, legs, toes)
 are ellipsoids met directly. Its feathers are painted by where on the bird a point is, each part's colour blended by the
 same weights that melt the parts together (no seams), each part's patterns where they are on it in any pose: a rock
-dove's slate head, its iridescent neck (green seen straight on, purple at a slant and round its foot), pale breast, pale
-back and folded wings with two broad black bars across them (white-edged), the dark primaries behind, the black band at
-the tail's end, darker flanks and belly, a small orange eye, the white cere, coral feet; or a checker, a dark one, a red
-one, a pied one, a white dove; a faint mottling, every pattern blurred to the pixel so it does not shimmer. One ray a
-pixel inside a bird DETAIL pixels long or more, ss x ss where its outline or a small part's crosses a pixel; softened a
-little ("Độ mềm") as a photograph is. It is lit by the scene where its box stands (as steam is: light_at), and lies in
-its own shadow: dark right under it, soft and wider away from the light.
+dove's slate head, its iridescent neck (green seen straight on, purple at a slant and round its foot; small glossy
+feathers, each greener or purpler, catching the light its own way), pale breast, pale back and folded wings with two
+broad black bars across them (white-edged), the dark primaries behind, the black band at the tail's end, darker flanks
+and belly, a small orange eye with the light caught in it, the white cere, coral feet with dark claws (the colours
+measured on the photograph); or a checker, a dark one, a red one, a pied one, a white dove; a faint mottling, every
+pattern blurred to the pixel so it does not shimmer. One ray a pixel inside a bird DETAIL pixels long or more, ss x ss
+where its outline or a small part's crosses a pixel; drawn where it is to a fraction of a pixel (it glides); softened a
+little ("Độ mềm") as a photograph is. It is lit by the scene where its box stands (as steam is: light_at), less where
+its body shuts the light out (the creases between its parts, under it: ambient occlusion from the smooth distance), and
+lies in its own shadow: dark right under it, soft and wider away from the light.
 
-Every bird keeps its own day over the loop: walking a while round a closed path of its own (whole laps a loop: back
-where it started), stopping to look round or, now and then ("Mổ hạt"), to peck at the ground a few times, its beak
-reaching it and its tail rising. As it walks, its planted foot stays put while the other steps forward, and its head
-is held still and thrust forward a step at a time, as pigeons do.
+Every bird keeps its own day over the loop: walking a while round a closed path of its own (a smooth wobbly loop, never
+turning on the spot; whole laps a loop: back where it started), stopping to look round or, now and then ("Mổ hạt"), to
+peck at the ground a few times, its beak reaching it and its tail rising. As it walks, its planted foot stays put while
+the other steps forward, its body swaying a little over it, and its head is held still and thrust forward a step at a
+time, as pigeons do; it speeds up and slows down smoothly, its feet together where it starts and stops, and stands up
+tall, bends down and looks round without a jolt.
 """
 import math
 
@@ -68,6 +73,12 @@ def _smooth(x):
     return x * x * (3.0 - 2.0 * x)
 
 
+def _smoother(x):
+    """Ken Perlin's smootherstep: its speed and its acceleration both 0 at either end."""
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
+
+
 def _lin(rgb):
     return (np.asarray(rgb, np.float32) / 255.0) ** 2.2
 
@@ -106,9 +117,9 @@ def _feathers(a, b, size, aspect, fp):
 
 
 COATS = {  # sRGB: a rock dove (blue bar), a dark one, a red (ash-red) one, a white dove
-    "grey": {"head": (96, 106, 140), "neck": (74, 82, 104), "green": (46, 146, 104), "purple": (124, 66, 144),
-             "breast": (150, 148, 176), "back": (178, 184, 202), "flank": (142, 148, 170), "bar": (28, 28, 34),
-             "prim": (52, 53, 60), "tail": (96, 100, 116), "band": (30, 30, 36), "belly": (148, 154, 176),
+    "grey": {"head": (104, 112, 146), "neck": (40, 46, 60), "green": (22, 86, 74), "purple": (72, 38, 92),
+             "breast": (116, 122, 156), "back": (200, 205, 226), "flank": (100, 106, 134), "bar": (28, 28, 34),
+             "prim": (50, 52, 64), "tail": (96, 100, 116), "band": (30, 30, 36), "belly": (138, 144, 168),
              "beak": (62, 60, 66), "cere": (206, 202, 196), "iris": (222, 112, 36), "feet": (214, 72, 76),
              "spot": (58, 60, 70), "sheen": 1.0},
     "dark": {"head": (52, 54, 60), "neck": (44, 48, 52), "green": (46, 104, 78), "purple": (96, 60, 104),
@@ -208,18 +219,22 @@ SMOOTH = len(BODY) + 2  # (the parts of the smooth body: BODY, the neck, the hea
 class Pose:
     """How a bird stands now: how tall (0: as it walks .. 1: standing tall, breast out: BODY_UP), its body tipped
     forward (pitch, radians: < 0 tipped up), its tail bent up from it (radians), its head's middle (bird frame), the
-    head's own pitch and turn, its feet (bird frame, each: x, y, lift)."""
+    head's own pitch and turn, its feet (bird frame, each: x, y, lift); as it steps, its body shifted over the foot it
+    stands on (sway, units to its left), up and down (bob, units) and rolled (roll, radians: > 0 its back to its
+    right)."""
 
     def __init__(self, pitch=0.0, head=None, head_pitch=0.17, head_yaw=0.0, feet=None, tail=0.0, tall=0.0):
         self.pitch, self.head_pitch, self.head_yaw, self.tail, self.tall = pitch, head_pitch, head_yaw, tail, tall
         self.head = HEAD.copy() if head is None else np.asarray(head, np.float64)
         self.feet = feet if feet is not None else ((0.0, 0.034, 0.0), (0.0, -0.034, 0.0))
+        self.sway = self.bob = self.roll = 0.0
 
 
 def parts(pose):
     """A bird's parts in a pose: (name, centre, rotation (columns: its axes), radii), in the bird frame (x forward, y
     left, z up; its feet on the ground at 0): the SMOOTH parts of its body first, then its small ones."""
-    tip = _rot(pitch=-pose.pitch)  # (the body tipped forward about the hip)
+    tip = _rot(roll=pose.roll) @ _rot(pitch=-pose.pitch)  # (the body tipped forward about the hip, rolled)
+    shift = HIP + np.array([0.0, pose.sway, pose.bob])  # (and shifted as it steps)
     k = min(max(float(pose.tall), 0.0), 1.0)
     out = []
     for (name, c, r, pitch, *turn), (_, cu, ru, pu, *tu) in zip(BODY, BODY_UP):
@@ -231,8 +246,8 @@ def parts(pose):
         if bend:  # (the tail bent up about its joint)
             up = _rot(pitch=-bend)
             c, own = TAIL_AT + up @ (c - TAIL_AT), up @ own
-        out.append((name, HIP + tip @ (c - HIP), tip @ own, r))
-    base = HIP + tip @ (NECK + (NECK_UP - NECK) * k - HIP)
+        out.append((name, shift + tip @ (c - HIP), tip @ own, r))
+    base = shift + tip @ (NECK + (NECK_UP - NECK) * k - HIP)
     head = pose.head
     span = float(np.linalg.norm(head - base))
     out.append(("neck", base + (head - base) * 0.42, _along(base, head),
@@ -244,17 +259,21 @@ def parts(pose):
     out.append(("cere", head + turn @ np.array([0.056, 0.0, 0.003]), turn @ _rot(pitch=-0.35),
                 np.array([0.017, 0.012, 0.0105])))
     for side, foot in zip((1, -1), pose.feet):
-        hip = np.array([0.0, side * 0.03, 0.11])
+        hip = shift + tip @ (np.array([0.0, side * 0.03, 0.11]) - HIP)
         f = np.array(foot, np.float64)
         knee = f + np.array([0.0, 0.0, 0.018])
         out.append(("leg", (hip + knee) / 2, _along(knee, hip),
                     np.array([0.012, 0.012, max(0.03, float(np.linalg.norm(hip - knee)) / 2 + 0.008)])))
-        out.append(("toe", f + np.array([0.034, 0.0, 0.0075]), _rot(yaw=side * 0.16),
-                    np.array([0.044, 0.0085, 0.0075])))
-        out.append(("toe", f + np.array([0.024, side * 0.021, 0.0075]), _rot(yaw=side * 0.75),
-                    np.array([0.038, 0.008, 0.0075])))
-        out.append(("toe", f + np.array([-0.018, -side * 0.004, 0.0075]), _rot(yaw=side * 0.2),
-                    np.array([0.026, 0.0075, 0.0075])))  # (the one pointing back)
+        toes = ((f + np.array([0.034, 0.0, 0.0075]), side * 0.16, np.array([0.044, 0.0085, 0.0075])),
+                (f + np.array([0.024, side * 0.021, 0.0075]), side * 0.75, np.array([0.038, 0.008, 0.0075])),
+                (f + np.array([-0.018, -side * 0.004, 0.0075]), side * 0.2 + math.pi,
+                 np.array([0.026, 0.0075, 0.0075])))
+        for c, yaw, r in toes:  # (the last pointing back)
+            out.append(("toe", c, _rot(yaw=yaw), r))
+        for c, yaw, r in toes:  # (a small dark claw at the tip of each)
+            way = np.array([math.cos(yaw), math.sin(yaw), 0.0])
+            out.append(("claw", c + way * (r[0] + 0.002) - np.array([0.0, 0.0, 0.0015]), _rot(yaw=yaw, pitch=-0.4),
+                        np.array([0.0075, 0.0035, 0.003])))
     return out
 
 
@@ -395,7 +414,38 @@ class _Body:
         return out
 
 
+def _sdf(p, body):
+    """The smooth body's distance at points p (n x 3, the bird's frame), as _Body.distance has it along rays."""
+    d = None
+    for (name, c, rot, r), blend in zip(body, [TIGHT.get(part[0], BLEND) for part in body]):
+        a = (((p - c) @ rot) / r).T
+        k0 = np.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
+        b0, b1, b2 = a[0] / r[0], a[1] / r[1], a[2] / r[2]
+        each = k0 * (k0 - 1.0) / np.maximum(np.sqrt(b0 * b0 + b1 * b1 + b2 * b2), 1e-9)
+        if d is None:
+            d = each
+        else:
+            h = np.clip(0.5 + 0.5 * (each - d) / blend, 0.0, 1.0)
+            d = each + (d - each) * h - blend * h * (1.0 - h)
+    return d
+
+
+SHUT = ((0.015, 1.0), (0.04, 0.7), (0.08, 0.4))  # (how far out along the normal its body is looked for, how much
+# that counts: the creases where wing, breast and neck meet, under the belly and the tail, darker)
+
+
+def _occlusion(p, n, body):
+    """How open each point of the bird is to the light round it (1 open .. about 0.15 shut in): the usual signed
+    distance ambient occlusion, its body's distance a few steps out along the normal short of the step."""
+    shut = np.zeros(len(p))
+    for h, w in SHUT:
+        d = _sdf(p + n * h, body)
+        shut += w * np.clip((h - d) / h, 0.0, 1.0)
+    return 1.0 - 0.85 * shut / sum(w for _, w in SHUT)
+
+
 _RESTING = []
+NECK_FEATHER = 0.01  # (the neck's small feathers, units long: each catching the light its own way)
 HOOD = 0.045  # how far the neck's iridescent feathers reach past it (units)
 
 
@@ -463,27 +513,40 @@ def _wing_colour(a, b, up, reach, c, coat, fp):
 def _part_colour(name, q, local, rad, nz, facing, hood, c, coat, fp):
     """One part's colour at points q on the bird as it walks (its own frame taken back there; `local`: the points in
     the part's own unit frame, its radii `rad` in this pose), facing up nz, facing the camera `facing`; `hood`: how
-    near the neck (1 on it)."""
+    near the neck (1 on it). With how glossy each point is (its iridescent feathers)."""
     if name == "wing":
-        return _wing_colour(local[:, 0], local[:, 1] * np.sign(q[:, 1]), local[:, 2], rad[0], c, coat, fp)
+        return _wing_colour(local[:, 0], local[:, 1] * np.sign(q[:, 1]), local[:, 2], rad[0], c, coat, fp), 0.0
     if name in ("body", "belly", "vent", "breast"):  # (iridescent, purple, round the neck's foot)
         out = _body_colour(q, nz, c, fp) * (0.95 if name == "vent" else 1.0) if name != "breast" else c["breast"]
         sheen = _sheen(c, facing)
         sheen = sheen + (c["purple"] - sheen) * (0.5 if c["sheen"] else 0.0)
-        return out + (sheen - out) * hood[:, None]
-    if name == "neck":  # (green, purple toward its foot)
+        return out + (sheen - out) * hood[:, None], hood
+    if name == "neck":  # (green, purple toward its foot; small feathers, each greener or purpler, some catching the
+        # light more than others)
         sheen = _sheen(c, facing)
         foot = _smooth((0.4 - local[:, 2]) / 0.5) * (0.75 if c["sheen"] else 0.0)
-        return sheen + (c["purple"] - sheen) * foot[:, None]
+        out = sheen + (c["purple"] - sheen) * foot[:, None]
+        rows = 2 * max(1, round(math.pi * rad[0] / (0.8 * NECK_FEATHER)))  # (an even number of rows round it: no seam)
+        around = np.arctan2(local[:, 1], local[:, 0]) / TAU * rows * 0.8 * NECK_FEATHER
+        small = _feathers(-local[:, 2] * rad[2], around, NECK_FEATHER, 0.8, fp)
+        if small is None:
+            return out, 1.0
+        light, _, rnd, _ = small
+        out = out * (1 + 1.4 * (light - 1))[:, None]
+        if c["sheen"]:
+            tint = np.where(rnd < 0.5, 0, 1)[:, None] * (c["purple"] - c["green"]) + c["green"]
+            out = out + (tint - out) * (0.3 * c["sheen"] * np.abs(2 * rnd - 1))[:, None]
+        k = float(np.clip((0.8 * NECK_FEATHER / max(fp, 1e-9) - 2.0) / 3.0, 0.0, 1.0))  # (fading as the feathers do)
+        return out, 1.0 + k * (0.3 + 1.1 * (rnd * light) ** 2 - 1.0)
     if name == "head":
-        return np.broadcast_to(c["head"], (len(q), 3))
+        return np.broadcast_to(c["head"], (len(q), 3)), 0.0
     x = q[:, 0]  # (the tail and the wingtips: long feathers)
     quills = _feathers(-x, np.abs(q[:, 1]) + 0.3 * (0.25 - q[:, 2]), 0.16, 0.13, fp)
-    if name == "prim":  # (darkest along their top edge)
-        tips = c["prim"] + (c["tail"] - c["prim"]) * (0.45 * _smooth((0.1 - local[:, 2]) / 0.9))[:, None]
-        return tips * (quills[0] * (1 - 0.35 * quills[1]))[:, None] if quills is not None else tips
+    if name == "prim":  # (darkest along their top edge, their inner webs paler)
+        tips = c["prim"] + (c["tail"] * 1.3 - c["prim"]) * (0.7 * _smooth((0.1 - local[:, 2]) / 0.9))[:, None]
+        return (tips * (quills[0] * (1 - 0.35 * quills[1]))[:, None] if quills is not None else tips), 0.0
     tail = c["tail"] + (c["band"] - c["tail"]) * _smooth((-x - 0.455) / 0.02)[:, None]
-    return tail * (quills[0] * (1 - 0.25 * quills[1]))[:, None] if quills is not None else tail
+    return (tail * (quills[0] * (1 - 0.25 * quills[1]))[:, None] if quills is not None else tail), 0.0
 
 
 def _albedo(p, n, view, shares, body, coat, pose, fp):
@@ -502,6 +565,7 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
     out = np.zeros((count, 3), np.float32)
     whole = np.zeros((count, 3))  # (where each point is on the bird as it walks, all its parts' shares: the patches)
     w_head = np.zeros(count)
+    gloss = np.zeros(count)  # (the iridescent feathers: glossy)
     sharp = [sk ** 4 for sk in shares]  # (each part's colour mostly its own, smoothly blended where they meet)
     total = np.maximum(sum(sharp), 1e-12)
     for (name, ck, rk, rad), (_, c0, r0, rad0), s in zip(body, _RESTING, [sk / total for sk in sharp]):
@@ -511,7 +575,9 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
         local = ((p[idx] - ck) @ rk) / rad
         qk = c0 + (local * rad0) @ r0.T
         nz = (n[idx] @ rk) @ r0.T[:, 2]  # (the way it faces, turned as the part is)
-        out[idx] += s[idx, None] * _part_colour(name, qk, local, rad, nz, facing[idx], hood[idx], c, coat, fp)
+        colour, shine = _part_colour(name, qk, local, rad, nz, facing[idx], hood[idx], c, coat, fp)
+        out[idx] += s[idx, None] * colour
+        gloss[idx] += s[idx] * shine
         whole[idx] += s[idx, None] * qk
         if name == "head":
             w_head[idx] += s[idx]
@@ -526,13 +592,17 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
                                 (0.09, _lin((12, 10, 10)), 1.0)):
             m = (k * _smooth((size - d) / edge) * on)[:, None]
             out = out * (1 - m) + colour * m
+        glint = np.sqrt((loc[:, 0] - 0.5) ** 2 + (loc[:, 2] - 0.3) ** 2 + 0.3 * (loc[:, 1] - side * 0.9) ** 2)
+        m = (0.9 * _smooth((0.05 - glint) / edge) * on)[:, None]  # (the light caught in it)
+        out = out * (1 - m) + 0.9 * m
     if coat.pied:
         white = coat.white(whole)[:, None]
         out = out * (1 - white) + WHITE * white
-    return out * (coat.tone * coat.grain(whole, fp))[:, None]
+        gloss *= 1.0 - white[:, 0]
+    return out * (coat.tone * coat.grain(whole, fp))[:, None], gloss * min(c["sheen"], 1.0)
 
 
-SMALL = {"leg": "feet", "toe": "feet", "beak": "beak", "cere": "cere"}  # (each small part's colour)
+SMALL = {"leg": "feet", "toe": "feet", "claw": "beak", "beak": "beak", "cere": "cere"}  # (each small part's colour)
 
 
 def _trace(rays, body, small):
@@ -563,6 +633,7 @@ def _shade(rays, which, best, own, seen, small, coat, pose, light, turn, fp):
     p = np.stack([rays.ox[i], rays.oy[i], rays.oz[i]], 1) + best[i, None] * rays.d
     nrm = np.zeros((len(i), 3))
     alb = np.zeros((len(i), 3), np.float32)
+    gloss = np.zeros(len(i))
     on = np.flatnonzero(which[i] == 0)
     if len(on):
         # the body's normal: its parts' own, weighted by their shares of the smooth distance there
@@ -574,7 +645,7 @@ def _shade(rays, which, best, own, seen, small, coat, pose, light, turn, fp):
             gk = ((((pb - c) @ rot) / r) / r) @ rot.T
             g += s[:, None] * gk / np.maximum(np.linalg.norm(gk, axis=1, keepdims=True), 1e-12)
         nrm[on] = g / np.maximum(np.linalg.norm(g, axis=1, keepdims=True), 1e-12)
-        alb[on] = _albedo(pb, nrm[on], -rays.d, shares, seen.body, coat, pose, fp)
+        alb[on], gloss[on] = _albedo(pb, nrm[on], -rays.d, shares, seen.body, coat, pose, fp)
     for k, part in enumerate(small):
         j = np.flatnonzero(which[i] == 1 + k)
         if len(j):
@@ -587,17 +658,26 @@ def _shade(rays, which, best, own, seen, small, coat, pose, light, turn, fp):
     sky = 0.55 + 0.45 * np.clip(0.5 + 0.5 * nw[:, 2], 0.0, 1.0)
     # feathers soft as velvet: a little more light where the surface is seen edge on
     rim = (1 - np.clip(np.abs(nrm @ rays.d), 0.0, 1.0)) ** 3
-    rgb[:] = alb * (ambient * sky[:, None] + key * lam[:, None] + (0.35 * rim)[:, None] * (key + ambient))
+    open_ = _occlusion(p, nrm, seen.body)  # (the creases between its parts, under it: less light reaches them)
+    rgb[:] = alb * (ambient * (sky * open_)[:, None] + key * (lam * (0.4 + 0.6 * open_))[:, None]
+                    + (0.35 * rim * open_)[:, None] * (key + ambient))
+    if gloss.any():  # (the iridescent neck glossy: a soft highlight of its own colour where it mirrors the light)
+        half = way - rays.d @ turn.T
+        half /= np.linalg.norm(half)
+        shine = np.clip(nw @ half, 0.0, 1.0) ** 24 * gloss * open_
+        rgb += (0.6 * shine)[:, None] * key * (0.25 + alb)
     return i, rgb
 
 
-def draw_bird(pose, coat, yaw, scale, tilt, light, ss):
+def draw_bird(pose, coat, yaw, scale, tilt, light, ss, at=(0.0, 0.0)):
     """A bird seen by a far camera tilted down by `tilt` (radians), heading `yaw` (0: to the right of the picture,
-    pi/2: away), `scale` pixels a unit: its picture (premultiplied linear RGB, alpha) and where its feet are in it
-    (x, y pixels). `light`: (key colour, key way, ambient colour) linear, the way in the scene (x right, y away, z up).
-    A bird DETAIL pixels long or more: one ray a pixel, `ss` x `ss` where its outline or a small part's crosses a
-    pixel; a smaller one: `ss` x `ss` everywhere."""
+    pi/2: away), `scale` pixels a unit: its picture (premultiplied linear RGB, alpha) and the pixel its feet are in
+    (x, y), `at` (x, y: 0..1) across that pixel (drawn where it is to a fraction of a pixel, so it glides). `light`:
+    (key colour, key way, ambient colour) linear, the way in the scene (x right, y away, z up). A bird DETAIL pixels
+    long or more: one ray a pixel, `ss` x `ss` where its outline or a small part's crosses a pixel; a smaller one: `ss`
+    x `ss` everywhere."""
     allp = parts(pose)
+    allp = [part for part in allp if part[0] != "claw" or scale * part[3][0] >= 1.0]  # (claws: once they show)
     body, small = allp[:SMOOTH], allp[SMOOTH:]
     ct, st = math.cos(tilt), math.sin(tilt)
     fwd = np.array([0.0, ct, -st])
@@ -616,8 +696,8 @@ def draw_bird(pose, coat, yaw, scale, tilt, light, ss):
     w, h = max(1, math.ceil(spans[:, 2].max()) - x0), max(1, math.ceil(spans[:, 3].max()) - y0)
     fp = 1.0 / scale
 
-    def rays(px, py):  # (through picture points px, py: pixels from its feet)
-        u, v = px / scale, py / scale
+    def rays(px, py):  # (through picture points px, py: pixels from the corner of the pixel its feet are in)
+        u, v = (px - at[0]) / scale, (py - at[1]) / scale
         return _Rays(u * right[0] + v * down[0] + back[0], u * right[1] + v * down[1] + back[1],
                      u * right[2] + v * down[2] + back[2], fb)
 
@@ -702,7 +782,33 @@ TURN = 0.1  # (on a ledge: the radius it turns round at each end, units)
 PECK = np.array([0.31, 0.0, 0.099])  # (its head's middle as its beak touches the ground)
 WALK_UP, TAIL_WALK = 0.12, 0.05  # (walking: how far its body is tipped up and its tail bent up, radians)
 HEAD_UP = np.array([0.123, 0.0, 0.6])  # (its head's middle standing tall, its neck stretched)
-DOWN, PECKING, UP = 0.28, 0.42, 0.32  # (seconds: bending down to peck, each peck, coming up again)
+DOWN, PECKING, UP = 0.36, 0.45, 0.42  # (seconds: bending down to peck, each peck, coming up again)
+RAMP = 0.4  # (seconds: starting to walk, stopping)
+EASE = 0.3  # (seconds: into and out of walking, pecking, standing)
+THRUST = 0.4  # (its head thrust forward over this share of each step, held still the rest)
+BEND = 0.22  # (the tightest it turns as it walks round its path: a radius, units)
+
+
+def _loop(rng, u, length):
+    """A walker's path about: a smooth wobbly oval (a curve r(u) round its middle, so no cusp: it never turns on the
+    spot), `length` units round, turned any way; made rounder until it turns no tighter than BEND (a short one, a
+    circle)."""
+    a = rng.random(6)
+    wob2, wob3, squash = 0.2 * a[0], 0.07 * a[1], 0.55 + 0.45 * a[2]
+    c, s = math.cos(TAU * a[5]), math.sin(TAU * a[5])
+    for _ in range(16):
+        r = 1.0 + wob2 * np.cos(2 * u + TAU * a[3]) + wob3 * np.cos(3 * u + TAU * a[4])
+        x, y = r * np.cos(u), squash * r * np.sin(u)
+        x, y = c * x - s * y, s * x + c * y
+        k = length / float(np.hypot(np.roll(x, -1) - x, np.roll(y, -1) - y).sum())
+        x, y = x * k, y * k
+        dx, dy = (np.roll(x, -1) - np.roll(x, 1)) / 2, (np.roll(y, -1) - np.roll(y, 1)) / 2
+        ddx, ddy = np.roll(x, -1) - 2 * x + np.roll(x, 1), np.roll(y, -1) - 2 * y + np.roll(y, 1)
+        bend = np.abs(dx * ddy - dy * ddx) / np.maximum((dx * dx + dy * dy) ** 1.5, 1e-12)  # (its curvature)
+        if float(bend.max()) * BEND <= 1.0 or (wob2 + wob3 < 1e-3 and squash > 0.999):
+            break
+        wob2, wob3, squash = wob2 * 0.7, wob3 * 0.7, squash + (1.0 - squash) * 0.4
+    return x, y
 
 
 class Walker:
@@ -738,13 +844,15 @@ class Walker:
             at += s[2]
         self.segs = segs
         speed = WALK * pace * rng.uniform(0.85, 1.15)
-        self.ramp = 0.25
+        self.ramp = RAMP
         self.walked = []  # (distance walked before each segment)
+        self.strides = []  # (each walk's stride: a little shorter than STRIDE, so it takes a whole number of steps)
         total = 0.0
         for kind, start, d, _ in segs:
             self.walked.append(total)
-            if kind == "walk":
-                total += speed * (d - min(self.ramp, d / 2))
+            far = speed * (d - min(self.ramp, d / 2)) if kind == "walk" else 0.0
+            self.strides.append(far / (math.ceil(far / (STRIDE / 2) - 1e-9) / 2) if far > 0 else STRIDE)
+            total += far
         self.speed = speed
         laps = 1
         if room is not None:  # (the longest path that keeps within `room` of home: along a ledge, to and fro; about,
@@ -763,15 +871,14 @@ class Walker:
                 at < 2 * run + math.pi * r, 2 * run + math.pi * r - at, 0.0)))  # (how far along the straights)
             px, py = way - run / 2 + r * np.sin(arc), -r * np.cos(arc)
         else:
-            px, py = np.zeros(m), np.zeros(m)
-            for harmonic in (1, 2, 3):
-                a = rng.normal(0, 1.0 / harmonic ** 1.5, 4)
-                px += a[0] * np.cos(harmonic * u) + a[1] * np.sin(harmonic * u)
-                py += a[2] * np.cos(harmonic * u) + a[3] * np.sin(harmonic * u)
+            px, py = _loop(rng, u, self.length)
         seg = np.hypot(np.diff(px, append=px[:1]), np.diff(py, append=py[:1]))
         k = self.length / max(float(seg.sum()), 1e-9)
         self.px, self.py = px * k, py * k
         self.cum = np.concatenate([[0.0], np.cumsum(seg * k)])
+        tx, ty = np.roll(self.px, -1) - np.roll(self.px, 1), np.roll(self.py, -1) - np.roll(self.py, 1)
+        norm = np.maximum(np.hypot(tx, ty), 1e-12)
+        self.tx, self.ty = tx / norm, ty / norm  # (its way at each point of its path: turning smoothly between them)
         self.looks = rng.random(8) * TAU
         self.flip = rng.random() < 0.5  # (which way round it goes)
 
@@ -781,22 +888,27 @@ class Walker:
                 return i
         return 0
 
-    def walked_at(self, t):
-        """How far it has walked at t (seconds into the loop): steady, starting and stopping over `ramp` seconds."""
+    def _into(self, t):
+        """How far into its walk it is at t (units; 0 if not walking): its speed rising smoothly from 0 over `ramp`
+        seconds, steady, falling smoothly to 0 (a smoothstep: no jolt)."""
         i = self._seg(t)
         kind, start, d, _ = self.segs[i]
         if kind != "walk":
-            return self.walked[i] % self.length
+            return i, 0.0
         r = min(self.ramp, d / 2)
-        x = t - start
-        full = d - r  # (the distance this walk covers, in seconds at speed)
-        if x < r:
-            s = x * x / (2 * r)
-        elif x > d - r:
-            s = full - (d - x) ** 2 / (2 * r)
-        else:
-            s = x - r / 2
-        return (self.walked[i] + self.speed * min(max(s, 0.0), full)) % self.length
+        x, full = t - start, d - r  # (the distance this walk covers, in seconds at speed)
+
+        def ramp(x):  # (how far, speeding up from 0 over r seconds: the integral of a smoothstep)
+            x = min(max(x, 0.0), r)
+            return x ** 3 / r ** 2 - x ** 4 / (2 * r ** 3)
+
+        s = ramp(x) if x < r else (full - ramp(d - x) if x > d - r else x - r / 2)
+        return i, self.speed * min(max(s, 0.0), full)
+
+    def walked_at(self, t):
+        """How far round its path it has walked at t (seconds into the loop)."""
+        i, s = self._into(t)
+        return (self.walked[i] + s) % self.length
 
     def where(self, t):
         """Where it is (units from its home, across and away) and which way it faces (radians)."""
@@ -809,7 +921,7 @@ class Walker:
         j = (i + 1) % len(self.px)
         x = self.px[i] * (1 - f) + self.px[j] * f
         y = self.py[i] * (1 - f) + self.py[j] * f
-        dx, dy = self.px[j] - self.px[i], self.py[j] - self.py[i]
+        dx, dy = self.tx[i] * (1 - f) + self.tx[j] * f, self.ty[i] * (1 - f) + self.ty[j] * f
         if self.flip:
             dx, dy = -dx, -dy
         return x, y, math.atan2(dy, dx)
@@ -831,30 +943,35 @@ class Walker:
 
     def pose(self, t):
         """Its pose at t: stepping and bobbing its head as it walks, pecking, looking round."""
-        i = self._seg(t)
+        i, into = self._into(t)
         kind, start, d, _ = self.segs[i]
         x = t - start
-        ease = float(_smooth(min(x, d - x) / 0.2))  # (into and out of what it does)
+        ease = float(_smooth(min(x, d - x) / EASE))  # (into and out of what it does)
         pose = Pose(pitch=-WALK_UP, tail=TAIL_WALK)
         if kind == "walk":
-            s = self.walked_at(t)
-            phase = (s / STRIDE) % 1.0
+            stride = self.strides[i]
+            phase = (0.25 + into / stride) % 1.0  # (from its feet together, one about to step: a whole number of
+            # steps, so its feet are together again as it stops)
             # its head: held still where it is as the body goes on, then thrust forward (a bob a step: two a stride)
             step = (2 * phase) % 1.0
-            thrust = float(_smooth(step / 0.3)) if step < 0.3 else 1.0
-            bob = (thrust - step - 0.35) * STRIDE / 2 * 0.9 * ease
-            pose.head = HEAD + np.array([bob, 0.0, -0.01 * ease * math.sin(TAU * step)])
+            thrust = float(_smooth(step / THRUST)) if step < THRUST else 1.0
+            bob = (thrust - step - (0.5 - THRUST / 2)) * stride / 2 * 0.9 * ease
+            pose.head = HEAD + np.array([bob, 0.0, -0.008 * ease * math.sin(TAU * step)])
             # its feet: one planted (going back under it as much as it goes on), the other lifted and going forward
             feet = []
             for side, off in ((1, 0.0), (-1, 0.5)):
                 ph = (phase + off) % 1.0
                 if ph < 0.5:
-                    fx, lift = STRIDE * (0.25 - ph), 0.0
+                    fx, lift = stride * (0.25 - ph), 0.0
                 else:
                     g = (ph - 0.5) / 0.5
-                    fx, lift = STRIDE * (-0.25 + 0.5 * float(_smooth(g))), 0.028 * math.sin(math.pi * g)
-                feet.append((fx * ease, side * 0.034, lift * ease))
+                    fx, lift = stride * (-0.25 + 0.5 * float(_smooth(g))), 0.028 * math.sin(math.pi * g)
+                feet.append((fx, side * 0.034, lift * ease))
             pose.feet = tuple(feet)
+            # its body over the foot it stands on: a little to that side, rolled, highest as it passes over it
+            pose.sway = 0.006 * ease * math.sin(TAU * phase)
+            pose.roll = -0.05 * ease * math.sin(TAU * phase)
+            pose.bob = -0.003 * ease * math.cos(2 * TAU * phase)
         elif kind == "peck":
             reach = self.reach(t)
             pose.pitch = -WALK_UP + (0.45 + WALK_UP) * reach  # (its body tips forward, its tail rises)
@@ -863,14 +980,15 @@ class Walker:
             pose.head_pitch = 0.17 - 1.25 * reach
         else:  # standing: looking round now and then (a quick turn of the head, then still)
             k = int(x / 1.3)
-            f = float(_smooth((x - k * 1.3) / 0.18))
+            f = float(_smoother((x - k * 1.3) / 0.3))
             turn = 0.7 * (math.sin(self.looks[k % 8]) * f + math.sin(self.looks[(k - 1) % 8]) * (1 - f) * (k > 0))
             pose.head_yaw = turn * ease
-            tall = float(_smooth(min(x, d - x) / 0.35))  # (standing up tall, breast out, then down again to go on)
+            tall = float(_smoother(min(x, d - x) / 0.6))  # (standing up tall, breast out, then down again to go
+            # on: its head first)
             pose.tall = tall
             pose.pitch = -WALK_UP * (1 - tall)
             pose.tail = TAIL_WALK * (1 - tall)
-            pose.head = HEAD + (HEAD_UP - HEAD) * tall
+            pose.head = HEAD + (HEAD_UP - HEAD) * float(_smoother(min(x, d - x) / 0.45))
             pose.head_pitch = 0.17 - 0.07 * tall
         return pose
 
@@ -921,8 +1039,9 @@ class Pigeons(Effect):
     TURNS = False
     LIT = True
     PREVIEW = 1280
-    VERSION = 4  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
-    # 4: standing tall as a photograph's, its folded wings and their primaries, the neck's sheen round its foot)
+    VERSION = 5  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
+    # 4: standing tall as a photograph's, its folded wings and their primaries, the neck's sheen round its foot;
+    # 5: smooth paths, steps, glides; creases shaded, a glossy feathered neck, catchlights, claws, the photo's colours)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
 
@@ -1023,7 +1142,8 @@ class Pigeons(Effect):
             if scale * LENGTH < 3:
                 continue
             ss = 3 if scale * LENGTH < 20 else 2
-            rgb, alpha, (ax, ay) = draw_bird(pose, self.coats[i], heading, scale, self.tilt, self.light, ss)
+            rgb, alpha, (ax, ay) = draw_bird(pose, self.coats[i], heading, scale, self.tilt, self.light, ss,
+                                             (fx - math.floor(fx), fy - math.floor(fy)))
             sigma = self.p["soft"] / 100 * SOFTEST * h  # (as soft as the video round it: a share of the box, so the
             # preview clip and the video are alike, and a big bird near the camera no softer than a small one)
             rgb, grow = _blur(rgb, sigma)
