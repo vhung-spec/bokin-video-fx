@@ -921,7 +921,8 @@ def hearth(page, shot):
     """Lửa lò sưởi: a box on the picture where the renderer puts it, its mark (where the fire burns: an ellipse on the
     box's bottom edge, as wide as "Lửa rộng"), no turn; its preview clip made from the picture under the box, laid
     just over the video (under every track); logs chosen: their settings shown, the preview clip with them; the
-    fireplace's opening (Khung lò): its outline on the box, dragged by its handles."""
+    fireplace's opening (Khung lò): its outline on the box, dragged by its handles; its walls (Tường lò): their
+    settings shown once chosen."""
     from fx import effects as fx_effects
     page.click('.tab[data-bin="fx"]')
     page.dblclick('.tile[data-kind="hearth"]')
@@ -971,6 +972,20 @@ def hearth(page, shot):
           before == [False] * 4 and after == [True] * 4 and params == ["birch", "heap"] and
           laid == [True, "normal", True], str([before, after, params, laid]))
     shot("05l-hearth-logs")
+    # Tường lò: its settings show once a wall is chosen; the view (how far above the camera looks down) with the logs
+    # or the walls, so also once the logs are taken away
+    walls = """['input[data-param="deep"]', 'input[data-param="brick"]', 'input[data-param="soot"]',
+        'input[data-param="view"]'].map(q => !!$('#ec ' + q))"""
+    page.select_option('#ec select[data-param="walls"]', "firebrick")
+    page.wait_for_timeout(300)
+    page.select_option('#ec select[data-param="wood"]', "none")
+    page.wait_for_timeout(300)
+    shown = page.evaluate(walls)
+    page.select_option('#ec select[data-param="walls"]', "none")
+    page.wait_for_timeout(300)
+    hidden = page.evaluate(walls)
+    check("Lửa lò sưởi: Tường lò chosen, its settings show, the view too without logs; none, they hide",
+          shown == [True] * 4 and hidden == [False] * 4, str([shown, hidden]))
     # Khung lò: an orange outline on the box's bottom edge, as wide and high as its settings, its top an arch; its
     # handles drag its sides and top (the settings follow)
     page.select_option('#ec select[data-param="frame"]', "arch")

@@ -73,7 +73,7 @@ hiệu ứng. Cách dùng: `README.md`.
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/hearth.py`, `fx/frost.py`,
   `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`, `fx/pigeons.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói
-  ống khói, lửa nến, lửa lò sưởi (củi của nó: `fx/logs.py`), tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, chim bồ
+  ống khói, lửa nến, lửa lò sưởi (củi của nó: `fx/logs.py`, tường lò: `fx/firebox.py`), tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, chim bồ
   câu, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
   nồi; và ống khói, chỉ dùng cho Khói ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn:
   `edge`, `side`; `preset` của kiểu đặt sẵn gió, lượng khói;
@@ -241,6 +241,23 @@ hiệu ứng. Cách dùng: `README.md`.
   củi thì chỗ cháy của mô phỏng lên tới giữa đống củi (`k["base"]`: đổi cỡ, cách xếp, góc nhìn là tính lại lửa; loại
   củi, cháy sém thì không). Đống củi nằm trong hộp (hẹp lại, lùi vào khi cần), khúc to nhất `BIGGEST`; `UNDER_FADE` = 0:
   clip xem nhanh không mờ ở mép hộp (củi đứng trên đáy hộp; lửa tự mờ ở mép).
+- Tường lò của Lửa lò sưởi (`fx/firebox.py`, chủ yêu cầu 2026-10-24: "các bức tường bên trong lò sưởi nhìn thật
+  hơn"; nhóm "Tường lò": `walls` (`none`: giữ tường trong video, như cũ), `firebrick`, `herring`, `red`; `deep`,
+  `brick`, `soot` hiện khi đã chọn tường; `view` ở nhóm "Góc máy" hiện khi có củi hoặc tường: `show` là danh sách,
+  trang `shownParam` hiện khi khớp một điều kiện trong đó). Lòng lò vẽ bằng mã trong miệng lò: máy quay một điểm tụ
+  (`AWAY` lần chiều cao miệng lò trước miệng, cao `zc`: nhìn xuống giữa sàn theo "Nhìn từ trên xuống"), tường sau hẹp
+  hơn miệng (`NARROW`), hai tường bên xiên vào, sàn, họng lò tối phía trên khi máy quay thấp (`surfaces`: mặt gần nhất
+  mỗi tia, không ra ngoài lò). Gạch xếp so le (`_courses`) hay xương cá 45° trên tường sau (`_herringbone`), mạch vữa
+  mềm theo cỡ điểm ảnh (`np.gradient`), mỗi viên một sắc (vài viên sẫm), ấm hay xám, vân, đốm, mép bo; muội khói phía
+  trên (nhiều thì xuống thấp hơn), dày trên lửa, vệt chảy, loang; sàn: tro quanh lửa thành đống, mẩu than, gạch lộ ra
+  xa lửa. `Firebox.lay` một lần mỗi chỗ đặt (`_layout`): màu (tuyến tính), phần ánh phòng tới mỗi chỗ (sâu vào, tường
+  bên, góc tối) và phần ánh lửa của mỗi đèn (`LIGHTS` đèn trên sàn đúng chỗ hình bầu dục vàng hiện trên hình, cao theo
+  "Ngọn lửa cao": hướng mặt, xa gần mềm, góc). Mỗi khung (`Hearth._walls`): độ sáng mỗi đèn = ngọn lửa lúc đó trong dải
+  cột lưới quanh nó (`_wall_windows`), `WALL_LIGHT` lần "Ánh lửa", thêm `BOUNCE` (ánh lửa dội từ tường); ánh phòng là
+  trong miệng lò của hình hoặc một phần ánh sáng trên tường quanh miệng lò (`WALL_ALBEDO`, `INSIDE`). Có tường thì
+  không dùng `_light` (ánh lửa trên hình); lớp than dưới củi sáng theo ánh lửa của tường. Không chọn Khung lò: tường
+  tới sát mép khung trắng, mép gọn (`_opening(..., whole)`). Không làm lại lửa; mỗi khung không chậm hơn (bỏ `_light`),
+  đặt chỗ mới tính lại khoảng 1 giây. `VERSION` 4. Test: `Walls` trong `tests/test_hearth.py`.
 - Đom đóm (`fx/fireflies.py`, mã loại `fireflies`, từ 1.0.68): hiệu ứng đặt một chỗ (`BOX` 16:9: khung trên khóm
   hoa và khoảng trời phía trên), ánh sáng (Screen: clip xem nhanh H.264 nền đen, `PREVIEW` 1280 khi khung to), không
   xoay. Mỗi con một chỗ ở trong khung, bay lượn bằng ba vòng sin mỗi chiều (số nguyên vòng mỗi loop: `where()`), nháy

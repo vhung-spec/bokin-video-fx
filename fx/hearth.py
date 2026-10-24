@@ -27,7 +27,7 @@ import threading
 import numpy as np
 from PIL import Image
 
-from . import logs
+from . import firebox, logs
 from .effects import Effect, _choice, _lerp, _num, _place, blur
 
 TAU = 2 * math.pi
@@ -52,6 +52,12 @@ FIRELIGHT = np.array([1.0, 0.5, 0.17], np.float32)  # (its colour, linear: a woo
 ALBEDO = 0.2  # (the firebox's colours on average: the share of the room's light its sooty surfaces give back)
 ALBEDO_MIN, ALBEDO_MAX = 0.03, 0.6  # (black in the picture as dark soot; nothing whiter than this, no colour more)
 ROOM_MIN = 0.0004  # (the least light the room gives the firebox: a black picture is not lit infinitely)
+WALL_ALBEDO, INSIDE = 0.45, 0.12  # (the wall round a fireplace's opening: how much light it gives back; the share of
+# the light on it that reaches inside the fireplace)
+# the fire's light on the walls drawn ("Tường lò"): each of their lights as bright as the flames in a band of the grid
+# round it (their glow times box heights), times this at "light" 100; and BOUNCE of that (on average) everywhere the
+# room's light reaches (light from the walls it lights)
+WALL_LIGHT, BOUNCE = 6.0, 0.25
 LUT_TOP = 2.2  # (the fire's colours looked up in a table, brightness 0 to this: brighter is as white)
 DIM = 0.28  # the old fire put out ("cover" 100): its glow blurred, this bright
 PACE = 1.2  # seconds of fire a second of video at "speed" 50 (a fire filmed: tongues come and go quickly)
@@ -83,6 +89,7 @@ LOOKS = {
 }
 
 WITH_LOGS = {"wood": list(logs.WOODS)}  # (the logs' settings show once a wood is chosen)
+WITH_WALLS = {"walls": list(firebox.WALLS)}  # (the walls' once a wall is)
 FRAMES = ("rect", "arch", "round")  # the fireplace's opening ("Khung lò"): square, a round arch, rounded top corners
 WITH_FRAME = {"frame": list(FRAMES)}
 
@@ -93,12 +100,15 @@ SCHEMA = {
             "kéo góc khung cho lửa cao vừa miệng lò. (3) Video có sẵn lửa đứng yên thì kéo Che lửa cũ lên: lửa cũ tối "
             "đi, lửa mới cháy lên trên. Khúc củi phía trước che chân lửa: tô khúc củi đó vào Tiền cảnh rồi bật Bay ra "
             "sau tiền cảnh cho clip này. Miệng lò trong ảnh hẹp, cao hay hình vòm: chọn Khung lò (chữ nhật, vòm tròn, "
-            "bo hai góc trên), kéo ô cam hai bên và ở cạnh trên cho viền cam trùng miệng lò: lửa, ánh lửa và củi chỉ "
-            "ở trong miệng lò, không tràn ra mặt lò. Lò trống, chưa có củi: chọn Củi (sồi, vỏ nâu, bạch dương): app "
-            "vẽ đống củi cháy sém đứng trên hình bầu dục vàng (đặt nó lên sàn lò), lửa bốc lên từ giữa các khúc củi, "
-            "than hồng trong vết nứt; chỉnh Cách xếp, Khúc củi to, Cháy sém, Nhìn từ trên xuống cho hợp góc máy. Lửa "
-            "không xoay 3D: lửa luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa cao, Lửa dày, Bập bùng, Tốc độ (và cỡ, cách "
-            "xếp củi), app tính lại lửa từ đầu: dừng hình lần đầu có thể chờ vài giây.",
+            "bo hai góc trên), kéo ô cam hai bên và ở cạnh trên cho viền cam trùng miệng lò: lửa, ánh lửa và củi chỉ ở "
+            "trong miệng lò, không tràn ra mặt lò. Lò trống, chưa có củi: chọn Củi (sồi, vỏ nâu, bạch dương): app vẽ "
+            "đống củi cháy sém đứng trên hình bầu dục vàng (đặt nó lên sàn lò), lửa bốc lên từ giữa các khúc củi, than "
+            "hồng trong vết nứt; chỉnh Cách xếp, Khúc củi to, Cháy sém, Nhìn từ trên xuống cho hợp góc máy. Bên trong "
+            "lò tối, không rõ tường: chọn Tường lò (gạch chịu lửa, xếp xương cá, gạch đỏ): app vẽ tường sau, hai tường "
+            "bên và sàn lò trong miệng lò, gạch sáng lên theo ánh lửa, muội khói đen phía trên; chỉnh Lò sâu, Viên "
+            "gạch to, Ám khói đen, Nhìn từ trên xuống. Lửa không xoay 3D: lửa luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa "
+            "cao, Lửa dày, Bập bùng, Tốc độ (và cỡ, cách xếp củi), app tính lại lửa từ đầu: dừng hình lần đầu có thể "
+            "chờ vài giây.",
     # for the page: where the fire burns, a flat ellipse sitting on the middle of the box's bottom edge, as wide as
     # "bed" (% of the box's width)
     "mark": {"width": "bed", "ratio": MARK, "sits": True, "label": "chỗ lửa cháy (mặt củi)",
@@ -128,7 +138,14 @@ SCHEMA = {
                 group="Củi", show=WITH_LOGS),
         _num("log_size", "Khúc củi to", 50, group="Củi", show=WITH_LOGS),
         _num("char", "Cháy sém (than đen, vết nứt)", 65, group="Củi", show=WITH_LOGS),
-        _num("view", "Nhìn từ trên xuống (ngang ← → cao)", 50, group="Củi", show=WITH_LOGS),
+        _choice("walls", "Tường lò", "none", [("none", "Giữ tường trong video"),
+                                              ("firebrick", "Gạch chịu lửa (vàng nâu)"),
+                                              ("herring", "Gạch chịu lửa xếp xương cá"), ("red", "Gạch đỏ")],
+                group="Tường lò"),
+        _num("deep", "Lò sâu", 50, group="Tường lò", show=WITH_WALLS),
+        _num("brick", "Viên gạch to", 50, group="Tường lò", show=WITH_WALLS),
+        _num("soot", "Ám khói đen", 55, group="Tường lò", show=WITH_WALLS),
+        _num("view", "Nhìn từ trên xuống (ngang ← → cao)", 50, group="Góc máy", show=[WITH_LOGS, WITH_WALLS]),
         _num("bed", "Lửa rộng (hình bầu dục vàng)", DEFAULTS["bed"], 10, 100, group="Ngọn lửa"),
         _num("height", "Ngọn lửa cao", DEFAULTS["height"], group="Ngọn lửa"),
         _num("amount", "Lửa dày", DEFAULTS["amount"], group="Ngọn lửa"),
@@ -417,8 +434,8 @@ class Hearth(Effect):
     UNDER = True  # its preview clip: the picture under the box with the fire in it (the old fire dimmed: "cover")
     UNDER_FADE = 0.0  # (its change already fades out toward the box's edges; its logs stand on its bottom edge)
     TURNS = False  # a fire always rises straight up
-    VERSION = 3  # (2: logs burnt where the fire reaches them, glowing red; fuller flames; 3: the firebox lit by the
-    # flames, the logs on a bed of glowing coals, brighter flames)
+    VERSION = 4  # (2: logs burnt where the fire reaches them, glowing red; fuller flames; 3: the firebox lit by the
+    # flames, the logs on a bed of glowing coals, brighter flames; 4: the firebox's walls drawn, if chosen)
 
     def __init__(self, *a):
         super().__init__(*a)
@@ -458,6 +475,17 @@ class Hearth(Effect):
                        "wob": g.uniform(0.008, 0.03, count), "hz": g.uniform(1.5, 4.0, count),
                        "ph": g.random(count) * TAU, "drift": g.uniform(-0.06, 0.06, count),
                        "hot": g.uniform(0.5, 1.0, count)}
+        self.walls = None
+        self._wall_w = None
+        if p["walls"] in firebox.WALLS:  # the firebox drawn: its back, its sides, its floor, inside the opening; the
+            # fire on its floor where the bed is, its light from a little above that
+            box = self.BOX[0] / self.BOX[1]
+            high = self.frame_h if self.frame is not None else 1.0
+            wide = box * (self.frame_w if self.frame is not None else 1.0)
+            self.walls = firebox.Firebox(p["walls"], wide, high, high * _lerp(0.35, 0.95, p["deep"] / 100),
+                                         p["brick"] / 100, p["soot"] / 100, math.radians(5 + 0.3 * p["view"]),
+                                         self.seed, bed=self.bed * box, mid=MARK * self.bed * box / 2,
+                                         flames=_lerp(0.1, 0.3, h))
         if p.get("wood") in logs.WOODS:  # logs under the flames (box heights from the bed's middle)
             wide = self.BOX[0] / self.BOX[1]
             half = wide / 2 * (0.97 if self.frame is None else 0.95 * self.frame_w)  # (in the box, in its opening)
@@ -542,9 +570,20 @@ class Hearth(Effect):
                # (the part of the grid that shows: whole pixels, up to a pixel more than the box at its edges)
                "src": (max(0.0, (rx0 - x0) / w * gw), max(0.0, (ry0 - y0) / h * gh), min(gw, (rx1 - x0) / w * gw),
                        min(gh, (ry1 - y0) / h * gh))}
-        # (the firebox: inside the box's edges, inside its opening if it has one)
-        lay["inside"] = edge if self.frame is None else edge * self._opening(
-            np.arange(rx0, rx1) + 0.5 - x0, np.arange(ry0, ry1) + 0.5 - y0, w, h)
+        # (the firebox: inside the box's edges, inside its opening if it has one; its walls drawn to the box's sides
+        # and top if it has none)
+        if self.frame is not None:
+            lay["inside"] = edge * self._opening(np.arange(rx0, rx1) + 0.5 - x0, np.arange(ry0, ry1) + 0.5 - y0, w, h)
+        elif self.walls is not None:
+            lay["inside"] = self._opening(np.arange(rx0, rx1) + 0.5 - x0, np.arange(ry0, ry1) + 0.5 - y0, w, h, True)
+        else:
+            lay["inside"] = edge
+        if self.walls is not None:  # (its walls drawn: as the room lights them; and the room round the opening)
+            X = (np.arange(rx0, rx1, dtype=np.float64) + 0.5 - (x0 + w / 2)) / h
+            Z = (y0 + h - np.arange(ry0, ry1, dtype=np.float64) - 0.5) / h
+            lay["walls"] = self.walls.lay(*np.meshgrid(X, Z))
+            if self.frame is not None:
+                lay["round"] = edge * (1 - lay["inside"])
         if self.cover_k > 0:  # where an old fire is put out: over the bed and above it, not at the box's bottom edge
             lay["zone"] = (_smooth((self.bed * 1.25 - np.abs(xs * 2 - 1)) / 0.15)[None, :] * edge * _smooth(
                 (1 - ys) / (MARK * self.bed * 4 / 3 + 0.02))[:, None]).astype(np.float32)
@@ -562,13 +601,13 @@ class Hearth(Effect):
         self._laid = (key, lay)
         return lay
 
-    def _opening(self, xs, ys, w, h):
+    def _opening(self, xs, ys, w, h, whole=False):
         """How much of the fire shows at points of the box (xs across, ys down: pixels from its top left corner):
         inside the fireplace's opening ("Khung lò": on the box's bottom edge, frame_w of its width and frame_h of its
-        height, its top corners rounded as frame_radii says), none outside it, softly at its sides and top (not along
-        its bottom: the floor of the fireplace)."""
-        fw, fh = self.frame_w * w, self.frame_h * h
-        rx, ry = frame_radii(self.frame, fw, fh, self.p.get("curve", 60))
+        height, its top corners rounded as frame_radii says; `whole`: the whole box), none outside it, softly at its
+        sides and top (not along its bottom: the floor of the fireplace)."""
+        fw, fh = (w, h) if whole else (self.frame_w * w, self.frame_h * h)
+        rx, ry = (0.0, 0.0) if whole else frame_radii(self.frame, fw, fh, self.p.get("curve", 60))
         u = np.asarray(xs, np.float64) - (w - fw) / 2
         side = np.minimum(u, fw - u)[None, :]  # (from the nearer side, pixels)
         down = (np.asarray(ys, np.float64) - (h - fh))[:, None]  # (from the top)
@@ -657,6 +696,43 @@ class Hearth(Effect):
         inside = lay["inside"][::4, ::4] > 0.5
         level = max(float(np.median(luma[inside])), 0.0) if inside.any() else 0.0
         return max(level ** 2.2, ROOM_MIN) / ALBEDO
+
+    def _wall_windows(self):
+        """For each of the walls' lights: its weights across the grid's columns (its light: the flames' in a band of
+        columns round it, all the way up; their glow times box heights)."""
+        if self._wall_w is None:
+            gw, gh = GRID
+            X, _ = self.walls.screen(self.walls.lights)
+            cols = (0.5 + X / (self.BOX[0] / self.BOX[1])) * gw
+            sigma = max(2.0, 0.6 * float(np.diff(cols).mean())) if len(cols) > 1 else 0.1 * gw
+            wt = np.exp(-(((np.arange(gw) + 0.5)[None, :] - cols[:, None]) / sigma) ** 2 / 2)
+            self._wall_w = (wt / wt.sum(axis=1, keepdims=True) / gh).astype(np.float32)
+        return self._wall_w
+
+    def _walls(self, out, lay, gflame, room):
+        """The firebox's walls drawn on `out` (the box's part in the frame, changed in place) inside its opening, lit
+        by the room (its light inside the fireplace as the picture's inside says, or, if that is darker, a share of
+        what lights the wall round the opening) and by the fire: each of their lights as bright as the flames round
+        it now (`gflame`: on the grid), and a little of it everywhere (from the walls it lights). Returns that room
+        light, and how bright the fire's light is over `out` (linear, as white light; its colour: light_colour)."""
+        if "round" in lay:
+            near = lay["round"][::4, ::4] > 0.5
+            if near.any():
+                level = max(float(np.median((out[::4, ::4] @ LUMA)[near])), 0.0)
+                room = max(room, level ** 2.2 / WALL_ALBEDO * INSIDE)
+        walls = lay["walls"]
+        power = self._wall_windows() @ gflame.sum(axis=0) * np.float32(WALL_LIGHT * self.light_k)
+        lit = walls["room"] * np.float32(BOUNCE * float(power.mean()))
+        for e, g in zip(power, walls["fire"]):
+            lit += e * g
+        light = lit[..., None] * self.light_colour
+        light += walls["room"][..., None] * np.float32(room)
+        light *= walls["albedo"]
+        np.clip(light, 0.0, 1.0, out=light)
+        np.power(light, np.float32(1 / 2.2), out=light)
+        a = lay["inside"][..., None]
+        out += a * (light - out)
+        return room, lit
 
     def _light(self, out, lay, gflame, room):
         """The flames' light on the firebox round them (`out`: the box's part in the frame, changed in place): their
@@ -788,9 +864,13 @@ class Hearth(Effect):
             breathe = sum(np.sin(TAU * m * tau + ph + 5 * phase) for m, ph in zip(self.ember_m, self.ember_ph)) / 3
             embers = field * ((0.8 + 0.2 * breathe) * (0.7 * self.embers_k * (0.9 + 0.1 * level)))
             gflame += embers
-        # their light on the firebox round them (the surfaces there lit, their colours kept: not a haze)
+        # the room's light on the firebox; the flames' light on it round them: on its walls drawn (if chosen), or
+        # on the surfaces the picture shows there (lit, their colours kept: not a haze)
         room = self._room(out, lay)
-        lit = self._light(out, lay, gflame, room) if self.light_k > 0 else None
+        if "walls" in lay:
+            room, lit = self._walls(out, lay, gflame, room)
+        else:
+            lit = self._light(out, lay, gflame, room) if self.light_k > 0 else None
         hide = None
         if "logs" in lay:  # the logs (opaque) on their bed of coals, the flames behind those in front of the fire
             self._logs(t, out, lay, glow, level, room, lit)

@@ -90,8 +90,9 @@ def periodic_checks():
         if kind == "garland":  # strands drawn by hand: clicked (hanging) and a stretch drawn by hand, chasing
             third = {"mode": "chase", "speed": 100, "strands": [[0.1, 0.3, 1, 0.4], [0.5, 0.35, 0, 0], [0.9, 0.3, 0, 0],
                                                                 [0.2, 0.8, 1, 0], [0.3, 0.7, 0.5, 0], [0.4, 0.75, 0.5, 0]]}
-        if kind == "hearth":  # a heap of logs under the flames, glowing, in an arched fireplace
-            third = {"wood": "oak", "stack": "heap", "embers": 100, "frame": "arch"}
+        if kind == "hearth":  # a heap of logs under the flames, glowing, in an arched fireplace of firebrick laid in
+            # a herringbone
+            third = {"wood": "oak", "stack": "heap", "embers": 100, "frame": "arch", "walls": "herring"}
         if kind == "pigeons":  # many pigeons pecking often on a ledge, soft as a photograph
             third = {"mode": "ledge", "amount": 100, "peck": 100, "soft": 100}
         if kind == "chimney":  # chimneys near and far, a gusty wind from the right

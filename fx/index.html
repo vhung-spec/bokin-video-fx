@@ -3907,8 +3907,10 @@ function drawStack() {  // the chimneys' mouths and the boxes their smoke rises 
     });
   });
 }
-function shownParam(c, d) {  // a setting shown only for some values of others (string lights: per way of laying them)
-  return !d.show || Object.entries(d.show).every(([k, values]) => values.includes(c.params[k]));
+function shownParam(c, d) {  // a setting shown only for some values of others (string lights: per way of laying them;
+  // a list of them: for any of those, as the fireplace's view for its logs or its walls)
+  const holds = show => Object.entries(show).every(([k, values]) => values.includes(c.params[k]));
+  return !d.show || (Array.isArray(d.show) ? d.show.some(holds) : holds(d.show));
 }
 function pointsRow() { return ""; }  // (the strands of Dây đèn tự vẽ: drawn on the picture, its tools at the panel's top)
 function showMenu(x, y, items) {  // items: [label, action, key shown on the right, icon, true for a delete] or null (a line)

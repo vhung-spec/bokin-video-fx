@@ -333,13 +333,24 @@ gạch được chiếu sáng, không phải phủ một lớp sương cam.
    - **Cách xếp**: **Ba khúc: hai dưới, một trên**, **Đống củi (năm khúc)**, **Hai khúc nằm cạnh nhau**.
    - **Khúc củi to**, **Cháy sém** (kéo về trái: củi mới, phần lớn còn vỏ, chỉ khe giữa đỏ; kéo sang phải: cháy lan
      rộng, nhiều chỗ đỏ rực). **Than hồng dưới chân lửa** càng lớn thì chỗ cháy đỏ càng rực; 0 là không đỏ.
-   - **Nhìn từ trên xuống**: cho hợp góc máy của video (máy quay ngang tầm lò: kéo về trái; nhìn từ trên cao: kéo
-     sang phải).
+   - **Nhìn từ trên xuống** (mục **Góc máy**): cho hợp góc máy của video (máy quay ngang tầm lò: kéo về trái; nhìn
+     từ trên cao: kéo sang phải).
    - Muốn các khúc củi đặt khác đi: bấm **Đổi kiểu ngẫu nhiên** (lửa cũng đổi theo).
+8. Bên trong lò trong video tối, không rõ tường (hoặc muốn lòng lò đẹp hơn): ở mục **Tường lò** chọn **Gạch chịu lửa
+   (vàng nâu)**, **Gạch chịu lửa xếp xương cá** hay **Gạch đỏ**. App vẽ lòng lò thật trong miệng lò (nên chọn **Khung
+   lò** trước cho viền cam trùng miệng lò; không chọn Khung lò thì tường phủ cả khung trắng):
+   - tường sau, hai tường bên xiên vào trong, sàn lò, đúng phối cảnh; máy quay thấp thì thấy họng lò tối phía trên;
+   - gạch xếp so le từng hàng (hay xương cá trên tường sau), có mạch vữa; mỗi viên một sắc, có đốm, vài viên sẫm như
+     bị cháy;
+   - muội khói đen phía trên, đậm nhất ngay trên ngọn lửa, có vệt chảy xuống; sàn lò có tro quanh lửa, lẫn mẩu than;
+   - ánh lửa chiếu lên tường như lửa thật: tường sau ngay sau ngọn lửa sáng cam nhất, góc lò và phía trên tối hơn;
+     bập bùng theo từng ngọn lửa (thanh **Ánh lửa hắt lên lò sưởi** chỉnh độ sáng đó).
+   Chỉnh thêm **Lò sâu**, **Viên gạch to**, **Ám khói đen** (kéo sang phải: muội đen nhiều, xuống thấp hơn), **Nhìn từ
+   trên xuống** (mục **Góc máy**, dùng chung với củi). Thường chọn cùng **Củi**: củi nằm trên lớp than trên sàn lò.
 
 Lần đầu, và mỗi lần đổi **Lửa rộng**, **Ngọn lửa cao**, **Lửa dày**, **Bập bùng**, **Tốc độ** (hay cỡ, cách xếp, góc
 nhìn của củi), app tính lửa lại từ đầu: bản xem nhanh cần chừng nửa phút, dừng hình lần đầu có thể chờ vài giây. Đổi
-màu, độ sáng, ánh lửa, than hồng, loại củi, cháy sém, chỗ đặt thì không phải tính lại. Lửa không xoay 3D: lửa luôn bốc
+màu, độ sáng, ánh lửa, than hồng, loại củi, cháy sém, tường lò, chỗ đặt thì không phải tính lại. Lửa không xoay 3D: lửa luôn bốc
 thẳng lên. Nhiều lò sưởi thì mỗi lò một clip.
 
 ### Đom đóm

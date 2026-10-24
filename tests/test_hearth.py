@@ -1,5 +1,6 @@
 """The fire in a fireplace (fx/hearth.py): a placed lens effect whose flames are a small fluid simulation, made frame
 after frame and kept; most checks go through apply()."""
+import math
 import multiprocessing
 import unittest
 
@@ -7,7 +8,7 @@ import numpy as np
 
 from tests import helpers  # noqa: F401 - temporary data folder
 from fx import effects  # (first: it loads every effect's module)
-from fx import engine, hearth, logs, overlay
+from fx import engine, firebox, hearth, logs, overlay
 
 W, H = 480, 270
 AT = {"scale": 80, "x": 0, "y": 5}  # the box over much of the frame
@@ -46,8 +47,10 @@ def _logs_elsewhere(params, t):
     return lens(fx_effects.make("hearth", {**AT, **params}, 3, 96, 24, W, H), t, ROOM).tobytes()
 
 
-LOG_KEYS = {"wood", "stack", "log_size", "char", "view"}
+LOG_KEYS = {"wood", "stack", "log_size", "char"}
 FRAME_KEYS = {"frame", "frame_w", "frame_h", "curve"}
+WALL_KEYS = {"walls", "deep", "brick", "soot"}
+VIEW_KEYS = {"view"}  # (how far above the camera looks down: at the logs, at the walls)
 WITH_LOGS = {"wood": "oak", "light": 0}
 
 
@@ -460,6 +463,7 @@ class Logs(unittest.TestCase):
         for key in LOG_KEYS - {"wood"}:
             self.assertEqual(by_key[key]["show"], {"wood": list(logs.WOODS)}, key)
             self.assertEqual(by_key[key]["group"], by_key["wood"]["group"], key)
+        self.assertIn({"wood": list(logs.WOODS)}, by_key["view"]["show"])
         k = make(WITH_LOGS).k
         self.assertGreater(k["base"], 0)
         for key, v in (("wood", "birch"), ("char", 10), ("light", 100), ("x", 20)):
@@ -554,6 +558,183 @@ class Frame(unittest.TestCase):
         self.assertLess(max(xs) + narrow.r, 0.4 * 4 / 3 / 2 + 1e-6)
 
 
+class Walls(unittest.TestCase):
+    """Tường lò: the firebox's walls drawn inside the opening (its back, its sides, its floor; the throat above when
+    the camera is low), bricks lit by the room and by the fire."""
+
+    @staticmethod
+    def layout(fx):
+        (rows, cols), (x0, y0, w, h) = box_of(fx)
+        return (rows, cols), fx._layout(fx._rect(x0, y0, x0 + w, y0 + h), x0, y0, w, h), (x0, y0, w, h)
+
+    def fire_light(self, fx, t):
+        """How bright the fire's light is over the box at frame t (as apply() lights the walls), and the surface
+        each pixel shows (which, x, y, z: as Firebox.surfaces says)."""
+        (rows, cols), lay, (x0, y0, w, h) = self.layout(fx)
+        glow, _ = fx.frames().frame(t)
+        gflame = np.maximum(glow - hearth.CUT, 0.0) * (fx.bright_k / (1 - hearth.CUT)) * fx._grid_shown()
+        _, lit = fx._walls(ROOM[rows, cols].copy(), lay, gflame, 0.01)
+        X = (np.arange(cols.start, cols.stop) + 0.5 - (x0 + w / 2)) / h
+        Z = (y0 + h - np.arange(rows.start, rows.stop) - 0.5) / h
+        return lit, fx.walls.surfaces(*np.meshgrid(X, Z))
+
+    def test_none_as_before(self):
+        """Without walls (a clip made before them, or "none") the fireplace is drawn as it was."""
+        a, b = make({}), make({"walls": "none", "deep": 90, "brick": 10, "soot": 100})
+        self.assertIsNone(a.walls)
+        self.assertEqual(a.k, b.k)
+        for t in (0, 30):
+            self.assertTrue(np.array_equal(lens(a, t), lens(b, t)))
+
+    def test_loops(self):
+        for params in ({"walls": "firebrick"}, {"walls": "herring", "wood": "oak", "frame": "arch"},
+                       {"walls": "red", "deep": 100, "view": 0, "frame": "rect", "frame_w": 60}):
+            fx = make(params)
+            for t in (0, 11):
+                self.assertTrue(np.array_equal(lens(fx, t), lens(fx, t + 96)), (params, t))
+
+    def test_drawn_inside_the_opening(self):
+        """Inside the opening the walls are drawn, not the picture (two pictures alike round the opening, and as
+        bright inside it, give the same there); nothing outside it changes."""
+        fx = make({"walls": "firebrick", "frame": "rect", "frame_w": 60, "frame_h": 70, "light": 100})
+        well_in, well_out = Frame().opening(fx)
+        _, (x0, y0, w, h) = box_of(fx)
+        yy, xx = np.mgrid[0:H, 0:W]
+        a = ROOM.copy()
+        a[well_in] = 0.3
+        b = a.copy()
+        b[well_in & (xx % 5 == 0) & (yy < y0 + 0.9 * h)] = 0.9  # (a fifth of it brighter: as bright on the whole)
+        for t in (10, 50):
+            out_a, out_b = lens(fx, t, a), lens(fx, t, b)
+            self.assertLess(float(np.abs(out_a[well_in] - out_b[well_in]).max()), 1e-5, t)
+            self.assertTrue(np.array_equal(out_a[well_out], a[well_out]), t)
+            self.assertGreater(float(np.abs(out_a[well_in] - a[well_in]).max()), 0.2, t)
+        whole = make({"walls": "red"})  # (no opening: the walls fill the box, to its sides and its top)
+        (rows, cols), (x0, y0, w, h) = box_of(whole)
+        out = lens(whole, 10, a)
+        self.assertTrue(np.array_equal(out[:rows.start], a[:rows.start]))
+        self.assertTrue(np.array_equal(out[:, :cols.start], a[:, :cols.start]))
+        inner = (slice(rows.start + 2, rows.start + int(0.3 * h)), slice(cols.start + 2, cols.start + 8))
+        b = a.copy()
+        b[inner] = 1 - b[inner]
+        self.assertLess(float(np.abs(lens(whole, 10, b)[inner] - out[inner]).max()), 1e-5)  # (crisp to its edges)
+
+    def test_lit_by_the_fire(self):
+        """The fire's light on the walls: brightest near it (the back wall behind it brighter than its top corners,
+        the floor beside the fire than far back), more with "light", none at 0; it flickers as the fire does."""
+        fx = make({"walls": "firebrick", "frame": "arch", "frame_w": 90, "frame_h": 95, "light": 50})
+        lit, (which, x, y, z) = self.fire_light(fx, 10)
+        fb = fx.walls
+        self.assertGreaterEqual(float(lit.min()), 0.0)
+        back = which == 0
+        low = back & (z < 0.35 * fb.H) & (np.abs(x) < 0.2 * fb.Wb)
+        corners = back & (z > 0.8 * fb.H) & (np.abs(x) > 0.3 * fb.Wb)
+        self.assertTrue(low.any() and corners.any())
+        self.assertGreater(float(lit[low].mean()), 2 * float(lit[corners].mean()))
+        floor = which == 3
+        near, far = floor & (y < 0.3 * fb.D), floor & (y > 0.85 * fb.D)
+        if near.any() and far.any():
+            self.assertGreater(float(lit[near].mean()), float(lit[far].mean()))
+        lit100, _ = self.fire_light(make({"walls": "firebrick", "frame": "arch", "frame_w": 90, "frame_h": 95,
+                                          "light": 100}), 10)
+        self.assertTrue(np.allclose(lit100, 2 * lit, rtol=1e-4, atol=1e-6))
+        lit0, _ = self.fire_light(make({"walls": "firebrick", "frame": "arch", "frame_w": 90, "frame_h": 95,
+                                        "light": 0}), 10)
+        self.assertEqual(float(np.abs(lit0).max()), 0.0)
+        means = [float(self.fire_light(fx, t)[0][low].mean()) for t in (10, 30, 50, 70)]
+        self.assertGreater(max(means) / min(means), 1.03)  # (flickering)
+
+    def test_where_the_fire_is(self):
+        """The walls' lights stand on the floor where the picture shows the bed (its ellipse's middle), across it,
+        inside the side walls; a little above it."""
+        for bed, view in ((60, 50), (30, 0), (100, 100)):
+            fx = make({"walls": "firebrick", "bed": bed, "view": view})
+            fb = fx.walls
+            on_floor = fb.lights.copy()
+            on_floor[:, 2] = 0
+            X, Z = fb.screen(on_floor)
+            y = float(fb.lights[0][1])
+            if 0.08 * fb.D < y < 0.8 * fb.D:
+                self.assertLess(float(np.abs(Z - hearth.MARK * fx.bed * 4 / 3 / 2).max()), 1e-9, (bed, view))
+            self.assertLessEqual(float(np.abs(fb.lights[:, 0]).max()), fb.W / 2 - fb.slope * y, (bed, view))
+            self.assertLess(float(np.abs(X).max()), fx.bed * 4 / 3 / 2, (bed, view))
+            self.assertTrue((fb.lights[:, 2] > 0).all())
+
+    def test_bricks_and_mortar(self):
+        """Bricks in courses (each course half a brick along from the one under it), mortar joints between them
+        (darker: a little sunk), each brick its own shade."""
+        fb = firebox.Firebox("firebrick", 1.2, 1.0, 0.6, 0.5, 0.0, math.radians(20), 3)
+        xs = np.linspace(-0.3, 0.3, 600)
+
+        def back(z):  # (the walls along a line across the back wall, z up)
+            p = np.stack([xs, np.full(xs.shape, fb.D), np.full(xs.shape, z)], -1)
+            X, Z = fb.screen(p)
+            self.assertTrue((fb.surfaces(X[None], Z[None])[0] == 0).all())
+            return fb.lay(X[None], Z[None])["albedo"][0] @ LUMA
+
+        joints = np.concatenate([back(k * fb.brick) for k in (2, 3, 4)])
+        middles = [back((k + 0.5) * fb.brick) for k in (2, 3, 4)]
+        self.assertLess(float(joints.mean()), 0.8 * float(np.concatenate(middles).mean()))
+        self.assertGreater(float(np.std(middles[0])), 0.06 * float(middles[0].mean()))  # (brick by brick)
+        u = np.linspace(0.0, 4.0, 4000)  # (the vertical joints of one course half a brick from the next one's)
+        _, _, m1, _ = firebox._courses(u, np.full(u.shape, 0.5), 1.0, 2.0, 1e-3, 1e-3)
+        _, _, m2, _ = firebox._courses(u, np.full(u.shape, 1.5), 1.0, 2.0, 1e-3, 1e-3)
+        at1, at2 = u[m1 > 0.5], u[m2 > 0.5]  # (a brick 2 long: joints at even u under, odd over)
+        self.assertTrue(len(at1) and len(at2))
+        self.assertLess(float(np.abs(np.mod(at1 + 1, 2.0) - 1).max()), 0.1)
+        self.assertLess(float(np.abs(np.mod(at2, 2.0) - 1).max()), 0.1)
+        g = np.linspace(-10, 10, 400)  # (the herringbone: every point on a brick 2 x 1, turned 45 degrees)
+        uu, vv = np.meshgrid(g, g)
+        col, row, mortar, inner = firebox._herringbone(uu, vv, 1.0, 1e-3)
+        self.assertTrue(np.isfinite(inner).all() and (mortar >= 0).all() and (mortar <= 1).all())
+        _, counts = np.unique(np.stack([col.ravel(), row.ravel()]), axis=1, return_counts=True)
+        self.assertAlmostEqual(float(np.median(counts)) * (g[1] - g[0]) ** 2, 2.0, delta=0.15)  # (whole ones: 2 x 1)
+
+    def test_soot_and_the_room(self):
+        """Soot over the upper part (sootier further down), none with "soot" 0; the room's light reaches less into
+        the corners, the side walls and the back; the throat above dark."""
+        clean = firebox.Firebox("firebrick", 1.2, 1.0, 0.6, 0.5, 0.0, math.radians(20), 3)
+        sooty = firebox.Firebox("firebrick", 1.2, 1.0, 0.6, 0.5, 1.0, math.radians(20), 3)
+        xs = np.linspace(-0.3, 0.3, 300)
+
+        def luma(fb, z):
+            p = np.stack([xs, np.full(xs.shape, fb.D), np.full(xs.shape, z)], -1)
+            X, Z = fb.screen(p)
+            return float((fb.lay(X[None], Z[None])["albedo"][0] @ LUMA).mean())
+
+        top, bottom = 0.9, 0.15
+        self.assertLess(luma(sooty, top) / luma(sooty, bottom), 0.5 * luma(clean, top) / luma(clean, bottom))
+        self.assertLess(luma(sooty, bottom), luma(clean, bottom) * 1.01)
+        X, Z = np.meshgrid(np.linspace(-0.59, 0.59, 160), np.linspace(0.005, 0.995, 120))
+        which, x, y, z = clean.surfaces(X, Z)
+        room = clean.lay(X, Z)["room"]
+        back, side = which == 0, (which == 1) | (which == 2)
+        middle = back & (np.abs(x) < 0.15) & (np.abs(z - 0.5) < 0.15)
+        corner = back & (np.abs(x) > 0.36 * clean.Wb) & (z > 0.75)  # (its top corners: as high as it shows)
+        self.assertTrue(middle.any() and corner.any() and side.any())
+        self.assertLess(float(room[corner].mean()), 0.9 * float(room[middle].mean()))
+        front, behind = side & (y < 0.3 * clean.D), side & (y > 0.8 * clean.D)  # (the side walls: less deeper in,
+        # less than the back wall as deep)
+        self.assertGreater(float(room[front].mean()), float(room[behind].mean()))
+        self.assertLess(float(room[behind].mean()), float(room[middle].mean()))
+        low = firebox.Firebox("red", 1.2, 1.0, 0.6, 0.5, 0.5, math.radians(5), 3)  # (a low camera: the throat)
+        which, *_ = low.surfaces(X, Z)
+        self.assertTrue((which == 4).any())
+        self.assertLess(float(low.lay(X, Z)["albedo"][which == 4].max()), 0.01)
+
+    def test_settings(self):
+        """No walls unless chosen; their settings show once a wall is, the view with the logs or the walls; they
+        make no new fire."""
+        by_key = {p["key"]: p for p in hearth.SCHEMA["params"]}
+        self.assertEqual(by_key["walls"]["value"], "none")
+        self.assertEqual({o["value"] for o in by_key["walls"]["options"]} - {"none"}, set(firebox.WALLS))
+        for key in WALL_KEYS - {"walls"}:
+            self.assertEqual(by_key[key]["show"], {"walls": list(firebox.WALLS)}, key)
+            self.assertEqual(by_key[key]["group"], by_key["walls"]["group"], key)
+        self.assertEqual(by_key["view"]["show"], [{"wood": list(logs.WOODS)}, {"walls": list(firebox.WALLS)}])
+        self.assertEqual(make({"walls": "red", "deep": 90, "brick": 10, "soot": 0, "view": 0}).k, make({}).k)
+
+
 class Preview(unittest.TestCase):
     def test_preview_from_the_picture_under_the_box(self):
         """The box alone (as the preview clip is made) on the picture under the box, resized to the clip, gives
@@ -561,7 +742,8 @@ class Preview(unittest.TestCase):
         from PIL import Image
         info = {"w": W, "h": H, "fps": "24", "frames": 96, "seconds": 4.0}
         for params in ({}, {"cover": 80, "light": 100, "bed": 50}, {"wood": "oak", "stack": "heap"},
-                       {"frame": "arch", "frame_w": 60, "curve": 100, "light": 100}):
+                       {"frame": "arch", "frame_w": 60, "curve": 100, "light": 100},
+                       {"walls": "herring", "frame": "rect", "frame_w": 70, "wood": "oak"}):
             whole = make(params)
             x0, y0, bw, bh = whole.box()
             layer = {"kind": "hearth", "params": {**AT, **params}}
@@ -604,12 +786,12 @@ class Settings(unittest.TestCase):
         self.assertTrue(hearth.SCHEMA["note"])
 
     def test_looks(self):
-        """Each look sets every setting but where the fire is, how wide, the old fire put out, the logs and the
-        fireplace's opening; the first look is the defaults."""
+        """Each look sets every setting but where the fire is, how wide, the old fire put out, the logs, the
+        fireplace's opening and its walls; the first look is the defaults."""
         look = next(p for p in hearth.SCHEMA["params"] if p["key"] == "look")
         self.assertEqual({o["value"] for o in look["options"]}, set(hearth.LOOKS))
         keys = {p["key"] for p in hearth.SCHEMA["params"]} - {"look", "bed", "cover", "x", "y", "scale"} - LOG_KEYS - \
-            FRAME_KEYS
+            FRAME_KEYS - WALL_KEYS - VIEW_KEYS
         defaults = effects.defaults("hearth")
         for name, preset in look["presets"].items():
             self.assertEqual(set(preset), keys, name)
