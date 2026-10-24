@@ -5,14 +5,17 @@ vẫn loop liền mạch. Giao diện giống Premiere: thư viện hiệu ứng
 timeline có track và clip, xem nhanh ngay trong trình duyệt, vùng đứng yên, vùng riêng cho từng clip, tiền cảnh che
 hiệu ứng. Cách dùng: `README.md`.
 
-## Repo này riêng tư (từ 2026-10-18)
+## Repo này công khai (lại từ 2026-10-24)
 
-- Kho này công khai tới 2026-10-18; chủ chuyển sang riêng tư để chứa thư viện bản quyền. Vẫn không commit khoá,
-  mật khẩu, token, khoá ký hay mã cài đặt của Bokin License.
+- Kho này công khai tới 2026-10-18, riêng tư từ 2026-10-18 (để chứa thư viện bản quyền), công khai lại từ 2026-10-24
+  (chủ chọn): repo riêng tư chỉ có 2.000 phút GitHub Actions mỗi tháng, máy Windows tính gấp đôi, một lần build khoảng
+  47 phút nên chỉ đủ chừng 20 lần; hết phút thì job đỏ ngay, không bước nào chạy (lần 75 tới 78). Repo công khai dùng
+  máy Windows của GitHub miễn phí. Ai cũng đọc được mã, cả phần kiểm tra key (chủ đã biết; không làm được key thật vì
+  khoá ký không ở đây). Không commit khoá, mật khẩu, token, email, khoá ký hay mã cài đặt của Bokin License.
 - `bokin_license/` là thư viện bản quyền chung của các app Bokin, chép nguyên từ kho Bokin License (`VENDORED.txt`:
   phiên bản, commit). Không sửa bản chép ở đây (sửa ở kho đó rồi chép lại). Chỉ phần kiểm tra key và khoá công khai;
   khoá ký và mã cài đặt chỉ nằm trên máy của chủ dự án, không bao giờ vào kho này, bộ cài hay chat.
-- Mã hay tài liệu của các kho khác của công ty: chỉ chép vào đây khi chủ đồng ý.
+- Mã hay tài liệu của các kho khác của công ty: chỉ chép vào đây khi chủ đồng ý (ở đây ai cũng đọc được).
 - Bản cài phát hành ở kho **công khai** `vhung-spec/bokin-fx-releases` (chỉ có Releases, không có mã; chủ chọn
   2026-10-19): app đọc Releases ở đó không cần đăng nhập (`fx/updater.py`: trước hết `bokin-fx-latest.json` của
   bản mới nhất, tải thường qua `releases/latest/download/`, không qua API, vì API không đăng nhập chỉ trả 60 lần mỗi
@@ -23,7 +26,7 @@ hiệu ứng. Cách dùng: `README.md`.
   giấy phép đi kèm bản cài: `copy_metadata` trong `BokinFX.spec`; vẫn bị từ chối: lý do `cert`), khách tải ở
   `…/bokin-fx-releases/releases/latest`. CI đăng bằng secret `RELEASES_TOKEN` (token fine-grained, Contents read/write
   chỉ kho đó, hạn 1 năm: hết hạn thì bước phát hành đỏ, chủ tạo token mới). App 1.0.48 trở về trước đọc Releases của
-  kho này (riêng tư, không thấy): cài tay bản mới một lần.
+  kho này (bản mới không đăng ở đây): cài tay bản mới một lần.
 - Hình hạt (lá, tuyết…) đều vẽ bằng mã. Chỉ thêm hình/video mà công ty sở hữu hoặc có giấy phép.
 - Học ý tưởng từ dự án mở thì được. Mã GPL (Shotcut, Kdenlive, OpenShot…) không chép vào đây. Mã MIT/Apache chỉ dùng
   khi ghi kèm giấy phép.
