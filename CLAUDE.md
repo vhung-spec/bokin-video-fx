@@ -328,6 +328,17 @@ hiệu ứng. Cách dùng: `README.md`.
   cuối đuôi rộng hơn; mắt có viền đỏ sậm quanh mống mắt, con ngươi nhỏ; lông hơi bóng (`SATIN`); đốm của bồ câu có đốm
   là hình nêm trên mỗi lông phủ; đứng thẳng thì đuôi chúc xuống hơn; `VERSION` 7. Test: `Feathers`; test đường nối
   (`test_no_seams`) không tính hai điểm ảnh sát viền (ánh sáng ở viền là ánh sáng lướt, không phải đường nối).
+  Không đi xuyên qua nhau (chủ yêu cầu 2026-10-24: "bị dính vào nhau, đi xuyên qua nhau"): dấu chân mỗi con là ellipse
+  quanh thân (`FOOT`, `_reach`), giữ cách nhau `APART`. `_spread` (trên mặt đất): mỗi con lần lượt chọn chỗ và lúc bắt
+  đầu ngày của nó (`Walker.shift`, `samples`: số nguyên mẫu) trong `SPOTS` chỗ (chỗ của chính nó trước), chỗ đầu tiên
+  không gặp con nào trước nó (cách `SPARE`), không có thì chỗ chồng ít nhất; còn gặp thì dời lại (`SWEEPS`), rồi đường
+  nhỏ hơn (`SHRINK`); vẫn chồng sâu hơn `CROWD` thì bớt con chồng nhiều nhất (khung không đủ chỗ). `_plan`: con đang đi
+  né sang bên (mỗi lần gặp một phía, `_passing`, tính lại theo đường đang đi mỗi `AGAIN` vòng; chỉ cặp có thể gặp:
+  `_close`), lực đẩy lớn dần khi còn chồng (phương pháp nhân tử: `pushing`, tới `LIMIT`), làm mượt quanh vòng
+  (`_Smoother`: chim đứng không trượt `EASE_STOP`), hướng chim như lúc vẽ (`facing`, như `_ground`); còn chồng hơn
+  `OVERLAP` thì bớt một con và tính lại (`DROPS`). Gờ: mỗi con một đoạn riêng dài ít nhất `LEDGE`, gờ chỉ chứa chừng ấy
+  con. Bầy xếp trên khung cao `REF` (xem nhanh và video xuất cùng một bầy; `_PLANS` giữ kế hoạch). `VERSION` 8. Test:
+  `Apart`.
   Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
   nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao

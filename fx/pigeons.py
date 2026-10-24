@@ -32,8 +32,16 @@ peck at the ground a few times, its beak reaching it and its tail rising. As it 
 the other steps forward, its body swaying a little over it, and its head is held still and thrust forward a step at a
 time, as pigeons do; it speeds up and slows down smoothly, its feet together where it starts and stops, and stands up
 tall, bends down and looks round without a jolt.
+
+No bird walks through another or stands in another (the owner, 2026-10-24): each is placed where, and its day begun
+when, its path meets the others' least (_spread); where two still meet, the one walking steps aside round the other,
+smoothly, a standing one never sliding (_plan: their footprints, ellipses round their bodies, kept apart); a box too
+small for so many birds that big holds only those it has room for. Along a ledge each bird walks to and fro on a stretch
+of its own. The flock is laid out in a box REF high, so it is the same at every size it is drawn at.
 """
+import collections
 import math
+import threading
 
 import numpy as np
 
@@ -1067,6 +1075,7 @@ class Walker:
         if room is not None:  # (the longest path that keeps within `room` of home: along a ledge, to and fro; about,
             # a round path, or a long narrow one)
             laps = max(1, math.ceil(total / (4.0 * room if ledge else (0.55 + 1.0 * thin) * TAU * room)))
+        self.room = room
         self.length = max(total / laps, 1e-6)  # (its path's length)
         # its path: a closed curve this long (a narrow one along a ledge), as far round as it has walked
         m = 512
@@ -1090,6 +1099,8 @@ class Walker:
         self.tx, self.ty = tx / norm, ty / norm  # (its way at each point of its path: turning smoothly between them)
         self.looks = rng.random(8) * TAU
         self.flip = rng.random() < 0.5  # (which way round it goes)
+        self.shift = 0.0  # (seconds: its day begun this far into the loop, out of the other birds' way)
+        self._samples = None
 
     def _seg(self, t):
         for i in range(len(self.segs) - 1, -1, -1):
@@ -1114,6 +1125,19 @@ class Walker:
         s = ramp(x) if x < r else (full - ramp(d - x) if x > d - r else x - r / 2)
         return i, self.speed * min(max(s, 0.0), full)
 
+    def pace_at(self, t):
+        """How fast it walks at t: a share of its walking speed (0 standing .. 1 striding along), rising and falling
+        smoothly as it starts and stops (the speed _into goes at)."""
+        return self._pace((t + self.shift) % self.loop)
+
+    def _pace(self, t):
+        kind, start, d, _ = self.segs[self._seg(t)]
+        if kind != "walk":
+            return 0.0
+        r = min(self.ramp, d / 2)
+        x = min(t - start, start + d - t)
+        return float(_smooth(x / r)) if x < r else 1.0
+
     def walked_at(self, t):
         """How far round its path it has walked at t (seconds into the loop)."""
         i, s = self._into(t)
@@ -1121,6 +1145,22 @@ class Walker:
 
     def where(self, t):
         """Where it is (units from its home, across and away) and which way it faces (radians)."""
+        return self._where((t + self.shift) % self.loop)
+
+    def samples(self, k):
+        """Where it is, which way it faces and how fast it walks (where, pace_at) at k moments evenly round the loop,
+        from its start: four rows, made once for its day begun at the loop's start, turned round by its shift (a
+        whole number of moments, as _spread gives it)."""
+        if self._samples is None or self._samples.shape[1] != k:
+            ts = np.arange(k) * (self.loop / k)
+            self._samples = np.array([(*self._where(t), self._pace(t)) for t in ts]).T
+        m = self.shift * k / self.loop
+        if abs(m - round(m)) < 1e-6:
+            return np.roll(self._samples, -int(round(m)) % k, axis=1)
+        ts = np.arange(k) * (self.loop / k)
+        return np.array([(*self.where(t), self.pace_at(t)) for t in ts]).T
+
+    def _where(self, t):
         s = self.walked_at(t)
         if self.flip:
             s = (self.length - s) % self.length
@@ -1161,6 +1201,7 @@ class Walker:
     def pose(self, t):
         """Its pose at t: stepping and bobbing its head as it walks, pecking, looking round, sitting, preening,
         courting."""
+        t = (t + self.shift) % self.loop
         i, into = self._into(t)
         kind, start, d, n = self.segs[i]
         x = t - start
@@ -1245,6 +1286,241 @@ class Walker:
         return pose
 
 
+# --- keeping out of each other's way ----------------------------------------------------------------------------------
+
+FOOT = (0.36, 0.13, -0.1)  # (a bird's footprint on the ground, an ellipse round its body: half its length and half
+# its width (units), its middle this far ahead of its feet: behind them)
+APART = 0.04  # (units kept between two birds' footprints)
+PLAN_RATE = 5  # (the flock's plan: samples a second)
+ROUNDS = 60  # (rounds of pushing the birds apart and smoothing their steps aside)
+AGAIN = 10  # (every so many rounds, which may meet and how they meet again, as they now go)
+SLACK = 1.0  # (units: two birds whose footprints come this close may meet within the next AGAIN rounds)
+SIDESTEP = 0.8  # (two birds moving past each other mostly step aside, across their way past each other)
+PASSING = 0.15  # (units a second: two birds moving past each other at least this fast step aside fully)
+MEETING = 0.5  # (two birds meet while their footprints come within this (units) of each other: an encounter)
+EASE_WALK, EASE_STOP = 12.0, 4000.0  # (how smoothly a bird steps aside: walking, over a few samples; standing still,
+# not at all: it never slides)
+HOLD = 0.02  # (how strongly each bird keeps to its own path)
+LIMIT = 2.0  # (units: the most two birds push each other further than they overlap)
+SPOTS = 32  # (places and times tried for each bird on the ground: the first where it never comes near the birds
+# before it)
+SPARE = 0.15  # (units: the room kept between two birds' paths when they are placed)
+REF = 1080.0  # (px: the height of the box a flock is laid out in)
+DROPS = 4  # (times over, at most, leaving out a bird that still walks into others and planning again)
+CROWD = 0.15  # (units: placed, no bird overlaps another deeper than this: those the birds step round)
+LEDGE = 1.1  # (units: the least stretch of a ledge a bird walks to and fro on, its tail turning round at the ends)
+OVERLAP = 0.02  # (units: two birds overlapping more than this still walk into each other)
+SWEEPS = 2  # (moving the birds that still meet others to better places: at most this many times over)
+TIGHTER, SHRINK = 1, 0.6  # (then, crowded: giving those that still meet others smaller paths, this many times,
+# each this much smaller)
+_PLANS = collections.OrderedDict()  # (the last flocks' layouts, by everything they depend on: a flock's slow part)
+_PLANS_LOCK = threading.Lock()
+
+
+def _reach(s, ux, uz, nx, nz):
+    """How far birds' footprints (ellipses s px a unit, along unit vectors (ux, uz) on the ground) reach along unit
+    vectors (nx, nz)."""
+    along = nx * ux + nz * uz
+    return s * np.sqrt(FOOT[1] ** 2 + (FOOT[0] ** 2 - FOOT[1] ** 2) * along * along)
+
+
+class _Smoother:
+    """Smoothing a bird's steps aside over the loop: for each bird (rows), the offsets o minimising, round the loop,
+    HOLD |o_k|^2 + |o_k - target_k|^2 + ease_k |o_(k+1) - o_k|^2 (ease_k between samples k and k+1): a cyclic
+    tridiagonal system, factored once (the Thomas algorithm, Sherman-Morrison for its corners)."""
+
+    def __init__(self, ease):
+        n, k = ease.shape
+        before = np.roll(ease, 1, axis=1)
+        self.a, self.c = -before, -ease  # (each row's coefficient of the sample before it, after it)
+        b = HOLD + 1.0 + before + ease
+        self.gamma = -b[:, 0]
+        self.beta, self.alpha = self.a[:, 0], self.c[:, -1]  # (the corners: row 0's last, the last row's first)
+        b = b.copy()
+        b[:, 0] -= self.gamma
+        b[:, -1] -= self.alpha * self.beta / self.gamma
+        self.cp, self.den = np.zeros((n, k)), np.zeros((n, k))
+        self.den[:, 0] = b[:, 0]
+        self.cp[:, 0] = self.c[:, 0] / b[:, 0]
+        for j in range(1, k):
+            self.den[:, j] = b[:, j] - self.a[:, j] * self.cp[:, j - 1]
+            self.cp[:, j] = self.c[:, j] / self.den[:, j]
+        u = np.zeros((n, k, 1))
+        u[:, 0, 0], u[:, -1, 0] = self.gamma, self.alpha
+        self.z = self._thomas(u)
+
+    def _thomas(self, r):
+        n, k = self.den.shape
+        y = np.zeros_like(r)
+        y[:, 0] = r[:, 0] / self.den[:, 0, None]
+        for j in range(1, k):
+            y[:, j] = (r[:, j] - self.a[:, j, None] * y[:, j - 1]) / self.den[:, j, None]
+        for j in range(k - 2, -1, -1):
+            y[:, j] -= self.cp[:, j, None] * y[:, j + 1]
+        return y
+
+    def solve(self, target):
+        x = self._thomas(target)
+        ratio = (self.beta / self.gamma)[:, None]
+        fact = (x[:, 0] + ratio * x[:, -1]) / (1.0 + self.z[:, 0] + ratio * self.z[:, -1])
+        return x - fact[:, None, :] * self.z
+
+
+def _passing(d, w, near):
+    """How two birds get past each other in each encounter (pairs x samples; d: from the first to the second, w: the
+    second's velocity less the first's, on the ground; near: when they are near each other): a unit vector across
+    their way past each other (perpendicular to w), toward the side the second passes the first on, the same side all
+    through the encounter (a run of samples near each other, round the loop). Each steps aside along it, the second
+    with it, the first against it: one walking at the other steps round it, one meeting the other they keep to their
+    sides, one crossing the other's way slows down a little as the other hurries past. Zero where they are not near or
+    hardly move past each other."""
+    speed = np.hypot(w[..., 0], w[..., 1])
+    px, pz = -w[..., 1] / np.maximum(speed, 1e-9), w[..., 0] / np.maximum(speed, 1e-9)
+    across = d[..., 0] * px + d[..., 1] * pz  # (how far the second is to that side)
+    out = np.zeros(d.shape)
+    k = near.shape[1]
+    for q in np.flatnonzero(near.any(axis=1)):
+        row = near[q]
+        starts = np.flatnonzero(row & ~np.roll(row, 1)) if not row.all() else np.array([0])
+        for s0 in starts:
+            run = [s0]
+            while row[(run[-1] + 1) % k] and len(run) < k:
+                run.append((run[-1] + 1) % k)
+            run = np.array(run)
+            side = -1.0 if across[q, run].mean() < 0 else 1.0
+            out[q, run, 0], out[q, run, 1] = side * px[q, run], side * pz[q, run]
+    return out
+
+
+def _meetings(at, i, j, way, scales, gap, loop):
+    """How pairs of birds (i, j) meet, going as they do (at: their footprints' middles, samples round the loop; way:
+    which way each faces): in each encounter, which way each steps aside (_passing), and how much aside rather than
+    straight apart (as fast as they move past each other)."""
+    k = at.shape[1]
+    d = at[j] - at[i]
+    dist = np.maximum(np.hypot(d[..., 0], d[..., 1]), 1e-9)
+    need = (_reach(scales[i][:, None], way[i][..., 0], way[i][..., 1], d[..., 0] / dist, d[..., 1] / dist)
+            + _reach(scales[j][:, None], way[j][..., 0], way[j][..., 1], d[..., 0] / dist, d[..., 1] / dist) + gap)
+    near = need + MEETING * 0.5 * (scales[i] + scales[j])[:, None] > dist
+    vel = (np.roll(at, -1, axis=1) - np.roll(at, 1, axis=1)) * (k / (2.0 * loop))  # (ground px a second)
+    rel = vel[j] - vel[i]
+    past = _passing(d, rel, near)
+    aside = SIDESTEP * _smooth(np.hypot(rel[..., 0], rel[..., 1]) / (PASSING * 0.5 * (scales[i] + scales[j])[:, None]))
+    return past, aside[..., None] * (np.abs(past).sum(-1) > 0)[..., None]  # (moving past each other: aside)
+
+
+def _close(at, scales, pairs, pushing):
+    """Which of the pairs (two rows of bird numbers) may meet over the next rounds: their footprints' middles
+    (at: samples round the loop) come within reach of each other, SLACK units to spare, anywhere round the loop (by
+    the boxes round their ways), or they still push each other apart (pushing: n x n x samples)."""
+    a, b = pairs
+    lo, hi = at.min(axis=1), at.max(axis=1)
+    apart = np.maximum(lo[b] - hi[a], lo[a] - hi[b]).max(axis=1)
+    near = (apart < (FOOT[0] + SLACK) * (scales[a] + scales[b])) | pushing[a, b].any(axis=1)
+    return a[near], b[near]
+
+
+def _plan(walkers, homes, scales, box, tilt, loop):
+    """How far (ground pixels: across the box, toward the camera) each bird steps aside from its own path at each
+    moment of the loop (PLAN_RATE samples a second, round the loop), so that no two birds walk through each other or
+    stand in each other: wherever their footprints would overlap they are pushed apart (a walking bird mostly, aside
+    from its way; one standing still hardly), within the box, and each bird's steps aside smoothed over the loop (a
+    standing bird's not at all: it does not slide; a walking one's over a few steps). Where they still overlap, the
+    push grows round after round (a method of multipliers: the smoothed steps aside then clear each other). None
+    when no two come near; and how much each two still overlap (units, at worst: an n x n table)."""
+    n = len(walkers)
+    w, h = box
+    st = math.sin(tilt)
+    k = max(16, int(round(loop * PLAN_RATE)))
+    feet, heading, go = np.zeros((n, k, 2)), np.zeros((n, k)), np.zeros((n, k))
+    for q, (walker, home) in enumerate(zip(walkers, homes)):
+        dx, dy, heading[q], go[q] = walker.samples(k)
+        feet[q, :, 0] = home[0] * w + dx * scales[q]
+        feet[q, :, 1] = (home[1] * h - dy * scales[q] * st) / st
+    stride = np.array([walker.speed for walker in walkers])[:, None] * go * scales[:, None]  # (walking: px a second)
+
+    def facing(off):  # (which way each faces, stepping aside as it walks: as _ground turns it)
+        moved = (np.roll(off, -1, axis=1) - np.roll(off, 1, axis=1)) * (k / (2.0 * loop))
+        ax, az = stride * np.cos(heading) + moved[..., 0], -stride * np.sin(heading) + moved[..., 1]
+        turned = heading + go * (np.mod(np.arctan2(-az, ax) - heading + math.pi, TAU) - math.pi)
+        return np.stack([np.cos(turned), -np.sin(turned)], -1)
+
+    way = facing(np.zeros((n, k, 2)))
+    centre = feet + FOOT[2] * scales[:, None, None] * way
+    every = np.triu_indices(n, 1)
+    if not (np.linalg.norm(centre[every[1]] - centre[every[0]], axis=-1).min(axis=1)
+            < 3.0 * FOOT[0] * (scales[every[0]] + scales[every[1]])).any():
+        return None, np.zeros((n, n))
+    moving = 0.5 * (go + np.roll(go, -1, axis=1))
+    smoother = _Smoother(EASE_WALK + EASE_STOP * (1.0 - moving) ** 2)
+    mobile = 0.06 + go
+    reach = 0.6 * scales.max() * LENGTH  # (kept inside the box: as its paths are)
+    lo = np.array([reach, 1.3 * reach / st])
+    hi = np.array([w - reach, 0.97 * h / st])
+    off = np.zeros((n, k, 2))
+    pushing = np.zeros((n, n, k))  # (how much further than their overlap each pair pushes, grown round after round
+    # while they still overlap: the steps aside, smoothed, then clear each other)
+    below, above = np.zeros((n, k, 2)), np.zeros((n, k, 2))  # (the same, keeping them inside the box)
+    i = j = more = None
+    for r in range(ROUNDS):
+        way = facing(off)
+        at = feet + off + FOOT[2] * scales[:, None, None] * way
+        if r % AGAIN == 0:  # (which may meet, and how they meet now: each one's way past the other, as they go)
+            if i is not None:
+                pushing[i, j] = more
+            i, j = _close(at, scales, every, pushing)
+            share = mobile[i] / (mobile[i] + mobile[j])
+            gap = APART * 0.5 * (scales[i] + scales[j])[:, None]
+            most = LIMIT * 0.5 * (scales[i] + scales[j])[:, None]
+            more = pushing[i, j]
+            past, aside = _meetings(at, i, j, way, scales, gap, loop)
+        d = at[j] - at[i]
+        dist = np.hypot(d[..., 0], d[..., 1])
+        flat = dist < 1e-9  # (one right on the other: apart across the first one's way)
+        nx = np.where(flat, -way[i][..., 1], d[..., 0] / np.maximum(dist, 1e-9))
+        nz = np.where(flat, way[i][..., 0], d[..., 1] / np.maximum(dist, 1e-9))
+        need = (_reach(scales[i][:, None], way[i][..., 0], way[i][..., 1], nx, nz)
+                + _reach(scales[j][:, None], way[j][..., 0], way[j][..., 1], nx, nz) + gap)
+        over = need - dist
+        low, high = lo - at, at - hi
+        if ((not over.size or float(over.max()) < 1e-3 * float(scales.min())) and float(low.max()) < 1e-3
+                and float(high.max()) < 1e-3):
+            break
+        push = np.maximum(low + below, 0.0) - np.maximum(high + above, 0.0)  # (back into the box)
+        across = past - (past[..., 0] * nx + past[..., 1] * nz)[..., None] * np.stack([nx, nz], -1)
+        apart = np.stack([nx, nz], -1) * (1.0 - aside) + across * aside  # (straight apart; moving past each other,
+        # mostly aside, each to its side: never toward each other)
+        apart /= np.maximum(np.hypot(apart[..., 0], apart[..., 1]), 1e-9)[..., None]
+        force = np.maximum(over + more, 0.0)
+        np.add.at(push, i, -apart * (force * share)[..., None])
+        np.add.at(push, j, apart * (force * (1.0 - share))[..., None])
+        more = np.minimum(np.maximum(more + over, 0.0), most)
+        below, above = np.maximum(below + low, 0.0), np.maximum(above + high, 0.0)
+        off = smoother.solve(off + push)
+    i, j = every  # (what each two still overlap: units, at worst)
+    way = facing(off)
+    at = feet + off + FOOT[2] * scales[:, None, None] * way
+    d = at[j] - at[i]
+    dist = np.maximum(np.hypot(d[..., 0], d[..., 1]), 1e-9)
+    nx, nz = d[..., 0] / dist, d[..., 1] / dist
+    need = (_reach(scales[i][:, None], way[i][..., 0], way[i][..., 1], nx, nz)
+            + _reach(scales[j][:, None], way[j][..., 0], way[j][..., 1], nx, nz))
+    left = np.zeros((n, n))
+    left[i, j] = left[j, i] = np.maximum(need - dist, 0.0).max(axis=1) / (0.5 * (scales[i] + scales[j]))
+    return off, left
+
+
+def _along_loop(plan, i, x):
+    """Bird i's step aside at x samples round the loop (Catmull-Rom between the plan's samples, round the loop), and
+    how fast it changes (a sample)."""
+    k = plan.shape[1]
+    j = math.floor(x)
+    f = x - j
+    p0, p1, p2, p3 = (plan[i, (j + d) % k] for d in (-1, 0, 1, 2))
+    a, b, c = 2 * p0 - 5 * p1 + 4 * p2 - p3, -p0 + 3 * p1 - 3 * p2 + p3, p2 - p0
+    return 0.5 * (2 * p1 + c * f + a * f * f + b * f ** 3), 0.5 * (c + 2 * a * f + 3 * b * f * f)
+
+
 # --- the effect -------------------------------------------------------------------------------------------------------
 
 DEFAULTS = {"mode": "ground", "coat": "mixed", "amount": 40, "size": 50, "depth": 50, "view": 40, "shadow": 60,
@@ -1261,7 +1537,8 @@ SCHEMA = {
             "Đi lại nhiều, Mổ hạt, Nằm nghỉ và rỉa lông, Chim trống gù (phồng cổ, xoè đuôi, cúi chào, xoay vòng), Tốc "
             "độ, Đi quanh quẩn hay đi khắp khung; Mỗi con một kiểu càng lớn thì mỗi con càng khác: con hay đi, con "
             "hay mổ, con lười nằm nghỉ, con đi nhanh, con đi chậm. Muốn đàn chim làm khác đi: bấm Đổi kiểu ngẫu "
-            "nhiên. Chim sáng tối theo ánh sáng chỗ khung đứng trong video.",
+            "nhiên. Chim tự tránh nhau, không đi xuyên qua nhau; chim to mà nhiều quá thì khung không đủ chỗ: app "
+            "bớt chim. Chim sáng tối theo ánh sáng chỗ khung đứng trong video.",
     "params": [
         _choice("mode", "Kiểu", DEFAULTS["mode"], [("ground", "Đi lại, mổ hạt trên mặt đất"),
                                                    ("ledge", "Đậu trên gờ tường, mái nhà")], group="Kiểu"),
@@ -1299,12 +1576,14 @@ class Pigeons(Effect):
     TURNS = False
     LIT = True
     PREVIEW = 1280
-    VERSION = 7  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
+    VERSION = 8  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
     # 4: standing tall as a photograph's, its folded wings and their primaries, the neck's sheen round its foot;
     # 5: smooth paths, steps, glides; creases shaded, a glossy feathered neck, catchlights, claws, the photo's colours;
     # 6: four scaly toes a foot, joint by joint, curling as a foot lifts; sitting, preening, courting; each its ways;
     # 7: the photograph's curved, scalloped wing bars, its colours measured again, a streaked neck, a purple bib,
-    # feathered thighs, pale fringes on the long feathers, a satin sheen, checker wedges, the tail lower standing)
+    # feathered thighs, pale fringes on the long feathers, a satin sheen, checker wedges, the tail lower standing;
+    # 8: out of each other's way: placed where and when they seldom meet, stepping aside, those the box has no room
+    # for left out, a stretch of its own each along a ledge)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
 
@@ -1314,6 +1593,12 @@ class Pigeons(Effect):
         self.mode = p["mode"] if p["mode"] in CAP else "ground"
         rng = np.random.default_rng([self.seed, 4407])
         n = count(self.mode, p["amount"])
+        self.size = SMALLEST * (LARGEST / SMALLEST) ** (p["size"] / 100)  # (a bird's length, box heights, nearest)
+        self.rw, self.rh = REF * self.BOX[0] / self.BOX[1], REF  # (the flock laid out in a box this size, whatever
+        # size it is drawn at: the same birds in the same places doing the same, in the preview clip and the video)
+        w, h = self.rw, self.rh
+        if self.mode == "ledge":  # (a ledge holds only so many birds, each walking to and fro on its own stretch)
+            n = min(n, max(1, int((w - 1.2 * self.size * h) / (LEDGE * self.size * h / LENGTH))))
         coats = []
         for _ in range(CAP[self.mode]):
             if p["coat"] == "mixed":
@@ -1331,21 +1616,32 @@ class Pigeons(Effect):
         self.u = u
         self.pace = 2.0 ** ((p["speed"] - 50) / 50)
         self.tilt = math.radians(_lerp(8, 50, p["view"] / 100))
-        self.size = SMALLEST * (LARGEST / SMALLEST) ** (p["size"] / 100)  # (a bird's length, box heights, nearest)
         self.depth = p["depth"] / 100
         self.walkers, self.homes = [], []
-        x0, y0, w, h = self.box()
         roam = p.get("roam", 50) / 100  # (round and round near home .. long narrow paths over the box)
+        slots = self._slots(u, w, h) if self.mode == "ledge" else [None] * n
+        self.thin = max(0.0, roam * 2 - 1)
         for i in range(n):
             scale = self._scale(u[i], h)
-            room = (0.42 if self.mode == "ledge" else 0.16 * _lerp(0.35, 1.0, min(roam * 2, 1.0))) * w / max(
-                scale, 1e-9)  # (units)
-            busy, hungry, rest, court, pace, male = self.temper(i)
-            walker = Walker(np.random.default_rng([self.seed, 4407, i]), self.loop_s, busy, pace,
-                            self.mode == "ledge", room, hungry, rest, court, male, max(0.0, roam * 2 - 1))
-            self.walkers.append(walker)
-            self.homes.append(self._home(walker, u[i], scale, w, h))
+            if slots[i] is not None:  # (along a ledge: within its own stretch of it, its tail too)
+                room = max(0.05, slots[i][1] / max(scale, 1e-9) - (FOOT[0] - FOOT[2]) - APART / 2)
+            else:
+                room = 0.16 * _lerp(0.35, 1.0, min(roam * 2, 1.0)) * w / max(scale, 1e-9)  # (units)
+            self.walkers.append(self._walker(i, room))
+        self.plan = None
+        if self.mode == "ground" and n > 1:  # (on the ground: each where and when it seldom meets the others, out of
+            # each other's way; too many for the box, those it has no room for left out)
+            self._flock(w, h)
+        else:
+            self.homes = [self._home(walker, u[i], self._scale(u[i], h), w, h, slots[i] and slots[i][0])
+                          for i, walker in enumerate(self.walkers)]
         self.light = self._light(light, p["lit"] / 100)  # (the scene's where the box stands, or daylight)
+
+    def _walker(self, i, room):
+        """Bird i's day (Walker), its paths within `room` (units) of its home."""
+        busy, hungry, rest, court, pace, male = self.temper(i)
+        return Walker(np.random.default_rng([self.seed, 4407, i]), self.loop_s, busy, pace, self.mode == "ledge",
+                      room, hungry, rest, court, male, self.thin)
 
     def temper(self, i):
         """Bird i's own ways (each a little or, "Mỗi con một kiểu", very different from the flock's settings): how
@@ -1380,14 +1676,173 @@ class Pigeons(Effect):
         depth = 0.0 if self.mode == "ledge" else u[1]  # (0 near: the box's bottom, 1 far: its top)
         return self.size * (1.0 - self.depth * 0.7 * depth) * h / LENGTH
 
-    def _home(self, walker, u, scale, w, h):
-        """Where a bird's path is (its middle: shares of the box across and down), all of it inside the box."""
+    def _slots(self, u, w, h):
+        """Along a ledge, each bird's own stretch of it, so that none walks through another: the ledge cut at random
+        into as many stretches as birds, each at least LEDGE units long, given in the order of the birds' u[0]
+        (where along it they would have been): each one's middle and half its width (px)."""
+        n = len(u)
+        if not n:
+            return []
+        reach = 0.6 * self.size * h
+        least = LEDGE * self.size * h / LENGTH
+        share = 0.6 + np.random.default_rng([self.seed, 4410]).random(n)
+        widths = np.minimum(least, (w - 2 * reach) / n) + max(w - 2 * reach - n * least, 0.0) * share / share.sum()
+        mids = reach + np.cumsum(widths) - widths / 2
+        out = [None] * n
+        for k, i in enumerate(np.argsort(u[:, 0], kind="stable")):
+            out[i] = (float(mids[k]), float(widths[k] / 2))
+        return out
+
+    def _spread(self, w, h):
+        """On the ground, each bird where and when its path meets the others' least (u[i, :2]: where across the box
+        and how far away; its walker's shift: when in the loop its day begins): each in turn, of SPOTS places and
+        times (its own first, then others at random), the first where it never comes near the birds before it, else
+        the one where it overlaps them least; then those still meeting others moved again to wherever they meet them
+        least (SWEEPS times over); then, crowded, those given smaller paths (SHRINK) and placed again; and too many
+        for the box, the bird overlapping the others most left out, and the next, until none overlaps another deeper
+        than CROWD. The birds kept (their numbers): they seldom need to step out of each other's way (_plan)."""
+        n = len(self.walkers)
+        k = max(16, int(round(self.loop_s * PLAN_RATE)))
+        st = math.sin(self.tilt)
+        spare = (SPARE + APART) / 2  # (each bird's share of the room kept between two)
+        moves = [None] * n
+        at, scales, ways, starts = np.zeros((n, k, 2)), np.zeros(n), np.zeros((n, k, 2)), np.zeros(n, int)
+
+        def walk(i):  # (bird i's steps round the loop from its home, its day begun at the loop's start)
+            moves[i] = self.walkers[i].samples(k)[:3]
+
+        def put(i, tries):  # (bird i at each place and time tried: its footprint's middle and way round the loop)
+            out, faces, sizes = np.zeros((len(tries), k, 2)), np.zeros((len(tries), k, 2)), np.zeros(len(tries))
+            for q, (u0, u1, m) in enumerate(tries):
+                c = np.array([u0, u1])
+                scale = self._scale(c, h)
+                home = self._home(self.walkers[i], c, scale, w, h)
+                dx, dy, a = np.roll(moves[i], -int(m), axis=1)
+                faces[q, :, 0], faces[q, :, 1] = np.cos(a), -np.sin(a)
+                out[q, :, 0] = home[0] * w + dx * scale
+                out[q, :, 1] = (home[1] * h - dy * scale * st) / st
+                out[q] += FOOT[2] * scale * faces[q]
+                sizes[q] = scale
+            return out, faces, sizes
+
+        def meets(places, faces, sizes, others, room=spare):  # (how much a bird overlaps the others at each
+            # place: squared, summed round the loop; and at worst, units: only those whose ways come near compared)
+            cost, depth = np.zeros(len(places)), np.zeros(len(places))
+            if not len(others):
+                return cost, depth
+            lo, hi = at[others].min(axis=1), at[others].max(axis=1)
+            apart = np.maximum(lo[None] - places.max(axis=1)[:, None], places.min(axis=1)[:, None] - hi[None])
+            c, o = np.nonzero(apart.max(axis=2) < (FOOT[0] + room) * (sizes[:, None] + scales[others][None]))
+            if not len(c):
+                return cost, depth
+            o = others[o]
+            d = at[o] - places[c]
+            dist = np.maximum(np.hypot(d[..., 0], d[..., 1]), 1e-9)
+            nx, nz = d[..., 0] / dist, d[..., 1] / dist
+            s0, s1 = sizes[c][:, None], scales[o][:, None]
+            over = np.maximum(_reach(s0, faces[c][..., 0], faces[c][..., 1], nx, nz) + s0 * room
+                              + _reach(s1, ways[o][..., 0], ways[o][..., 1], nx, nz) + s1 * room - dist, 0.0)
+            np.maximum.at(depth, c, (over / (0.5 * (s0 + s1))).max(axis=1))
+            return np.bincount(c, (over ** 2).sum(axis=1), len(places)), depth
+
+        def place(i, others, sweep):  # (bird i where it meets the others least; at first, the first free place)
+            rng = np.random.default_rng([self.seed, 4411, i, sweep])
+            tries = np.column_stack([rng.random((SPOTS, 2)), rng.integers(0, k, SPOTS)])
+            tries[0] = self.u[i, 0], self.u[i, 1], starts[i]
+            places, faces, sizes = put(i, tries)
+            c = meets(places, faces, sizes, others)[0]
+            q = int(np.argmax(c == 0.0)) if sweep == 0 and (c == 0.0).any() else int(np.argmin(c))
+            self.u[i, :2], starts[i] = tries[q, :2], int(tries[q, 2])
+            at[i], ways[i], scales[i] = places[q], faces[q], sizes[q]
+
+        def costs(alive, room=spare):  # (how much each bird overlaps the others alive, and at worst)
+            out = np.zeros((2, n))
+            for i in alive:
+                out[:, i] = np.array(meets(at[i][None], ways[i][None], scales[i:i + 1], alive[alive != i], room))[:, 0]
+            return out
+
+        everyone = np.arange(n)
+        for i in range(n):
+            walk(i)
+            place(i, everyone[:i], 0)
+        for sweep in range(1, SWEEPS + TIGHTER + 1):
+            cost = costs(everyone)[0]
+            if not cost.any():
+                break
+            for i in np.flatnonzero(cost):
+                if sweep > SWEEPS:  # (still meeting others: a smaller path, nearer its home)
+                    self.walkers[i] = self._walker(i, self.walkers[i].room * SHRINK)
+                    walk(i)
+                place(i, everyone[everyone != i], sweep)
+        for i in range(n):
+            self.walkers[i].shift = starts[i] * self.loop_s / k
+        alive = everyone
+        while len(alive) > 1:  # (too many for the box: the bird overlapping the others most left out, and so on,
+            # until none overlaps another deeper than CROWD: those the birds step round, out of each other's way)
+            cost, depth = costs(alive, 0.0)
+            if depth.max() <= CROWD:
+                break
+            alive = alive[alive != int(np.argmax(cost))]
+        return alive
+
+    def _keep(self, keep):
+        """Only the birds `keep` (their numbers), the others left out."""
+        self.u = self.u[keep]
+        self.coats, self.walkers = [self.coats[i] for i in keep], [self.walkers[i] for i in keep]
+
+    def _flock(self, w, h):
+        """On the ground: each bird where and when it seldom meets the others (_spread), their steps aside out of
+        each other's way where they still meet (_plan; a bird that still walks into others left out and the plan made
+        again, at most DROPS times over), their homes. Kept for the next clip with the same birds (_PLANS): a big
+        flock takes a while."""
+        key = (self.seed, self.P, self.fps, round(w, 3), round(h, 3),
+               tuple((k, self.p.get(k)) for k in ("mode", "amount", "size", "depth", "view", "busy", "peck", "rest",
+                                                   "court", "speed", "roam", "differ")))
+        with _PLANS_LOCK:
+            made = _PLANS.pop(key, None) or self._lay_out(w, h)
+            _PLANS[key] = made
+            while len(_PLANS) > 4:
+                _PLANS.popitem(last=False)
+        places, shifts, rooms, kept, self.plan = made
+        for i, walker in enumerate(self.walkers):
+            if rooms[i] != walker.room:  # (given a smaller path)
+                self.walkers[i] = self._walker(i, rooms[i])
+            self.walkers[i].shift = shifts[i]
+        self.u[:, :2] = places
+        self._keep(kept)
+        self.homes = [self._home(walker, u, self._scale(u, h), w, h) for walker, u in zip(self.walkers, self.u)]
+
+    def _lay_out(self, w, h):
+        """The flock on the ground (_flock): where each bird is (u[:, :2]), when its day begins, how far it walks,
+        the birds kept (their numbers) and their steps aside."""
+        alive = self._spread(w, h)
+        places = self.u[:, :2].copy()
+        shifts, rooms = [k.shift for k in self.walkers], [k.room for k in self.walkers]
+        homes = [self._home(walker, u, self._scale(u, h), w, h) for walker, u in zip(self.walkers, self.u)]
+        scales = np.array([self._scale(u, h) for u in self.u])
+        kept = alive
+        for attempt in range(DROPS + 1):
+            plan, left = _plan([self.walkers[i] for i in kept], [homes[i] for i in kept], scales[kept], (w, h),
+                               self.tilt, self.loop_s)
+            if attempt == DROPS or left.max() <= OVERLAP:
+                break
+            kept = np.delete(kept, int(np.argmax(left.sum(axis=1))))  # (the one still overlapping others most)
+        return places, shifts, rooms, kept, plan
+
+    def _home(self, walker, u, scale, w, h, at=None):
+        """Where a bird's path is (its middle: shares of the box across and down), all of it inside the box; along a
+        ledge, in the middle of its own stretch of it (`at`, px across the box)."""
         sy = scale * math.sin(self.tilt)
         lo_x, hi_x = float(walker.px.min()) * scale, float(walker.px.max()) * scale
         lo_y, hi_y = -float(walker.py.max()) * sy, -float(walker.py.min()) * sy
         reach = 0.6 * self.size * h  # (a bird's own size round its feet)
         left, right = reach - lo_x, w - reach - hi_x
-        hx = left + (right - left) * u[0] if right > left else w / 2 - (lo_x + hi_x) / 2
+        if right <= left:
+            hx = w / 2 - (lo_x + hi_x) / 2
+        elif at is not None:
+            hx = min(max(at - (lo_x + hi_x) / 2, left), right)
+        else:
+            hx = left + (right - left) * u[0]
         if self.mode == "ledge":  # (the near side of its path on the box's bottom edge, the far one a little up)
             return hx / w, 0.97 - hi_y / h
         top, bottom = 1.3 * reach - lo_y, h * 0.97 - hi_y  # (its head this high above its feet, standing tall)
@@ -1398,11 +1853,21 @@ class Pigeons(Effect):
         """Each bird now: (feet x, y in the frame, its scale px a unit, heading, pose)."""
         out = []
         sec = (t % self.P) / self.fps
-        for walker, u, home in zip(self.walkers, self.u, self.homes):
+        st = math.sin(self.tilt)
+        for i, (walker, u, home) in enumerate(zip(self.walkers, self.u, self.homes)):
             scale = self._scale(u, h)
             dx, dy, heading = walker.where(sec)
             fx = x0 + home[0] * w + dx * scale
-            fy = y0 + home[1] * h - dy * scale * math.sin(self.tilt)
+            fy = y0 + home[1] * h - dy * scale * st
+            if self.plan is not None:  # (stepped aside, out of the others' way: planned in a box rh high)
+                rate, k = self.plan.shape[1] / self.loop_s, h / self.rh
+                (ox, oz), (vx, vz) = _along_loop(self.plan, i, sec * rate)
+                fx, fy = fx + ox * k, fy + oz * st * k
+                go = walker.pace_at(sec)
+                if go > 0:  # (walking: facing the way it goes)
+                    v = walker.speed * go * scale
+                    ax, az = v * math.cos(heading) + vx * rate * k, -v * math.sin(heading) + vz * rate * k
+                    heading += go * math.remainder(math.atan2(-az, ax) - heading, TAU)
             out.append((fx, fy, scale, heading, walker.pose(sec)))
         return out
 

@@ -322,6 +322,167 @@ class Ways(unittest.TestCase):
         self.assertGreater(spans[1], 1.5 * spans[0])
 
 
+def overlaps(fx, step=2):
+    """How deep, at worst over the loop, two birds' footprints (ellipses round their bodies on the ground) overlap:
+    units (a bird is LENGTH long)."""
+    x0, y0, w, h = fx.box()
+    st = math.sin(fx.tilt)
+    worst = 0.0
+    for t in range(0, fx.P, step):
+        birds = fx._ground(t, x0, y0, w, h)
+        if len(birds) < 2:
+            return 0.0
+        feet = np.array([(b[0], b[1] / st) for b in birds])
+        size = np.array([b[2] for b in birds])
+        way = np.array([(math.cos(b[3]), -math.sin(b[3])) for b in birds])
+        mid = feet + (pigeons.FOOT[2] * size)[:, None] * way
+        i, j = np.triu_indices(len(birds), 1)
+        d = mid[j] - mid[i]
+        dist = np.maximum(np.hypot(d[:, 0], d[:, 1]), 1e-9)
+        nx, nz = d[:, 0] / dist, d[:, 1] / dist
+        need = (pigeons._reach(size[i], way[i, 0], way[i, 1], nx, nz)
+                + pigeons._reach(size[j], way[j, 0], way[j, 1], nx, nz))
+        worst = max(worst, float(((need - dist) / (0.5 * (size[i] + size[j]))).max()))
+    return worst
+
+
+class Line:
+    """A stand-in for a Walker: to and fro along a straight line (or standing still), round a loop."""
+
+    def __init__(self, x, y, way, length, loop, stand=False):
+        self.x, self.y, self.way, self.length, self.loop, self.stand = x, y, way, length, loop, stand
+        self.speed = 2 * length / loop
+
+    def where(self, t):
+        if self.stand:
+            return self.x, self.y, self.way
+        f = (t / self.loop) % 1.0
+        back = f >= 0.5
+        along = self.length * ((2 * f if not back else 2 - 2 * f) - 0.5)
+        return (self.x + math.cos(self.way) * along, self.y + math.sin(self.way) * along,
+                self.way + (math.pi if back else 0.0))
+
+    def pace_at(self, t):
+        return 0.0 if self.stand else 1.0
+
+    def samples(self, k):
+        return np.array([(*self.where(t), self.pace_at(t)) for t in np.arange(k) * (self.loop / k)]).T
+
+
+class Apart(unittest.TestCase):
+    """The owner (2026-10-24): "các con chim bồ câu bị dính vào nhau, đi xuyên qua nhau". Each bird is placed where
+    and when its path meets the others' least (_spread), and steps aside out of their way where they still meet
+    (_plan); too many for the box, the birds it has no room for are left out."""
+
+    def test_none_walk_into_another(self):
+        for params in ({}, {"amount": 100}, {"amount": 100, "size": 70}, {"amount": 70, "size": 60, "roam": 100},
+                       {"amount": 100, "size": 40, "roam": 0}, {"amount": 100, "busy": 100, "speed": 100},
+                       {"mode": "ledge", "amount": 100}, {"mode": "ledge", "amount": 60, "size": 70}):
+            for seed in (3, 11):
+                fx = make(params, 480, seed=seed)
+                self.assertLess(overlaps(fx), 0.05, (params, seed))
+
+    def test_they_would_without(self):
+        """Left on their own paths, the same birds walk into each other (so the test above tests something)."""
+        with mock.patch.object(pigeons.Pigeons, "_spread", lambda self, w, h: np.arange(len(self.walkers))), \
+                mock.patch.object(pigeons, "_plan", lambda walkers, *a: (None, np.zeros((len(walkers),) * 2))):
+            pigeons._PLANS.clear()
+            worst = max(overlaps(make({"amount": 100}, 480, seed=seed)) for seed in (3, 11))
+        pigeons._PLANS.clear()
+        self.assertGreater(worst, 0.3)
+
+    def test_most_keep_their_own_places(self):
+        """Few birds: each where its own numbers put it unless it would meet another there; with room, every bird
+        asked for (as many as "Số chim" says)."""
+        for amount in (20, 40, 70, 100):
+            fx = make({"amount": amount}, 480)
+            self.assertEqual(len(fx.walkers), pigeons.count("ground", amount), amount)
+
+    def test_too_many_for_the_box(self):
+        """Big birds, many of them: the box holds only so many without them walking into each other; those left
+        out, the rest apart. On a ledge, each bird a stretch of its own as long as LEDGE at least."""
+        for mode in MODES:
+            fx = make({"mode": mode, "amount": 100, "size": 100}, 480)
+            self.assertLess(len(fx.walkers), pigeons.CAP[mode], mode)
+            self.assertGreater(len(fx.walkers), 0, mode)
+            self.assertLess(overlaps(fx), 0.05, mode)
+        fx = make({"mode": "ledge", "amount": 100, "size": 60}, 480)
+        x0, y0, w, h = fx.box()
+        slots = sorted(fx._slots(fx.u, w, h))
+        self.assertGreaterEqual(min(s[1] for s in slots) * 2, pigeons.LEDGE * fx.size * h / pigeons.LENGTH - 1e-6)
+        self.assertLessEqual(slots[-1][0] + slots[-1][1], w - 0.6 * fx.size * h + 1e-6)
+
+    def test_standing_still_it_does_not_slide(self):
+        """Stepping aside only as it walks: while a bird stands (looks round, pecks, sits, preens, courts) its feet
+        stay put."""
+        for params in ({"amount": 100, "size": 70}, {"amount": 70, "size": 85, "busy": 100}):
+            fx = make(params, 480)
+            self.assertIsNotNone(fx.plan, params)
+            x0, y0, w, h = fx.box()
+            before = None
+            for t in range(fx.P + 1):
+                now = fx._ground(t, x0, y0, w, h)
+                if before is not None:
+                    for walker, a, b in zip(fx.walkers, before, now):
+                        if walker.pace_at((t - 1) / fx.fps) == 0 and walker.pace_at(t / fx.fps) == 0:
+                            self.assertLess(math.hypot(b[0] - a[0], b[1] - a[1]), 0.002 * b[2], (params, t))
+                before = now
+
+    def test_steps_aside(self):
+        """One walking through another standing still, two walking at each other, two crossing: each steps aside (no
+        overlap left), and a standing bird hardly moves."""
+        tilt, loop = math.radians(30), 20.0
+        for walkers in ([Line(0, 0, 0.0, 4.0, loop), Line(0.0, 0.05, 0.0, 0, loop, stand=True)],
+                        [Line(0, 0, 0.0, 4.0, loop), Line(0, 0, math.pi, 4.0, loop)],
+                        [Line(0, 0, 0.0, 4.0, loop), Line(0, 0, math.pi / 2, 4.0, loop)]):
+            scales = np.full(2, 100.0)
+            plan, left = pigeons._plan(walkers, [(0.5, 0.5)] * 2, scales, (2000.0, 1000.0), tilt, loop)
+            self.assertIsNotNone(plan)
+            self.assertLess(float(left.max()), 0.02)
+            self.assertLess(float(np.abs(plan).max()), 100.0)  # (aside, not away: under a unit)
+            if walkers[1].stand:
+                self.assertLess(float(np.ptp(plan[1], axis=0).max()), 0.5)  # (px)
+
+    def test_the_same_each_time(self):
+        """The flock (places, days, steps aside, birds kept) is the same whenever it is made: each clip of an export
+        draws the same birds."""
+        params = {"amount": 100, "size": 70}
+        pigeons._PLANS.clear()
+        a = make(params, 480)
+        pigeons._PLANS.clear()
+        b = make(params, 480)
+        self.assertTrue(np.array_equal(a.u, b.u))
+        self.assertEqual([w.shift for w in a.walkers], [w.shift for w in b.walkers])
+        self.assertTrue(np.array_equal(a.plan, b.plan))
+        c = make(params, 480)  # (made again from the kept layout)
+        self.assertTrue(np.array_equal(a.plan, c.plan) and np.array_equal(a.u, c.u))
+        self.assertEqual([(w.shift, w.room) for w in a.walkers], [(w.shift, w.room) for w in c.walkers])
+        self.assertEqual([b[:4] for b in a._ground(77, *a.box())], [b[:4] for b in c._ground(77, *c.box())])
+
+    def test_the_same_at_every_size(self):
+        """Laid out in a box of one size (REF high), the flock is the same however big it is drawn: the preview clip
+        and the video show the same birds in the same places, doing the same."""
+        params = {"amount": 100, "size": 70}
+        a, b = make(params, 480), make(params, 480, w=1280, h=720)
+        self.assertTrue(np.array_equal(a.u, b.u) and np.array_equal(a.plan, b.plan))
+        for t in (0, 101, 333):
+            (ax, ay, _, ah), (bx, by, _, bh) = a.box(), b.box()
+            fa = np.array([(f[0] - ax, f[1] - ay, f[3]) for f in a._ground(t, *a.box())]) / [ah, ah, 1]
+            fb = np.array([(f[0] - bx, f[1] - by, f[3]) for f in b._ground(t, *b.box())]) / [bh, bh, 1]
+            self.assertLess(float(np.abs(fa - fb).max()), 1e-9, t)
+
+    def test_its_day_shifted(self):
+        """A bird's day begun later in the loop (shift): where it is and what it does at t are its own at t + shift,
+        round the loop; its samples the same, turned round."""
+        walker = pigeons.Walker(np.random.default_rng(5), 20.0, 0.6, 1.0, hungry=0.5)
+        plain = walker.samples(40)
+        walker.shift = 20.0 * 7 / 40
+        for t in (0.0, 3.3, 15.0, 19.9):
+            self.assertEqual(walker.where(t), walker._where((t + walker.shift) % 20.0))
+            self.assertEqual(walker.pace_at(t), walker._pace((t + walker.shift) % 20.0))
+        self.assertTrue(np.allclose(walker.samples(40), np.roll(plain, -7, axis=1)))
+
+
 class Body(unittest.TestCase):
     """Its body is one smooth shape: its parts melted into each other where they meet."""
 
@@ -555,7 +716,7 @@ class Picture(unittest.TestCase):
         for mode in MODES:
             self.assertEqual(len(make({"mode": mode, "amount": 0}).u), 0)
             self.assertEqual(float(drawn(make({"mode": mode, "amount": 0}), 5)[1].max()), 0.0)
-            counts = [len(make({"mode": mode, "amount": a}).u) for a in (10, 35, 80, 100)]
+            counts = [len(make({"mode": mode, "amount": a, "size": 30}).u) for a in (10, 35, 80, 100)]
             self.assertEqual(counts, sorted(counts), mode)
             self.assertGreater(counts[0], 0, mode)
             self.assertEqual(counts[-1], pigeons.CAP[mode], mode)

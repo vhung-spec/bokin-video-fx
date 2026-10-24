@@ -387,6 +387,8 @@ xám tím, cánh xếp xám rất nhạt phủ kín hai bên thân, hai vạch �
 ngón trước, một ngón sau), ngón có đốt, phủ vảy, móng đen cong chạm đất, nhấc chân thì các ngón co lại; nhìn gần thấy
 từng hàng lông trên cánh, lông dài ở đuôi, lông mềm như nhung hơi bóng, chỗ khe giữa cánh và thân tối hơn. Còn có bồ
 câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối theo ánh sáng trong video và có bóng mềm dưới chân.
+Chim không đi xuyên qua nhau, không dính chồng lên nhau: mỗi con đứng chỗ ít gặp con khác, gặp nhau thì con đang đi
+tránh sang bên (con đang đứng không bị trượt), trên gờ mỗi con đi qua lại trên một đoạn riêng.
 
 1. Bấm **Tạo sẵn** → **Chim bồ câu**, kéo xuống một track trống, bấm **Suốt video**.
 2. Chọn **Kiểu**, rồi kéo khung trắng tới chỗ chim. Chim chỉ ở trong khung.
@@ -397,7 +399,8 @@ câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng 
 3. Chọn **Màu lông**: **Nhiều màu như đàn chim phố**, **Xám xanh (bồ câu thường)**, **Xám có đốm**, **Loang trắng**,
    **Bồ câu trắng**, **Nâu đỏ**, **Xám đen**. Chỉnh **Số chim**, **Cỡ chim** (chim ở đáy khung, so với chiều cao
    khung; kéo hết sang phải: chim dài bằng nửa chiều cao khung, như chim ngay trước máy quay), **Gần xa** (chim xa nhỏ
-   đi bao nhiêu).
+   đi bao nhiêu). Chim to mà nhiều quá thì khung không đủ chỗ cho chừng ấy chim: app bớt chim cho chim không chen vào
+   nhau (muốn nhiều chim hơn: kéo khung to ra hoặc giảm **Cỡ chim**).
 4. **Nhìn từ trên xuống** cho hợp góc máy (máy quay thấp, ngang tầm chim: kéo về trái; nhìn từ trên cao: kéo sang
    phải), **Bóng dưới chân**, **Độ mềm** (kéo sang phải: chim mềm như trong ảnh chụp, hợp với video hơi nhoè; kéo về
    trái: nét).
