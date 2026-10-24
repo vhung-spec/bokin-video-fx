@@ -178,14 +178,41 @@ class Picture(unittest.TestCase):
         """The fire's light on what is round it: brighter, warm, as bright as the fire is now."""
         fx, dark = make({"light": 100}), make({"light": 0})
         (rows, cols), (x0, y0, w, h) = box_of(fx)
-        spot = (slice(int(y0 + 0.2 * h), int(y0 + 0.3 * h)), slice(int(x0 + 0.08 * w), int(x0 + 0.14 * w)))
+        band = (slice(int(y0 + 0.3 * h), int(y0 + 0.45 * h)), slice(int(x0 + 0.15 * w), int(x0 + 0.85 * w)))
         gain = []
         for t in range(0, 96, 4):
-            a, b = lens(fx, t)[spot], lens(dark, t)[spot]
+            a, b = lens(fx, t)[band], lens(dark, t)[band]
             gain.append(float(a[..., 0].mean() / b[..., 0].mean()))
             self.assertGreater(float(a[..., 0].mean() - b[..., 0].mean()), float(a[..., 2].mean() - b[..., 2].mean()))
         self.assertGreater(min(gain), 1.03)
         self.assertGreater(max(gain) - min(gain), 0.02)  # (it flickers)
+
+    def test_lit_where_the_flames_are_not_hazy(self):
+        """The flames light the firebox round them, more near them than far off, more where they are now (their
+        light follows them); its surfaces lit, their colours kept (a brick's joints stay dark: not a haze)."""
+        low = {"height": 0, "amount": 60, "embers": 0}
+        fx, dark = make({**low, "light": 100}), make({**low, "light": 0})
+        (rows, cols), (x0, y0, w, h) = box_of(fx)
+        lit = [lens(fx, t) for t in (10, 50)]
+        off = lens(dark, 10)
+
+        def gain(img, f0, f1):  # (red, lit over unlit, in a band of the box: f0..f1 of its height)
+            band = (slice(int(y0 + f0 * h), int(y0 + f1 * h)), slice(int(x0 + 0.2 * w), int(x0 + 0.8 * w)))
+            return float(img[band][..., 0].mean() / off[band][..., 0].mean())
+
+        self.assertGreater(gain(lit[0], 0.65, 0.75) - 1, 2 * (gain(lit[0], 0.15, 0.25) - 1))  # (near, far)
+        g = fx.frames().frame(10)[0]
+        left, right = float(g[:, :g.shape[1] // 2].sum()), float(g[:, g.shape[1] // 2:].sum())
+        side = (slice(int(y0 + 0.35 * h), int(y0 + 0.55 * h)),)
+        halves = [float((lit[0][side[0], int(x0 + a * w):int(x0 + b * w)] /
+                         off[side[0], int(x0 + a * w):int(x0 + b * w)])[..., 0].mean()) for a, b in ((0.1, 0.4),
+                                                                                                    (0.6, 0.9))]
+        self.assertEqual(halves[0] > halves[1], left > right)  # (more light on the side the flames are on)
+        # bricks and their joints (ROOM's cells: brighter and darker): the bright cells gain more than the dark
+        band = (slice(int(y0 + 0.45 * h), int(y0 + 0.6 * h)), slice(int(x0 + 0.2 * w), int(x0 + 0.8 * w)))
+        cells = ((_xx // 12 + _yy // 8) % 2 == 1)[band]
+        add = (lit[1] - off)[band][..., 0]
+        self.assertGreater(float(add[cells].mean()), 1.15 * float(add[~cells].mean()))
 
     def test_sparks(self):
         """Sparks fly up from the fire now and then (more for a thicker fire): little bright streaks above it, in
@@ -282,12 +309,37 @@ class Logs(unittest.TestCase):
             self.assertGreater(len(ys), 0.01 * w * h, params)
             self.assertFalse((cover[outside] > 0).any(), params)
             bed = fx.bed * w
-            self.assertGreater(ys.max(), y0 + h - hearth.MARK * bed - 0.03 * h, params)  # (down on the bed)
+            coals = np.zeros((H, W), np.float32)
+            coals[where] = laid["bed"]
+            down = max(ys.max(), np.nonzero(coals > 0.5)[0].max())  # (the logs, or the coals in front of them)
+            self.assertGreater(down, y0 + h - hearth.MARK * bed - 0.03 * h, params)  # (down on the bed)
+            self.assertGreater(ys.max(), y0 + h - hearth.MARK * bed - 0.06 * h, params)
             self.assertLess(ys.min(), y0 + h - 0.08 * h, params)
             self.assertGreater(ys.min(), y0 + 0.35 * h, params)  # (not up in the flames)
             across = (xs.max() - xs.min()) / bed
             self.assertTrue(0.7 < across < 1.25 or bed > 0.9 * w, (params, across))
             self.assertLess(abs((xs.max() + xs.min()) / 2 - (x0 + w / 2)), 0.12 * w, params)
+
+    def test_on_a_bed_of_glowing_coals(self):
+        """The logs lie on a bed of coals and ash (in front of them, at their ends): glowing red where the fire is,
+        more as "Than hồng" is, breathing; grey ash further out; none of it outside the box."""
+        cold, hot = make({**WITH_LOGS, "embers": 0}), make({**WITH_LOGS, "embers": 100})
+        where, laid = self.logs_of(hot)
+        seen = (laid["bed"] > 0.9) & (laid["alpha"] < 0.05)
+        self.assertGreater(int(seen.sum()), 100)
+        glowing = seen & (laid["bed_heat"] > 0.3)
+        self.assertGreater(int(glowing.sum()), 30)
+        a, b = lens(cold, 30, BLACK)[where], lens(hot, 30, BLACK)[where]
+        self.assertGreater(float((b - a)[glowing][:, 0].mean()), 0.15)
+        self.assertGreater(float((b[..., 0] - b[..., 2])[glowing].mean()), 0.2)  # (red, orange)
+        ashen = seen & (laid["bed_heat"] < 0.02)  # (further out: cold, grey with ash)
+        self.assertGreater(int(ashen.sum()), 10)
+        self.assertGreater(float((laid["bed_albedo"][ashen] @ LUMA).mean()),
+                           2 * float((laid["bed_albedo"][glowing] @ LUMA).mean()))
+        frames = [lens(hot, t, BLACK)[where][glowing] @ LUMA for t in range(0, 96, 8)]
+        self.assertGreater(float(np.std(frames, axis=0).mean()), 0.003)  # (breathing)
+        (rows, cols), _ = box_of(hot)
+        self.assertEqual(where[0].stop <= rows.stop and where[1].stop <= cols.stop, True)
 
     def test_the_flames_behind_the_logs_in_front(self):
         """Where a log in front of the fire covers the picture, its charred wood shows, not the flames behind it
@@ -450,14 +502,18 @@ class Frame(unittest.TestCase):
                        {"frame": "arch", "frame_w": 50, "frame_h": 90, "curve": 100},
                        {"frame": "round", "frame_w": 85, "frame_h": 60, "curve": 80, "wood": "oak"}):
             fx = make({**params, "light": 100, "cover": 100, "embers": 100, "height": 100})
-            free = make({"light": 100, "cover": 100, "embers": 100, "height": 100, "wood": params.get("wood", "none")})
             well_in, well_out = self.opening(fx)
             for t in (10, 50):
-                out, whole = lens(fx, t), lens(free, t)
+                out = lens(fx, t)
                 self.assertTrue(np.array_equal(out[well_out], ROOM[well_out]), (params, t))
-                if "wood" not in params:  # (the same fire inside; with logs, the pile fits the opening instead)
-                    self.assertLess(float(np.abs(out[well_in] - whole[well_in]).max()), 1e-5, (params, t))
                 self.assertGreater(float(np.abs(out[well_in] - ROOM[well_in]).max()), 0.2, (params, t))
+            if "wood" not in params:  # (the same fire inside; with logs, the pile fits the opening instead; its
+                # light on the firebox as bright as what is inside the opening says)
+                same = {**params, "light": 0, "cover": 100, "embers": 100, "height": 100}
+                fx, free = make(same), make({**same, "frame": "none"})
+                for t in (10, 50):
+                    out, whole = lens(fx, t), lens(free, t)
+                    self.assertLess(float(np.abs(out[well_in] - whole[well_in]).max()), 1e-5, (params, t))
 
     def test_the_opening_as_the_page_draws_it(self):
         """Its top corners as CSS rounds a box's corners (the page draws the outline so): square; an arch over the

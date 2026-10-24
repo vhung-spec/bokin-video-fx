@@ -296,8 +296,12 @@ video gốc ở chỗ ngọn nến. Sau khi vẽ vùng đứng yên lên ngọn 
 ### Lửa lò sưởi
 
 Lửa củi cháy trong lò sưởi có sẵn trong video, như lửa quay thật: ngọn lửa liếm lên, cuộn xoáy, tách ngọn; gốc lửa vàng
-trắng, ngọn cam đỏ; than hồng dưới chân lửa; thỉnh thoảng tia lửa nhỏ bay lên; ánh lửa bập bùng hắt lên lò sưởi. Lửa do
-app tự tính (như khí nóng bốc lên thật), không phải một video có sẵn, nên vừa mọi lò sưởi và lặp liền mạch.
+trắng, ngọn cam đỏ; than hồng dưới chân lửa; thỉnh thoảng tia lửa nhỏ bay lên. Lửa do app tự tính (như khí nóng bốc lên
+thật), không phải một video có sẵn, nên vừa mọi lò sưởi và lặp liền mạch.
+
+Ánh lửa chiếu sáng bên trong lò như lửa thật: tường gạch, sàn lò sáng cam ngay cạnh ngọn lửa, tối dần ra xa và lên cao;
+bập bùng theo từng ngọn lửa (lửa bùng bên trái thì bên trái sáng hơn). Vẫn thấy rõ từng viên gạch, mạch vữa vẫn tối:
+gạch được chiếu sáng, không phải phủ một lớp sương cam.
 
 1. Bấm **Tạo sẵn** → **Lửa lò sưởi**, kéo xuống một track trống, bấm **Suốt video**.
 2. Kéo khung trắng tới lò sưởi. Ở đáy khung có **hình bầu dục vàng** (ghi "chỗ lửa cháy"): đặt nó lên **mặt củi**, chỗ
@@ -305,7 +309,7 @@ app tự tính (như khí nóng bốc lên thật), không phải một video c�
    lửa chỉ cháy trong khung.
 3. Chọn **Kiểu lửa**: **Lửa củi (vừa)**, **Lửa to, cháy mạnh**, **Lửa nhỏ, dịu**, **Sắp tàn, than hồng**. Chỉnh thêm
    **Ngọn lửa cao**, **Lửa dày**, **Bập bùng**, **Tốc độ**, **Độ sáng**, **Màu lửa** (vàng ← → đỏ cam), **Than hồng
-   dưới chân lửa**, **Ánh lửa hắt lên lò sưởi**.
+   dưới chân lửa**, **Ánh lửa hắt lên lò sưởi** (càng lớn, tường và sàn lò càng sáng; 0 là trong lò tối như video).
 4. Video đã có sẵn lửa đứng yên (ví dụ làm từ ảnh tĩnh): kéo **Che lửa cũ trong video** lên (50 đến 100). Lửa cũ tối
    đi thành ánh hồng mờ phía sau, lửa mới cháy lên trên.
 5. Muốn khúc củi phía trước che chân lửa (lửa cháy phía sau củi): bấm **V1 Video gốc** → **Vẽ tiền cảnh**, tô khúc
@@ -320,9 +324,12 @@ app tự tính (như khí nóng bốc lên thật), không phải một video c�
    - chỗ lửa chưa cháy tới (hai đầu khúc củi, mặt ngoài) còn nguyên vỏ cây, mặt cắt gỗ có vân vòng;
    - cạnh đó vỏ sém nâu, rồi than đen nứt thành từng khối, tro xám phủ mặt trên;
    - chỗ lửa nóng nhất (khe giữa các khúc, đáy củi, giữa đống) đang cháy đỏ: vết nứt đỏ cam rực, than đỏ âm ỉ, thở
-     theo nhịp lửa, có quầng sáng nhẹ.
+     theo nhịp lửa, có quầng sáng nhẹ;
+   - củi nằm trên lớp than và tro: ngay dưới và trước đống củi là than hồng đỏ cam rực, có cục than đen nằm trên, thở
+     theo nhịp lửa; xa ra là tro xám lẫn mẩu than.
    Củi được ánh lửa chiếu sáng, bập bùng theo ngọn lửa; khúc phía trước che chân lửa, lửa bốc lên từ giữa các khúc
-   củi. Đặt **hình bầu dục vàng** lên **sàn lò**, chỗ đặt củi (củi đứng trên nó, rộng bằng nó). Chỉnh thêm:
+   củi. Đặt **hình bầu dục vàng** lên **sàn lò**, chỗ đặt củi (củi đứng trên nó, rộng bằng nó; lớp than trước củi
+   xuống tới đáy khung trắng). Chỉnh thêm:
    - **Cách xếp**: **Ba khúc: hai dưới, một trên**, **Đống củi (năm khúc)**, **Hai khúc nằm cạnh nhau**.
    - **Khúc củi to**, **Cháy sém** (kéo về trái: củi mới, phần lớn còn vỏ, chỉ khe giữa đỏ; kéo sang phải: cháy lan
      rộng, nhiều chỗ đỏ rực). **Than hồng dưới chân lửa** càng lớn thì chỗ cháy đỏ càng rực; 0 là không đỏ.

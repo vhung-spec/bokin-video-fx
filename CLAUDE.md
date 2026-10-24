@@ -191,8 +191,14 @@ hiệu ứng. Cách dùng: `README.md`.
   số (`fire()`, `_FIRES` tới `KEEP` byte); loop bằng hoà dần: giây cuối của vòng trộn dần sang các khung trước khung 0,
   nên khung P là khung 0. Mỗi tiến trình (các đoạn khi xuất video) tự làm lửa từ đầu, giống hệt nhau (test). Màu lửa đo
   từ video lửa củi thật (`PAL`, bảng tra `_lut`), quầng sáng tính trên lưới thô (`_halo`), Screen; chân lửa là một đường
-  gợn trong hình bầu dục (`_floor_at`), không là một đường thẳng; than hồng (`_ember_field`); ánh lửa hắt lên lò nhân
-  vào hình (không thành sương), sáng tối theo lửa lúc đó (mức sáng so với trung bình đo lúc khởi động); "Che lửa cũ"
+  gợn trong hình bầu dục (`_floor_at`), không là một đường thẳng; than hồng (`_ember_field`); ánh lửa trên lò (`_light`,
+  chủ yêu cầu 2026-10-24: bên trong lò thật hơn): chính ngọn lửa lúc đó (`gflame` trên lưới thô) loang ra như ánh lửa
+  thật (`SPREAD`: vài lớp mờ, sáng nhất sát lửa), màu `FIRELIGHT` (theo "Màu lửa"), `LIGHT_ON` lần "Ánh lửa", nhân
+  vào hình như bề mặt có màu của nó dưới ánh phòng (`_room`: ánh phòng chiếu vào lò = độ sáng giữa (median) trong
+  miệng lò chia `ALBEDO`; màu bề mặt = hình / ánh phòng, mềm tới `ALBEDO_MAX` mỗi màu, không tối hơn `ALBEDO_MIN`;
+  tính trong ánh sáng tuyến tính, float32): gạch sáng đỏ, mạch vữa vẫn tối, không thành sương; lửa bùng chỗ nào sáng
+  chỗ đó; mức sáng chỉnh theo video lò sưởi thật chủ gửi. Ngọn lửa vẽ rực hơn (`PUNCH`, `PUNCH_K`: phần mờ trong hơn,
+  lõi sáng hơn: nổi trên tường lò đã sáng); "Che lửa cũ"
   (`cover`): chỗ sáng ấm hay trắng của lửa đứng yên trong video thành ánh mờ cùng màu đã làm nhoè (`DIM`). Hằng số và
   bản đồ theo hộp giữ giữa các khung (`_layout`). Chỉ các thông số của ngọn lửa (`k`) làm lại lửa; màu, ánh sáng, chỗ
   đặt thì không. "Khung lò" (từ 1.0.70; `frame`: `none` như cũ, `rect`, `arch`, `round`; `frame_w`, `frame_h`: phần của
@@ -202,7 +208,8 @@ hiệu ứng. Cách dùng: `README.md`.
   (`_opening`: mềm ở hai bên và trên, không ở đáy); đống củi hẹp lại cho vừa miệng lò. Không làm lại lửa. Tia lửa (từ
   1.0.73, `_sparks`: số nguyên tia mỗi vòng theo `SPARKS` và "Lửa dày", mỗi tia sinh một lúc trong vòng, bay lên từ đỉnh
   đống củi hay chân lửa, lượn, tắt dần; vệt nhỏ như máy quay thấy, Screen; không làm lại lửa). Chủ thấy lửa chưa đẹp
-  (2026-10-23): `DEFAULTS` từ 1.0.73 lửa dày, sáng hơn (`amount` 70, `bright` 58); `VERSION` 2.
+  (2026-10-23): `DEFAULTS` từ 1.0.73 lửa dày, sáng hơn; từ 2026-10-24 (lò sáng lên thì lửa phải rực hơn) `amount` 75,
+  `bright` 62; `VERSION` 3.
 - Củi của Lửa lò sưởi (`fx/logs.py`, từ 1.0.69; nhóm "Củi": `wood` (`none`: không củi, như cũ: clip cũ giữ nguyên),
   `stack`, `log_size`, `char`, `view`, hiện khi đã chọn củi: `show`; kiểu lửa không đặt chúng): đống củi vẽ bằng mã. Mỗi
   khúc là mặt ẩn (`Log.outside`: trụ gồ ghề theo bảng dọc trục, to một đầu, đầu cắt bo tròn) trong cảnh nhỏ trên hình
@@ -220,8 +227,16 @@ hiệu ứng. Cách dùng: `README.md`.
   cháy đỏ (`EMBER_HALO`, `_soft` trên phần củi, tràn ra ngoài mép khúc). `Pile.lay` một lần cho mỗi chỗ đặt (trong
   `_layout`): màu, pháp tuyến, phần mỗi đèn (đèn cố định: trên đống củi, giữa các khúc, than trước đống; hướng, bóng mềm
   của khúc khác, xa gần), ánh phòng (khúc quanh che), bóng trên sàn; mỗi khung (`Pile.colour`, `_logs`) chỉ đổi độ sáng
-  đèn (lửa mô phỏng quanh mỗi đèn: `_light_windows`; than: nhịp `ember_m`), ánh phòng (trung bình hình trong hộp) và chỗ
-  cháy đỏ (thở, số nguyên lần mỗi vòng). Củi đục, vẽ trước lửa: khúc trước mặt phẳng lửa (và tới 1,5 bán kính sau nó)
+  đèn (lửa mô phỏng quanh mỗi đèn: `_light_windows`; than: nhịp `ember_m`), ánh phòng (`Hearth._room`: ánh phòng
+  chiếu vào lò, không lấy trung bình cả hộp có mặt đá sáng: củi không xám) và chỗ cháy đỏ (thở, số nguyên lần mỗi
+  vòng). Ánh lửa trên củi màu `FLAME_LIGHT` (cam, như `FIRELIGHT`). Lớp than và tro dưới củi (từ 2026-10-24;
+  `Pile.bed` = `_bed_of`: quanh các khúc trên sàn, trước củi thêm `BED_FRONT` bán kính; đống củi lùi vào cho lớp than
+  trước nó còn trong hộp): `_bed_lay` (một lần mỗi chỗ đặt, `SS`x`SS` điểm mỗi điểm ảnh) và `_bed_looks` (nhiễu theo
+  điểm trên sàn: chỗ lửa cháy là lớp than hồng sáng qua kẽ nứt, cục than đen nằm trên (mặt trên tối, sáng phía sau,
+  mép cục đỏ); xa ra tro xám lẫn mẩu than; mép lởm chởm), `Pile.bed_colour` mỗi khung (ánh phòng và ánh lửa `lit`
+  của `_light`, than sáng `COAL_GLOW` lần độ đỏ của vết nứt, thở theo nhịp than); ánh sáng than vào quầng sáng như
+  vết nứt. Có củi thì than hồng `_ember_field` chỉ còn là ánh sáng (không vẽ: lớp than vẽ thay). Củi đục, vẽ trước
+  lửa: khúc trước mặt phẳng lửa (và tới 1,5 bán kính sau nó)
   che hết lửa, khúc sau nữa chỉ để lộ lưỡi lửa sáng (`BEHIND`), than hồng trên sàn bị che, quầng sáng bớt trên củi. Có
   củi thì chỗ cháy của mô phỏng lên tới giữa đống củi (`k["base"]`: đổi cỡ, cách xếp, góc nhìn là tính lại lửa; loại
   củi, cháy sém thì không). Đống củi nằm trong hộp (hẹp lại, lùi vào khi cần), khúc to nhất `BIGGEST`; `UNDER_FADE` = 0:

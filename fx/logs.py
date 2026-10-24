@@ -12,6 +12,10 @@ worked out there from the log's own random draws: the same seen at any size. Tha
 facing it, not in another log's shadow (softly: the flames are big), less with distance; and how much the logs round
 a point keep the room's light from it. Each frame (Pile.colour) only the lights' brightness changes (the flames near
 each, the embers breathing) and the cracks' glow.
+
+The logs lie on a bed of coals and ash (Pile.bed: round them on the floor, a little further in front): glowing embers
+with lumps of charcoal on them where the fire burns, grey ash further out (_bed_looks, worked out once a place of the
+box as the logs are; Pile.bed_colour each frame: lit, its coals glowing, breathing).
 """
 import math
 
@@ -50,8 +54,13 @@ HEART = _lin((158, 102, 60))  # (its heartwood, darker)
 EMBER_I = np.array([0.0, 0.2, 0.45, 0.75, 1.1, 1.6], np.float32)  # embers' colours by how hot (sRGB)
 EMBER = _lin([(0, 0, 0), (82, 12, 3), (190, 45, 8), (252, 105, 18), (255, 165, 50), (255, 222, 140)])
 GLOW_CRACK, GLOW_SKIN = 2.4, 2.4  # how hot a burning log's cracks and the char between them glow (times "glow")
-FLAME_LIGHT = np.array([1.0, 0.72, 0.45], np.float32)  # the flames' light on the logs (linear)
+FLAME_LIGHT = np.array([1.0, 0.55, 0.22], np.float32)  # the flames' light on the logs (linear)
 EMBER_LIGHT = np.array([1.0, 0.38, 0.1], np.float32)  # and the embers'
+# the bed of coals and ash under the logs: how far it reaches past them (log radii: in front, at their ends, behind),
+# a coal's size (radii), how hot its hottest coals glow (times the cracks' glow)
+BED_FRONT, BED_SIDE, BED_BACK = 0.7, 0.5, 0.8
+COAL = 0.34
+COAL_GLOW = 2.0
 
 
 def _smooth(x):
@@ -394,6 +403,7 @@ class Pile:
         """`width`: the bed's (box heights); the pile kept within `half` box heights each side of the bed's middle
         and above `floor` (box heights up from it on the picture: the box's bottom edge), moved back if need be."""
         rng = np.random.default_rng([seed, 9091])
+        self.seed = int(seed)
         self.width = float(width)
         self.r = min(0.085 * self.width * (0.6 + 0.8 * size), BIGGEST)  # (a log's radius)
         self.burnt = float(burnt)
@@ -406,19 +416,29 @@ class Pile:
                 for p0, p1, _ in laid:
                     p0[0] *= k
                     p1[0] *= k
-        if floor is not None:  # (further back if its front would be under the box's bottom edge)
+        if floor is not None:  # (further back if its front, or the bed of coals in front of it, would be under the
+            # box's bottom edge)
             up = np.array([0.0, math.sin(self.tilt), math.cos(self.tilt)])  # (up the picture, in the scene)
-            low = min(self._lowest(p0, p1, r, up) for p0, p1, r in laid)
+            low = min(min(self._lowest(p0, p1, r, up) for p0, p1, r in laid), self._bed_of(laid)[2] * up[1])
             if low < floor and up[1] > 1e-3:
                 for p0, p1, _ in laid:
                     p0[1] += (floor - low) / up[1]
                     p1[1] += (floor - low) / up[1]
         self.logs = [Log(p0, p1, r, wood, rng) for p0, p1, r in laid]
+        self.bed = self._bed_of(laid)
         self.top = max(max(lg.p0[2], lg.end()[2]) + lg.reach for lg in self.logs)
         ys = [y for lg in self.logs for y in (lg.p0[1], lg.end()[1])]
         self.fire = np.array([0.0, (min(ys) + max(ys)) / 2, 0.4 * self.top])  # (the fire's middle, among the logs)
         self.spread = 0.22 * self.width  # (its heart: a line across the pile this far each side of its middle)
         self.lights = self._lights()
+
+    def _bed_of(self, laid):
+        """Where the bed of coals and ash lies on the floor round logs laid (start, end, radius): (left, right, front,
+        back), box heights."""
+        xs = [v for p0, p1, _ in laid for v in (p0[0], p1[0])]
+        ys = [v for p0, p1, rad in laid for p in (p0, p1) for v in (p[1] - rad, p[1] + rad)]
+        r = self.r
+        return min(xs) - BED_SIDE * r, max(xs) + BED_SIDE * r, min(ys) - BED_FRONT * r, max(ys) + BED_BACK * r
 
     @staticmethod
     def _lowest(p0, p1, r, up):
@@ -477,7 +497,8 @@ class Pile:
         """(left, right, bottom, top) of the pile on the picture (box heights from the bed's middle, up), with room
         for its shadow on the floor round it."""
         corners = np.array([(dx, dy, dz) for dx in (-1, 1) for dy in (-1, 1) for dz in (-1, 1)], np.float64)
-        pts = np.concatenate([p + corners * lg.reach for lg in self.logs for p in (lg.p0, lg.end())])
+        pts = np.concatenate([p + corners * lg.reach for lg in self.logs for p in (lg.p0, lg.end())] +
+                             [np.array([(x, y, 0.0) for x in self.bed[:2] for y in self.bed[2:]])])
         x, s = self.screen(pts)
         m = 1.5 * self.r
         return x.min() - m, x.max() + m, s.min() - m * math.sin(self.tilt) - 0.5 * self.r, s.max() + 0.1 * self.r
@@ -570,7 +591,91 @@ class Pile:
         out["light"], out["room"] = self._shading(p[on], nrm[on], on)
         out["phase"] = self._phase(p[on], on)
         out["floor"] = self._floor(xs, ss)
+        out.update(self._bed_lay(xs, ss, px))
         return out
+
+    def _bed_lay(self, xs, ss, px):
+        """The bed of coals and ash under the logs over pixels (as lay): how much of each it covers ("bed"), its
+        colour there ("bed_albedo", linear, as lit from above: charcoal, ash), how much it glows ("bed_heat": 0 cold
+        .. 1 the hottest coals) and its moment in the embers' breathing ("bed_phase"). Each pixel SS x SS points on
+        the floor."""
+        h, w = len(ss), len(xs)
+        sa = math.sin(self.tilt)
+        x0, x1, y0, y1 = self.bed
+        X = np.broadcast_to(xs[None, :], (h, w))
+        Y = np.broadcast_to(ss[:, None] / sa, (h, w))
+        near = (X > x0 - px) & (X < x1 + px) & (Y > y0 - px / sa) & (Y < y1 + px / sa)
+        out = {"bed": np.zeros((h, w), np.float32), "bed_albedo": np.zeros((h, w, 3), np.float32),
+               "bed_heat": np.zeros((h, w), np.float32), "bed_phase": np.zeros((h, w), np.float32)}
+        idx = np.flatnonzero(near)
+        if not len(idx):
+            return out
+        sub = (np.arange(SS) + 0.5) / SS - 0.5
+        shape = (len(idx), SS, SS)
+        x = np.broadcast_to(X.reshape(-1)[idx, None, None] + sub[None, None, :] * px, shape).reshape(-1)
+        y = np.broadcast_to(Y.reshape(-1)[idx, None, None] - sub[None, :, None] * (px / sa), shape).reshape(-1)
+        cover, albedo, heat, phase = self._bed_looks(x, y, px / sa)
+        each = SS * SS  # (points a pixel)
+        cover = cover.reshape(-1, each)
+        some = np.maximum(cover.sum(1), 1e-9)
+        out["bed"].reshape(-1)[idx] = cover.mean(1)
+        out["bed_albedo"].reshape(-1, 3)[idx] = (albedo.reshape(-1, each, 3) * cover[..., None]).sum(1) / some[:, None]
+        out["bed_heat"].reshape(-1)[idx] = (heat.reshape(-1, each) * cover).sum(1) / some
+        out["bed_phase"].reshape(-1)[idx] = phase.reshape(-1, each)[:, 0]
+        return out
+
+    def _bed_looks(self, x, y, step):
+        """The bed of coals and ash at points (x, y) on the floor (box heights; `step`: a pixel's size there, up the
+        picture): how much of it is there (0..1), its colour (linear), how hot (0..1: how much it glows) and its
+        moment in the embers' breathing (0..1).
+
+        Where the fire burns (along the logs, under them and in front) a layer of embers glowing through cracks,
+        with lumps of charcoal on it (their tops dark, lit from above and behind, their edges glowing); out from
+        it cooler, grey ash with dark bits, out to a ragged edge."""
+        r = self.r
+        x0, x1, y0, y1 = self.bed
+        cx, cy, ax, ay = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, (y1 - y0) / 2
+        rng = np.random.default_rng([self.seed, 9092])
+        extent = 4 * max(x1 - x0, y1 - y0) / r + 80
+        a, q = x / r + 40, y / r + 40
+
+        def noise(size, octaves=2, dq=0.0):
+            return _noise(np.random.default_rng([self.seed, 9093, int(size * 1000)]), a, q + dq, size, extent,
+                          octaves, wrap=False)
+
+        ragged = _noise(rng, a, q, 1.2, extent, 2, wrap=False)
+        rho = ((np.abs(x - cx) / ax) ** 3 + (np.abs(y - cy) / ay) ** 3) ** (1 / 3)
+        cover = _smooth((1.05 - rho + 0.35 * (ragged - 0.5)) / 0.12)
+        fx, fy = self.fire[0], self.fire[1]
+        across = np.exp(-(np.maximum(np.abs(x - fx) - 1.2 * self.spread, 0.0) / (1.4 * r)) ** 2)
+        deep = np.exp(-((y - fy) / (3.2 * r)) ** 2)
+        zone = across * deep * _smooth((1.0 - rho) / 0.45)
+        zone = np.clip(zone * (0.75 + 0.5 * ragged), 0.0, 1.0)  # (how hot here)
+        # lumps of charcoal: where a noise of lumps' size is high (fewer where it is hotter); their height its
+        # height, their slope up the picture (behind: lit by the flames there)
+        d = 0.06
+        lumps, back = noise(0.4, 3), noise(0.4, 3, d)
+        level = 0.5 + 0.12 * zone
+        edge = lumps - level
+        soft = max(0.02, 0.125 * step / r)  # (a lump's edge no sharper than a pixel)
+        on = _smooth(edge / soft + 0.5)
+        rise = (back - lumps) / d  # (per radius, up the picture)
+        top = np.clip(0.55 + 0.25 * _smooth(edge / 0.08) + 0.6 * rise, 0.15, 1.0)  # (how much light reaches it)
+        rim = _smooth(1 - np.abs(edge) / 0.05) * zone  # (a lump's edge, on the embers: glowing)
+        cracks = noise(0.15, 2)
+        fine = noise(0.07, 2)
+        # the layer between the lumps: embers where it is hot (dark, glowing through cracks), ash where it is not
+        ashen = _smooth((0.35 - zone) / 0.3)
+        bits = _smooth((fine - 0.66) / 0.08)  # (dark bits of charcoal in the ash)
+        layer = ASH * ((0.4 + 0.45 * cracks) * ashen * (1 - 0.8 * bits))[:, None] + CHAR * (1 - ashen)[:, None]
+        coal = CHAR * (0.7 + 0.8 * fine)[:, None]
+        grey = _smooth((0.4 - zone) / 0.3) * _smooth((cracks - 0.45) / 0.15)  # (ash on a cool lump's top)
+        coal = coal * (1 - grey)[:, None] + ASH * (0.6 * grey)[:, None]
+        albedo = (coal * top[:, None]) * on[:, None] + layer * (1 - on)[:, None]
+        through = (0.35 + 0.65 * _smooth((cracks - 0.35) / 0.3)) * (0.75 + 0.25 * fine)  # (glowing through cracks)
+        glow = (1 - on) * zone * through * (1 - ashen) + 0.8 * rim + on * zone * 0.15 * (1 - _smooth(edge / 0.1))
+        phase = noise(0.9, 1)
+        return cover, albedo.astype(np.float32), np.clip(glow, 0.0, 1.0).astype(np.float32), phase.astype(np.float32)
 
     def _heat(self, lg, p, nrm, ragged):
         """How far the fire has burnt points on a log (about 0: not reached .. 1.5 and more: burning red): near the
@@ -729,6 +834,17 @@ class Pile:
         return np.clip(occ, 0, 1).reshape(len(ss), len(xs)).astype(np.float32)
 
     # --- each frame ------------------------------------------------------------------------------------------------
+
+    def bed_colour(self, laid, light, glow, tau, beats):
+        """The bed of coals and ash now (linear RGB) and the light its coals give off (linear RGB): lit by `light`
+        (linear RGB, each pixel's), its coals glowing `glow` bright, breathing as the logs' cracks do."""
+        ph = laid["bed_phase"] * TAU
+        breathe = sum(np.sin(TAU * m * tau + ph + 1.7 * i) for i, m in enumerate(beats)) / max(1, len(beats))
+        heat = laid["bed_heat"] * (glow * COAL_GLOW) * (0.8 + 0.2 * breathe)
+        given = np.empty(heat.shape + (3,), np.float32)
+        for c in range(3):
+            given[..., c] = np.interp(heat, EMBER_I, EMBER[:, c])
+        return laid["bed_albedo"] * light + given, given
 
     def colour(self, laid, room, flames, embers, glow, tau, beats):
         """The logs now (linear RGB, h x w x 3, laid over the picture by laid["alpha"]) and the light their burning

@@ -1,7 +1,12 @@
 """Fire in a fireplace ("Lửa lò sưởi"): a wood fire burning on the logs of a fireplace in the video (a placed lens
 effect, as the candle): flames that lick up, swirl and break off, white-yellow at their roots, orange and dark red at
-their tips, as a fire filmed; embers glowing under them; their light flickering on the firebox; and, if the video
-already has a fire that does not move, that fire dimmed under the new one ("Che lửa cũ").
+their tips, as a fire filmed; embers glowing under them; their light on the firebox; and, if the video already has a
+fire that does not move, that fire dimmed under the new one ("Che lửa cũ").
+
+The firebox is lit by the flames themselves (_light): their glow now, spread as a fire's light falls off (brightest
+next to them, flickering where they flare), lighting what the picture shows there as surfaces of its colours lit by
+the room (the light the room gives the firebox: _room), so bricks are lit brick red and their joints stay dark, not
+hazed over.
 
 The box (Effect.BOX) goes over the fireplace's opening. Its mark, a flat ellipse sitting on its bottom edge, goes on
 the logs where the fire burns, as wide as the fire ("Lửa rộng"); the flames rise in the box above it.
@@ -32,20 +37,28 @@ WARM = 3.0  # seconds of fire before the loop (well alight: its mean glow measur
 JOIN = 1.0  # seconds of the crossfade that closes the loop
 MARK = 0.09  # the bed's mark on the page: a flat ellipse this high for its width, on the box's bottom edge
 CUT = 0.12  # glow this faint is not drawn (no lingering haze above the flames)
+PUNCH, PUNCH_K = 1.25, 1.1  # (the flames' brightness drawn: to this power, times this)
 STORE = 3.0  # (the glow is kept as 8 bits: its square root, up to this)
 LEVEL = 0.155  # a middling fire's mean glow (a bigger fire throws more light on the room)
 KEEP = 240e6  # bytes of fires kept for later (the newest)
 HALO = 0.35  # the glow round the flames (a camera's), as bright as the flames blurred times this
 HALO_R = 0.07  # (its blur: box heights)
-LIGHT = np.array([1.0, 0.62, 0.3], np.float32)  # the fire's light on what is round it (its colour)
-LIGHT_K = 1.0  # (how much brighter it makes what is near it, at "light" 100, a middling fire)
+# the flames' light on the firebox: their glow (as bright as they are drawn) spread as a fire's light falls off (a
+# few blurs: their sigmas in box heights, each a share of it), LIGHT_ON times that at "light" 100 lighting what is
+# there as white light of that much would (on average a wall as the real fireplace filmed in the owner's example)
+SPREAD = ((0.035, 0.35), (0.09, 0.3), (0.2, 0.22), (0.45, 0.13))
+LIGHT_ON = 2.5
+FIRELIGHT = np.array([1.0, 0.5, 0.17], np.float32)  # (its colour, linear: a wood fire's, as on a wall it lights)
+ALBEDO = 0.2  # (the firebox's colours on average: the share of the room's light its sooty surfaces give back)
+ALBEDO_MIN, ALBEDO_MAX = 0.03, 0.6  # (black in the picture as dark soot; nothing whiter than this, no colour more)
+ROOM_MIN = 0.0004  # (the least light the room gives the firebox: a black picture is not lit infinitely)
 LUT_TOP = 2.2  # (the fire's colours looked up in a table, brightness 0 to this: brighter is as white)
 DIM = 0.28  # the old fire put out ("cover" 100): its glow blurred, this bright
 PACE = 1.2  # seconds of fire a second of video at "speed" 50 (a fire filmed: tongues come and go quickly)
 LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
 # logs ("Củi"): the flames' light on them (times their glow near each light, over REACH box heights), the embers'
-# (times "embers"), the room's (times the picture's mean light round the box), their cracks' glow (times "embers"),
-# and how much they keep the light from the floor right under them
+# (times "embers"), the room's (times the light the room gives the firebox: _room), their cracks' glow (times
+# "embers"), and how much they keep the light from the floor right under them
 FLAME_ON_LOGS, EMBERS_ON_LOGS, ROOM_ON_LOGS, CRACKS = 4.5, 1.6, 1.0, 1.1
 REACH = 0.07
 BEHIND = 0.5  # (the bright flames' share seen over a log behind the fire, fainter ones less; none over one in front)
@@ -60,11 +73,11 @@ PAL_I = np.array([0.0, 0.12, 0.3, 0.5, 0.7, 0.9, 1.1, 1.35, 1.8], np.float32)
 PAL = np.array([[0, 0, 0], [52, 12, 3], [169, 58, 15], [244, 95, 14], [251, 145, 8], [253, 195, 14],
                 [253, 228, 94], [254, 239, 173], [255, 250, 228]], np.float32) / 255
 
-DEFAULTS = {"bed": 70, "height": 52, "amount": 70, "flicker": 50, "speed": 50, "bright": 58, "warmth": 50,
+DEFAULTS = {"bed": 70, "height": 52, "amount": 75, "flicker": 50, "speed": 50, "bright": 62, "warmth": 50,
             "embers": 45, "light": 50, "cover": 0}
 LOOKS = {
     "logs": {},
-    "big": {"height": 72, "amount": 90, "flicker": 60, "bright": 65, "embers": 55, "light": 65},
+    "big": {"height": 72, "amount": 95, "flicker": 60, "bright": 72, "embers": 55, "light": 65},
     "low": {"height": 32, "amount": 45, "flicker": 40, "bright": 50, "embers": 55, "light": 40},
     "embers": {"height": 12, "amount": 22, "flicker": 35, "bright": 45, "embers": 90, "light": 35},
 }
@@ -404,7 +417,8 @@ class Hearth(Effect):
     UNDER = True  # its preview clip: the picture under the box with the fire in it (the old fire dimmed: "cover")
     UNDER_FADE = 0.0  # (its change already fades out toward the box's edges; its logs stand on its bottom edge)
     TURNS = False  # a fire always rises straight up
-    VERSION = 2  # (2: logs burnt where the fire reaches them, glowing red; fuller flames)
+    VERSION = 3  # (2: logs burnt where the fire reaches them, glowing red; fuller flames; 3: the firebox lit by the
+    # flames, the logs on a bed of glowing coals, brighter flames)
 
     def __init__(self, *a):
         super().__init__(*a)
@@ -430,6 +444,7 @@ class Hearth(Effect):
         self._gshown = None
         self._laid = None
         self._lut = palette(np.linspace(0.0, LUT_TOP, 1024, dtype=np.float32), self.warmth)
+        self.light_colour = FIRELIGHT ** (1 + 0.6 * (self.warmth - 0.5))  # (the light of yellower or redder flames)
         self.frame = p.get("frame", "none") if p.get("frame") in FRAMES else None  # (the fireplace's opening)
         self.frame_w, self.frame_h = p.get("frame_w", 80) / 100, p.get("frame_h", 85) / 100
         self.pile = None
@@ -527,10 +542,9 @@ class Hearth(Effect):
                # (the part of the grid that shows: whole pixels, up to a pixel more than the box at its edges)
                "src": (max(0.0, (rx0 - x0) / w * gw), max(0.0, (ry0 - y0) / h * gh), min(gw, (rx1 - x0) / w * gw),
                        min(gh, (ry1 - y0) / h * gh))}
-        if self.light_k > 0:  # where the fire's light falls round it
-            spill = np.exp(-((xs - 0.5) / (0.3 + 0.35 * self.bed)) ** 2)[None, :] * np.exp(
-                -((ys - (1 - MARK * self.bed * 4 / 3)) / 0.6) ** 2)[:, None]
-            lay["spill"] = (spill * edge).astype(np.float32)
+        # (the firebox: inside the box's edges, inside its opening if it has one)
+        lay["inside"] = edge if self.frame is None else edge * self._opening(
+            np.arange(rx0, rx1) + 0.5 - x0, np.arange(ry0, ry1) + 0.5 - y0, w, h)
         if self.cover_k > 0:  # where an old fire is put out: over the bed and above it, not at the box's bottom edge
             lay["zone"] = (_smooth((self.bed * 1.25 - np.abs(xs * 2 - 1)) / 0.15)[None, :] * edge * _smooth(
                 (1 - ys) / (MARK * self.bed * 4 / 3 + 0.02))[:, None]).astype(np.float32)
@@ -590,19 +604,33 @@ class Hearth(Effect):
             self._windows = out
         return self._windows
 
-    def _logs(self, t, out, lay, glow, level):
-        """The logs on `out` (the box's part in the frame, changed in place): their shadow on the floor, then them,
-        lit by the room, the flames near each light (`glow`: the flames on the grid) and the embers; their cracks
-        glowing; `level`: how bright the fire is now (1: as on average)."""
+    def _logs(self, t, out, lay, glow, level, room, lit=None):
+        """The logs on `out` (the box's part in the frame, changed in place): their shadow on the floor, their bed
+        of coals and ash, then them, lit by the room (`room`: the light it gives the firebox, as _room says), the
+        flames near each light (`glow`: the flames on the grid) and the embers; their cracks glowing; `level`: how
+        bright the fire is now (1: as on average); `lit`: how bright the flames' light is over the box (as _light
+        gives it; None: none)."""
         x0, y0, x1, y1 = lay["pile"]
         laid = lay["logs"]
         part = out[y0:y1, x0:x1]
         alpha = laid["alpha"][..., None]
-        part *= 1 - FLOOR_SHADE * laid["floor"][..., None]
-        room = np.maximum(out[::4, ::4].reshape(-1, 3).mean(axis=0), 0.0) ** logs.GAMMA * ROOM_ON_LOGS
+        floor = laid["floor"][..., None]
+        part *= 1 - FLOOR_SHADE * floor
+        room = np.full(3, room * ROOM_ON_LOGS, np.float32)
         bright = self.bright_k * level
         flames = [float((glow[at] * wt).sum()) * FLAME_ON_LOGS * self.bright_k for at, wt in self._light_windows()]
         tau = self.tau(t)
+        bed = laid["bed"][..., None]
+        bed_given = None
+        if bed.any():  # (the bed of coals and ash: lit by the room and the flames, less near the logs; its coals
+            # glowing, breathing)
+            light = room * (1 - FLOOR_SHADE * floor)
+            if lit is not None:
+                light = light + lit[y0:y1, x0:x1, None] * (1 - 0.5 * floor) * self.light_colour
+            coals, bed_given = self.pile.bed_colour(laid, light, CRACKS * self.embers_k * bright, tau, self.ember_m)
+            np.clip(coals, 0.0, 1.0, out=coals)
+            coals **= 1 / logs.GAMMA
+            part += bed * (coals - part)
         breathe = sum(math.sin(TAU * m * tau + ph) for m, ph in zip(self.ember_m, self.ember_ph)) / 3
         ember = EMBERS_ON_LOGS * self.embers_k * (0.85 + 0.15 * breathe) * bright
         embers = [ember] * sum(kind == "ember" for _, kind in self.pile.lights)
@@ -611,11 +639,55 @@ class Hearth(Effect):
         np.clip(colour, 0.0, 1.0, out=colour)
         colour **= 1 / logs.GAMMA
         part += alpha * (colour - part)
+        if bed_given is not None:  # (the coals' light: where the logs do not hide them)
+            bed_given *= bed * (1 - alpha)
+            given = bed_given if given is None else given * alpha + bed_given
+        elif given is not None:
+            given = given * alpha
         if given is not None:  # (the glow round the burning wood, a camera's: over the logs and past their edges)
-            halo = _soft(given * alpha, max(1.0, EMBER_HALO_R * lay["box_h"]))
+            halo = _soft(given, max(1.0, EMBER_HALO_R * lay["box_h"]))
             np.clip(halo * EMBER_HALO, 0.0, 1.0, out=halo)
             halo **= 1 / logs.GAMMA
             part += halo * (1 - part)
+
+    def _room(self, out, lay):
+        """The light the room gives the firebox (linear, as white light; `out`: the box's part in the frame): what
+        most of it shows is ALBEDO of it (its median brightness, in its opening if it has one)."""
+        luma = out[::4, ::4] @ LUMA
+        inside = lay["inside"][::4, ::4] > 0.5
+        level = max(float(np.median(luma[inside])), 0.0) if inside.any() else 0.0
+        return max(level ** 2.2, ROOM_MIN) / ALBEDO
+
+    def _light(self, out, lay, gflame, room):
+        """The flames' light on the firebox round them (`out`: the box's part in the frame, changed in place): their
+        glow on the grid (`gflame`) spread as a fire's light falls off (SPREAD), on what is there as on surfaces
+        of its colours under the room's light (`room`: as _room says; the picture's colours over it: bricks lit
+        brick red, their joints dark), so lit, not hazy. Returns how bright that light is over `out` (linear, as
+        white light; its colour: light_colour)."""
+        gw, gh = GRID
+        given = gflame.reshape(gh // 4, 4, gw // 4, 4).mean(axis=(1, 3))
+        spread = sum(share * blur(given, sigma * gh / 4) for sigma, share in SPREAD)
+        spread *= LIGHT_ON * self.light_k
+        lit = np.asarray(Image.fromarray(np.ascontiguousarray(spread, np.float32), "F").resize(
+            lay["size"], Image.Resampling.BILINEAR, box=tuple(v / 4 for v in lay["src"])), np.float32)
+        lit = lit * lay["edge"]
+        lin = np.power(np.maximum(out, 0.0), np.float32(2.2))
+        # (a surface no whiter or more coloured than ALBEDO_MAX, softly; none darker than soot)
+        a = np.maximum(np.maximum(lin[..., 0], lin[..., 1]), lin[..., 2])
+        a *= np.float32(1 / (room * ALBEDO_MAX))
+        a *= a
+        a *= a
+        a += 1
+        np.sqrt(a, out=a)
+        np.sqrt(a, out=a)
+        np.multiply(a, np.float32(room), out=a)
+        albedo = lin / a[..., None]
+        np.maximum(albedo, ALBEDO_MIN, out=albedo)
+        albedo *= lit[..., None]
+        albedo *= self.light_colour
+        lin += albedo
+        np.power(lin, np.float32(1 / 2.2), out=out)
+        return lit
 
     def _halo(self, flame, src, size):
         """The glow round the flames (a camera's): the flames' colours on the grid, blurred on a grid 4 times
@@ -690,7 +762,6 @@ class Hearth(Effect):
         fire = self.frames()
         glow, level = fire.frame(t)
         level = min(max(level / fire.mean, 0.5), 1.5)  # (how bright the fire is now: 1 as on average)
-        throws = self.light_k * LIGHT_K * math.sqrt(fire.mean / LEVEL) * (1 + 2 * (level - 1))  # (its light now)
 
         def big(a):  # a grid field over the part of the box in the frame
             p = np.pad(a, 1, mode="edge")  # (softened a little first: no stairs along its edges)
@@ -708,12 +779,21 @@ class Hearth(Effect):
             hot = np.minimum(_soft(hot, max(1.0, 0.012 * h)) * 1.5, 1.0)
             put_out = (self.cover_k * hot * lay["zone"])[..., None]
             out += put_out * (_soft(out, max(1.0, 0.04 * h)) * DIM - out)
-        # its light on the firebox round it: brighter as the fire is (multiplying what is there: lit, not hazy)
-        if self.light_k > 0:
-            out *= 1 + lay["spill"][..., None] * (throws * LIGHT)
+        # the flames and the embers under them on the grid, as bright as they are drawn
+        gflame = np.maximum(glow - CUT, 0.0) * (self.bright_k / (1 - CUT)) * self._grid_shown()
+        embers = None
+        if self.embers_k > 0:
+            field, phase = self._ember_field()
+            tau = self.tau(t)
+            breathe = sum(np.sin(TAU * m * tau + ph + 5 * phase) for m, ph in zip(self.ember_m, self.ember_ph)) / 3
+            embers = field * ((0.8 + 0.2 * breathe) * (0.7 * self.embers_k * (0.9 + 0.1 * level)))
+            gflame += embers
+        # their light on the firebox round them (the surfaces there lit, their colours kept: not a haze)
+        room = self._room(out, lay)
+        lit = self._light(out, lay, gflame, room) if self.light_k > 0 else None
         hide = None
-        if "logs" in lay:  # the logs (opaque), the flames behind those in front of the fire, the embers behind all
-            self._logs(t, out, lay, glow, level)
+        if "logs" in lay:  # the logs (opaque) on their bed of coals, the flames behind those in front of the fire
+            self._logs(t, out, lay, glow, level, room, lit)
             px0, py0, px1, py1 = lay["pile"]
             hide = (slice(py0, py1), slice(px0, px1)), lay["logs"]["alpha"]
         # the flames and the embers under them (their brightness on the grid, then over the box: crisp edges)
@@ -721,23 +801,17 @@ class Hearth(Effect):
         flame -= CUT
         np.maximum(flame, 0.0, out=flame)
         flame *= self.bright_k / (1 - CUT)
+        np.power(flame, PUNCH, out=flame)  # (their faint parts fainter, their hearts brighter: as a camera sees
+        # a fire, bright in a lit firebox)
+        flame *= PUNCH_K
         flame *= lay["shown"]
         if hide is not None:  # (over a log in front of the fire none of them; over one behind it only the brighter
             # tongues: no haze over it)
             part = flame[hide[0]]
             hidden = 1 - BEHIND * _smooth((part - 0.5) / 0.7)
             part *= 1 - hide[1] * (hidden + (1 - hidden) * lay["logs"]["front"])
-        gflame = np.maximum(glow - CUT, 0.0) * (self.bright_k / (1 - CUT)) * self._grid_shown()
-        if self.embers_k > 0:
-            field, phase = self._ember_field()
-            tau = self.tau(t)
-            breathe = sum(np.sin(TAU * m * tau + ph + 5 * phase) for m, ph in zip(self.ember_m, self.ember_ph)) / 3
-            embers = field * ((0.8 + 0.2 * breathe) * (0.7 * self.embers_k * (0.9 + 0.1 * level)))
-            seen = big(embers) * lay["edge"]
-            if hide is not None:
-                seen[hide[0]] *= 1 - hide[1]
-            flame += seen
-            gflame += embers
+        if embers is not None and hide is None:  # (with logs, their bed's coals glow instead)
+            flame += big(embers) * lay["edge"]
         fire = self._lut.take((np.minimum(flame, LUT_TOP) * ((len(self._lut) - 1) / LUT_TOP)).astype(np.int32),
                               axis=0)  # (its colours)
         halo = self._halo(gflame, src, size)
