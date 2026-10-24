@@ -120,22 +120,22 @@ COATS = {  # sRGB: a rock dove (blue bar), a dark one, a red (ash-red) one, a wh
     "grey": {"head": (104, 112, 146), "neck": (40, 46, 60), "green": (22, 86, 74), "purple": (72, 38, 92),
              "breast": (116, 122, 156), "back": (200, 205, 226), "flank": (100, 106, 134), "bar": (28, 28, 34),
              "prim": (50, 52, 64), "tail": (96, 100, 116), "band": (30, 30, 36), "belly": (138, 144, 168),
-             "beak": (62, 60, 66), "cere": (206, 202, 196), "iris": (222, 112, 36), "feet": (214, 72, 76),
+             "beak": (62, 60, 66), "cere": (206, 202, 196), "iris": (222, 112, 36), "feet": (192, 86, 94),
              "spot": (58, 60, 70), "sheen": 1.0},
     "dark": {"head": (52, 54, 60), "neck": (44, 48, 52), "green": (46, 104, 78), "purple": (96, 60, 104),
              "breast": (58, 56, 64), "back": (66, 68, 76), "flank": (58, 60, 68), "bar": (34, 34, 38),
              "prim": (40, 42, 46), "tail": (54, 56, 62), "band": (30, 30, 34), "belly": (64, 66, 74),
-             "beak": (36, 34, 36), "cere": (212, 210, 204), "iris": (210, 110, 42), "feet": (188, 82, 86),
+             "beak": (36, 34, 36), "cere": (212, 210, 204), "iris": (210, 110, 42), "feet": (184, 82, 90),
              "spot": (34, 34, 38), "sheen": 1.1},
     "brown": {"head": (150, 118, 104), "neck": (140, 104, 96), "green": (128, 118, 98), "purple": (156, 104, 120),
               "breast": (150, 112, 104), "back": (196, 172, 156), "flank": (164, 134, 120), "bar": (122, 74, 58),
               "prim": (150, 124, 112), "tail": (176, 152, 138), "band": (142, 102, 88), "belly": (170, 146, 134),
-              "beak": (196, 160, 146), "cere": (232, 226, 218), "iris": (210, 110, 42), "feet": (198, 90, 92),
+              "beak": (196, 160, 146), "cere": (232, 226, 218), "iris": (210, 110, 42), "feet": (194, 90, 96),
               "spot": (138, 92, 76), "sheen": 0.5},
     "white": {"head": (232, 232, 228), "neck": (230, 230, 226), "green": (226, 232, 224), "purple": (232, 226, 230),
               "breast": (234, 232, 228), "back": (238, 238, 234), "flank": (228, 228, 224), "bar": (234, 234, 230),
               "prim": (224, 224, 220), "tail": (234, 234, 230), "band": (230, 230, 226), "belly": (232, 232, 228),
-              "beak": (206, 168, 156), "cere": (238, 232, 226), "iris": (64, 38, 28), "feet": (204, 100, 104),
+              "beak": (206, 168, 156), "cere": (238, 232, 226), "iris": (64, 38, 28), "feet": (204, 104, 110),
               "spot": (232, 232, 228), "sheen": 0.0},
 }
 MIXED = (("grey", 0.42), ("checker", 0.18), ("dark", 0.09), ("brown", 0.07), ("pied", 0.14), ("white", 0.1))  # (a
@@ -213,7 +213,21 @@ TAIL_AT = np.array([-0.22, 0.0, 0.19])  # (the tail bends up and down about this
 TAILS = {"tail": 1.0, "fan": 1.0, "prim": 1.0, "vent": 0.5}  # (how much of the tail's bend each part takes: the
 # wingtips lie on it)
 TIGHT = {"prim": 0.008, "fan": 0.008}  # (the wingtips and the tail's spread end melt in less: thin, lying on it)
+SIT, FLUFF = 0.072, 0.07  # (sitting down: how far its body drops, its belly on the ground; how much fuller its
+# feathers fluffed up)
+PUFF = 0.42  # (courting: how much thicker its neck puffed up)
+SPREAD = {"fan": 0.75, "tail": 0.35}  # (its tail spread: how much wider each part)
 SMOOTH = len(BODY) + 2  # (the parts of the smooth body: BODY, the neck, the head)
+# its feet, as a rock dove's (units: a bird is LENGTH long, about 33 cm): three toes forward and one back, each a few
+# joints long, thinner to its tip, ending in a curved claw: (its turn out from straight ahead, radians; its joints'
+# lengths; its thickness at its base; its claw's length); its tarsus thicker at the top; scales across them all
+TOES = ((-0.5, (0.024, 0.02), 0.0057, 0.013),  # (the inner toe)
+        (0.07, (0.027, 0.023, 0.019), 0.0064, 0.016),  # (the middle one, the longest)
+        (0.55, (0.022, 0.019, 0.015), 0.0055, 0.013),  # (the outer one)
+        (math.pi + 0.25, (0.021, 0.017), 0.006, 0.014))  # (the hind toe, a little in)
+TARSUS = (0.0085, 0.0071)  # (the tarsus' radius at its top, at the foot)
+SCALES = 0.0072  # (the scales across its legs and toes: this far apart)
+FINE = 9.0  # (a middle toe this many pixels long or more: its toes drawn joint by joint; shorter, one piece each)
 
 
 class Pose:
@@ -221,25 +235,98 @@ class Pose:
     forward (pitch, radians: < 0 tipped up), its tail bent up from it (radians), its head's middle (bird frame), the
     head's own pitch and turn, its feet (bird frame, each: x, y, lift); as it steps, its body shifted over the foot it
     stands on (sway, units to its left), up and down (bob, units) and rolled (roll, radians: > 0 its back to its
-    right)."""
+    right); how far it has sat down on the ground (sit 0..1: its feathers fluffed, its toes tucked under it: tuck),
+    how puffed up its neck and breast are (puff 0..1, a male courting) and how spread its tail (spread 0..1)."""
 
     def __init__(self, pitch=0.0, head=None, head_pitch=0.17, head_yaw=0.0, feet=None, tail=0.0, tall=0.0):
         self.pitch, self.head_pitch, self.head_yaw, self.tail, self.tall = pitch, head_pitch, head_yaw, tail, tall
         self.head = HEAD.copy() if head is None else np.asarray(head, np.float64)
         self.feet = feet if feet is not None else ((0.0, 0.034, 0.0), (0.0, -0.034, 0.0))
         self.sway = self.bob = self.roll = 0.0
+        self.sit = self.tuck = self.puff = self.spread = 0.0
 
 
-def parts(pose):
+def _foot(side, hip, at, fine, tuck=0.0):
+    """One foot's parts (the bird's frame; `side` 1 its left, -1 its right): its tarsus from under its belly's
+    feathers (`hip`) down to the foot (`at`: the foot's middle on the ground, and how high it is lifted), its four toes
+    flat on the ground, or curled and drawn together as the foot is lifted (or `tuck`ed under a bird sitting down),
+    each ending in a claw curving down to the ground; the toes joint by joint (`fine`) or one piece each."""
+    f = np.asarray(at[:2], np.float64)
+    lift = float(at[2])
+    hang = min(max(lift / 0.02 - float(tuck) * 1.7, 0.0), 1.0)  # (lifted: hanging down; tucked: folded up)
+    fold = min(max(float(tuck), 0.0), 1.0)
+    curl = max(hang, fold)
+    foot = np.array([f[0], f[1], lift])
+    heel = foot + np.array([-0.004, 0.0, 0.0068])
+    rot = _along(heel, hip)
+    span = float(np.linalg.norm(hip - heel))
+    out = []
+    for k in range(3):  # (a rod thinner toward the foot: three long pieces, each well into the next, the lowest
+        # ending at the foot)
+        f0, f1 = k / 3, (k + 1) / 3
+        rad = TARSUS[1] + (TARSUS[0] - TARSUS[1]) * (f0 + f1) / 2
+        grow = 1.6 * rad if k else 0.8 * rad
+        out.append(("leg", heel + (hip - heel) * (f0 + f1) / 2 + rot[:, 2] * (1.6 * rad - grow) / 2, rot,
+                    np.array([rad, 0.92 * rad, span / 6 + (1.6 * rad + grow) / 2])))
+    base = foot + np.array([0.003, 0.0, 0.0])  # (where the toes leave the foot)
+    for turn, joints, thick, claw in TOES:
+        yaw = side * turn * (1.0 - 0.4 * curl) if turn < 3 else side * (math.pi + (turn - math.pi) * (1 - curl))
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        a = z = 0.0  # (along the toe from its base, and down)
+        ang = 0.35 * hang - 0.6 * fold  # (lifted: its toes hang down, bending more at each joint; tucked under a
+        # sitting bird: folded up into its feathers)
+        r = thick
+        if not fine:
+            length = sum(joints)
+            ca, sa = math.cos(ang + 0.2 * curl), math.sin(ang + 0.2 * curl)
+            out.append(("toe", base + np.array([cy * ca * length / 2, sy * ca * length / 2,
+                                                0.84 * r - sa * length / 2]),
+                        _rot(yaw=yaw, pitch=-(ang + 0.2 * curl)), np.array([length / 2 + 0.3 * r, r, 0.84 * r])))
+            a, z, r = ca * length, sa * length, r * 0.86 ** len(joints)
+            ang += 0.45 * curl * len(joints)
+        else:
+            for length in joints:
+                ca, sa = math.cos(ang), math.sin(ang)
+                out.append(("phal", base + np.array([cy * (a + ca * length / 2), sy * (a + ca * length / 2),
+                                                     0.84 * r - z - sa * length / 2]),
+                            _rot(yaw=yaw, pitch=-ang), np.array([length / 2 + 0.9 * r, r, 0.84 * r])))
+                a, z = a + ca * length, z + sa * length
+                r *= 0.86
+                ang += 0.45 * curl
+        # its claw: from the toe's tip, curving down to the ground (or under, curled), its tip on it
+        tip = base + np.array([cy * a, sy * a, 0.84 * r - z])
+        nails = []
+        for share, bend, thin in ((0.55, 0.12, 0.62), (0.5, 0.38, 0.42)):
+            down = ang + bend
+            length = claw * share
+            way = np.array([cy * math.cos(down), sy * math.cos(down), -math.sin(down)])
+            rot, rad = _rot(yaw=yaw, pitch=-down), np.array([length / 2 + 0.3 * r * thin, r * thin, r * thin * 0.85])
+            nails.append(["claw", tip + way * length / 2, rot, rad])
+            tip = tip + way * length * 0.9
+        low = min(float(c[2]) - math.sqrt(float(((rot[2, :] * rad) ** 2).sum())) for _, c, rot, rad in nails)
+        for nail in nails:  # (not into the ground)
+            nail[1] = nail[1] + np.array([0.0, 0.0, max(0.0, -low)])
+            out.append(tuple(nail))
+    return out
+
+
+def parts(pose, fine=True):
     """A bird's parts in a pose: (name, centre, rotation (columns: its axes), radii), in the bird frame (x forward, y
-    left, z up; its feet on the ground at 0): the SMOOTH parts of its body first, then its small ones."""
+    left, z up; its feet on the ground at 0): the SMOOTH parts of its body first, then its small ones (its toes joint
+    by joint if `fine`)."""
     tip = _rot(roll=pose.roll) @ _rot(pitch=-pose.pitch)  # (the body tipped forward about the hip, rolled)
-    shift = HIP + np.array([0.0, pose.sway, pose.bob])  # (and shifted as it steps)
+    sit, puff, spread = (min(max(float(v), 0.0), 1.0) for v in (pose.sit, pose.puff, pose.spread))
+    shift = HIP + np.array([0.0, pose.sway, pose.bob - SIT * sit])  # (and shifted as it steps, or sits down)
     k = min(max(float(pose.tall), 0.0), 1.0)
     out = []
     for (name, c, r, pitch, *turn), (_, cu, ru, pu, *tu) in zip(BODY, BODY_UP):
         c = np.array(c, np.float64) * (1 - k) + np.array(cu, np.float64) * k
         r = np.array(r, np.float64) * (1 - k) + np.array(ru, np.float64) * k
+        r = r * (1.0 + FLUFF * sit)  # (sitting: its feathers fluffed up)
+        if name == "breast":
+            r = r * (1.0 + 0.1 * puff)
+        elif name in SPREAD:  # (its tail spread)
+            r = r * np.array([1.0, 1.0 + SPREAD[name] * spread, 1.0])
         yaw = math.radians(turn[0] + (tu[0] - turn[0]) * k) if turn else 0.0
         own = _rot(yaw=yaw, pitch=math.radians(pitch + (pu - pitch) * k))
         bend = TAILS.get(name, 0.0) * pose.tail
@@ -250,8 +337,9 @@ def parts(pose):
     base = shift + tip @ (NECK + (NECK_UP - NECK) * k - HIP)
     head = pose.head
     span = float(np.linalg.norm(head - base))
+    thick = 1.0 + 0.12 * sit + PUFF * puff  # (pulled in, sitting; puffed up, courting)
     out.append(("neck", base + (head - base) * 0.42, _along(base, head),
-                np.array([0.072 + 0.002 * k, 0.064 + 0.008 * k, max(0.07, span / 2 + 0.02)])))
+                np.array([(0.072 + 0.002 * k) * thick, (0.064 + 0.008 * k) * thick, max(0.07, span / 2 + 0.02)])))
     turn = _rot(yaw=pose.head_yaw, pitch=pose.head_pitch)
     out.append(("head", head, turn, HEAD_R))
     out.append(("beak", head + turn @ np.array([0.066, 0.0, -0.012]), turn @ _rot(pitch=-0.35),
@@ -260,20 +348,9 @@ def parts(pose):
                 np.array([0.017, 0.012, 0.0105])))
     for side, foot in zip((1, -1), pose.feet):
         hip = shift + tip @ (np.array([0.0, side * 0.03, 0.11]) - HIP)
-        f = np.array(foot, np.float64)
-        knee = f + np.array([0.0, 0.0, 0.018])
-        out.append(("leg", (hip + knee) / 2, _along(knee, hip),
-                    np.array([0.012, 0.012, max(0.03, float(np.linalg.norm(hip - knee)) / 2 + 0.008)])))
-        toes = ((f + np.array([0.034, 0.0, 0.0075]), side * 0.16, np.array([0.044, 0.0085, 0.0075])),
-                (f + np.array([0.024, side * 0.021, 0.0075]), side * 0.75, np.array([0.038, 0.008, 0.0075])),
-                (f + np.array([-0.018, -side * 0.004, 0.0075]), side * 0.2 + math.pi,
-                 np.array([0.026, 0.0075, 0.0075])))
-        for c, yaw, r in toes:  # (the last pointing back)
-            out.append(("toe", c, _rot(yaw=yaw), r))
-        for c, yaw, r in toes:  # (a small dark claw at the tip of each)
-            way = np.array([math.cos(yaw), math.sin(yaw), 0.0])
-            out.append(("claw", c + way * (r[0] + 0.002) - np.array([0.0, 0.0, 0.0015]), _rot(yaw=yaw, pitch=-0.4),
-                        np.array([0.0075, 0.0035, 0.003])))
+        if pose.tuck > 0:  # (sitting down: its feet drawn up under its belly's feathers)
+            foot = (foot[0] - 0.01 * pose.tuck, foot[1], foot[2] + 0.034 * pose.tuck)
+        out.extend(_foot(side, hip, foot, fine, pose.tuck))
     return out
 
 
@@ -602,7 +679,35 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
     return out * (coat.tone * coat.grain(whole, fp))[:, None], gloss * min(c["sheen"], 1.0)
 
 
-SMALL = {"leg": "feet", "toe": "feet", "claw": "beak", "beak": "beak", "cere": "cere"}  # (each small part's colour)
+SMALL = {"leg": "feet", "toe": "feet", "phal": "feet", "claw": "beak", "beak": "beak", "cere": "cere"}  # (each small
+# part's colour)
+
+
+SCALY = {"leg": 2, "phal": 0, "toe": 0}  # (its legs and toes, scaly: the axis each runs along)
+
+
+def _scaly(part, p, nrm, alb, fp):
+    """A leg's or a toe's colour at points p on it (facing nrm): rings of scales across it SCALES apart, each a little
+    lighter or darker, their edges dark (faded out where they would be under a few pixels: `fp`, a pixel's width),
+    its underside paler, its joints' creases dark; and a little gloss (the scales shine)."""
+    name, c, rot, r = part
+    local = (p - c) @ rot
+    along = local[:, SCALY[name]]
+    k = _fade(TAU / SCALES, fp)
+    out = alb.copy()
+    if k > 0:
+        s = along / SCALES
+        ring = np.floor(s)
+        f = s - ring
+        rnd = np.sin(ring * 12.9898 + float(c @ np.array([78.2, 39.4, 11.7]))) * 43758.5453
+        rnd -= np.floor(rnd)
+        edge = 1 - _smooth(np.minimum(f, 1 - f) / 0.24)
+        out *= (1 - k * (0.2 * edge - 0.1 * (rnd - 0.5)))[:, None]
+    if name != "leg":  # (a toe's joints: creases where one piece goes into the next; its pads paler under it)
+        end = np.abs(local[:, 0]) / r[0]
+        out *= (1 - 0.28 * _smooth((end - 0.72) / 0.2))[:, None]
+        out *= (1 + 0.22 * _smooth((-nrm[:, 2] - 0.2) / 0.5))[:, None]
+    return out, np.full(len(p), 0.25)
 
 
 def _trace(rays, body, small):
@@ -612,15 +717,28 @@ def _trace(rays, body, small):
     best = seen.march()
     which = np.where(np.isfinite(best), 0, -1)
     own = np.zeros((len(best), 3))
-    for k, part in enumerate(small):
-        t0, _ = rays.meet(part)
-        ok = ~np.isnan(t0) & (t0 < best)
-        if ok.any():
-            best[ok] = t0[ok]
-            which[ok] = 1 + k
-            _, c, rot, r = part
-            at = np.stack([rays.ox[ok], rays.oy[ok], rays.oz[ok]], 1) + t0[ok, None] * rays.d
-            own[ok] = ((((at - c) @ rot) / r) / r) @ rot.T
+    starts = [k for k, part in enumerate(small) if k == 0 or part[0] in ("beak", "leg") and small[k - 1][0] != "leg"]
+    for g0, g1 in zip(starts, starts[1:] + [len(small)]):  # (the beak, each foot: only the rays near it tried)
+        group = small[g0:g1]
+        lo = np.min([c - r.max() for _, c, _, r in group], axis=0)
+        hi = np.max([c + r.max() for _, c, _, r in group], axis=0)
+        mid, reach = (lo + hi) / 2, float(np.linalg.norm(hi - lo)) / 2
+        ex, ey, ez = rays.ox - mid[0], rays.oy - mid[1], rays.oz - mid[2]
+        along = ex * rays.d[0] + ey * rays.d[1] + ez * rays.d[2]
+        near = np.flatnonzero(ex * ex + ey * ey + ez * ez - along * along < reach * reach)
+        if not len(near):
+            continue
+        sub = _Rays(rays.ox[near], rays.oy[near], rays.oz[near], rays.d)
+        for k, part in enumerate(group, g0):
+            t0, _ = sub.meet(part)
+            ok = ~np.isnan(t0) & (t0 < best[near])
+            if ok.any():
+                idx = near[ok]
+                best[idx] = t0[ok]
+                which[idx] = 1 + k
+                _, c, rot, r = part
+                at = np.stack([sub.ox[ok], sub.oy[ok], sub.oz[ok]], 1) + t0[ok, None] * rays.d
+                own[idx] = ((((at - c) @ rot) / r) / r) @ rot.T
     return which, best, own, seen
 
 
@@ -652,6 +770,10 @@ def _shade(rays, which, best, own, seen, small, coat, pose, light, turn, fp):
             g = own[i[j]]
             nrm[j] = g / np.maximum(np.linalg.norm(g, axis=1, keepdims=True), 1e-12)
             alb[j] = coat.c[SMALL[part[0]]]
+            if part[0] in SCALY:
+                alb[j], gloss[j] = _scaly(part, p[j], nrm[j], alb[j], fp)
+            elif part[0] == "claw":
+                gloss[j] = 0.5
     key, way, ambient = light
     nw = nrm @ turn.T  # (the scene's frame)
     lam = np.clip((nw @ way + 0.35) / 1.35, 0.0, 1.0)  # (feathers: the light wraps round a little)
@@ -676,8 +798,9 @@ def draw_bird(pose, coat, yaw, scale, tilt, light, ss, at=(0.0, 0.0)):
     (key colour, key way, ambient colour) linear, the way in the scene (x right, y away, z up). A bird DETAIL pixels
     long or more: one ray a pixel, `ss` x `ss` where its outline or a small part's crosses a pixel; a smaller one: `ss`
     x `ss` everywhere."""
-    allp = parts(pose)
-    allp = [part for part in allp if part[0] != "claw" or scale * part[3][0] >= 1.0]  # (claws: once they show)
+    allp = parts(pose, fine=scale * TOES[1][1][0] * len(TOES[1][1]) >= FINE)
+    if scale * 0.01 < 1.0:  # (claws: once they would show)
+        allp = [part for part in allp if part[0] != "claw"]
     body, small = allp[:SMOOTH], allp[SMOOTH:]
     ct, st = math.cos(tilt), math.sin(tilt)
     fwd = np.array([0.0, ct, -st])
@@ -787,14 +910,17 @@ RAMP = 0.4  # (seconds: starting to walk, stopping)
 EASE = 0.3  # (seconds: into and out of walking, pecking, standing)
 THRUST = 0.4  # (its head thrust forward over this share of each step, held still the rest)
 BEND = 0.22  # (the tightest it turns as it walks round its path: a radius, units)
+SIT_TIME = 0.8  # (seconds: sitting down, getting up again)
+SPIN_IN = 0.3  # (seconds: courting, from puffing up to starting to turn round, and from stopping to calming down)
+BOWS = 1.1  # (courting: bows a second)
 
 
-def _loop(rng, u, length):
+def _loop(rng, u, length, thin=0.0):
     """A walker's path about: a smooth wobbly oval (a curve r(u) round its middle, so no cusp: it never turns on the
-    spot), `length` units round, turned any way; made rounder until it turns no tighter than BEND (a short one, a
-    circle)."""
+    spot), `length` units round, turned any way, the narrower (and longer across) the more `thin` (0..1) is; made
+    rounder until it turns no tighter than BEND (a short one, a circle)."""
     a = rng.random(6)
-    wob2, wob3, squash = 0.2 * a[0], 0.07 * a[1], 0.55 + 0.45 * a[2]
+    wob2, wob3, squash = 0.2 * a[0], 0.07 * a[1], (0.55 + 0.45 * a[2]) * (1.0 - 0.7 * thin)
     c, s = math.cos(TAU * a[5]), math.sin(TAU * a[5])
     for _ in range(16):
         r = 1.0 + wob2 * np.cos(2 * u + TAU * a[3]) + wob3 * np.cos(3 * u + TAU * a[4])
@@ -813,19 +939,30 @@ def _loop(rng, u, length):
 
 class Walker:
     """One bird on the ground over the loop (`loop` seconds): walking round a closed path of its own (whole laps a
-    loop), stopping to look round or to peck at the ground. `busy`: 0 (mostly stopped) .. 1 (walking most of the
-    time); `hungry`: 0 (never pecks) .. 1 (pecks at most stops, a few times); `ledge`: walking to and fro along a line
-    (a narrow loop) rather than about; `room`: the farthest its path may go from its home (units): a long walk goes
-    round more than once."""
+    loop), stopping to look round, to peck at the ground, to sit down a while, to preen or (a male) to court, puffed
+    up. `busy`: 0 (mostly stopped) .. 1 (walking most of the time); `hungry`: 0 (never pecks) .. 1 (pecks at most
+    stops, a few times); `rest`: 0 .. 1, how often it sits down or preens; `court`: 0 .. 1, how often it courts (none
+    unless `male`); `ledge`: walking to and fro along a line (a narrow loop) rather than about; `room`: the farthest
+    its path may go from its home (units): a long walk goes round more than once; `thin`: 0 .. 1, its path about
+    narrower and longer across (roaming further)."""
 
-    def __init__(self, rng, loop, busy, pace, ledge=False, room=None, hungry=0.4):
+    def __init__(self, rng, loop, busy, pace, ledge=False, room=None, hungry=0.4, rest=0.0, court=0.0, male=False,
+                 thin=0.0):
         self.loop = loop
         segs, at = [], 0.0
         walk = rng.random() < 0.6
+        sits, preens, courts = 0.4 * rest, 0.3 * rest, (0.5 * court if male else 0.0)  # (of its stops)
         while at < loop * 1.02 or len(segs) < 2:
             pick = rng.random(2)
             if walk:
                 kind, d, n = "walk", (1.2 + 2.3 * pick[0]) * (0.6 + 0.8 * busy), 0
+            elif (r := rng.random()) < courts:  # (puffed up, bowing, turning round once or twice)
+                kind, d = "court", 3.0 + 3.5 * pick[0]
+                n = (1 + (d > 5.2)) * (1 if pick[1] < 0.5 else -1)
+            elif r < courts + sits:  # (sitting down a while)
+                kind, d, n = "rest", (4.0 + 5.0 * pick[0]) * (1.3 - 0.6 * busy), 0
+            elif r < courts + sits + preens:  # (preening a wing: its left or its right)
+                kind, d, n = "preen", 2.5 + 3.0 * pick[0], (1, -1, 0)[min(int(pick[1] * 3), 2)]
             elif pick[0] < hungry:  # (a few pecks: more when hungrier)
                 n = 1 + int(pick[1] * (1 + 2.5 * hungry))
                 kind, d = "peck", DOWN + n * PECKING + UP
@@ -856,8 +993,8 @@ class Walker:
         self.speed = speed
         laps = 1
         if room is not None:  # (the longest path that keeps within `room` of home: along a ledge, to and fro; about,
-            # a round path)
-            laps = max(1, math.ceil(total / (4.0 * room if ledge else 0.55 * TAU * room)))
+            # a round path, or a long narrow one)
+            laps = max(1, math.ceil(total / (4.0 * room if ledge else (0.55 + 1.0 * thin) * TAU * room)))
         self.length = max(total / laps, 1e-6)  # (its path's length)
         # its path: a closed curve this long (a narrow one along a ledge), as far round as it has walked
         m = 512
@@ -871,7 +1008,7 @@ class Walker:
                 at < 2 * run + math.pi * r, 2 * run + math.pi * r - at, 0.0)))  # (how far along the straights)
             px, py = way - run / 2 + r * np.sin(arc), -r * np.cos(arc)
         else:
-            px, py = _loop(rng, u, self.length)
+            px, py = _loop(rng, u, self.length, thin)
         seg = np.hypot(np.diff(px, append=px[:1]), np.diff(py, append=py[:1]))
         k = self.length / max(float(seg.sum()), 1e-9)
         self.px, self.py = px * k, py * k
@@ -924,7 +1061,15 @@ class Walker:
         dx, dy = self.tx[i] * (1 - f) + self.tx[j] * f, self.ty[i] * (1 - f) + self.ty[j] * f
         if self.flip:
             dx, dy = -dx, -dy
-        return x, y, math.atan2(dy, dx)
+        return x, y, math.atan2(dy, dx) + self.spin(t)
+
+    def spin(self, t):
+        """How far it has turned round on the spot at t (radians: courting, it turns round once or twice, smoothly,
+        back the way it was facing)."""
+        kind, start, d, n = self.segs[self._seg(t)]
+        if kind != "court":
+            return 0.0
+        return TAU * n * float(_smoother((t - start - SPIN_IN) / max(d - 2 * SPIN_IN, 1e-6)))
 
     def reach(self, t):
         """How far down its head is at t (0 up .. 1 its beak on the ground): bending down, a few pecks, coming up."""
@@ -942,9 +1087,10 @@ class Walker:
         return 0.75 + 0.25 * dip
 
     def pose(self, t):
-        """Its pose at t: stepping and bobbing its head as it walks, pecking, looking round."""
+        """Its pose at t: stepping and bobbing its head as it walks, pecking, looking round, sitting, preening,
+        courting."""
         i, into = self._into(t)
-        kind, start, d, _ = self.segs[i]
+        kind, start, d, n = self.segs[i]
         x = t - start
         ease = float(_smooth(min(x, d - x) / EASE))  # (into and out of what it does)
         pose = Pose(pitch=-WALK_UP, tail=TAIL_WALK)
@@ -978,6 +1124,40 @@ class Walker:
             pose.tail = TAIL_WALK * (1 - reach)
             pose.head = HEAD + (PECK - HEAD) * reach
             pose.head_pitch = 0.17 - 1.25 * reach
+        elif kind == "rest":  # sitting down on the ground, feathers fluffed, its head drawn in; looking round
+            sit = float(_smoother(min(x, d - x) / SIT_TIME))
+            pose.sit = pose.tuck = sit
+            pose.pitch = -WALK_UP * (1 - sit)
+            pose.tail = TAIL_WALK * (1 - sit)
+            k = int(x / 2.6)
+            f = float(_smoother((x - k * 2.6) / 0.6))
+            turn = 0.5 * (math.sin(self.looks[k % 8]) * f + math.sin(self.looks[(k - 1) % 8]) * (1 - f) * (k > 0))
+            pose.head_yaw = turn * sit
+            pose.head = HEAD + np.array([-0.03, 0.0, -0.11]) * sit
+        elif kind == "preen":  # its head turned back over a shoulder (or down to its breast), nibbling at its
+            # feathers
+            side = float(n)
+            e = float(_smoother(min(x, d - x) / 0.45))
+            nibble = np.array([0.006 * math.sin(TAU * 3.3 * x), 0.0, 0.009 * math.sin(TAU * 4.1 * x + 1.0)])
+            if side:
+                pose.head = HEAD + (np.array([-0.05, side * 0.035, 0.395]) - HEAD + nibble) * e
+                pose.head_yaw = side * 2.6 * e
+                pose.head_pitch = 0.17 - 0.45 * e
+                pose.roll = side * 0.06 * e
+            else:
+                pose.head = HEAD + (np.array([0.205, 0.0, 0.215]) - HEAD + nibble) * e
+                pose.head_pitch = 0.17 - 1.15 * e
+        elif kind == "court":  # a male courting: puffed up, its tail spread and dragged, bowing, turning round
+            e = float(_smoother(min(x, d - x) / 0.5))
+            pose.puff, pose.spread = e, e
+            pose.tail = TAIL_WALK * (1 - e) - 0.32 * e  # (down to the ground, spread)
+            bow = 0.5 * (1 - math.cos(TAU * BOWS * x)) * e
+            pose.pitch = -WALK_UP * (1 - e) + 0.26 * bow
+            pose.head = HEAD + np.array([0.0, 0.0, 0.025]) * e + np.array([0.05, 0.0, -0.1]) * bow
+            pose.head_pitch = 0.17 - 0.3 * bow
+            if n:  # (stepping round as it turns: small steps, a foot at a time)
+                step = math.sin(TAU * 2.0 * x) * e * float(_smooth(min(x - SPIN_IN, d - SPIN_IN - x) / 0.3))
+                pose.feet = ((0.0, 0.034, 0.012 * max(step, 0.0)), (0.0, -0.034, 0.012 * max(-step, 0.0)))
         else:  # standing: looking round now and then (a quick turn of the head, then still)
             k = int(x / 1.3)
             f = float(_smoother((x - k * 1.3) / 0.3))
@@ -996,7 +1176,8 @@ class Walker:
 # --- the effect -------------------------------------------------------------------------------------------------------
 
 DEFAULTS = {"mode": "ground", "coat": "mixed", "amount": 40, "size": 50, "depth": 50, "view": 40, "shadow": 60,
-            "soft": 30, "busy": 50, "peck": 40, "speed": 50, "lit": 70}
+            "soft": 30, "busy": 50, "peck": 40, "rest": 30, "court": 25, "speed": 50, "roam": 50, "differ": 60,
+            "lit": 70}
 
 SCHEMA = {
     "label": "Chim bồ câu",
@@ -1004,8 +1185,11 @@ SCHEMA = {
             "mổ hạt. (1) Bấm Suốt video. (2) Kéo khung trắng tới chỗ chim đứng (sân, vỉa hè, đường đi), kéo góc cho "
             "khung phủ chỗ đó: chim chỉ ở trong khung. Đáy khung là gần, đỉnh khung là xa: chim ở xa nhỏ hơn. Trên gờ "
             "tường, mái nhà: chọn Kiểu Đậu trên gờ, kéo khung cho đáy khung nằm trên gờ. (3) Chỉnh Số chim, Cỡ chim, "
-            "Màu lông; Nhìn từ trên xuống cho hợp góc máy; Độ mềm cho chim mềm như trong ảnh chụp; Mổ hạt cho chim cúi "
-            "mổ ít hay nhiều. Chim sáng tối theo ánh sáng chỗ khung đứng trong video.",
+            "Màu lông; Nhìn từ trên xuống cho hợp góc máy; Độ mềm cho chim mềm như trong ảnh chụp. (4) Chuyển động: "
+            "Đi lại nhiều, Mổ hạt, Nằm nghỉ và rỉa lông, Chim trống gù (phồng cổ, xoè đuôi, cúi chào, xoay vòng), Tốc "
+            "độ, Đi quanh quẩn hay đi khắp khung; Mỗi con một kiểu càng lớn thì mỗi con càng khác: con hay đi, con "
+            "hay mổ, con lười nằm nghỉ, con đi nhanh, con đi chậm. Muốn đàn chim làm khác đi: bấm Đổi kiểu ngẫu "
+            "nhiên. Chim sáng tối theo ánh sáng chỗ khung đứng trong video.",
     "params": [
         _choice("mode", "Kiểu", DEFAULTS["mode"], [("ground", "Đi lại, mổ hạt trên mặt đất"),
                                                    ("ledge", "Đậu trên gờ tường, mái nhà")], group="Kiểu"),
@@ -1022,7 +1206,11 @@ SCHEMA = {
         _num("soft", "Độ mềm (nét ← → mềm như ảnh chụp)", DEFAULTS["soft"], group="Chim"),
         _num("busy", "Đi lại nhiều (đứng ← → đi)", DEFAULTS["busy"], group="Chuyển động"),
         _num("peck", "Mổ hạt (ít ← → nhiều)", DEFAULTS["peck"], group="Chuyển động"),
+        _num("rest", "Nằm nghỉ, rỉa lông (ít ← → nhiều)", DEFAULTS["rest"], group="Chuyển động"),
+        _num("court", "Chim trống gù, xoè đuôi (ít ← → nhiều)", DEFAULTS["court"], group="Chuyển động"),
         _num("speed", "Tốc độ", DEFAULTS["speed"], group="Chuyển động"),
+        _num("roam", "Đi quanh quẩn ← → đi khắp khung", DEFAULTS["roam"], group="Chuyển động"),
+        _num("differ", "Mỗi con một kiểu (giống nhau ← → khác nhau)", DEFAULTS["differ"], group="Chuyển động"),
         _num("lit", "Sáng theo cảnh", DEFAULTS["lit"], group="Ánh sáng"),
         *_place(50)]}
 
@@ -1039,9 +1227,10 @@ class Pigeons(Effect):
     TURNS = False
     LIT = True
     PREVIEW = 1280
-    VERSION = 5  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
+    VERSION = 6  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
     # 4: standing tall as a photograph's, its folded wings and their primaries, the neck's sheen round its foot;
-    # 5: smooth paths, steps, glides; creases shaded, a glossy feathered neck, catchlights, claws, the photo's colours)
+    # 5: smooth paths, steps, glides; creases shaded, a glossy feathered neck, catchlights, claws, the photo's colours;
+    # 6: four scaly toes a foot, joint by joint, curling as a foot lifts; sitting, preening, courting; each its ways)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
 
@@ -1072,14 +1261,30 @@ class Pigeons(Effect):
         self.depth = p["depth"] / 100
         self.walkers, self.homes = [], []
         x0, y0, w, h = self.box()
+        roam = p.get("roam", 50) / 100  # (round and round near home .. long narrow paths over the box)
         for i in range(n):
             scale = self._scale(u[i], h)
-            room = (0.42 if self.mode == "ledge" else 0.16) * w / max(scale, 1e-9)  # (units)
-            walker = Walker(np.random.default_rng([self.seed, 4407, i]), self.loop_s, p["busy"] / 100, self.pace,
-                            self.mode == "ledge", room, p["peck"] / 100)
+            room = (0.42 if self.mode == "ledge" else 0.16 * _lerp(0.35, 1.0, min(roam * 2, 1.0))) * w / max(
+                scale, 1e-9)  # (units)
+            busy, hungry, rest, court, pace, male = self.temper(i)
+            walker = Walker(np.random.default_rng([self.seed, 4407, i]), self.loop_s, busy, pace,
+                            self.mode == "ledge", room, hungry, rest, court, male, max(0.0, roam * 2 - 1))
             self.walkers.append(walker)
             self.homes.append(self._home(walker, u[i], scale, w, h))
         self.light = self._light(light, p["lit"] / 100)  # (the scene's where the box stands, or daylight)
+
+    def temper(self, i):
+        """Bird i's own ways (each a little or, "Mỗi con một kiểu", very different from the flock's settings): how
+        busy, how hungry, how often it rests or preens, how often it courts (a male: about half of them), how fast."""
+        p = self.p
+        k = p.get("differ", 0) / 100
+        z = np.random.default_rng([self.seed, 4408, i]).normal(0.0, 1.0, 6)
+        male = z[5] > 0
+
+        def own(v, j):
+            return float(np.clip(v + 0.5 * k * z[j], 0.0, 1.0))
+        return (own(p["busy"] / 100, 0), own(p["peck"] / 100, 1), own(p.get("rest", 0) / 100, 2),
+                own(p.get("court", 0) / 100, 3) if male else 0.0, self.pace * 2.0 ** (0.45 * k * float(z[4])), male)
 
     def _light(self, light, k):
         key, ambient = DAYLIGHT

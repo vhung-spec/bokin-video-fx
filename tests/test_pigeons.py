@@ -47,7 +47,7 @@ class Loop(unittest.TestCase):
     def test_frame_p_is_frame_0(self):
         for mode in MODES:
             for frames, fps in ((240, 24), (150, 25)):
-                fx = make({"mode": mode, "amount": 70, "peck": 100}, frames, fps)
+                fx = make({"mode": mode, "amount": 70, "peck": 100, "rest": 100, "court": 100}, frames, fps)
                 a, b = drawn(fx, 0), drawn(fx, frames)
                 self.assertLess(float(np.abs(a[0] - b[0]).max()), 1e-6, (mode, frames, fps))
                 self.assertLess(float(np.abs(a[1] - b[1]).max()), 1e-6, (mode, frames, fps))
@@ -155,8 +155,10 @@ class Walking(unittest.TestCase):
         (never round on the spot), and its feet are together where each walk starts and stops."""
         fps = 240
         for ledge in (False, True):
-            for seed in range(4):
-                walker = pigeons.Walker(np.random.default_rng(seed), 20.0, 0.7, 1.0, ledge, 1.2, hungry=0.6)
+            for seed in range(6):
+                ways = {"rest": 0.7, "court": 0.9, "male": True} if seed % 2 else {}  # (sitting, preening,
+                # courting too)
+                walker = pigeons.Walker(np.random.default_rng(seed), 20.0, 0.7, 1.0, ledge, 1.2, hungry=0.6, **ways)
                 ts = np.arange(0.0, 20.0, 1 / fps)
                 head, breast, heading = [], [], []
                 for t in ts:
@@ -171,7 +173,14 @@ class Walking(unittest.TestCase):
                 self.assertLess(float(speed[1].max()), 1.0, (ledge, seed))
                 spin = np.abs(np.angle(np.exp(1j * np.diff(heading)))) * fps
                 bend = 1 / pigeons.TURN if ledge else 1 / pigeons.BEND
-                self.assertLess(float(spin.max()), bend * walker.speed * 1.15, (ledge, seed))
+                courting = np.zeros(len(spin), bool)  # (turning round on the spot, courting: at most twice round)
+                for kind, start, d, n in walker.segs:
+                    if kind == "court":
+                        courting |= (ts[1:] > start) & (ts[:-1] < start + d)
+                        most = math.tau * abs(n) / (d - 2 * pigeons.SPIN_IN) * 1.875 * 1.05
+                        self.assertLess(float(spin[(ts[1:] > start) & (ts[:-1] < start + d)].max()), most)
+                if (~courting).any():
+                    self.assertLess(float(spin[~courting].max()), bend * walker.speed * 1.15, (ledge, seed))
                 for i, (kind, start, d, _) in enumerate(walker.segs):
                     if kind == "walk":
                         for t in (start + 1e-6, start + d - 1e-6):
@@ -203,10 +212,108 @@ class Walking(unittest.TestCase):
             self.assertGreater(low, -0.01, seed)  # (not into the ground)
 
     def test_standing_on_its_feet(self):
-        parts = pigeons.parts(pigeons.Pose())
-        self.assertAlmostEqual(min(lowest(p) for p in parts), 0.0, places=6)
-        self.assertEqual([p[0] for p in parts if abs(lowest(p)) < 1e-6], ["toe"] * 6)  # (three toes a foot)
-        self.assertGreater(min(lowest(p) for p in parts[:pigeons.SMOOTH]), 0.05)  # (its body above its legs)
+        """Standing, its toes lie on the ground (four a foot: three forward, one back; joint by joint drawn big, one
+        piece each drawn small), its claws reach down to it, nothing goes into it; its body is above its legs."""
+        for fine in (True, False):
+            parts = pigeons.parts(pigeons.Pose(), fine)
+            self.assertGreater(min(lowest(p) for p in parts), -1e-9, fine)
+            toes = [p for p in parts if p[0] in ("toe", "phal")]
+            self.assertTrue(all(abs(lowest(p)) < 1e-6 for p in toes), fine)
+            if not fine:
+                self.assertEqual(len(toes), 8)
+                ahead = sorted(np.sign(p[2][0, 0]) for p in toes)  # (each toe's way: forward or back)
+                self.assertEqual(ahead, [-1.0] * 2 + [1.0] * 6)
+            claws = [p for p in parts if p[0] == "claw"]
+            self.assertEqual(len(claws), 16)  # (each a base and a tip, curving down)
+            self.assertLess(max(min(lowest(p) for p in claws[k:k + 2]) for k in range(0, 16, 2)), 1e-6, fine)
+            self.assertGreater(min(lowest(p) for p in parts[:pigeons.SMOOTH]), 0.05)  # (its body above its legs)
+
+    def test_toes_curl_as_a_foot_lifts(self):
+        """A lifted foot's toes are drawn together and hang down; on the ground they lie spread flat."""
+        flat = [p for p in pigeons._foot(1, np.array([0.0, 0.03, 0.11]), (0.0, 0.03, 0.0), False) if p[0] == "toe"]
+        up = [p for p in pigeons._foot(1, np.array([0.0, 0.03, 0.11]), (0.0, 0.03, 0.025), False) if p[0] == "toe"]
+        spread = [float(np.ptp([math.atan2(p[2][1, 0], p[2][0, 0]) for p in toes[:3]])) for toes in (flat, up)]
+        self.assertLess(spread[1], 0.75 * spread[0])
+        self.assertTrue(all(p[2][2, 0] < -0.2 for p in up[:3]))  # (pointing down)
+        self.assertTrue(all(abs(p[2][2, 0]) < 1e-9 for p in flat))
+
+
+class Ways(unittest.TestCase):
+    """Besides walking, looking round and pecking, a bird sits down a while, preens, or (a male) courts; each bird
+    its own ways, as different from the next as "Mỗi con một kiểu" says."""
+
+    def seg(self, kind, **ways):
+        for seed in range(40):
+            walker = pigeons.Walker(np.random.default_rng(seed), 40.0, 0.4, 1.0, **ways)
+            for s in walker.segs:
+                if s[0] == kind:
+                    return walker, s
+        self.fail(kind)
+
+    def test_sits_down(self):
+        """Sitting, its belly is on the ground, its feathers fluffed, its feet drawn up out of sight under it."""
+        walker, (_, start, d, _) = self.seg("rest", rest=1.0)
+        allp = pigeons.parts(walker.pose(start + d / 2))
+        self.assertLess(min(lowest(p) for p in allp[:pigeons.SMOOTH]), 0.012)
+        self.assertGreater(min(lowest(p) for p in allp if p[0] in ("phal", "toe")), 0.02)
+        stood = pigeons.parts(walker.pose(start))
+        self.assertGreater(min(lowest(p) for p in stood[:pigeons.SMOOTH]), 0.05)  # (up again as it starts)
+
+    def test_preens(self):
+        """Preening, it turns its head back over a shoulder onto its back, or bends it down to its breast."""
+        for n in (1, -1, 0):
+            walker, s = self.seg("preen", rest=1.0)
+            s[3] = n
+            pose = walker.pose(s[1] + s[2] / 2)
+            if n:
+                self.assertGreater(pose.head_yaw * n, 2.0)
+                self.assertLess(pose.head[0], 0.0)  # (behind its neck)
+            else:
+                self.assertLess(pose.head[2], 0.25)
+                self.assertLess(pose.head_pitch, -0.8)
+
+    def test_courts(self):
+        """A male courting puffs up his neck and breast, spreads his tail down to the ground, bows, and turns round
+        on the spot once or twice, ending as he faced; a female never courts."""
+        walker, (_, start, d, n) = self.seg("court", court=1.0, male=True)
+        mid = pigeons.parts(walker.pose(start + d / 2))
+        calm = pigeons.parts(pigeons.Pose())
+        neck = [next(p for p in allp if p[0] == "neck")[3][0] for allp in (mid, calm)]
+        fan = [next(p for p in allp if p[0] == "fan")[3][1] for allp in (mid, calm)]
+        self.assertGreater(neck[0], 1.3 * neck[1])
+        self.assertGreater(fan[0], 1.5 * fan[1])
+        self.assertAlmostEqual(walker.spin(start + 1e-6), 0.0, places=6)
+        self.assertAlmostEqual(walker.spin(start + d - 1e-6), math.tau * n, places=4)
+        turned = [walker.spin(t) for t in np.linspace(start, start + d - 1e-6, 200)]
+        self.assertTrue(np.all(np.diff(turned) * np.sign(n) >= -1e-9))
+        bows = [walker.pose(t).head[2] for t in np.linspace(start + 0.5, start + d - 0.5, 200)]
+        self.assertGreater(max(bows) - min(bows), 0.06)
+        for seed in range(20):
+            walker = pigeons.Walker(np.random.default_rng(seed), 40.0, 0.4, 1.0, court=1.0, male=False)
+            self.assertNotIn("court", [s[0] for s in walker.segs])
+
+    def test_each_its_own_ways(self):
+        """"Mỗi con một kiểu" 0: every bird as the settings say; more: each its own (busier or lazier, hungrier,
+        fast or slow, resting more or less); about half of them males."""
+        same = make({"amount": 100, "differ": 0})
+        ways = np.array([[same.temper(i)[j] for j in (0, 1, 2, 4)] for i in range(len(same.u))])
+        self.assertLess(float(ways.std(axis=0).max()), 1e-9)
+        apart = make({"amount": 100, "differ": 100})
+        ways = np.array([apart.temper(i)[:5] for i in range(len(apart.u))])
+        self.assertGreater(float(ways[:, 0].std()), 0.15)  # (busy)
+        self.assertGreater(float(ways[:, 1].std()), 0.15)  # (hungry)
+        self.assertGreater(float(ways[:, 4].max() / ways[:, 4].min()), 1.5)  # (fast and slow)
+        males = sum(apart.temper(i)[5] for i in range(len(apart.u)))
+        self.assertTrue(0.2 * len(apart.u) < males < 0.8 * len(apart.u))
+
+    def test_roam(self):
+        """"Đi quanh quẩn ← → đi khắp khung": their paths small round their homes, or wide over the box."""
+        spans = []
+        for roam in (0, 100):
+            fx = make({"amount": 60, "busy": 100, "roam": roam}, frames=720)
+            spans.append(np.mean([(float(np.ptp(w.px)) + float(np.ptp(w.py))) * fx._scale(u, fx.box()[3])
+                                  for w, u in zip(fx.walkers, fx.u)]))
+        self.assertGreater(spans[1], 1.5 * spans[0])
 
 
 class Body(unittest.TestCase):
@@ -464,7 +571,7 @@ class Settings(unittest.TestCase):
             self.assertTrue(p.get("group") and p["label"], p["key"])
             self.assertIsNone(p.get("show"), p["key"])  # (every setting counts on the ground and on a ledge)
         self.assertFalse(set(overlay.ROTATIONS) & set(keys))
-        self.assertTrue({"peck", "soft", "busy", "view", "shadow"} <= set(keys))
+        self.assertTrue({"peck", "soft", "busy", "view", "shadow", "rest", "court", "roam", "differ"} <= set(keys))
         self.assertTrue(pigeons.SCHEMA["note"])
         self.assertEqual(effects.defaults("pigeons")["mode"], "ground")
         modes = [o["value"] for o in next(p for p in pigeons.SCHEMA["params"] if p["key"] == "mode")["options"]]

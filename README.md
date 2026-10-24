@@ -365,12 +365,16 @@ ban đêm.
 Chim bồ câu do app vẽ (không phải ảnh có sẵn), trông như bồ câu thật: thân tròn liền một khối, đầu nhỏ, đi từng bước
 theo đường lượn mềm (không quay ngoắt), thân lắc nhẹ theo bước chân, đầu gật tới trước mỗi bước, thỉnh thoảng cúi xuống
 mổ hạt vài cái (mỏ chạm đất) rồi ngẩng lên; bắt đầu đi, dừng lại, đứng lên, cúi xuống đều nhẹ nhàng. Khi dừng lại, chim
-đứng thẳng lên, ưỡn ngực, cụp đuôi, ngó quanh, như bồ câu trong ảnh mẫu. Bồ câu xám có màu đo theo ảnh mẫu: cổ xanh lá,
+đứng thẳng lên, ưỡn ngực, cụp đuôi, ngó quanh, như bồ câu trong ảnh mẫu. Như bồ câu thật, có con nằm xuống nghỉ (lông xù
+tròn, chân thu vào trong lông), có con quay đầu ra sau rỉa lông lưng hay cúi rỉa lông ngực, có con trống gù: phồng cổ,
+xoè đuôi quét đất, cúi chào rồi xoay một hai vòng tại chỗ. Mỗi con một tính: con hay đi, con hay mổ, con lười nằm nghỉ,
+con đi nhanh, con đi chậm. Bồ câu xám có màu đo theo ảnh mẫu: cổ xanh lá,
 tím ở chân cổ, lấp lánh từng chiếc lông nhỏ (đổi theo góc nhìn), ức xám tím, cánh xếp gần trắng phủ kín hai bên thân,
 hai vạch đen to trên cánh có viền trắng, lông cánh chính xám đen dọc lưng xuống đuôi, dải đen cuối đuôi, mắt cam có ánh
-sáng, chân đỏ san hô ba ngón có móng; nhìn gần thấy từng hàng lông trên cánh, lông dài ở đuôi, lông mềm như nhung, chỗ
-khe giữa cánh và thân tối hơn. Còn có bồ câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối theo ánh
-sáng trong video và có bóng mềm dưới chân.
+sáng, chân hồng đỏ như chân bồ câu thật: mỗi chân bốn ngón (ba ngón trước, một ngón sau), ngón có đốt, phủ vảy, móng
+đen cong chạm đất, nhấc chân thì các ngón co lại; nhìn gần thấy từng hàng lông trên cánh, lông dài ở đuôi, lông mềm như
+nhung, chỗ khe giữa cánh và thân tối hơn. Còn có bồ câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối
+theo ánh sáng trong video và có bóng mềm dưới chân.
 
 1. Bấm **Tạo sẵn** → **Chim bồ câu**, kéo xuống một track trống, bấm **Suốt video**.
 2. Chọn **Kiểu**, rồi kéo khung trắng tới chỗ chim. Chim chỉ ở trong khung.
@@ -385,8 +389,16 @@ sáng trong video và có bóng mềm dưới chân.
 4. **Nhìn từ trên xuống** cho hợp góc máy (máy quay thấp, ngang tầm chim: kéo về trái; nhìn từ trên cao: kéo sang
    phải), **Bóng dưới chân**, **Độ mềm** (kéo sang phải: chim mềm như trong ảnh chụp, hợp với video hơi nhoè; kéo về
    trái: nét).
-5. Chuyển động: **Đi lại nhiều** (trái: hay đứng; phải: đi nhiều), **Mổ hạt** (trái: ít khi cúi xuống mổ; phải: mổ
-   nhiều, như có người rải hạt), **Tốc độ**.
+5. Chuyển động:
+   - **Đi lại nhiều** (trái: hay đứng; phải: đi nhiều), **Mổ hạt** (trái: ít khi cúi xuống mổ; phải: mổ nhiều, như có
+     người rải hạt), **Tốc độ**.
+   - **Nằm nghỉ, rỉa lông**: kéo sang phải thì chim hay nằm xuống nghỉ và rỉa lông hơn (0: không bao giờ).
+   - **Chim trống gù, xoè đuôi**: kéo sang phải thì chim trống hay gù hơn (khoảng một nửa đàn là chim trống; 0: không
+     gù).
+   - **Đi quanh quẩn ← → đi khắp khung**: trái: chim đi vòng nhỏ quanh một chỗ; phải: chim đi những đường dài khắp
+     khung.
+   - **Mỗi con một kiểu**: trái: mọi con làm giống nhau như các thanh trên; phải: mỗi con một tính, rất khác nhau (con
+     đi suốt, con nằm nghỉ lâu, con đi nhanh, con đi chậm).
 6. **Sáng theo cảnh**: chim lấy ánh sáng chỗ khung đứng trong video (cảnh tối thì chim tối, đèn vàng thì chim ấm).
    Kéo về 0: chim sáng như ban ngày.
 7. Muốn chim đi ra sau cột, chậu cây phía trước: bấm **V1 Video gốc** → **Vẽ tiền cảnh**, tô vật đó. Rồi chọn clip

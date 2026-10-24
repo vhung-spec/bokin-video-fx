@@ -285,8 +285,21 @@ hiệu ứng. Cách dùng: `README.md`.
   at)`). Hình: bóng ở khe từ khoảng cách liền (`_sdf`, `_occlusion`, `SHUT`), lông cổ nhỏ óng ánh từng chiếc
   (`NECK_FEATHER`; độ bóng `gloss` từ `_part_colour`), mắt có ánh sáng, móng chân (`claw`, chỉ khi đủ to), màu bồ câu
   xám đo trên ảnh mẫu; `VERSION` 5. Test: `test_no_jumps`, `test_paths_bend_gently`,
-  `test_drawn_to_a_fraction_of_a_pixel`, `test_creases_shaded`. Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh,
-  `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
+  `test_drawn_to_a_fraction_of_a_pixel`, `test_creases_shaded`. Chủ yêu cầu 2026-10-24 lần hai ("chân nhìn giống thật
+  hơn", "chỉnh được di chuyển ... hành động của các chú chim khác nhau"): chân (`_foot`): cổ chân là thanh thuôn ba
+  khúc (`TARSUS`), bốn ngón (`TOES`: ba trước, một sau), mỗi ngón vài đốt `phal` (vẽ nhỏ thì mỗi ngón một khúc `toe`,
+  `FINE`), móng hai khúc cong xuống chạm đất (không vào đất); nhấc chân thì ngón co lại, chụm, rủ xuống (`hang`); vảy
+  ngang, nếp ở khớp, gan ngón nhạt, hơi bóng (`_scaly`, `SCALY`, `SCALES`); màu chân hồng đỏ dịu hơn; tia chỉ thử
+  phần nhỏ gần nó (`_trace`: nhóm mỏ, mỗi chân). Hành động mới trong `Walker` (`rest`, `court`, `male`, `thin`):
+  `rest` nằm nghỉ (`Pose.sit`: thân hạ `SIT`, lông xù `FLUFF`, chân thu vào lông `tuck`, ngón gập lên `fold`; đầu rụt,
+  ngó chậm; `SIT_TIME`), `preen` rỉa lông (đầu quay ra sau lên lưng bên trái/phải, hoặc cúi xuống ngực, mổ nhẹ),
+  `court` chim trống gù (`Pose.puff`: cổ, ức phồng `PUFF`; `spread`: đuôi xoè `SPREAD`, hạ quét đất; cúi chào `BOWS`;
+  xoay một hai vòng tại chỗ `spin()`, `SPIN_IN`: hướng cuối bằng hướng đầu). Mỗi con một tính (`Pigeons.temper`: busy,
+  hungry, rest, court, tốc độ lệch quanh thanh trượt theo "Mỗi con một kiểu" `differ`; nửa đàn là chim trống).
+  "Đi quanh quẩn ← → đi khắp khung" (`roam`: trái `room` nhỏ, đi nhiều vòng; phải đường bầu dục dài hẹp `thin`).
+  Thông số mới `rest`, `court`, `roam`, `differ`; `VERSION` 6. Test: `Ways`, `test_toes_curl_as_a_foot_lifts`.
+  Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
+  nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao
   khung (`SOFTEST`), không theo cỡ chim: chim to gần máy quay không nhoè hơn chim nhỏ; xem nhanh và video xuất như nhau.
   Bóng: hai ellipse (đậm ngay dưới thân; rộng, mềm, lệch khỏi nguồn sáng). Mỗi con một ngày trong vòng loop (`Walker`,
