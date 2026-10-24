@@ -1,17 +1,23 @@
-"""Logs for a fireplace (the "Củi" settings of Lửa lò sưởi): a pile of round logs drawn by code as a camera sees
-them, charred where the fire has reached them, lit by its flames, embers glowing in their cracks.
+"""Logs for a fireplace (the "Củi" settings of Lửa lò sưởi): a pile of firewood drawn by code as a camera sees it,
+charred where the fire has reached it, lit by its flames, embers glowing in its cracks.
 
-A log is a lumpy cylinder with rounded cut ends (Log.outside: < 0 inside it), in a small scene on the bed: x across
-the box, y away from the camera, z up, lengths in box heights, the bed's middle on the floor at 0. The camera is far
-off (straight rays) and looks down at the pile a little (`tilt`). A ray goes into the cylinder round each log, steps
-along it to where it is first inside the log, and closes in on its surface; the nearest log's point is the one seen.
-A pixel is one ray at its middle, or SS x SS rays where it is on a log's edge. What a log looks like at a point (bark,
-or charred wood cracked in blocks round the log, ash; a cut end's rings; their relief tilting the way it faces) is
-worked out there from the log's own random draws: the same seen at any size. That is done once for a place of the box
-(Pile.lay), with how much light each of the fire's lights (fixed places in the pile and above it) gives each pixel:
-facing it, not in another log's shadow (softly: the flames are big), less with distance; and how much the logs round
-a point keep the room's light from it. Each frame (Pile.colour) only the lights' brightness changes (the flames near
-each, the embers breathing) and the cracks' glow.
+A log is a lumpy cylinder with rounded cut ends (Log.outside: < 0 inside it), or a piece split from one (a half, a
+third, a quarter of the round: SECTORS; its flat faces rough along the grain, their edges a little rounded), in a
+small scene on the bed: x across the box, y away from the camera, z up, lengths in box heights, the bed's middle on
+the floor at 0. The logs are laid one by one and each comes to rest as it would (Pile._settle, _rest): the bottom ones
+on the floor (moved apart where they would lie on each other), the others on what is under them, tilted where they
+rest on two things at different heights. The flames come up from the top of the pile as the camera sees it
+(Pile.crest: the fire's sources along it, hearth._Fluid). The camera is far off (straight rays) and looks down at the
+pile a little (`tilt`). A ray goes into the cylinder round each log, steps along it to where it is first inside the
+log, and closes in on its surface; the nearest log's point is the one seen. A pixel is one ray at its middle, or SS x
+SS rays where it is on a log's edge. What a log looks like at a point (bark, or charred wood cracked in blocks round
+the log, ash; a cut end's rings; their relief tilting the way it faces) is worked out there from the log's own random
+draws: the same seen at any size. Where it burns, its cracks glow in stretches and patches, most on its sides and
+underside and in the gaps (its tops are under ash). That is done once for a place of the box (Pile.lay), with how much
+light each of the fire's lights (fixed places in the pile and above it) gives each pixel: facing it, not in another
+log's shadow (softly: the flames are big), less with distance; and how much the logs round a point keep the room's
+light from it. Each frame (Pile.colour) only the lights' brightness changes (the flames near each, the embers
+breathing) and the cracks' glow.
 
 The logs lie on a bed of coals and ash (Pile.bed: round them on the floor, a little further in front): glowing embers
 with lumps of charcoal on them where the fire burns, grey ash further out (_bed_looks, worked out once a place of the
@@ -46,14 +52,19 @@ WOODS = {  # (the kinds of wood)
 }
 CHAR = _lin((22, 20, 19))  # charcoal (black patches)
 SCORCH = _lin((46, 30, 20))  # (bark browned and darkened by the heat, next to where it has charred)
-SHEEN = _lin((60, 54, 48))  # (charred wood coated with a little ash: dark grey-brown)
+SHEEN = _lin((46, 42, 38))  # (charred wood coated with a little ash: dark grey-brown)
 ASH = _lin((160, 156, 150))
 CRACK = _lin((8, 7, 7))
 EARLY, LATE = _lin((205, 162, 112)), _lin((150, 104, 64))  # a cut end's wood: spring and summer rings
 HEART = _lin((158, 102, 60))  # (its heartwood, darker)
+# split firewood: a round cleft along its length into a half, a third or a quarter (the share of the round round its
+# pith; and how much bigger that round is than a round log of the pile, for as much wood); its fresh split faces
+SECTORS = {"half": (math.pi, 1.3), "third": (TAU / 3, 1.5), "quarter": (TAU / 4, 1.7)}
+SPLIT_HOT = 0.25  # (a split face chars sooner than bark: as much hotter)
+SPLIT = {"oak": _lin((150, 112, 74)), "brown": _lin((158, 106, 68)), "birch": _lin((198, 178, 142))}
 EMBER_I = np.array([0.0, 0.2, 0.45, 0.75, 1.1, 1.6], np.float32)  # embers' colours by how hot (sRGB)
 EMBER = _lin([(0, 0, 0), (82, 12, 3), (190, 45, 8), (252, 105, 18), (255, 165, 50), (255, 222, 140)])
-GLOW_CRACK, GLOW_SKIN = 2.4, 2.4  # how hot a burning log's cracks and the char between them glow (times "glow")
+GLOW_CRACK, GLOW_SKIN = 2.4, 1.3  # how hot a burning log's cracks and the char between them glow (times "glow")
 FLAME_LIGHT = np.array([1.0, 0.55, 0.22], np.float32)  # the flames' light on the logs (linear)
 EMBER_LIGHT = np.array([1.0, 0.38, 0.1], np.float32)  # and the embers'
 # the bed of coals and ash under the logs: how far it reaches past them (log radii: in front, at their ends, behind),
@@ -141,7 +152,7 @@ class Log:
     """One log: its axis from p0 to p1 (box heights), its radius r; a little thicker at one end, gently lumpy, its
     cut ends rounded; its looks drawn from its own seed."""
 
-    def __init__(self, p0, p1, r, wood, rng):
+    def __init__(self, p0, p1, r, wood, rng, split=None, turn=0.0):
         self.p0 = np.asarray(p0, np.float64)
         axis = np.asarray(p1, np.float64) - self.p0
         self.length = float(np.linalg.norm(axis))
@@ -167,6 +178,28 @@ class Log:
         self.round = self.r * rng.uniform(0.28, 0.4)
         self.reach = self.r * float(np.abs(self.shape[:, 0]).max() + np.abs(self.shape[:, 2:]).sum(1).max()) * 1.02
         self.seed = int(rng.integers(1 << 31))
+        # split firewood: the round cleft along its length (SECTORS), `turn` (radians from e1 round its axis) the
+        # middle of its bark; its flat faces a little off the pith, rough along the grain, their edges rounded a
+        # little
+        self.split = split if split in SECTORS else None
+        self.turn = float(turn)
+        self.faces = np.zeros((0, 2))
+        if self.split:
+            span = SECTORS[self.split][0]
+            a0, a1 = self.turn - span / 2, self.turn + span / 2
+            faces = [(math.cos(a0 - math.pi / 2), math.sin(a0 - math.pi / 2))]
+            if span < math.pi - 1e-6:
+                faces.append((math.cos(a1 + math.pi / 2), math.sin(a1 + math.pi / 2)))
+            self.faces = np.array(faces)
+            self.off = rng.uniform(-0.03, 0.07, len(faces)) * self.r
+            waves = []
+            for _ in faces:  # (each face's roughness along it: the wood torn along its grain)
+                k = rng.uniform(1.0, 3.0, 2) * TAU / self.length
+                ph = rng.random(2) * TAU
+                waves.append(0.025 * self.r * (0.6 * np.sin(k[0] * hs + ph[0]) + 0.4 * np.sin(k[1] * hs + ph[1])))
+            self.rough = np.stack(waves, 1)
+            self.edge = 0.06 * self.r
+        self._sections()
 
     def end(self):
         return self.p0 + self.d * self.length
@@ -176,8 +209,8 @@ class Log:
         w = p - self.p0
         return w @ self.d, w @ self.e1, w @ self.e2
 
-    def outside(self, h, x1, x2):
-        """How far outside the log points are (about: < 0 inside), given in its frame."""
+    def _parts(self, h, x1, x2):
+        """How far outside its round side (bark) and each split face points are (about), given in its frame."""
         g = np.clip((h - self.h0) / self.dh, 0, TABLE - 1.001)
         i = g.astype(np.int32)
         f = (g - i)[..., None]
@@ -187,8 +220,58 @@ class Log:
         c2, s2 = c1 * c1 - s1 * s1, 2 * c1 * s1
         c3, s3 = c2 * c1 - s2 * s1, s2 * c1 + c2 * s1
         radius = self.r * (t[..., 0] + t[..., 2] * c2 + t[..., 3] * s2 + t[..., 4] * c3 + t[..., 5] * s3)
+        out = [rho - radius]
+        if len(self.faces):
+            rough = self.rough[i] * (1 - f) + self.rough[i + 1] * f
+            for j, (n1, n2) in enumerate(self.faces):
+                out.append(x1 * n1 + x2 * n2 - (self.off[j] + rough[..., j]))
+        return out
+
+    def outside(self, h, x1, x2):
+        """How far outside the log points are (about: < 0 inside), given in its frame."""
+        parts = self._parts(h, x1, x2)
+        d = parts[0]
+        for face in parts[1:]:
+            d = _smax(d, face, self.edge)
         k = self.round
-        return _smax(_smax(rho - radius, -h, k), h - self.length, k)
+        return _smax(_smax(d, -h, k), h - self.length, k)
+
+    def sides(self, h, x1, x2):
+        """How much points on its surface are on its bark (the round's side) and on each split face (weights, each
+        row adding to 1: one column for a round log), given in its frame."""
+        parts = np.stack(self._parts(h, x1, x2), -1)
+        if parts.shape[-1] == 1:
+            return np.ones_like(parts)
+        w = np.exp((parts - parts.max(axis=-1, keepdims=True)) / (0.35 * self.edge))
+        return w / w.sum(axis=-1, keepdims=True)
+
+    def _sections(self, n=7, m=40):
+        """Its cross-section measured at n places along it (on a grid m x m round its axis): its middle line
+        (mid0..mid1, in the world: the axis of a split piece is its pith, off its wood) and a round log's radius
+        with as much wood (re), for the shade it casts."""
+        g = ((np.arange(m) + 0.5) / m * 2 - 1) * self.reach
+        x1, x2 = np.meshgrid(g, g)
+        mids, areas = [], []
+        for h in (np.arange(n) + 0.5) / n * self.length:
+            inside = self.outside(np.full(x1.shape, h), x1, x2) < 0
+            if inside.any():
+                mids.append((float(x1[inside].mean()), float(x2[inside].mean())))
+                areas.append(float(inside.sum()) * (2 * self.reach / m) ** 2)
+        c1, c2 = np.mean(mids, axis=0) if mids else (0.0, 0.0)
+        self.mid0 = self.p0 + c1 * self.e1 + c2 * self.e2
+        self.mid1 = self.mid0 + self.d * self.length
+        self.re = math.sqrt(max(np.mean(areas) if areas else 0.0, 1e-12) / math.pi)
+
+    def points(self, n=12, m=40):
+        """Points inside it (world, ... x 3): on a grid m x m across it at n places along it (where it rests, how
+        high it reaches)."""
+        g = ((np.arange(m) + 0.5) / m * 2 - 1) * self.reach
+        x1, x2 = (v.reshape(-1) for v in np.meshgrid(g, g))
+        out = []
+        for h in (np.arange(n) + 0.5) / n * self.length:
+            inside = self.outside(np.full(x1.shape, h), x1, x2) < 0
+            out.append(self.p0 + h * self.d + x1[inside, None] * self.e1 + x2[inside, None] * self.e2)
+        return out
 
     def trace(self, o, f, before=None):
         """Where rays (origins o: N x 3, all one way f) first meet the log: the distance along each (inf: not, or
@@ -289,6 +372,26 @@ class Log:
         colour = colour * (1 - dark[..., None]) + _lin(w["furrow"]) * dark[..., None]
         return colour, sa, sq
 
+    def split_wood(self, a, s, step):
+        """Its fresh split faces at points a (along it, radii), s (across a face, radii from the pith): colour
+        (linear), relief slopes along a and across: wood torn along its grain, its year rings cut lengthwise into
+        long lines along it (closer toward the bark), long fibres, a darker band under the bark, a few knots."""
+        rng = np.random.default_rng([self.seed, 5])
+        extent = self.length / self.r + 8
+        s0 = s - np.floor(s / 3.0) * 3.0  # (across the face, from the pith: each face its own wood)
+        wob = _noise(rng, a * 0.15 + 1.0, s * 0.5 + 1.0, 0.5, extent, 2, wrap=False) - 0.5
+        rings = (s0 + 0.04 * wob) * 11.0
+        frac = rings - np.floor(rings)
+        fine = max(1.0, 3.0 * step * 11.0)  # (rings finer than the pixels: their mean)
+        line = _smooth((frac - 0.78) / 0.08) * (1 - _smooth((frac - 0.95) / 0.04)) / fine
+        fibre = _noise(rng, a * 0.05 + 1.0, s * 4.0 + 1.0, 0.04, extent, 3, wrap=False)  # (streaks along it)
+        knot = _smooth((_noise(rng, a * 0.5 + 1.0, s * 2.0 + 1.0, 0.5, extent, 2, wrap=False) - 0.8) / 0.05)
+        sap = _smooth((s0 - 0.75) / 0.2)  # (the sapwood under the bark: paler; the heart darker)
+        tone = (0.7 + 0.36 * fibre) * (1 - 0.35 * line) * (0.85 + 0.25 * sap) * (1 - 0.5 * knot)
+        colour = SPLIT[self.wood] * tone[..., None]
+        slope = 0.0008 * 11.0 * _dsmooth((frac - 0.78) / 0.08) / 0.08 / fine  # (each ring's edge a little ridge)
+        return colour, np.zeros_like(slope), slope * np.where((frac > 0.7) & (frac < 0.86), 1.0, 0.0)
+
     def char(self, a, q, step):
         """Its charred wood at points a, q: colour (linear), relief slopes (along, round), cracks (0..1: where embers
         glow), its block's random number, and noises for the ragged edge of the charred part and for its ash.
@@ -347,7 +450,7 @@ class Log:
         sq = groove * sq + 0.006 * rdq + 0.004 * 0.8 * np.sign(2 * fn - 1) * fdq * craze
         tone = cell[b, s]
         black = rng.random((nb, cuts)).astype(np.float32)
-        soot = _smooth((_noise(rng, a, q, 1.6, extent, 2) - 0.6 + 0.14 * (black[b, s] - 0.5)) / 0.02)  # (black
+        soot = _smooth((_noise(rng, a, q, 1.6, extent, 2) - 0.52 + 0.14 * (black[b, s] - 0.5)) / 0.02)  # (black
         # patches, their edges along the cracks)
         shade = (0.78 + 0.44 * tone) * (0.72 + 0.56 * fibre)
         grey = SHEEN * shade[..., None]
@@ -408,25 +511,31 @@ class Pile:
         self.r = min(0.085 * self.width * (0.6 + 0.8 * size), BIGGEST)  # (a log's radius)
         self.burnt = float(burnt)
         self.tilt = float(tilt)
-        laid = [(np.array(p0, np.float64), np.array(p1, np.float64), r) for p0, p1, r in self._layout(way, rng)]
-        if half is not None:  # (narrower if it would stick out of the box at its sides)
-            most = max(max(abs(p0[0]), abs(p1[0])) + 1.15 * r for p0, p1, r in laid)
-            if most > half:
-                k = (half - 1.15 * self.r) / max(most - 1.15 * self.r, 1e-9)
-                for p0, p1, _ in laid:
-                    p0[0] *= k
-                    p1[0] *= k
+        self.wood = wood
+        specs = self._layout(way, rng)
+        tighter = 1.0
+        for _ in range(4):  # (narrower if it would stick out of the box at its sides; again if, come to rest, it does)
+            self.logs = self._settle(self._narrow(specs, half, tighter) if half is not None else specs)
+            if half is None:
+                break
+            most = max(float(np.abs(q[:, 0]).max()) for lg in self.logs for q in lg.points(24, 24) if len(q))
+            if most <= half + 0.002:
+                break
+            tighter *= half / most * 0.99
+        laid = [(lg.p0, lg.end(), lg.r) for lg in self.logs]
         if floor is not None:  # (further back if its front, or the bed of coals in front of it, would be under the
             # box's bottom edge)
             up = np.array([0.0, math.sin(self.tilt), math.cos(self.tilt)])  # (up the picture, in the scene)
             low = min(min(self._lowest(p0, p1, r, up) for p0, p1, r in laid), self._bed_of(laid)[2] * up[1])
             if low < floor and up[1] > 1e-3:
-                for p0, p1, _ in laid:
-                    p0[1] += (floor - low) / up[1]
-                    p1[1] += (floor - low) / up[1]
-        self.logs = [Log(p0, p1, r, wood, rng) for p0, p1, r in laid]
+                back = np.array([0.0, (floor - low) / up[1], 0.0])
+                for lg in self.logs:
+                    lg.p0 += back
+                    lg.mid0 += back
+                    lg.mid1 += back
+                laid = [(lg.p0, lg.end(), lg.r) for lg in self.logs]
         self.bed = self._bed_of(laid)
-        self.top = max(max(lg.p0[2], lg.end()[2]) + lg.reach for lg in self.logs)
+        self.top = max(float(np.concatenate([q[:, 2] for q in lg.points(8, 24)]).max()) for lg in self.logs)
         ys = [y for lg in self.logs for y in (lg.p0[1], lg.end()[1])]
         self.fire = np.array([0.0, (min(ys) + max(ys)) / 2, 0.4 * self.top])  # (the fire's middle, among the logs)
         self.spread = 0.22 * self.width  # (its heart: a line across the pile this far each side of its middle)
@@ -448,31 +557,185 @@ class Pile:
         return min(p0 @ up, p1 @ up) - 1.1 * r * math.sqrt(max(0.0, 1 - float(d @ up) ** 2))
 
     def _layout(self, way, rng):
-        """(start, end, radius) of each log on the floor round the bed's middle (x across, y away, z up)."""
+        """The logs before they settle (_settle): each a dict of its axis's start and end on the floor round the
+        bed's middle (x across, y away, z up: its height is where it comes to rest), its radius (a split piece's:
+        its round's), how it is split and turned (Log). Round logs and split pieces as firewood comes: the bottom
+        ones along the fireplace, a little askew; those on top across them at an angle; a heap's smaller pieces
+        leaning."""
         r, w = self.r, self.width
 
         def j(s):
             return rng.uniform(-s, s)
 
-        def lying(cx, cy, half, yaw, rad, z=None, pitch=0.0):
+        def piece(cx, cy, half, yaw, size, split=None, lie=None):
+            """One log: its middle on the floor, half its length, its way (radians from x), how big (a round log's
+            radius, times), how split, how it lies ("flat": on a split face; "bark": on its bark, its edge up)."""
+            if split == "any":
+                u = rng.random()
+                split = None if u < 0.3 else "half" if u < 0.58 else "quarter" if u < 0.88 else "third"
+            rad = r * size * (SECTORS[split][1] if split else 1.0)
+            span = SECTORS[split][0] if split else TAU
+            lie = lie or ("flat" if rng.random() < 0.7 else "bark")
+            if not split:
+                turn = rng.random() * TAU
+            elif lie == "bark":  # (its bark down: e2 is down, turns from e1, the side toward the camera)
+                turn = math.pi / 2 + j(0.2)
+            else:  # (one of its flat faces down)
+                turn = (math.pi + span / 2 if rng.random() < 0.5 else -span / 2) + j(0.12)
             dx, dy = math.cos(yaw) * half, math.sin(yaw) * half
-            z = rad if z is None else z
-            return (cx - dx, cy - dy, z - pitch * half), (cx + dx, cy + dy, z + pitch * half), rad
+            z = rad + 0.5 * r  # (dropped from a little above: it comes to rest)
+            return {"p0": np.array([cx - dx, cy - dy, z]), "p1": np.array([cx + dx, cy + dy, z]), "r": rad,
+                    "split": split, "turn": turn}
 
-        back = lying(j(0.04) * w, 1.02 * r, w * (0.43 + j(0.03)), j(0.07), r * (1.0 + j(0.06)))
-        front = lying(j(0.05) * w, -1.02 * r, w * (0.41 + j(0.03)), j(0.07), r * (0.97 + j(0.06)))
+        sign = 1 if rng.random() < 0.5 else -1
+        back = piece(j(0.04) * w, 1.05 * r, w * (0.43 + j(0.03)), j(0.09), 1.0 + j(0.06),
+                     None if rng.random() < 0.55 else "half", "flat")
+        front = piece(j(0.05) * w, -1.08 * r, w * (0.4 + j(0.03)), -sign * (0.03 + rng.uniform(0, 0.07)),
+                      0.97 + j(0.06), "any")
+        back["floor"] = front["floor"] = True
         if way == "two":
             return [back, front]
-        lift = r + math.sqrt(4.0 - 1.02 ** 2) * r
-        top = lying(j(0.06) * w, j(0.25) * r, w * (0.37 + j(0.03)), math.radians(12 + j(8)) * (1 if j(1) > 0 else -1),
-                    r * (0.92 + j(0.06)), lift + 0.05 * r)
         if way == "stack":
+            top = piece(j(0.06) * w, j(0.25) * r, w * (0.36 + j(0.03)), sign * math.radians(14 + rng.uniform(0, 14)),
+                        0.9 + j(0.06), "any")
             return [back, front, top]
-        # a heap: two more, smaller, leaning across the stack at the sides
-        side = 1 if j(1) > 0 else -1
-        lean = lying(side * 0.3 * w, -2.2 * r, w * 0.22, math.radians(60 + j(10)) * side, r * 0.75, 1.6 * r, 0.5)
-        small = lying(-side * 0.25 * w, 2.4 * r, w * 0.25, math.radians(-20 + j(10)) * side, r * 0.7, 2.1 * r, -0.3)
-        return [small, back, front, top, lean]
+        # a heap: a small piece on the coals in front at one side; on the bottom two, one across them at an angle
+        # toward that side and one near their other ends from front to back, on both (not on each other: the
+        # flames need room above the pile)
+        small = piece(sign * 0.2 * w, -2.6 * r, w * (0.17 + j(0.02)), sign * math.radians(18 + j(8)), 0.62,
+                      "quarter" if rng.random() < 0.6 else "third")
+        small["floor"] = True
+        top = piece(sign * (0.1 + j(0.03)) * w, j(0.25) * r, w * (0.3 + j(0.03)),
+                    sign * math.radians(14 + rng.uniform(0, 12)), 0.9 + j(0.06), "any")
+        cross = piece(-sign * (0.33 + j(0.02)) * w, j(0.2) * r, max(0.16 * w, 2.3 * r),
+                      -sign * math.radians(72 + rng.uniform(0, 10)), 0.82 + j(0.05), "any")
+        return [back, front, small, top, cross]
+
+    def _settle(self, specs):
+        """The logs laid in order, each come to rest (_rest) on the floor and the logs laid before it; those of the
+        bottom layer ("floor") on the floor itself, moved away from the ones laid before them if they would lie on
+        them."""
+        laid = []
+        for n, sp in enumerate(specs):
+            p0, p1 = sp["p0"].copy(), sp["p1"].copy()
+            length = float(np.linalg.norm(p1 - p0))
+
+            def make(a, b):
+                return self._log(sp, n, a, b)
+            probe = make(p0, p1)  # (its wood's middle where the layout puts it, not its pith)
+            shift = probe.p0 - probe.mid0
+            shift[2] = 0.0
+            p0, p1 = p0 + shift, p1 + shift
+            if sp.get("floor") and laid:  # (on the floor beside the others: not on them at either end, not into
+                # their sides)
+                away = np.array([0.0, math.copysign(1.0, float(p0[1] + p1[1])), 0.0]) * 0.08 * self.r
+                for _ in range(40):
+                    lg = make(p0, p1)
+                    (on, tilt), (alone, flat) = self._rest(lg, laid), self._rest(lg, [])
+                    inside = np.concatenate([q for q in lg.points(24, 20) if len(q)])  # (close to its ends too)
+                    into = max(-float(other.outside(*other.local(inside)).min()) for other in laid)
+                    if max(on - alone, on + tilt * length - alone - flat * length, into) <= 0.01 * self.r:
+                        break
+                    p0, p1 = p0 + away, p1 + away
+            lift, slope = self._rest(make(p0, p1), laid)  # (tilted as it comes to rest)
+            p0 = p0 + np.array([0.0, 0.0, lift])
+            p1 = p1 + np.array([0.0, 0.0, lift + slope * length])
+            p1 = p0 + (p1 - p0) / np.linalg.norm(p1 - p0) * length  # (as long as it was)
+            touch = self._rest(make(p0, p1), laid, True)[0]  # (then down, or up, till it just touches)
+            down = np.array([0.0, 0.0, touch - 0.03 * self.r])  # (pressed a little into what holds it: no gap)
+            laid.append(make(p0 + down, p1 + down))
+        return laid
+
+    def _narrow(self, specs, half, tighter=1.0):
+        """The layout narrowed to lie within `half` box heights each side of the bed's middle (times `tighter`): each
+        log's wood as far out as it really reaches past its axis's ends (the more it is askew, the further); each log
+        shorter and nearer the middle, as askew as it was."""
+        ends = []  # (each log's end on each side: how far out its axis's end is, and the shift and wood past it)
+        for n, sp in enumerate(specs):
+            probe = self._log(sp, n, sp["p0"], sp["p1"])
+            shift = float((probe.p0 - probe.mid0)[0])  # (_settle puts its wood's middle on the layout's axis)
+            xs = np.concatenate([q[:, 0] for q in probe.points(24, 24) if len(q)]) + shift
+            for side in (1.0, -1.0):
+                end = max(side * float(sp["p0"][0]), side * float(sp["p1"][0]))
+                if end > 0:
+                    ends.append((end, side * shift, max(0.0, float((side * xs).max()) - end - side * shift)))
+        k = tighter * min([1.0] + [(half - sh - out) / end for end, sh, out in ends if end + sh + out > half])
+        if k >= 1.0:
+            return specs
+        out = []
+        for sp in specs:
+            mid, along = (sp["p0"] + sp["p1"]) / 2, (sp["p1"] - sp["p0"]) / 2 * k
+            mid[0] *= k
+            out.append(dict(sp, p0=mid - along, p1=mid + along))
+        return out
+
+    def _log(self, sp, n, p0, p1):
+        """The n-th log of the layout (its spec sp) with its axis from p0 to p1: the same log wherever it is put."""
+        return Log(p0, p1, sp["r"], self.wood, np.random.default_rng([self.seed, 9094, n]), sp["split"], sp["turn"])
+
+    def _rest(self, lg, laid, level=False):
+        """How far a log must go up (at its start) and how much more a unit along it (its slope) to rest on the floor
+        and the logs `laid`: along it, how far each cross-section's bottom is from what is under it; the line over
+        those that holds it up either side of its middle (the top of their convex hull). `level`: not tilted, only
+        up or down till it just touches."""
+        at, need = [], []
+        n, m = 16, 32
+        for k, pts in enumerate(lg.points(n, m)):
+            if not len(pts):
+                continue
+            col = np.floor(lg.local(pts)[1] / (2 * lg.reach / m)).astype(np.int32)  # (the grid's columns across it)
+            order = np.lexsort((pts[:, 2], col))
+            first = np.r_[True, col[order][1:] != col[order][:-1]]
+            low = pts[order[first]]  # (its underside, what can touch what is under it: the lowest point of each)
+            under = np.zeros(len(low))
+            for other in laid:
+                np.maximum(under, self._tops(other, low[:, 0], low[:, 1]), out=under)
+            at.append((k + 0.5) / n * lg.length)
+            need.append(float((under - low[:, 2]).max()))
+        if not at:
+            return 0.0, 0.0
+        if level:
+            return max(need), 0.0
+        hull = []
+        for q in sorted(zip(at, need)):  # (the top of their convex hull, left to right)
+            while len(hull) >= 2 and ((hull[-1][0] - hull[-2][0]) * (q[1] - hull[-2][1]) -
+                                      (hull[-1][1] - hull[-2][1]) * (q[0] - hull[-2][0])) >= 0:
+                hull.pop()
+            hull.append(q)
+        if len(hull) == 1:
+            return hull[0][1], 0.0
+        mid = lg.length / 2
+        for (h0, n0), (h1, n1) in zip(hull, hull[1:]):
+            if h1 >= mid or (h1, n1) == hull[-1]:
+                slope = (n1 - n0) / max(h1 - h0, 1e-12)
+                return n0 - slope * h0, slope
+        return hull[-1][1], 0.0
+
+    @staticmethod
+    def _tops(lg, x, y, steps=32):
+        """How high a log's top is over points of the floor (box heights; -inf where it is not over them)."""
+        out = np.full(len(x), -np.inf)
+        ends = np.array([lg.p0, lg.end()])
+        near = (x > ends[:, 0].min() - lg.reach) & (x < ends[:, 0].max() + lg.reach) & \
+            (y > ends[:, 1].min() - lg.reach) & (y < ends[:, 1].max() + lg.reach)
+        idx = np.flatnonzero(near)
+        if not len(idx):
+            return out
+        hi, lo = float(ends[:, 2].max()) + lg.reach, float(ends[:, 2].min()) - lg.reach
+        zs = np.linspace(hi, lo, steps)
+        px = np.repeat(x[idx], steps)
+        py = np.repeat(y[idx], steps)
+        pz = np.tile(zs, len(idx))
+        inside = (lg.outside(*lg.local(np.stack([px, py, pz], 1))) < 0).reshape(len(idx), steps)
+        met = inside.any(axis=1)
+        k = inside.argmax(axis=1)
+        a, b = zs[np.maximum(k - 1, 0)], zs[k]  # (a outside, b inside: closing in)
+        for _ in range(10):
+            m = (a + b) / 2
+            ins = lg.outside(*lg.local(np.stack([x[idx], y[idx], m], 1))) < 0
+            b, a = np.where(ins, m, b), np.where(ins, a, m)
+        out[idx[met]] = b[met]
+        return out
 
     def _lights(self):
         """The fire's lights on the logs: (place, kind): "flame" above the pile and among the logs (as bright as the
@@ -502,6 +765,21 @@ class Pile:
         x, s = self.screen(pts)
         m = 1.5 * self.r
         return x.min() - m, x.max() + m, s.min() - m * math.sin(self.tilt) - 0.5 * self.r, s.max() + 0.1 * self.r
+
+    def crest(self, xs):
+        """How high the pile's top is on the picture over points xs (box heights right of the bed's middle, evenly
+        spaced; up from it, -inf where no log is): the top of its outline as the camera sees it."""
+        top = np.full(len(xs), -np.inf)
+        step = float(xs[1] - xs[0])
+        for lg in self.logs:
+            for pts in lg.points(24, 32):
+                if not len(pts):
+                    continue
+                x, s = self.screen(pts)
+                i = np.round((x - xs[0]) / step).astype(int)
+                ok = (i >= 0) & (i < len(xs))
+                np.maximum.at(top, i[ok], s[ok])
+        return top
 
     # --- traced once for a place of the box -----------------------------------------------------------------------
 
@@ -677,7 +955,7 @@ class Pile:
         phase = noise(0.9, 1)
         return cover, albedo.astype(np.float32), np.clip(glow, 0.0, 1.0).astype(np.float32), phase.astype(np.float32)
 
-    def _heat(self, lg, p, nrm, ragged):
+    def _heat(self, lg, p, nrm):
         """How far the fire has burnt points on a log (about 0: not reached .. 1.5 and more: burning red): near the
         fire's heart (a line across the pile, among the logs: its middle part burns, its ends do not), facing it,
         between two logs (the fire burns in the gaps) and low down (on the embers), unevenly (`ragged`: a noise of
@@ -693,45 +971,74 @@ class Pile:
         gap = np.full(len(p), np.inf)
         for other in self.logs:
             if other is not lg:
-                gap = np.minimum(gap, np.linalg.norm(p - self._nearest_on(other, p), axis=1) - other.r)
+                gap = np.minimum(gap, other.outside(*other.local(p)))
         between = np.exp(-(np.maximum(gap, 0.0) / (0.7 * r)) ** 2)
         low = np.exp(-(np.maximum(p[:, 2], 0.0) / (0.45 * r)) ** 2)
         side = np.exp(-(np.maximum(np.abs(p[:, 0] - fire[0]) - self.spread, 0.0) / (1.3 * r)) ** 2)  # (its ends: cool)
-        return (core * (0.7 + 0.3 * facing) + 0.7 * between * wide + 0.9 * low * wide) * (0.4 + 0.6 * side) + \
-            0.4 * (ragged - 0.5)
+        return (core * (0.7 + 0.3 * facing) + 0.7 * between * wide + 0.9 * low * wide) * (0.4 + 0.6 * side)
+
+    def _skin(self, lg, a, q, heat, up, step, fresh):
+        """A log's surface at points a, q (radii along it and round it, or across a split face) as the fire has burnt
+        it (`heat`: _heat there; `up`: how much it faces up; `fresh`: its unburnt wood there, lg.bark or
+        lg.split_wood): colour (linear), relief slopes along a and q, how much its cracks and its char glow, how far
+        it has burnt (edge: about 0 where it begins to char), how much it is burning."""
+        coal, c_sa, c_sq, c_crack, tone, ragged, ash = lg.char(a, q, step)
+        burnt = self.burnt
+        heat = heat + 0.4 * (ragged - 0.5)  # (unevenly)
+        edge = heat - (0.95 - 0.75 * burnt) - 0.08 * (tone - 0.5)  # (charred block by block: its edge along cracks)
+        charred = _smooth(edge / 0.05)
+        scorched = _smooth((edge + 0.45) / 0.45) * (1 - charred)
+        burning = _smooth((edge - 0.22) / 0.35) * charred
+        colour = coal * charred[:, None]
+        sa, sq = c_sa * charred, c_sq * charred
+        some = np.flatnonzero(charred < 0.999)
+        if len(some):
+            wood, w_sa, w_sq = fresh(a[some], q[some], step)
+            sc = scorched[some, None]
+            wood = wood * (1 - 0.8 * sc) + SCORCH * (0.8 * sc)
+            keep = 1 - charred[some]
+            colour[some] += wood * keep[:, None]
+            sa[some] += w_sa * keep
+            sq[some] += w_sq * keep
+        ashy = (0.2 + 0.8 * ash) * _smooth((up + 0.1) / 0.9) * charred * (0.1 + 0.22 * burnt) * (1 - burning)
+        colour = colour * (1 - ashy[:, None]) + ASH * (0.75 + 0.5 * ragged[:, None]) * ashy[:, None]
+        spots = _smooth((0.7 - ash) / 0.3)  # (some patches hotter than others; none under ash)
+        hot = _smooth((edge - 0.2) / 0.8)  # (the hotter, the brighter)
+        under = _smooth((0.5 - up) / 1.1)  # (its sides and underside glow most: its tops lose their heat, ash on them)
+        along = _noise(np.random.default_rng([lg.seed, 6]), a, q, 0.15, lg.length / lg.r + 1, 1)  # (a crack glows
+        # in stretches)
+        crack = c_crack * burning * (0.35 + 0.65 * spots) * (0.45 + 0.55 * hot) * (0.4 + 0.6 * under) * \
+            (0.45 + 0.55 * _smooth((along - 0.3) / 0.4))
+        skin = burning * (0.3 + 0.7 * hot) * (0.25 + 0.75 * (1 - tone) ** 1.5) * (0.3 + 0.7 * spots) * \
+            (0.35 + 0.65 * under) * (1 - 0.6 * ashy)
+        return colour, sa, sq, crack, skin, edge, burning
 
     def _looks(self, lg, p, hh, x1, x2, nrm, step):
         """What a log looks like at points on it: colour (linear), the way it faces with its relief, and how much its
         cracks and the char between them glow (where it is burning). `step`: a pixel's size, radii.
 
-        Where the fire has not reached it, its bark (browned next to where it has charred); where it has, charred
-        wood, ash on its tops; where it is hottest (`_heat`), burning: its cracks and its char glowing."""
+        Where the fire has not reached it, its bark, or a split piece's fresh wood on its split faces (browned next to
+        where it has charred); where it has, charred wood, ash on its tops; where it is hottest (`_heat`), burning:
+        its cracks and its char glowing."""
         a, q = hh / lg.r, np.mod(np.arctan2(x2, x1), TAU)
         along = nrm @ lg.d  # (how much of it is a cut end, by the way it faces: the rounded edge between)
         cap = _smooth((np.abs(along) - 0.55) / 0.3)
-        coal, c_sa, c_sq, c_crack, tone, ragged, ash = lg.char(a, q, step)
-        burnt = self.burnt
-        heat = self._heat(lg, p, nrm, ragged)
-        edge = heat - (0.95 - 0.75 * burnt) - 0.15 * (tone - 0.5)  # (charred block by block: its edge along cracks)
-        charred = _smooth(edge / 0.05)
-        scorched = _smooth((edge + 0.3) / 0.3) * (1 - charred)
-        burning = _smooth((edge - 0.22) / 0.35) * charred
-        colour = coal * charred[:, None]
-        sa, sq = c_sa * charred, c_sq * charred
-        some_bark = np.flatnonzero(charred < 0.999)
-        if len(some_bark):
-            bark, b_sa, b_sq = lg.bark(a[some_bark], q[some_bark], step)
-            sc = scorched[some_bark, None]
-            bark = bark * (1 - 0.55 * sc) + SCORCH * (0.55 * sc)
-            keep = (1 - charred[some_bark])
-            colour[some_bark] += bark * keep[:, None]
-            sa[some_bark] += b_sa * keep
-            sq[some_bark] += b_sq * keep
-        ashy = (0.2 + 0.8 * ash) * _smooth((nrm[:, 2] + 0.1) / 0.9) * charred * (0.1 + 0.22 * burnt) * (1 - burning)
-        colour = colour * (1 - ashy[:, None]) + ASH * (0.75 + 0.5 * ragged[:, None]) * ashy[:, None]
-        spots = _smooth((0.75 - ash) / 0.5)  # (some patches hotter than others; none under ash)
-        crack = c_crack * burning * (0.55 + 0.45 * spots)
-        skin = burning * (0.3 + 0.7 * (1 - tone) ** 1.5) * (0.35 + 0.65 * spots) * (1 - 0.5 * ashy)
+        heat = self._heat(lg, p, nrm)
+        colour, sa, sq, crack, skin, edge, burning = self._skin(lg, a, q, heat, nrm[:, 2], step, lg.bark)
+        if lg.split:  # (on a split face: its wood along the grain, charred as the bark is where the fire reaches it)
+            sides = lg.sides(hh, x1, x2)
+            on = 1 - sides[:, 0]
+            fi = np.flatnonzero(on > 0.002)
+            if len(fi):
+                face = sides[fi, 1:].argmax(axis=1)
+                s = np.sqrt(x1[fi] ** 2 + x2[fi] ** 2) / lg.r + 3.0 * (face + 1)  # (each face its own wood)
+                f = self._skin(lg, a[fi], s, heat[fi] + SPLIT_HOT, nrm[fi, 2], step, lg.split_wood)
+                k = on[fi]
+                colour[fi] = colour[fi] * (1 - k[:, None]) + f[0] * k[:, None]
+                sa[fi] = sa[fi] * (1 - k) + f[1] * k
+                sq[fi] = sq[fi] * (1 - k) + f[2] * k
+                crack[fi] = crack[fi] * (1 - k) + f[3] * k
+                skin[fi] = skin[fi] * (1 - k) + f[4] * k
         # the relief: the surface tilted by its slopes along the log and round it
         tang = np.cross(lg.d, nrm)
         tang /= np.maximum(np.linalg.norm(tang, axis=1, keepdims=True), 1e-9)
@@ -762,7 +1069,7 @@ class Pile:
         lights = np.zeros((len(self.lights),) + on.shape, np.float32)
         p32, n32 = p.astype(np.float32), nrm.astype(np.float32)
         start = p32 + n32 * np.float32(0.02 * self.r)
-        own = [np.linalg.norm(p - self._nearest_on(lg, p), axis=1) < lg.reach * 1.05 for lg in self.logs]
+        own = [np.abs(lg.outside(*lg.local(p))) < 0.03 * lg.r for lg in self.logs]
         for k, (at, _) in enumerate(self.lights):
             to = at.astype(np.float32) - p32
             dist = np.sqrt(np.einsum("ij,ij->i", to, to))
@@ -777,7 +1084,7 @@ class Pile:
             v = self._nearest_on(lg, p) - p
             dd = np.linalg.norm(v, axis=1)
             cos = np.clip(np.einsum("ij,ij->i", nrm, v) / np.maximum(dd, 1e-9), 0, 1)
-            room *= 1 - np.clip(cos * (lg.r / np.maximum(dd, lg.r)) ** 2 * 1.3, 0, 0.9)
+            room *= 1 - np.clip(cos * (lg.re / np.maximum(dd, lg.re)) ** 2 * 1.3, 0, 0.9)
         room *= 0.55 + 0.45 * _smooth((nrm[:, 2] + 0.6) / 1.2)  # (facing down: the dark floor)
         full = np.zeros(on.shape, np.float32)
         full[on] = room
@@ -785,18 +1092,19 @@ class Pile:
 
     @staticmethod
     def _nearest_on(lg, p):
-        """The nearest points to p on a log's axis."""
-        t = np.clip((p - lg.p0) @ lg.d, 0, lg.length)
-        return lg.p0 + t[:, None] * lg.d
+        """The nearest points to p on a log's middle line (its axis; a split piece's: through its wood)."""
+        t = np.clip((p - lg.mid0) @ lg.d, 0, lg.length)
+        return lg.mid0 + t[:, None] * lg.d
 
     @staticmethod
     def _unshaded(p, at, lg, own):
         """How much of a light at `at` reaches points p (float32) past one log (0 in its shadow, softly at its edge):
         from how near the line from each point to the light passes the log's axis; none of it is kept from the log's
         own surface (`own`: whether it faces the light says that)."""
-        a1 = at.astype(np.float32)[None, :] - p  # (the nearest points of two segments: p -> at, and the log's axis)
+        a1 = at.astype(np.float32)[None, :] - p  # (the nearest points of two segments: p -> at, and the log's middle
+        # line)
         b1 = (lg.d * lg.length).astype(np.float32)
-        r = p - lg.p0.astype(np.float32)
+        r = p - lg.mid0.astype(np.float32)
         aa = np.einsum("ij,ij->i", a1, a1)
         bb = float(b1 @ b1)
         ab = a1 @ b1
@@ -808,7 +1116,7 @@ class Pile:
         s = np.clip((ab * t - ar) / np.maximum(aa, 1e-12), 0, 1)
         g = r + a1 * s[:, None] - b1 * t[:, None]
         gap = np.sqrt(np.einsum("ij,ij->i", g, g))
-        out = _smooth((gap - lg.r * (1 - SOFT)) * (1 / (2 * SOFT * lg.r)))
+        out = _smooth((gap - lg.re * (1 - SOFT)) * (1 / (2 * SOFT * lg.re)))
         out[own] = 1.0
         return out
 
@@ -830,7 +1138,11 @@ class Pile:
         for lg in self.logs:
             v = self._nearest_on(lg, p) - p
             dd = np.maximum(np.linalg.norm(v, axis=1), 1e-9)
-            occ += np.clip(v[:, 2] / dd, 0, 1) * (lg.r / np.maximum(dd, lg.r * 0.9)) ** 2 * 1.4
+            t = (p - lg.mid0) @ lg.d
+            past = np.maximum(np.maximum(-t, t - lg.length), 0.0)  # (beyond its ends the shade soon goes: no dark
+            # patches on the walls beside them)
+            occ += np.clip(v[:, 2] / dd, 0, 1) * (lg.re / np.maximum(dd, lg.re * 0.9)) ** 2 * 1.4 * \
+                np.exp(-(past / (0.6 * lg.re)) ** 2)
         return np.clip(occ, 0, 1).reshape(len(ss), len(xs)).astype(np.float32)
 
     # --- each frame ------------------------------------------------------------------------------------------------

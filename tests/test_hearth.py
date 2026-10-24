@@ -282,7 +282,7 @@ class Logs(unittest.TestCase):
         """Without logs (a clip made before them, or "none") the fire is drawn as it was."""
         a, b = make({}), make({"wood": "none", "stack": "heap", "log_size": 90})
         self.assertIsNone(a.pile)
-        self.assertNotIn("base", a.k)
+        self.assertNotIn("crest", a.k)
         self.assertEqual(a.k, b.k)
         for t in (0, 30):
             self.assertTrue(np.array_equal(lens(a, t), lens(b, t)))
@@ -429,6 +429,51 @@ class Logs(unittest.TestCase):
         other = make(WITH_LOGS, seed=4).pile.logs[0].p0  # ("Đổi kiểu ngẫu nhiên": laid otherwise)
         self.assertNotEqual(other.tolist(), make(WITH_LOGS).pile.logs[0].p0.tolist())
 
+    def test_logs_come_to_rest(self):
+        """Each log lies on the floor or on the logs laid before it, as it would come to rest: touching them (pressed
+        a little into them), not floating over them, not sunk into them; the bottom ones side by side on the floor,
+        not on each other; split pieces as well as round logs."""
+        splits = set()
+        for way in ("two", "stack", "heap"):
+            for seed in (3, 4, 5):
+                for size in (0, 50, 100):
+                    pile = make({**WITH_LOGS, "stack": way, "log_size": size}, seed=seed).pile
+                    for n, lg in enumerate(pile.logs):
+                        splits.add(lg.split)
+                        lift = pile._rest(lg, pile.logs[:n], True)[0]  # (how far up it would go to just touch)
+                        self.assertGreater(lift, 0.0, (way, seed, size, n))
+                        self.assertLess(lift, 0.08 * pile.r, (way, seed, size, n))
+                        low = min(float(q[:, 2].min()) for q in lg.points(12, 32) if len(q))
+                        on_floor = low < 0.02 * pile.r
+                        self.assertEqual(on_floor, n < 2 or (way == "heap" and n == 2), (way, seed, size, n))
+                        inside = np.concatenate([q for q in lg.points(24, 32) if len(q)])
+                        for other in pile.logs[:n]:  # (not sunk into another)
+                            depth = -float(other.outside(*other.local(inside)).min())
+                            self.assertLess(depth, 0.12 * pile.r, (way, seed, size, n))
+        self.assertTrue({None, "half", "quarter"} <= splits, splits)
+
+    def test_flames_from_the_top_of_the_pile(self):
+        """With logs the fire's burning places are along the top of the pile as the camera sees it (a little under
+        it: their roots behind the logs), over the logs, more of them in its middle."""
+        for way in ("two", "stack", "heap"):
+            fx = make({**WITH_LOGS, "stack": way})
+            crest = np.asarray(fx.k["crest"])
+            cols = np.flatnonzero(crest > 0)
+            self.assertGreater(len(cols), 0.3 * hearth.GRID[0], way)
+            fluid = hearth._Fluid(fx.k, fx.seed)
+            self.assertTrue(((fluid.at >= cols.min()) & (fluid.at <= cols.max())).all(), way)
+            top = np.interp(fluid.at, np.arange(len(crest)), np.where(crest > 0, crest, crest.max()))
+            self.assertTrue(((fluid.up <= top + 1e-4) & (fluid.up >= top - 3.0 - 1e-4)).all(), way)
+            middle = np.abs(fluid.at - (cols.min() + cols.max()) / 2) < (cols.max() - cols.min()) / 4
+            self.assertGreater(middle.mean(), 0.5, way)
+            # the outline: as high as the logs are drawn in the box
+            (rows, _), (x0, y0, w, h) = box_of(fx)
+            where, laid = self.logs_of(fx)
+            ys = np.nonzero(laid["alpha"] > 0.5)[0] + where[0].start
+            drawn = (y0 + h - ys.min()) / h * hearth.GRID[1]  # (cells up from the box's bottom)
+            lower = hearth.MARK * fx.bed * hearth.GRID[0] / 2 - 0.3 * fx.pile.r * hearth.GRID[1]
+            self.assertLess(abs(crest.max() - lower - drawn), 0.06 * hearth.GRID[1], way)
+
     def test_a_log_where_it_is(self):
         """A log is where its axis and radius say: rays meet a plain one (no lumps) at its surface, facing out."""
         rng = np.random.default_rng(1)
@@ -465,7 +510,7 @@ class Logs(unittest.TestCase):
             self.assertEqual(by_key[key]["group"], by_key["wood"]["group"], key)
         self.assertIn({"wood": list(logs.WOODS)}, by_key["view"]["show"])
         k = make(WITH_LOGS).k
-        self.assertGreater(k["base"], 0)
+        self.assertGreater(max(k["crest"]), 0)
         for key, v in (("wood", "birch"), ("char", 10), ("light", 100), ("x", 20)):
             self.assertEqual(make({**WITH_LOGS, key: v}).k, k, key)
         for key, v in (("log_size", 90), ("stack", "two"), ("view", 0)):
@@ -553,9 +598,12 @@ class Frame(unittest.TestCase):
                                                                                      "curve"])
         self.assertTrue(spec["label"] and spec["tip"])
         self.assertEqual(make({"frame": "arch", "frame_w": 40}).k, make({}).k)
-        narrow = make({"frame": "rect", "frame_w": 40, "wood": "oak", "bed": 100}).pile
-        xs = [abs(x) for lg in narrow.logs for x in (lg.p0[0], lg.end()[0])]
-        self.assertLess(max(xs) + narrow.r, 0.4 * 4 / 3 / 2 + 1e-6)
+        for way in ("two", "stack", "heap"):
+            for seed in (3, 4, 5):
+                narrow = make({"frame": "rect", "frame_w": 40, "wood": "oak", "bed": 100, "stack": way},
+                              seed=seed).pile
+                wood = max(float(np.abs(q[:, 0]).max()) for lg in narrow.logs for q in lg.points(24, 24) if len(q))
+                self.assertLess(wood, 0.95 * 0.4 * 4 / 3 / 2 + 0.003, (way, seed))
 
 
 class Walls(unittest.TestCase):

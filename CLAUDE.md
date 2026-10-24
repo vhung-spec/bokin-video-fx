@@ -196,54 +196,66 @@ hiệu ứng. Cách dùng: `README.md`.
   từ video lửa củi thật (`PAL`, bảng tra `_lut`), quầng sáng tính trên lưới thô (`_halo`), Screen; chân lửa là một đường
   gợn trong hình bầu dục (`_floor_at`), không là một đường thẳng; than hồng (`_ember_field`); ánh lửa trên lò (`_light`,
   chủ yêu cầu 2026-10-24: bên trong lò thật hơn): chính ngọn lửa lúc đó (`gflame` trên lưới thô) loang ra như ánh lửa
-  thật (`SPREAD`: vài lớp mờ, sáng nhất sát lửa), màu `FIRELIGHT` (theo "Màu lửa"), `LIGHT_ON` lần "Ánh lửa", nhân
-  vào hình như bề mặt có màu của nó dưới ánh phòng (`_room`: ánh phòng chiếu vào lò = độ sáng giữa (median) trong
-  miệng lò chia `ALBEDO`; màu bề mặt = hình / ánh phòng, mềm tới `ALBEDO_MAX` mỗi màu, không tối hơn `ALBEDO_MIN`;
-  tính trong ánh sáng tuyến tính, float32): gạch sáng đỏ, mạch vữa vẫn tối, không thành sương; lửa bùng chỗ nào sáng
-  chỗ đó; mức sáng chỉnh theo video lò sưởi thật chủ gửi. Ngọn lửa vẽ rực hơn (`PUNCH`, `PUNCH_K`: phần mờ trong hơn,
-  lõi sáng hơn: nổi trên tường lò đã sáng); "Che lửa cũ"
-  (`cover`): chỗ sáng ấm hay trắng của lửa đứng yên trong video thành ánh mờ cùng màu đã làm nhoè (`DIM`). Hằng số và
-  bản đồ theo hộp giữ giữa các khung (`_layout`). Chỉ các thông số của ngọn lửa (`k`) làm lại lửa; màu, ánh sáng, chỗ
-  đặt thì không. "Khung lò" (từ 1.0.70; `frame`: `none` như cũ, `rect`, `arch`, `round`; `frame_w`, `frame_h`: phần của
-  hộp, `curve`): miệng lò trong ảnh, đứng trên đáy hộp, hai góc trên bo theo `frame_radii` (như CSS bo góc: trang vẽ
-  viền cam `#xformFrame` cùng công thức, `frameRadii`; ba ô kéo hai bên và cạnh trên: `frameL`, `frameR`, `frameT`, nằm
-  trong `XFORM_KEYS`). Mọi thay đổi của lửa trong hộp (lửa, quầng, ánh lửa, che lửa cũ, củi) nhân với mặt nạ miệng lò
-  (`_opening`: mềm ở hai bên và trên, không ở đáy); đống củi hẹp lại cho vừa miệng lò. Không làm lại lửa. Tia lửa (từ
-  1.0.73, `_sparks`: số nguyên tia mỗi vòng theo `SPARKS` và "Lửa dày", mỗi tia sinh một lúc trong vòng, bay lên từ đỉnh
-  đống củi hay chân lửa, lượn, tắt dần; vệt nhỏ như máy quay thấy, Screen; không làm lại lửa). Chủ thấy lửa chưa đẹp
-  (2026-10-23): `DEFAULTS` từ 1.0.73 lửa dày, sáng hơn; từ 2026-10-24 (lò sáng lên thì lửa phải rực hơn) `amount` 75,
-  `bright` 62; `VERSION` 3.
+  thật (`SPREAD`: vài lớp mờ, sáng nhất sát lửa), màu `FIRELIGHT` (theo "Màu lửa"), `LIGHT_ON` lần "Ánh lửa", nhân vào
+  hình như bề mặt có màu của nó dưới ánh phòng (`_room`: ánh phòng chiếu vào lò = độ sáng giữa (median) trong miệng lò
+  chia `ALBEDO`; màu bề mặt = hình / ánh phòng, mềm tới `ALBEDO_MAX` mỗi màu, không tối hơn `ALBEDO_MIN`; tính trong ánh
+  sáng tuyến tính, float32): gạch sáng đỏ, mạch vữa vẫn tối, không thành sương; lửa bùng chỗ nào sáng chỗ đó; mức sáng
+  chỉnh theo video lò sưởi thật chủ gửi. Ngọn lửa vẽ rực hơn (`PUNCH`, `PUNCH_K`: phần mờ trong hơn, lõi sáng hơn: nổi
+  trên tường lò đã sáng); "Che lửa cũ" (`cover`): chỗ sáng ấm hay trắng của lửa đứng yên trong video thành ánh mờ cùng
+  màu đã làm nhoè (`DIM`). Hằng số và bản đồ theo hộp giữ giữa các khung (`_layout`). Chỉ các thông số của ngọn lửa
+  (`k`) làm lại lửa; màu, ánh sáng, chỗ đặt thì không. "Khung lò" (từ 1.0.70; `frame`: `none` như cũ, `rect`, `arch`,
+  `round`; `frame_w`, `frame_h`: phần của hộp, `curve`): miệng lò trong ảnh, đứng trên đáy hộp, hai góc trên bo theo
+  `frame_radii` (như CSS bo góc: trang vẽ viền cam `#xformFrame` cùng công thức, `frameRadii`; ba ô kéo hai bên và cạnh
+  trên: `frameL`, `frameR`, `frameT`, nằm trong `XFORM_KEYS`). Mọi thay đổi của lửa trong hộp (lửa, quầng, ánh lửa, che
+  lửa cũ, củi) nhân với mặt nạ miệng lò (`_opening`: mềm ở hai bên và trên, không ở đáy); đống củi hẹp lại cho vừa miệng
+  lò. Không làm lại lửa. Tia lửa (từ 1.0.73, `_sparks`: số nguyên tia mỗi vòng theo `SPARKS` và "Lửa dày", mỗi tia sinh
+  một lúc trong vòng, bay lên từ đỉnh đống củi hay chân lửa, lượn, tắt dần; vệt nhỏ như máy quay thấy, Screen; không làm
+  lại lửa). Chủ thấy lửa chưa đẹp (2026-10-23): `DEFAULTS` từ 1.0.73 lửa dày, sáng hơn; từ 2026-10-24 (lò sáng lên thì
+  lửa phải rực hơn) `amount` 75, `bright` 62; `VERSION` 3. Chủ yêu cầu 2026-10-24 lần hai ("ngọn lửa nhìn thật hơn, củi
+  gỗ cháy và xếp nhìn giống thực tế hơn"): lưỡi lửa sắc hơn (`PUNCH` 1,6, `CUT` 0,2, quầng `HALO` 0,18), chỗ quá sáng
+  nén mềm dưới `KNEE` (lõi vàng, chỉ chỗ nóng nhất mới trắng; quầng cũng vậy); có củi thì lửa bốc lên từ đỉnh đống củi
+  (`k["crest"]`: đường trên cùng của đống củi trên hình theo cột lưới, thấp hơn 0,3 bán kính; `_Fluid` đặt chỗ cháy dọc
+  nó, dày ở giữa `gather`, lưỡi lửa hẹp hơn `narrow`, ít nhiên liệu hơn, tắt sớm hơn: `feed`, `jet`, `fade` trong
+  `Hearth.__init__`); `VERSION` 5.
 - Củi của Lửa lò sưởi (`fx/logs.py`, từ 1.0.69; nhóm "Củi": `wood` (`none`: không củi, như cũ: clip cũ giữ nguyên),
   `stack`, `log_size`, `char`, `view`, hiện khi đã chọn củi: `show`; kiểu lửa không đặt chúng): đống củi vẽ bằng mã. Mỗi
-  khúc là mặt ẩn (`Log.outside`: trụ gồ ghề theo bảng dọc trục, to một đầu, đầu cắt bo tròn) trong cảnh nhỏ trên hình
-  bầu dục (x ngang, y vào trong, z lên, đơn vị chiều cao hộp); máy quay xa (tia song song) nhìn xuống `tilt` (5 tới 35°:
-  "Nhìn từ trên xuống"). Tia vào trụ bao, bước `MARCH` rồi khép vào mặt (`trace`; khúc gần trước, phần bị che không dò);
-  một tia mỗi điểm ảnh, `SS`x`SS` ở mép khúc. Vân tính tại điểm chạm từ seed của khúc (giống nhau ở mọi cỡ): than nứt
-  vòng quanh khúc (`char`: dải vòng lượn, chỗ tách riêng mỗi dải, nứt mảnh, mảng đen theo khối, thớ dọc), vỏ (`bark`:
-  rãnh dọc là đường đồng mức của nhiễu kéo dài, tách nhập; bạch dương trắng, vạch ngang, sẹo đen), mặt cắt (`face`: vòng
-  năm, lõi, vết nứt toả), tro xám mặt trên; độ gồ nghiêng pháp tuyến (độ dốc tính thẳng: `_noise_d`). Lửa cháy tới đâu
-  (từ 1.0.73, chủ yêu cầu 2026-10-23: củi có chỗ chưa cháy tới, chỗ đang cháy đỏ; `Pile._heat`: gần lõi lửa, một đường
-  ngang giữa đống `spread`, hướng về nó, khe giữa hai khúc, sát sàn; hai đầu khúc nguội; loang theo nhiễu) chia vùng
-  theo `char`, ranh giới theo khối: còn vỏ (sém nâu `SCORCH` sát vùng than), than đen nứt khối có tro, đang cháy đỏ
-  (`burning`: vết nứt `crack` và mặt than `skin` phát sáng `GLOW_CRACK`, `GLOW_SKIN` lần "Than hồng", chỗ nóng chỗ không
-  `spots`, thở theo nhịp; mặt cắt cháy theo chỗ của nó). `Pile.colour` trả cả ánh sáng củi phát ra: quầng sáng quanh chỗ
-  cháy đỏ (`EMBER_HALO`, `_soft` trên phần củi, tràn ra ngoài mép khúc). `Pile.lay` một lần cho mỗi chỗ đặt (trong
-  `_layout`): màu, pháp tuyến, phần mỗi đèn (đèn cố định: trên đống củi, giữa các khúc, than trước đống; hướng, bóng mềm
-  của khúc khác, xa gần), ánh phòng (khúc quanh che), bóng trên sàn; mỗi khung (`Pile.colour`, `_logs`) chỉ đổi độ sáng
-  đèn (lửa mô phỏng quanh mỗi đèn: `_light_windows`; than: nhịp `ember_m`), ánh phòng (`Hearth._room`: ánh phòng
-  chiếu vào lò, không lấy trung bình cả hộp có mặt đá sáng: củi không xám) và chỗ cháy đỏ (thở, số nguyên lần mỗi
-  vòng). Ánh lửa trên củi màu `FLAME_LIGHT` (cam, như `FIRELIGHT`). Lớp than và tro dưới củi (từ 2026-10-24;
-  `Pile.bed` = `_bed_of`: quanh các khúc trên sàn, trước củi thêm `BED_FRONT` bán kính; đống củi lùi vào cho lớp than
-  trước nó còn trong hộp): `_bed_lay` (một lần mỗi chỗ đặt, `SS`x`SS` điểm mỗi điểm ảnh) và `_bed_looks` (nhiễu theo
-  điểm trên sàn: chỗ lửa cháy là lớp than hồng sáng qua kẽ nứt, cục than đen nằm trên (mặt trên tối, sáng phía sau,
-  mép cục đỏ); xa ra tro xám lẫn mẩu than; mép lởm chởm), `Pile.bed_colour` mỗi khung (ánh phòng và ánh lửa `lit`
-  của `_light`, than sáng `COAL_GLOW` lần độ đỏ của vết nứt, thở theo nhịp than); ánh sáng than vào quầng sáng như
-  vết nứt. Có củi thì than hồng `_ember_field` chỉ còn là ánh sáng (không vẽ: lớp than vẽ thay). Củi đục, vẽ trước
-  lửa: khúc trước mặt phẳng lửa (và tới 1,5 bán kính sau nó)
-  che hết lửa, khúc sau nữa chỉ để lộ lưỡi lửa sáng (`BEHIND`), than hồng trên sàn bị che, quầng sáng bớt trên củi. Có
-  củi thì chỗ cháy của mô phỏng lên tới giữa đống củi (`k["base"]`: đổi cỡ, cách xếp, góc nhìn là tính lại lửa; loại
-  củi, cháy sém thì không). Đống củi nằm trong hộp (hẹp lại, lùi vào khi cần), khúc to nhất `BIGGEST`; `UNDER_FADE` = 0:
-  clip xem nhanh không mờ ở mép hộp (củi đứng trên đáy hộp; lửa tự mờ ở mép).
+  khúc là mặt ẩn (`Log.outside`: trụ gồ ghề theo bảng dọc trục, to một đầu, đầu cắt bo tròn; hay củi chẻ từ 2026-10-24:
+  `split` nửa, một phần ba, một phần tư khúc tròn `SECTORS`, mặt chẻ thô theo thớ, mép bo `_smax`; thớ gỗ, vòng năm trên
+  mặt chẻ `split_wood`, mặt chẻ cháy trước vỏ `SPLIT_HOT`; `mid0`, `re`: trục và bán kính tương đương cho bóng) trong
+  cảnh nhỏ trên hình bầu dục (x ngang, y vào trong, z lên, đơn vị chiều cao hộp). Các khúc đặt lần lượt, mỗi khúc rơi
+  xuống nằm yên như thật (`_settle`, `_rest`: mặt dưới từng lát (điểm thấp nhất mỗi cột lưới, giống nhau ở mọi chỗ đặt)
+  trên sàn và các khúc đặt trước; nghiêng theo đỉnh bao lồi, rồi hạ thẳng tới khi chạm, lún 0,03 bán kính; khúc dưới
+  cùng nằm cạnh nhau trên sàn, dời ra nếu đè lên hay lấn vào khúc khác); "Đống củi": hai khúc dưới, một khúc chéo trên,
+  một khúc ngang đầu đống từ trước ra sau, một mẩu nhỏ phía trước (không thành tầng ba: lửa cần chỗ). Test:
+  `test_logs_come_to_rest`, `test_flames_from_the_top_of_the_pile`. Máy quay xa (tia song song) nhìn xuống `tilt` (5 tới
+  35°: "Nhìn từ trên xuống"). Tia vào trụ bao, bước `MARCH` rồi khép vào mặt (`trace`; khúc gần trước, phần bị che không
+  dò); một tia mỗi điểm ảnh, `SS`x`SS` ở mép khúc. Vân tính tại điểm chạm từ seed của khúc (giống nhau ở mọi cỡ): than
+  nứt vòng quanh khúc (`char`: dải vòng lượn, chỗ tách riêng mỗi dải, nứt mảnh, mảng đen theo khối, thớ dọc), vỏ
+  (`bark`: rãnh dọc là đường đồng mức của nhiễu kéo dài, tách nhập; bạch dương trắng, vạch ngang, sẹo đen), mặt cắt
+  (`face`: vòng năm, lõi, vết nứt toả), tro xám mặt trên; độ gồ nghiêng pháp tuyến (độ dốc tính thẳng: `_noise_d`). Lửa
+  cháy tới đâu (từ 1.0.73, chủ yêu cầu 2026-10-23: củi có chỗ chưa cháy tới, chỗ đang cháy đỏ; `Pile._heat`: gần lõi
+  lửa, một đường ngang giữa đống `spread`, hướng về nó, khe giữa hai khúc, sát sàn; hai đầu khúc nguội; loang theo
+  nhiễu) chia vùng theo `char`, ranh giới theo khối: còn vỏ (sém nâu `SCORCH` sát vùng than), than đen nứt khối có tro,
+  đang cháy đỏ (`burning`: vết nứt `crack` và mặt than `skin` phát sáng `GLOW_CRACK`, `GLOW_SKIN` lần "Than hồng", chỗ
+  nóng chỗ không `spots`, vết nứt đỏ từng đoạn `along`, nóng hơn sáng hơn `hot`, mặt dưới và hai bên đỏ hơn mặt trên phủ
+  tro `under`; than đen tối `SHEEN`; thở theo nhịp; mặt cắt cháy theo chỗ của nó). `Pile.colour` trả cả ánh sáng củi
+  phát ra: quầng sáng quanh chỗ cháy đỏ (`EMBER_HALO`, `_soft` trên phần củi, tràn ra ngoài mép khúc). `Pile.lay` một
+  lần cho mỗi chỗ đặt (trong `_layout`): màu, pháp tuyến, phần mỗi đèn (đèn cố định: trên đống củi, giữa các khúc, than
+  trước đống; hướng, bóng mềm của khúc khác, xa gần), ánh phòng (khúc quanh che), bóng trên sàn; mỗi khung
+  (`Pile.colour`, `_logs`) chỉ đổi độ sáng đèn (lửa mô phỏng quanh mỗi đèn: `_light_windows`; than: nhịp `ember_m`), ánh
+  phòng (`Hearth._room`: ánh phòng chiếu vào lò, không lấy trung bình cả hộp có mặt đá sáng: củi không xám) và chỗ cháy
+  đỏ (thở, số nguyên lần mỗi vòng). Ánh lửa trên củi màu `FLAME_LIGHT` (cam, như `FIRELIGHT`). Lớp than và tro dưới củi
+  (từ 2026-10-24; `Pile.bed` = `_bed_of`: quanh các khúc trên sàn, trước củi thêm `BED_FRONT` bán kính; đống củi lùi vào
+  cho lớp than trước nó còn trong hộp): `_bed_lay` (một lần mỗi chỗ đặt, `SS`x`SS` điểm mỗi điểm ảnh) và `_bed_looks`
+  (nhiễu theo điểm trên sàn: chỗ lửa cháy là lớp than hồng sáng qua kẽ nứt, cục than đen nằm trên (mặt trên tối, sáng
+  phía sau, mép cục đỏ); xa ra tro xám lẫn mẩu than; mép lởm chởm), `Pile.bed_colour` mỗi khung (ánh phòng và ánh lửa
+  `lit` của `_light`, than sáng `COAL_GLOW` lần độ đỏ của vết nứt, thở theo nhịp than); ánh sáng than vào quầng sáng như
+  vết nứt. Có củi thì than hồng `_ember_field` chỉ còn là ánh sáng (không vẽ: lớp than vẽ thay). Củi đục, vẽ trước lửa:
+  khúc trước mặt phẳng lửa (và tới 1,5 bán kính sau nó) che hết lửa, khúc sau nữa chỉ để lộ lưỡi lửa sáng (`BEHIND`),
+  than hồng trên sàn bị che, quầng sáng bớt trên củi. Có củi thì lửa bốc lên từ đỉnh đống củi (`k["crest"]`,
+  `Pile.crest`: đổi cỡ, cách xếp, góc nhìn là tính lại lửa; loại củi, cháy sém thì không). Đống củi nằm trong hộp (hẹp
+  lại, lùi vào khi cần), khúc to nhất `BIGGEST`; `UNDER_FADE` = 0: clip xem nhanh không mờ ở mép hộp (củi đứng trên đáy
+  hộp; lửa tự mờ ở mép).
 - Tường lò của Lửa lò sưởi (`fx/firebox.py`, chủ yêu cầu 2026-10-24: "các bức tường bên trong lò sưởi nhìn thật
   hơn"; nhóm "Tường lò": `walls` (`none`: giữ tường trong video, như cũ), `firebrick`, `herring`, `red`; `deep`,
   `brick`, `soot` hiện khi đã chọn tường; `view` ở nhóm "Góc máy" hiện khi có củi hoặc tường: `show` là danh sách,

@@ -321,16 +321,21 @@ gạch được chiếu sáng, không phải phủ một lớp sương cam.
    cháy thật trong lò; ngọn lửa cao chạm nóc lò thì khuất vào trong.
 7. Lò sưởi trong video còn trống, chưa có củi (hoặc muốn thay củi): ở mục **Củi** chọn **Củi sồi** (vỏ xám, rãnh
    sâu), **Củi vỏ nâu** hay **Củi bạch dương** (vỏ trắng). App vẽ một đống củi thật, cháy như củi thật:
+   - có khúc tròn, có củi chẻ (nửa khúc, một phần ba, một phần tư khúc), mặt chẻ có thớ gỗ; xếp như người ta xếp
+     thật: hai khúc dưới nằm cạnh nhau trên sàn lò, khúc trên tựa lên chúng, nghiêng theo chỗ tựa; không khúc nào lơ
+     lửng hay lấn vào khúc khác;
    - chỗ lửa chưa cháy tới (hai đầu khúc củi, mặt ngoài) còn nguyên vỏ cây, mặt cắt gỗ có vân vòng;
    - cạnh đó vỏ sém nâu, rồi than đen nứt thành từng khối, tro xám phủ mặt trên;
-   - chỗ lửa nóng nhất (khe giữa các khúc, đáy củi, giữa đống) đang cháy đỏ: vết nứt đỏ cam rực, than đỏ âm ỉ, thở
-     theo nhịp lửa, có quầng sáng nhẹ;
+   - chỗ lửa nóng nhất (khe giữa các khúc, đáy củi, giữa đống) đang cháy đỏ: vết nứt đỏ cam rực từng đoạn, từng
+     mảng, nhiều nhất ở mặt dưới và hai bên khúc củi (mặt trên phủ tro thì ít), than đỏ âm ỉ, thở theo nhịp lửa, có
+     quầng sáng nhẹ;
    - củi nằm trên lớp than và tro: ngay dưới và trước đống củi là than hồng đỏ cam rực, có cục than đen nằm trên, thở
      theo nhịp lửa; xa ra là tro xám lẫn mẩu than.
-   Củi được ánh lửa chiếu sáng, bập bùng theo ngọn lửa; khúc phía trước che chân lửa, lửa bốc lên từ giữa các khúc
-   củi. Đặt **hình bầu dục vàng** lên **sàn lò**, chỗ đặt củi (củi đứng trên nó, rộng bằng nó; lớp than trước củi
+   Củi được ánh lửa chiếu sáng, bập bùng theo ngọn lửa. Ngọn lửa bốc lên từ trên đống củi, theo đúng dáng đống củi
+   (đống cao thì lửa bốc từ chỗ cao, nhiều lưỡi lửa ở giữa đống), chân lửa khuất sau củi. Đặt **hình bầu dục vàng** lên **sàn lò**, chỗ đặt củi (củi đứng trên nó, rộng bằng nó; lớp than trước củi
    xuống tới đáy khung trắng). Chỉnh thêm:
-   - **Cách xếp**: **Ba khúc: hai dưới, một trên**, **Đống củi (năm khúc)**, **Hai khúc nằm cạnh nhau**.
+   - **Cách xếp**: **Ba khúc: hai dưới, một trên**, **Đống củi (năm khúc)** (hai khúc dưới, một khúc chéo bên trên,
+     một khúc ngang ở đầu đống, một mẩu nhỏ phía trước), **Hai khúc nằm cạnh nhau**.
    - **Khúc củi to**, **Cháy sém** (kéo về trái: củi mới, phần lớn còn vỏ, chỉ khe giữa đỏ; kéo sang phải: cháy lan
      rộng, nhiều chỗ đỏ rực). **Than hồng dưới chân lửa** càng lớn thì chỗ cháy đỏ càng rực; 0 là không đỏ.
    - **Nhìn từ trên xuống** (mục **Góc máy**): cho hợp góc máy của video (máy quay ngang tầm lò: kéo về trái; nhìn

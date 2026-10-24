@@ -11,12 +11,13 @@ hazed over.
 The box (Effect.BOX) goes over the fireplace's opening. Its mark, a flat ellipse sitting on its bottom edge, goes on
 the logs where the fire burns, as wide as the fire ("Lửa rộng"); the flames rise in the box above it.
 
-The flames are a small fluid simulation (Stam's stable fluids): fuel fed at burning places on the bed that wax and
-wane, burnt into heat (which rises) and a short-lived glow (the flame), the air swirling (vorticity confinement). It
-runs on its own grid over the box (GRID, the box's shape), RATE steps a second of fire whatever the frame rate, so the
-box alone (the preview clip) and the video show the same fire. A fire is made frame after frame, each from the one
-before, as far as a frame asked for needs (and kept: fire()); it loops by a crossfade: over its last second the
-frames before its first come in (their glow blended, then coloured), so frame P is frame 0 again.
+The flames are a small fluid simulation (Stam's stable fluids): fuel fed at burning places on the bed (on logs the app
+draws: along the top of the pile, a little under its outline) that wax and wane, burnt into heat (which rises) and a
+short-lived glow (the flame), the air swirling (vorticity confinement). It runs on its own grid over the box (GRID,
+the box's shape), RATE steps a second of fire whatever the frame rate, so the box alone (the preview clip) and the
+video show the same fire. A fire is made frame after frame, each from the one before, as far as a frame asked for
+needs (and kept: fire()); it loops by a crossfade: over its last second the frames before its first come in (their
+glow blended, then coloured), so frame P is frame 0 again.
 
 Colour: a real fire's colours by brightness (measured from footage of a wood fire: dark red where faint, orange-red,
 orange, yellow, white-yellow where it burns hottest), a glow round the flames as a camera sees it, laid with Screen.
@@ -36,12 +37,13 @@ RATE = 48.0  # simulation steps a second of fire (more a frame where frames are 
 WARM = 3.0  # seconds of fire before the loop (well alight: its mean glow measured over the last half)
 JOIN = 1.0  # seconds of the crossfade that closes the loop
 MARK = 0.09  # the bed's mark on the page: a flat ellipse this high for its width, on the box's bottom edge
-CUT = 0.12  # glow this faint is not drawn (no lingering haze above the flames)
-PUNCH, PUNCH_K = 1.25, 1.1  # (the flames' brightness drawn: to this power, times this)
+CUT = 0.2  # glow this faint is not drawn (no lingering haze above the flames)
+PUNCH, PUNCH_K = 1.6, 1.25  # (the flames' brightness drawn: to this power, times this: crisp tongues)
+KNEE = 1.5  # (and their brightest parts held back softly under this: yellow hearts, white only at their hottest)
 STORE = 3.0  # (the glow is kept as 8 bits: its square root, up to this)
 LEVEL = 0.155  # a middling fire's mean glow (a bigger fire throws more light on the room)
 KEEP = 240e6  # bytes of fires kept for later (the newest)
-HALO = 0.35  # the glow round the flames (a camera's), as bright as the flames blurred times this
+HALO = 0.18  # the glow round the flames (a camera's), as bright as the flames blurred times this
 HALO_R = 0.07  # (its blur: box heights)
 # the flames' light on the firebox: their glow (as bright as they are drawn) spread as a fire's light falls off (a
 # few blurs: their sigmas in box heights, each a share of it), LIGHT_ON times that at "light" 100 lighting what is
@@ -102,13 +104,13 @@ SCHEMA = {
             "sau tiền cảnh cho clip này. Miệng lò trong ảnh hẹp, cao hay hình vòm: chọn Khung lò (chữ nhật, vòm tròn, "
             "bo hai góc trên), kéo ô cam hai bên và ở cạnh trên cho viền cam trùng miệng lò: lửa, ánh lửa và củi chỉ ở "
             "trong miệng lò, không tràn ra mặt lò. Lò trống, chưa có củi: chọn Củi (sồi, vỏ nâu, bạch dương): app vẽ "
-            "đống củi cháy sém đứng trên hình bầu dục vàng (đặt nó lên sàn lò), lửa bốc lên từ giữa các khúc củi, than "
-            "hồng trong vết nứt; chỉnh Cách xếp, Khúc củi to, Cháy sém, Nhìn từ trên xuống cho hợp góc máy. Bên trong "
-            "lò tối, không rõ tường: chọn Tường lò (gạch chịu lửa, xếp xương cá, gạch đỏ): app vẽ tường sau, hai tường "
-            "bên và sàn lò trong miệng lò, gạch sáng lên theo ánh lửa, muội khói đen phía trên; chỉnh Lò sâu, Viên "
-            "gạch to, Ám khói đen, Nhìn từ trên xuống. Lửa không xoay 3D: lửa luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa "
-            "cao, Lửa dày, Bập bùng, Tốc độ (và cỡ, cách xếp củi), app tính lại lửa từ đầu: dừng hình lần đầu có thể "
-            "chờ vài giây.",
+            "đống củi (khúc tròn và củi chẻ, xếp chồng như thật) cháy sém đứng trên hình bầu dục vàng (đặt nó lên sàn "
+            "lò), lửa bốc lên từ trên đống củi, than hồng trong vết nứt; chỉnh Cách xếp, Khúc củi to, Cháy sém, Nhìn "
+            "từ trên xuống cho hợp góc máy. Bên trong lò tối, không rõ tường: chọn Tường lò (gạch chịu lửa, xếp xương "
+            "cá, gạch đỏ): app vẽ tường sau, hai tường bên và sàn lò trong miệng lò, gạch sáng lên theo ánh lửa, muội "
+            "khói đen phía trên; chỉnh Lò sâu, Viên gạch to, Ám khói đen, Nhìn từ trên xuống. Lửa không xoay 3D: lửa "
+            "luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa cao, Lửa dày, Bập bùng, Tốc độ (và cỡ, cách xếp củi), app tính "
+            "lại lửa từ đầu: dừng hình lần đầu có thể chờ vài giây.",
     # for the page: where the fire burns, a flat ellipse sitting on the middle of the box's bottom edge, as wide as
     # "bed" (% of the box's width)
     "mark": {"width": "bed", "ratio": MARK, "sits": True, "label": "chỗ lửa cháy (mặt củi)",
@@ -210,7 +212,9 @@ class _Fluid:
         self.u, self.v, self.heat, self.fuel, self.glow, self.p = (np.zeros((gh, gw), np.float32) for _ in range(6))
         ys, xs = np.mgrid[0:gh, 0:gw]
         self.X, self.Y = xs.astype(np.float32), ys.astype(np.float32)
-        # the burning places: along the bed (its ellipse), at different depths in it, each waxing and waning
+        # the burning places: along the bed (its ellipse), at different depths in it, each waxing and waning; on
+        # logs, along the top of the pile (a little under its outline: their roots hidden by the logs), more of them
+        # and stronger in its middle
         g = np.random.default_rng([seed, 7103])
         bed = k["bed"]
         n = max(2, int(round(k["places"] * bed)))
@@ -218,12 +222,18 @@ class _Fluid:
         self.at = (u * bed + 1) / 2 * gw
         half = MARK * bed * gw / 2  # (the ellipse's half height, cells)
         self.up = 1.5 + half * (1 + 0.7 * np.sqrt(np.maximum(0.0, 1 - u * u)) * g.uniform(-1, 1, n))
-        if "base" in k:  # (logs: burning from between them up to their tops)
-            self.up += k["base"] * g.uniform(0.25, 1.0, n) * np.sqrt(np.maximum(0.0, 1 - (0.8 * u) ** 2))
-        self.wide = g.uniform(0.035, 0.07, n) * gw
+        if "crest" in k:
+            crest = np.asarray(k["crest"], np.float32)
+            cols = np.flatnonzero(crest > 0)
+            lo, hi = float(cols.min()), float(cols.max())
+            u = np.sign(u) * np.abs(u) ** k.get("gather", 1.4)  # (closer together in the middle)
+            self.at = (lo + hi) / 2 + u * (hi - lo) / 2 * 0.92
+            self.up = np.interp(self.at, np.arange(gw), np.where(crest > 0, crest, crest.max())) - \
+                g.uniform(0.0, 3.0, n)
+        self.wide = g.uniform(0.035, 0.07, n) * gw * k.get("narrow", 1.0)
         self.hz = g.uniform(0.3, 1.2, n) * k["waver"]
         self.ph = g.random(n) * TAU
-        self.strength = g.uniform(0.6, 1.0, n) * (1 - 0.35 * u * u)
+        self.strength = g.uniform(0.6, 1.0, n) * (1 - (0.5 if "crest" in k else 0.35) * u * u)
         rows = int(math.ceil(self.up.max() + 4))
         self.rows = slice(0, rows)
         dy = self.Y[:rows, :1] - self.up  # (rows x places)
@@ -434,8 +444,9 @@ class Hearth(Effect):
     UNDER = True  # its preview clip: the picture under the box with the fire in it (the old fire dimmed: "cover")
     UNDER_FADE = 0.0  # (its change already fades out toward the box's edges; its logs stand on its bottom edge)
     TURNS = False  # a fire always rises straight up
-    VERSION = 4  # (2: logs burnt where the fire reaches them, glowing red; fuller flames; 3: the firebox lit by the
-    # flames, the logs on a bed of glowing coals, brighter flames; 4: the firebox's walls drawn, if chosen)
+    VERSION = 5  # (2: logs burnt where the fire reaches them, glowing red; fuller flames; 3: the firebox lit by the
+    # flames, the logs on a bed of glowing coals, brighter flames; 4: the firebox's walls drawn, if chosen; 5: split
+    # firewood come to rest on each other, flames from the top of the pile, crisper flames, patchier embers)
 
     def __init__(self, *a):
         super().__init__(*a)
@@ -492,8 +503,15 @@ class Hearth(Effect):
             self.pile = logs.Pile(p["wood"], p["stack"], p["log_size"] / 100, p["char"] / 100, self.bed * wide,
                                   math.radians(5 + 0.3 * p["view"]), self.seed, half=half,
                                   floor=-MARK * self.bed * wide / 2 + 0.006)
-            _, mid = self.pile.screen(self.pile.fire)  # (the fire among the logs: cells above the bed's middle)
-            self.k["base"] = round(max(0.0, float(mid) * 1.6) * GRID[1], 2)
+            # (the top of the pile's outline over the grid's columns, as cells up from the box's bottom, a little
+            # lower: the flames come up from there, from among the logs; 0 where no log is)
+            gw, gh = GRID
+            top = self.pile.crest(((np.arange(gw) + 0.5) / gw - 0.5) * wide)
+            roots = MARK * self.bed * gw / 2 + (top - 0.3 * self.pile.r) * gh
+            self.k["crest"] = tuple(round(float(v), 1) if np.isfinite(v) and v > 1 else 0.0 for v in roots)
+            # (from the logs' tops: as many tongues, narrower, a little lower and less fed than from a bed of embers)
+            self.k.update(feed=round(self.k["feed"] * 0.8, 4), jet=round(self.k["jet"] * 0.89, 4),
+                          fade=round(self.k["fade"] ** 1.13, 4), narrow=0.7, gather=1.15)
 
     def frames(self):
         """This clip's fire (made as far as it is asked for, kept for the next clip with the same settings)."""
@@ -769,7 +787,7 @@ class Hearth(Effect):
         """The glow round the flames (a camera's): the flames' colours on the grid, blurred on a grid 4 times
         coarser (a wide blur: the same), enlarged to `size` over the part `src` of the grid."""
         gw, gh = GRID
-        small = palette(flame, self.warmth).reshape(gh // 4, 4, gw // 4, 4, 3).mean(axis=(1, 3))
+        small = palette(KNEE * np.tanh(flame / KNEE), self.warmth).reshape(gh // 4, 4, gw // 4, 4, 3).mean(axis=(1, 3))
         small = blur(small, HALO_R * gh / 4) * (HALO * 255.0)
         img = Image.fromarray((np.clip(small, 0, 255) + 0.5).astype(np.uint8)).resize(
             size, Image.Resampling.BILINEAR, box=tuple(v / 4 for v in src))
@@ -882,8 +900,10 @@ class Hearth(Effect):
         np.maximum(flame, 0.0, out=flame)
         flame *= self.bright_k / (1 - CUT)
         np.power(flame, PUNCH, out=flame)  # (their faint parts fainter, their hearts brighter: as a camera sees
-        # a fire, bright in a lit firebox)
-        flame *= PUNCH_K
+        # a fire, bright in a lit firebox; not burnt out white)
+        flame *= PUNCH_K / KNEE
+        np.tanh(flame, out=flame)
+        flame *= KNEE
         flame *= lay["shown"]
         if hide is not None:  # (over a log in front of the fire none of them; over one behind it only the brighter
             # tongues: no haze over it)
