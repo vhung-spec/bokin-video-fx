@@ -318,6 +318,16 @@ hiệu ứng. Cách dùng: `README.md`.
   hungry, rest, court, tốc độ lệch quanh thanh trượt theo "Mỗi con một kiểu" `differ`; nửa đàn là chim trống).
   "Đi quanh quẩn ← → đi khắp khung" (`roam`: trái `room` nhỏ, đi nhiều vòng; phải đường bầu dục dài hẹp `thin`).
   Thông số mới `rest`, `court`, `roam`, `differ`; `VERSION` 6. Test: `Ways`, `test_toes_curl_as_a_foot_lifts`.
+  Chủ yêu cầu 2026-10-24 lần ba ("làm chim bồ câu đẹp hơn"): hai vạch đen trên cánh đúng chỗ ảnh mẫu (`BARS`: dò từng
+  điểm ảnh của vạch trên ảnh vào toạ độ cánh của chim đứng thẳng), cong ra trước ở nửa dưới cánh (`CURVE`), mép sau
+  răng cưa theo đầu từng chiếc lông (`TIPS`), đầu lông nhạt sau vạch, bóng của hàng sau; đầu lông nhạt và bóng chỉ
+  mạnh bằng độ đậm của vạch (`marked`: bồ câu trắng không có); mép dưới cánh khuất dưới lông sườn (`TUCKED`); màu bồ
+  câu xám đo lại trên ảnh; cổ: trên cùng xám như đầu, không có đường ranh (`NAPE`), họng tím hơn gáy, yếm tím loang
+  xuống ức (`HOOD`), đầu từng lông nhỏ sáng thành vệt (`NECK_ROW`); đùi lông là phần của thân liền (`THIGH`, trong
+  `SMOOTH`: test "thân trên chân" bỏ đùi); viền nhạt của lông dài ở đuôi, đầu cánh (`_fringes`, `QUILL_ROW`); dải đen
+  cuối đuôi rộng hơn; mắt có viền đỏ sậm quanh mống mắt, con ngươi nhỏ; lông hơi bóng (`SATIN`); đốm của bồ câu có đốm
+  là hình nêm trên mỗi lông phủ; đứng thẳng thì đuôi chúc xuống hơn; `VERSION` 7. Test: `Feathers`; test đường nối
+  (`test_no_seams`) không tính hai điểm ảnh sát viền (ánh sáng ở viền là ánh sáng lướt, không phải đường nối).
   Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
   nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao

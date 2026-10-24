@@ -213,7 +213,8 @@ class Walking(unittest.TestCase):
 
     def test_standing_on_its_feet(self):
         """Standing, its toes lie on the ground (four a foot: three forward, one back; joint by joint drawn big, one
-        piece each drawn small), its claws reach down to it, nothing goes into it; its body is above its legs."""
+        piece each drawn small), its claws reach down to it, nothing goes into it; its body is above its legs, its
+        feathered thighs over their tops only."""
         for fine in (True, False):
             parts = pigeons.parts(pigeons.Pose(), fine)
             self.assertGreater(min(lowest(p) for p in parts), -1e-9, fine)
@@ -226,7 +227,11 @@ class Walking(unittest.TestCase):
             claws = [p for p in parts if p[0] == "claw"]
             self.assertEqual(len(claws), 16)  # (each a base and a tip, curving down)
             self.assertLess(max(min(lowest(p) for p in claws[k:k + 2]) for k in range(0, 16, 2)), 1e-6, fine)
-            self.assertGreater(min(lowest(p) for p in parts[:pigeons.SMOOTH]), 0.05)  # (its body above its legs)
+            body = [p for p in parts[:pigeons.SMOOTH] if p[0] != "thigh"]
+            self.assertGreater(min(lowest(p) for p in body), 0.05)  # (its body above its legs)
+            thighs = [p for p in parts[:pigeons.SMOOTH] if p[0] == "thigh"]
+            self.assertEqual(len(thighs), 2)
+            self.assertGreater(min(lowest(p) for p in thighs), 0.025)  # (its thighs over the tops of its legs only)
 
     def test_toes_curl_as_a_foot_lifts(self):
         """A lifted foot's toes are drawn together and hang down; on the ground they lie spread flat."""
@@ -257,7 +262,8 @@ class Ways(unittest.TestCase):
         self.assertLess(min(lowest(p) for p in allp[:pigeons.SMOOTH]), 0.012)
         self.assertGreater(min(lowest(p) for p in allp if p[0] in ("phal", "toe")), 0.02)
         stood = pigeons.parts(walker.pose(start))
-        self.assertGreater(min(lowest(p) for p in stood[:pigeons.SMOOTH]), 0.05)  # (up again as it starts)
+        self.assertGreater(min(lowest(p) for p in stood[:pigeons.SMOOTH] if p[0] != "thigh"), 0.05)  # (up again as
+        # it starts)
 
     def test_preens(self):
         """Preening, it turns its head back over a shoulder onto its back, or bends it down to its breast."""
@@ -367,7 +373,9 @@ class Body(unittest.TestCase):
             i, rgb = pigeons._shade(rays, which, best, own, seen, small, coat, pose, light(), np.eye(3), 1 / scale)
             on = which[i] == 0
             lum = rgb[on] @ np.array([0.2126, 0.7152, 0.0722], np.float32)
-            run = np.diff(i[on]) == 1  # (neighbours along the row, both on the body)
+            near = np.diff(i[on]) == 1  # (neighbours along the row, both on the body)
+            run = np.zeros_like(near)  # (and not at its outline, where the light grazes it: on the body each side)
+            run[1:-1] = near[:-2] & near[1:-1] & near[2:]
             if run.any():
                 worst = max(worst, float(np.abs(np.diff(lum))[run].max()))
         self.assertLess(worst, 0.07)
@@ -449,6 +457,85 @@ class Body(unittest.TestCase):
         self.assertGreaterEqual(float((bare - dark).min()), -1e-6)  # (only darker)
         darker = [float((bare - dark)[int(b[1]) - 3:int(b[1]) + 4, int(b[0]) - 6:int(b[0]) + 7].max()) for b in birds]
         self.assertGreater(float(np.median(darker)), 0.1)
+
+
+class Feathers(unittest.TestCase):
+    """Its feathers' patterns, as on the owner's photograph of a rock dove."""
+
+    @staticmethod
+    def luma(rgb):
+        return rgb @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+
+    def wing(self, coat, a, up, b=1.0):
+        """The folded wing's colour at points of it (a: +1 its front .. -1 its rear; up: -1 its lower edge .. +1 its
+        top; b: +1 its outer face), its rows of feathers left out."""
+        a, up = np.broadcast_arrays(np.asarray(a, np.float64), np.asarray(up, np.float64))
+        with mock.patch.object(pigeons, "_feathers", lambda *_: None):
+            return pigeons._wing_colour(a.ravel(), np.full(a.size, b), up.ravel(), pigeons.WING, coat.c, coat, 1e-4)
+
+    def test_wing_bars(self):
+        """Two black bars across its outer face where the photograph has them, curving forward toward its lower edge,
+        a pale tip behind each; none round its inner face; a white dove's wing plain."""
+        grey = pigeons.Coat("grey", np.random.default_rng(0))
+        dark = lambda a, up, b=1.0: float(self.luma(self.wing(grey, a, up, b))[0])  # noqa: E731
+        plain = dark(0.1, 0.3)
+        self.assertGreater(plain, 0.3)
+        for a0, _, _ in pigeons.BARS:
+            self.assertLess(dark(a0, 0.3), 0.1 * plain)  # (black)
+            low = a0 + pigeons.CURVE * 0.7 ** 2  # (toward the lower edge: further forward)
+            self.assertLess(dark(low, -0.7), 0.1 * plain)
+            self.assertGreater(dark(low, 0.3), 0.6 * plain)
+            behind = np.linspace(a0 - 0.2, a0 - 0.05, 16)  # (its feathers' pale tips behind it)
+            self.assertGreater(float(self.luma(self.wing(grey, behind, 0.3)).max()), 1.05 * plain)
+            self.assertGreater(dark(a0, 0.3, -1.0), 0.6 * plain)  # (not round its inner face)
+        white = pigeons.Coat("white", np.random.default_rng(0))
+        across = self.luma(self.wing(white, np.linspace(0.3, -0.7, 200), 0.3))
+        self.assertLess(float(np.ptp(across)), 0.1 * float(across.mean()))
+
+    def test_its_neck(self):
+        """Its neck green seen straight on, its throat purpler than its nape, its top the head's slate (no line where
+        the head begins); its small feathers streaked with light when big enough to see."""
+        coat = pigeons.Coat("grey", np.random.default_rng(0))
+        c = coat.c
+        rad = np.array([0.072, 0.064, 0.16])
+
+        def colour(x, z, facing=1.0, fp=1e-4, feathers=False):
+            local = np.array([[x, (1 - x * x - z * z) ** 0.5 if x * x + z * z < 1 else 0.0, z]])
+            q = np.zeros((1, 3))
+            if feathers:
+                return pigeons._part_colour("neck", q, local, rad, np.zeros(1), np.full(1, facing), np.zeros(1), c,
+                                            coat, fp)[0][0]
+            with mock.patch.object(pigeons, "_feathers", lambda *_: None):
+                return pigeons._part_colour("neck", q, local, rad, np.zeros(1), np.full(1, facing), np.zeros(1), c,
+                                            coat, fp)[0][0]
+        mid = colour(0.0, 0.3)
+        self.assertGreater(mid[1], 1.3 * mid[0])  # (green)
+        self.assertGreater(mid[1], mid[2])
+        purple = lambda rgb: float((rgb[0] + rgb[2]) / 2 - rgb[1])  # noqa: E731
+        self.assertGreater(purple(colour(0.9, -0.1)), purple(colour(-0.9, -0.1)) + 0.005)  # (its throat purpler)
+        self.assertLess(float(np.abs(colour(0.0, 0.98) - c["head"]).max()), 0.02)  # (its top: the head's colour)
+        tops = np.array([colour(0.0, z) for z in np.linspace(0.4, 0.98, 40)])
+        self.assertLess(float(np.abs(np.diff(self.luma(tops))).max()), 0.02)  # (no line)
+        zs = np.linspace(-0.2, 0.3, 400)
+        streaks = self.luma(np.array([colour(0.0, z, feathers=True) for z in zs]))
+        self.assertGreater(float(np.ptp(streaks)), 0.25 * float(streaks.mean()))
+        far = self.luma(np.array([colour(0.0, z, fp=0.01, feathers=True) for z in zs]))  # (a small bird: none)
+        self.assertLess(float(np.ptp(far)), float(np.ptp(streaks)) / 2)
+
+    def test_checker_wedges(self):
+        """A checker's mark on each covert is a dark wedge widening toward its tip."""
+        size, aspect = 0.03, 0.7
+        frs = np.linspace(0.02, 0.98, 49)
+
+        def mark(t):  # (across one feather of the first row, t of the way from its base to its tip)
+            b = frs * aspect * size
+            tip = 0.3 * (1 - (2 * frs - 1) ** 2)
+            return pigeons._feathers((t + tip) * size, b, size, aspect, 1e-5)[3]
+        widths = [float(mark(t).mean()) for t in (0.15, 0.4, 0.8)]
+        self.assertLess(widths[0], widths[1])
+        self.assertLess(widths[1], widths[2])
+        self.assertGreater(float(mark(0.8)[24]), 0.9)  # (dark in the middle near its tip)
+        self.assertLess(float(mark(0.97).max()), 0.1)  # (its very tip pale)
 
 
 class Picture(unittest.TestCase):

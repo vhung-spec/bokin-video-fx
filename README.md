@@ -379,13 +379,14 @@ mổ hạt vài cái (mỏ chạm đất) rồi ngẩng lên; bắt đầu đi, 
 đứng thẳng lên, ưỡn ngực, cụp đuôi, ngó quanh, như bồ câu trong ảnh mẫu. Như bồ câu thật, có con nằm xuống nghỉ (lông xù
 tròn, chân thu vào trong lông), có con quay đầu ra sau rỉa lông lưng hay cúi rỉa lông ngực, có con trống gù: phồng cổ,
 xoè đuôi quét đất, cúi chào rồi xoay một hai vòng tại chỗ. Mỗi con một tính: con hay đi, con hay mổ, con lười nằm nghỉ,
-con đi nhanh, con đi chậm. Bồ câu xám có màu đo theo ảnh mẫu: cổ xanh lá,
-tím ở chân cổ, lấp lánh từng chiếc lông nhỏ (đổi theo góc nhìn), ức xám tím, cánh xếp gần trắng phủ kín hai bên thân,
-hai vạch đen to trên cánh có viền trắng, lông cánh chính xám đen dọc lưng xuống đuôi, dải đen cuối đuôi, mắt cam có ánh
-sáng, chân hồng đỏ như chân bồ câu thật: mỗi chân bốn ngón (ba ngón trước, một ngón sau), ngón có đốt, phủ vảy, móng
-đen cong chạm đất, nhấc chân thì các ngón co lại; nhìn gần thấy từng hàng lông trên cánh, lông dài ở đuôi, lông mềm như
-nhung, chỗ khe giữa cánh và thân tối hơn. Còn có bồ câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối
-theo ánh sáng trong video và có bóng mềm dưới chân.
+con đi nhanh, con đi chậm. Bồ câu xám có màu đo theo ảnh mẫu: đầu xám xanh, cổ
+xanh lá, họng và chân cổ tím loang xuống ức, đầu từng chiếc lông nhỏ trên cổ lấp lánh thành vệt (đổi theo góc nhìn), ức
+xám tím, cánh xếp xám rất nhạt phủ kín hai bên thân, hai vạch đen cong trên cánh đúng như ảnh mẫu (mép sau răng cưa theo
+đầu lông, sau mỗi vạch là viền trắng), lông cánh chính xám đen dọc lưng xuống đuôi, lông dài có viền nhạt, dải đen cuối
+đuôi, mắt cam có viền đỏ sậm và ánh sáng, đùi phủ lông xám, chân hồng đỏ như chân bồ câu thật: mỗi chân bốn ngón (ba
+ngón trước, một ngón sau), ngón có đốt, phủ vảy, móng đen cong chạm đất, nhấc chân thì các ngón co lại; nhìn gần thấy
+từng hàng lông trên cánh, lông dài ở đuôi, lông mềm như nhung hơi bóng, chỗ khe giữa cánh và thân tối hơn. Còn có bồ
+câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối theo ánh sáng trong video và có bóng mềm dưới chân.
 
 1. Bấm **Tạo sẵn** → **Chim bồ câu**, kéo xuống một track trống, bấm **Suốt video**.
 2. Chọn **Kiểu**, rồi kéo khung trắng tới chỗ chim. Chim chỉ ở trong khung.
