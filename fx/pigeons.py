@@ -12,21 +12,21 @@ meets the plain union of the ellipsoids (a few steps: the smooth surface lies ju
 cere, legs, toes) are ellipsoids met directly. Its feathers are painted by where on the bird a point is, each part's
 colour blended by the same weights that melt the parts together (no seams), each part's patterns where they are on it in
 any pose: a rock dove's slate head, its iridescent neck (green seen straight on, purple at a slant, at its throat and
-round its foot, spilling onto its breast; the head's slate at its top; small glossy feathers, each greener or purpler,
-their tips catching the light in fine streaks), pale breast, pale back and folded wings with two black bars across them
-as the owner's photograph has them (curving forward toward the wing's lower edge, their rear edges scalloped by the
-feathers' tips, each feather's pale tip behind them), the wing's lower edge tucked under the flank's feathers, the dark
-primaries behind, the long feathers' pale fringes, the black band at the tail's end, darker flanks and belly, its
-feathered thighs over the tops of its legs, a small orange eye with the light caught in it, the white cere, coral feet
-with dark claws (the colours measured on the photograph); or a checker (a dark check on most of each covert, their pale
-tips and edges a net over the wing), a dark one, a red (ash-red) one, fawn and copper, a pied one (white on whole parts
-of it as a pied pigeon's: its head, bib, belly, flights, tail, a patch on its wing or its rump, with clean edges, a few
-white flecks), a white dove; a faint mottling, a faint satin sheen, every pattern blurred to the pixel so it does not
-shimmer. One ray a pixel inside a bird DETAIL pixels long or more, ss x ss where its outline or a small part's crosses a
-pixel; drawn where it is to a fraction of a pixel (it glides); softened a little ("Độ mềm") as a photograph is. It is
-lit by the scene where its box stands (as steam is: light_at), less where its body shuts the light out (the creases
-between its parts, under it: ambient occlusion from the smooth distance), and lies in its own shadow: dark right under
-it, soft and wider away from the light.
+round its foot, spilling onto its breast; the head's slate at its top; small iridescent feathers, each greener or
+purpler, their tips catching the light in fine streaks), pale breast, pale back and folded wings with two black bars
+across them as the owner's photograph has them (curving forward toward the wing's lower edge, their rear edges scalloped
+by the feathers' tips, each feather's pale tip behind them), the wing's lower edge tucked under the flank's feathers,
+the dark primaries behind, the long feathers' pale fringes, the black band at the tail's end, darker flanks and belly,
+its feathered thighs over the tops of its legs, a small orange eye with the light caught in it, the white cere, coral
+feet with dark claws (the colours measured on the photograph); or a checker (a dark check on most of each covert, their
+pale tips and edges a net over the wing), a dark one, a red (ash-red) one, fawn and copper, a pied one (white on whole
+parts of it as a pied pigeon's: its head, bib, belly, flights, tail, a patch on its wing or its rump, with clean edges,
+a few white flecks), a white dove; a faint mottling, every pattern blurred to the pixel so it does not shimmer. Matte,
+as feathers are (only its neck and feet faintly glossy). One ray a pixel inside a bird DETAIL pixels long or more, ss x
+ss where its outline or a small part's crosses a pixel; drawn where it is to a fraction of a pixel (it glides); softened
+a little ("Độ mềm") as a photograph is. It is lit by the scene where its box stands (as steam is: light_at), less where
+its body shuts the light out (the creases between its parts, under it: ambient occlusion from the smooth distance), and
+lies in its own shadow: dark right under it, soft and wider away from the light.
 
 Every bird keeps its own day over the loop: walking a while, nearly straight, then stopping to look round or, now and
 then ("Mổ hạt"), to peck at the ground a few times, its beak reaching it and its tail rising; between its walks it turns
@@ -597,7 +597,9 @@ def _sdf(p, body):
     return d
 
 
-SATIN = 0.06  # (the feathers' broad, faint sheen)
+SATIN = 0.0  # (the feathers' broad sheen: none, matte as feathers are; the owner, 2026-10-25: "bớt bóng")
+RIM = 0.12  # (feathers soft as velvet: how much more light where the surface is seen edge on)
+GLOSS = 0.2  # (the soft highlight of its iridescent neck, its legs and claws, where they mirror the light: faint)
 SHUT = ((0.015, 1.0), (0.04, 0.7), (0.08, 0.4))  # (how far out along the normal its body is looked for, how much
 # that counts: the creases where wing, breast and neck meet, under the belly and the tail, darker)
 
@@ -927,20 +929,20 @@ def _shade(rays, which, best, own, seen, small, coat, pose, light, turn, fp):
     nw = nrm @ turn.T  # (the scene's frame)
     lam = np.clip((nw @ way + 0.35) / 1.35, 0.0, 1.0)  # (feathers: the light wraps round a little)
     sky = 0.55 + 0.45 * np.clip(0.5 + 0.5 * nw[:, 2], 0.0, 1.0)
-    # feathers soft as velvet: a little more light where the surface is seen edge on
+    # feathers soft as velvet: a little more light where the surface is seen edge on (RIM)
     rim = (1 - np.clip(np.abs(nrm @ rays.d), 0.0, 1.0)) ** 3
     open_ = _occlusion(p, nrm, seen.body)  # (the creases between its parts, under it: less light reaches them)
     rgb[:] = alb * (ambient * (sky * open_)[:, None] + key * (lam * (0.4 + 0.6 * open_))[:, None]
-                    + (0.35 * rim * open_)[:, None] * (key + ambient))
+                    + (RIM * rim * open_)[:, None] * (key + ambient))
     half = way - rays.d @ turn.T
     half /= np.linalg.norm(half)
     facing = np.clip(nw @ half, 0.0, 1.0)
-    if gloss.any():  # (the iridescent neck glossy: a soft highlight of its own colour where it mirrors the light)
-        shine = facing ** 24 * gloss * open_
-        rgb += (0.6 * shine)[:, None] * key * (0.25 + alb)
-    satin = SATIN * facing ** 6 * open_ * (which[i] == 0)  # (all its feathers a little satin: a broad, faint sheen
-    # where they face between the light and the camera)
-    rgb += satin[:, None] * key * (0.5 + 0.5 * alb)
+    if gloss.any():  # (the iridescent neck, its legs and claws: a faint, soft highlight of their own colour where
+        # they mirror the light)
+        shine = facing ** 16 * gloss * open_
+        rgb += (GLOSS * shine)[:, None] * key * (0.25 + alb)
+    if SATIN:  # (all its feathers satin: a broad sheen where they face between the light and the camera)
+        rgb += (SATIN * facing ** 6 * open_ * (which[i] == 0))[:, None] * key * (0.5 + 0.5 * alb)
     return i, rgb
 
 
@@ -2051,7 +2053,8 @@ class Pigeons(Effect):
     # 8: out of each other's way: placed where and when they seldom meet, stepping aside, those the box has no room
     # for left out, a stretch of its own each along a ledge; 9: walks nearly straight, turning on the spot between
     # them a step at a time, never round and round, courting without turning round; 10: a pied bird's white on whole
-    # parts of it, clean-edged; its tail's end a thin fan, its band dark grey; softer checks; a red one coppery; slower)
+    # parts of it, clean-edged; its tail's end a thin fan, its band dark grey; softer checks; a red one coppery; slower;
+    # matte: no satin sheen, a fainter rim, a fainter gloss)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
 

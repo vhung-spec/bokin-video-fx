@@ -304,19 +304,19 @@ hiệu ứng. Cách dùng: `README.md`.
   `_feathers`: hàng lông chồng lên nhau, mỗi chiếc sáng dần về đầu lông, chân lông khuất trong bóng chiếc trước, mép đầu
   lông nhạt; lông phủ nhỏ trên lưng và nửa trước cánh, đốm của bồ câu có đốm nằm gần đầu mỗi chiếc lông phủ; lông cánh
   dài nghiêng theo vạch cánh; lông đuôi và đầu cánh dài xếp chồng; lông mịn mờ trên ức, sườn; mờ hẳn khi mỗi hàng nhỏ
-  hơn vài điểm ảnh). Lông mềm như nhung: sáng hơn một chút chỗ mặt nhìn xiên (`rim`). Chân to hơn, ba ngón mỗi chân (một
-  ngón quay sau), đỏ san hô. `VERSION` 3. Từ 1.0.74 (chủ gửi ảnh bồ câu đứng, nhìn ngang: "tôi muốn chim bồ câu như
-  này"): đứng thẳng như ảnh, cánh xếp to phủ sườn, lông cánh chính hai bên dọc lưng xuống đuôi, cổ tím ở chân, mắt to
-  hơn, ngón dài hơn, chân mảnh hơn, mỏ ngắn hơn, mũi trắng rõ; `VERSION` 4. Chủ yêu cầu 2026-10-24 ("đẹp và giống mẫu
-  hơn nữa, hành động mượt mà hơn"): đường đi không có chỗ gấp (chuỗi Fourier ngẫu nhiên trước đây có chỗ gấp: chim quay
-  ngoắt trong một khung; bản này đi vòng hình bầu dục, chủ thấy như xoay tròn: từ 2026-10-25 đi từng đoạn gần thẳng, xem
-  dưới); nhịp bước tính từ đầu mỗi lần đi (`_into`, `strides`: số nguyên bước, chân chụm lại
+  hơn vài điểm ảnh). Lông mềm như nhung: sáng hơn một chút chỗ mặt nhìn xiên (`rim`, `RIM`). Chân to hơn, ba ngón mỗi
+  chân (một ngón quay sau), đỏ san hô. `VERSION` 3. Từ 1.0.74 (chủ gửi ảnh bồ câu đứng, nhìn ngang: "tôi muốn chim bồ
+  câu như này"): đứng thẳng như ảnh, cánh xếp to phủ sườn, lông cánh chính hai bên dọc lưng xuống đuôi, cổ tím ở chân,
+  mắt to hơn, ngón dài hơn, chân mảnh hơn, mỏ ngắn hơn, mũi trắng rõ; `VERSION` 4. Chủ yêu cầu 2026-10-24 ("đẹp và giống
+  mẫu hơn nữa, hành động mượt mà hơn"): đường đi không có chỗ gấp (chuỗi Fourier ngẫu nhiên trước đây có chỗ gấp: chim
+  quay ngoắt trong một khung; bản này đi vòng hình bầu dục, chủ thấy như xoay tròn: từ 2026-10-25 đi từng đoạn gần
+  thẳng, xem dưới); nhịp bước tính từ đầu mỗi lần đi (`_into`, `strides`: số nguyên bước, chân chụm lại
   lúc bắt đầu và lúc dừng; trước đây nhịp theo quãng đường cả vòng nên chân, đầu nhảy khi qua chỗ nối vòng); tăng giảm
   tốc mượt (`RAMP`: tích phân smoothstep), thân lắc nhẹ theo chân trụ (`Pose.sway`, `bob`, `roll`), đầu đẩy tới trong
   `THRUST` mỗi bước, đứng lên, cúi mổ, ngó quanh bằng `_smoother`; chim đặt tới phần nhỏ của điểm ảnh (`draw_bird(...,
   at)`). Hình: bóng ở khe từ khoảng cách liền (`_sdf`, `_occlusion`, `SHUT`), lông cổ nhỏ óng ánh từng chiếc
-  (`NECK_FEATHER`; độ bóng `gloss` từ `_part_colour`), mắt có ánh sáng, móng chân (`claw`, chỉ khi đủ to), màu bồ câu
-  xám đo trên ảnh mẫu; `VERSION` 5. Test: `test_no_jumps`, `test_walks_nearly_straight`,
+  (`NECK_FEATHER`; độ bóng `gloss` từ `_part_colour`, `GLOSS`), mắt có ánh sáng, móng chân (`claw`, chỉ khi đủ to), màu
+  bồ câu xám đo trên ảnh mẫu; `VERSION` 5. Test: `test_no_jumps`, `test_walks_nearly_straight`,
   `test_drawn_to_a_fraction_of_a_pixel`, `test_creases_shaded`. Chủ yêu cầu 2026-10-24 lần hai ("chân nhìn giống thật
   hơn", "chỉnh được di chuyển ... hành động của các chú chim khác nhau"): chân (`_foot`): cổ chân là thanh thuôn ba
   khúc (`TARSUS`), bốn ngón (`TOES`: ba trước, một sau), mỗi ngón vài đốt `phal` (vẽ nhỏ thì mỗi ngón một khúc `toe`,
@@ -378,8 +378,11 @@ hiệu ứng. Cách dùng: `README.md`.
   rộng, đầu và mép lông nhạt (`_feathers(..., check=True)`, như bồ câu đốm thật; trước đây lưới đen trên nền sáng).
   Nâu đỏ: cổ ánh đồng, ức be (trước đây hồng tím); ánh cổ tràn xuống ức theo độ bóng của bộ lông (`sheen`). Đi chậm
   hơn: `WALK` 0,33 (khoảng hai bước mỗi giây), `RAMP` 0,5, quay tại chỗ `TURN_RATE` 1,7, `TURN_FAST` 2,6 (quay gần nửa
-  vòng thì giữ đủ thời gian cho cả hai chiều). `VERSION` 10. Test: `Coats` (`test_pied_white_clean`: trắng đỏ, màu
-  xanh, đếm điểm ảnh lẫn), `test_checks`, `test_slow`.
+  vòng thì giữ đủ thời gian cho cả hai chiều). Bớt bóng (chủ yêu cầu 2026-10-25: "bớt bóng hơn để nhìn thật hơn"):
+  lông mờ như lông thật: không còn lớp bóng phủ khắp lông (`SATIN` 0, trước 0,06), ánh viền nhung nhẹ (`RIM` 0,12,
+  trước 0,35), cổ, chân, móng chỉ hơi bóng (`GLOSS` 0,2, trước 0,6; vệt rộng hơn, mũ 16). `VERSION` 10. Test: `Coats`
+  (`test_pied_white_clean`: trắng đỏ, màu xanh, đếm điểm ảnh lẫn; `test_matte`: so với chim mờ hẳn, sáng thêm chưa tới
+  4%, xám đen 8%), `test_checks`, `test_slow`.
   Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
   nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao

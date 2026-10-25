@@ -772,7 +772,6 @@ class Feathers(unittest.TestCase):
         self.assertGreater(float(mark(0.8)[24]), 0.9)  # (dark in the middle near its tip)
         self.assertLess(float(mark(0.97).max()), 0.1)  # (its very tip pale)
 
-
     def test_checks(self):
         """A checker's check covers most of each covert, its tip and sides pale (a pale net over a darker wing, as a
         checker pigeon's), some darker than others."""
@@ -838,6 +837,29 @@ class Coats(unittest.TestCase):
         for name in ("purple", "breast", "neck"):
             self.assertLess(c[name][2], c[name][1] * 1.02, name)  # (no more blue than green)
             self.assertGreater(c[name][0], c[name][2] * 1.3, name)
+
+    def test_matte(self):
+        """The owner (2026-10-25): "bớt bóng hơn để nhìn thật hơn": its feathers matte, as feathers are. What its
+        sheen adds (the velvet rim, the faint gloss of its neck and feet) is little next to a wholly matte bird's
+        light: hardly more all over, its brightest pixels hardly brighter (a dark bird's iridescent neck shows more).
+        As it was (a satin sheen, a bright rim, a glossy neck): 4 .. 38% more light."""
+        tilt = math.radians(25)
+        key, ambient = pigeons.DAYLIGHT
+        for way in ((-0.6, -0.55, 0.85), (0.8, 0.3, 0.5)):
+            way = np.array(way)
+            lit = (key, way / np.linalg.norm(way), ambient)
+            for name in ("grey", "brown", "white", "dark"):
+                coat = pigeons.Coat(name, np.random.default_rng(1))
+                for yaw in (0.6, 3.6):
+                    rgb, alpha, _ = pigeons.draw_bird(pigeons.Pose(), coat, yaw, 200.0, tilt, lit, 2)
+                    with mock.patch.multiple(pigeons, SATIN=0.0, RIM=0.0, GLOSS=0.0):
+                        matte = pigeons.draw_bird(pigeons.Pose(), coat, yaw, 200.0, tilt, lit, 2)[0]
+                    on = alpha > 0.999
+                    now, matte = Feathers.luma(rgb)[on], Feathers.luma(matte)[on]
+                    dark = name == "dark"
+                    self.assertLess(float(now.mean() / matte.mean()), 1.08 if dark else 1.04, (name, way, yaw))
+                    self.assertLess(float(np.percentile(now, 99) / np.percentile(matte, 99)), 1.15 if dark else 1.06,
+                                    (name, way, yaw))
 
 
 class Picture(unittest.TestCase):
