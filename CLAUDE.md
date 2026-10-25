@@ -308,15 +308,15 @@ hiệu ứng. Cách dùng: `README.md`.
   ngón quay sau), đỏ san hô. `VERSION` 3. Từ 1.0.74 (chủ gửi ảnh bồ câu đứng, nhìn ngang: "tôi muốn chim bồ câu như
   này"): đứng thẳng như ảnh, cánh xếp to phủ sườn, lông cánh chính hai bên dọc lưng xuống đuôi, cổ tím ở chân, mắt to
   hơn, ngón dài hơn, chân mảnh hơn, mỏ ngắn hơn, mũi trắng rõ; `VERSION` 4. Chủ yêu cầu 2026-10-24 ("đẹp và giống mẫu
-  hơn nữa, hành động mượt mà hơn"): đường đi vòng là hình bầu dục lượn trơn (`_loop`: r(u) quanh tâm nên không có chỗ
-  gấp, không cong hơn `BEND`; chuỗi Fourier ngẫu nhiên trước đây có chỗ gấp: chim quay ngoắt trong một khung), hướng nội
-  suy theo tiếp tuyến (`tx`, `ty`); nhịp bước tính từ đầu mỗi lần đi (`_into`, `strides`: số nguyên bước, chân chụm lại
+  hơn nữa, hành động mượt mà hơn"): đường đi không có chỗ gấp (chuỗi Fourier ngẫu nhiên trước đây có chỗ gấp: chim quay
+  ngoắt trong một khung; bản này đi vòng hình bầu dục, chủ thấy như xoay tròn: từ 2026-10-25 đi từng đoạn gần thẳng, xem
+  dưới); nhịp bước tính từ đầu mỗi lần đi (`_into`, `strides`: số nguyên bước, chân chụm lại
   lúc bắt đầu và lúc dừng; trước đây nhịp theo quãng đường cả vòng nên chân, đầu nhảy khi qua chỗ nối vòng); tăng giảm
   tốc mượt (`RAMP`: tích phân smoothstep), thân lắc nhẹ theo chân trụ (`Pose.sway`, `bob`, `roll`), đầu đẩy tới trong
   `THRUST` mỗi bước, đứng lên, cúi mổ, ngó quanh bằng `_smoother`; chim đặt tới phần nhỏ của điểm ảnh (`draw_bird(...,
   at)`). Hình: bóng ở khe từ khoảng cách liền (`_sdf`, `_occlusion`, `SHUT`), lông cổ nhỏ óng ánh từng chiếc
   (`NECK_FEATHER`; độ bóng `gloss` từ `_part_colour`), mắt có ánh sáng, móng chân (`claw`, chỉ khi đủ to), màu bồ câu
-  xám đo trên ảnh mẫu; `VERSION` 5. Test: `test_no_jumps`, `test_paths_bend_gently`,
+  xám đo trên ảnh mẫu; `VERSION` 5. Test: `test_no_jumps`, `test_walks_nearly_straight`,
   `test_drawn_to_a_fraction_of_a_pixel`, `test_creases_shaded`. Chủ yêu cầu 2026-10-24 lần hai ("chân nhìn giống thật
   hơn", "chỉnh được di chuyển ... hành động của các chú chim khác nhau"): chân (`_foot`): cổ chân là thanh thuôn ba
   khúc (`TARSUS`), bốn ngón (`TOES`: ba trước, một sau), mỗi ngón vài đốt `phal` (vẽ nhỏ thì mỗi ngón một khúc `toe`,
@@ -326,9 +326,10 @@ hiệu ứng. Cách dùng: `README.md`.
   `rest` nằm nghỉ (`Pose.sit`: thân hạ `SIT`, lông xù `FLUFF`, chân thu vào lông `tuck`, ngón gập lên `fold`; đầu rụt,
   ngó chậm; `SIT_TIME`), `preen` rỉa lông (đầu quay ra sau lên lưng bên trái/phải, hoặc cúi xuống ngực, mổ nhẹ),
   `court` chim trống gù (`Pose.puff`: cổ, ức phồng `PUFF`; `spread`: đuôi xoè `SPREAD`, hạ quét đất; cúi chào `BOWS`;
-  xoay một hai vòng tại chỗ `spin()`, `SPIN_IN`: hướng cuối bằng hướng đầu). Mỗi con một tính (`Pigeons.temper`: busy,
+  dậm chân tại chỗ `STAMP`, không xoay vòng). Mỗi con một tính (`Pigeons.temper`: busy,
   hungry, rest, court, tốc độ lệch quanh thanh trượt theo "Mỗi con một kiểu" `differ`; nửa đàn là chim trống).
-  "Đi quanh quẩn ← → đi khắp khung" (`roam`: trái `room` nhỏ, đi nhiều vòng; phải đường bầu dục dài hẹp `thin`).
+  "Đi quanh quẩn ← → đi khắp khung" (`roam`: trái `room` nhỏ: đi ngắn, qua lại quanh một chỗ; phải đi xa hơn dọc một
+  hướng riêng, `thin`).
   Thông số mới `rest`, `court`, `roam`, `differ`; `VERSION` 6. Test: `Ways`, `test_toes_curl_as_a_foot_lifts`.
   Chủ yêu cầu 2026-10-24 lần ba ("làm chim bồ câu đẹp hơn"): hai vạch đen trên cánh đúng chỗ ảnh mẫu (`BARS`: dò từng
   điểm ảnh của vạch trên ảnh vào toạ độ cánh của chim đứng thẳng), cong ra trước ở nửa dưới cánh (`CURVE`), mép sau
@@ -351,6 +352,22 @@ hiệu ứng. Cách dùng: `README.md`.
   `OVERLAP` thì bớt một con và tính lại (`DROPS`). Gờ: mỗi con một đoạn riêng dài ít nhất `LEDGE`, gờ chỉ chứa chừng ấy
   con. Bầy xếp trên khung cao `REF` (xem nhanh và video xuất cùng một bầy; `_PLANS` giữ kế hoạch). `VERSION` 8. Test:
   `Apart`.
+  Không xoay tròn (chủ yêu cầu 2026-10-25: "chim xoay tròn là không giống nhất": chim đi vòng quanh hình bầu dục nhỏ của
+  nó, có khi chỉ dài bằng thân chim; chim trống gù xoay một hai vòng tại chỗ): mỗi lần đi là một đoạn gần thẳng (cong
+  tới `ARC`, không gắt hơn `BEND`; dài nhất theo `room`, phần thời gian còn lại đứng yên: `_fit`); giữa hai lần đi chim
+  quay tại chỗ từng bước (đoạn riêng trong ngày: `["turn", bắt đầu, dài, số bước]`; `TURN_RATE`, nhanh nhất
+  `TURN_FAST`, mỗi bước tới `TURN_STEP`, ít nhất `TURN_LEAST`, không quá `TURN_MOST` một lần; thời gian lấy từ lúc
+  dừng ngay trước, có khi ngay sau lần đi trước (`STOP_LEAST`), thiếu thì từ lần đi: `_on_the_spot`); chân trụ đứng
+  yên đúng chỗ đặt, ngón giữ hướng lúc đặt (chân trong `Pose.feet` có thêm hướng riêng: `_heel`, `_foot`), chân kia
+  nhấc lên đặt xuống đã xoay, cuối cùng đặt chân kia bên cạnh; đầu ngoái trước. Rẽ rất nhỏ (`TINY`) thì rẽ luôn khi
+  bước đi (`_absorb`). Hướng đi trên mặt đất (`_wander`): rẽ trái, rẽ phải lần lượt (`ZIGZAG`), thỉnh thoảng quay lại
+  (`BACK`), xa nhà (theo `room`) hay còn ít đường thì đi về; không quay quá nửa vòng một lúc (`SPIN_WALK`,
+  `SPIN_TIME`: vừa quay lại thì lần sau quay chiều kia, `_unspun`, `_spins`); khép đường, đổi ít nhất (`_closed`:
+  Gauss-Newton trên hướng và độ dài, tới `LONGER`); thử `WANDERS` cách, chọn cách ít ra ngoài `room`, ít đổi, không
+  xoay. Gờ, và chim trên mặt đất mà cách nào cũng xoay: đi qua lại trên một đường (`_to_and_fro`: chiều mỗi lần đi,
+  khép bằng dài ngắn, trong đoạn của nó). Đường đi là bảng theo quãng đường (`_lay`: phần còn hở cuối vòng chia đều dọc
+  đường). `VERSION` 9. Test: `Turning` (`test_never_spins_round`: trong 6 giây, đi chưa hết một thân, không quay quá
+  225°; `test_turns_on_its_feet`), `test_walks_nearly_straight`, `test_courts`.
   Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
   nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao
@@ -360,10 +377,11 @@ hiệu ứng. Cách dùng: `README.md`.
   ảnh bồ câu chủ gửi 2026-10-23 (`Pose.tall`: mỗi phần đi dần từ `BODY` tới `BODY_UP`, khớp theo đường viền ảnh đó; chân
   cổ `NECK_UP`, đầu `HEAD_UP`); đi thì thân hơi ngửa `WALK_UP`, đuôi hơi vểnh (`Pose.tail`: quanh `TAIL_AT`, `TAILS`);
   "Mổ hạt" `peck` là `hungry`, 0 không mổ; `reach()`: cúi `DOWN`, mỗi cái `PECKING`, ngẩng `UP`, mỏ chạm đất `PECK`,
-  đuôi nhấc; đường đi khép kín, đi hết đúng số vòng mỗi loop nên khung P là khung 0; đường nhỏ hơn `room` thì đi nhiều
-  vòng): chân trụ đứng yên trên đất, chân kia bước tới (`STRIDE`), đầu giữ yên rồi vươn tới mỗi bước; chỗ của mỗi con
+  đuôi nhấc; đường đi khép kín: cuối vòng loop chim về đúng chỗ, đúng hướng, nên khung P là khung 0): chân trụ đứng
+  yên trên đất, chân kia bước tới (`STRIDE`), đầu giữ yên rồi vươn tới mỗi bước; chỗ của mỗi con
   (`_home`) giữ cả đường đi trong khung (chừa chỗ phía trên cho chim đứng thẳng); xa (đỉnh khung) nhỏ hơn theo "Gần xa".
-  Đậu trên gờ: đáy khung là gờ, đi qua lại dọc gờ, quay đầu theo nửa vòng hẹp ở hai đầu (`TURN`). Không bay nữa: clip
+  Đậu trên gờ: đáy khung là gờ, đi qua lại dọc gờ, dừng lại quay đầu tại chỗ (lần này một chiều, lần sau chiều kia).
+  Không bay nữa: clip
   bay (`flock`, `pass`) của 1.0.71 thành `ground` (`clean_params`: lựa chọn không còn thì về mặc định). `VERSION` 2:
   clip xem nhanh làm lại. Mọi thứ cắt ở mép khung (`_inside`: clip xem nhanh chỉ là cái khung).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem

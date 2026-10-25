@@ -378,12 +378,13 @@ ban đêm.
 
 ### Chim bồ câu
 
-Chim bồ câu do app vẽ (không phải ảnh có sẵn), trông như bồ câu thật: thân tròn liền một khối, đầu nhỏ, đi từng bước
-theo đường lượn mềm (không quay ngoắt), thân lắc nhẹ theo bước chân, đầu gật tới trước mỗi bước, thỉnh thoảng cúi xuống
+Chim bồ câu do app vẽ (không phải ảnh có sẵn), trông như bồ câu thật: thân tròn liền một khối, đầu nhỏ, đi từng đoạn
+gần thẳng, dừng lại, rồi bước vài bước nhỏ quay sang hướng khác như bồ câu thật (lần này rẽ trái, lần sau rẽ phải; không
+đi vòng tròn, không xoay tròn), thân lắc nhẹ theo bước chân, đầu gật tới trước mỗi bước, thỉnh thoảng cúi xuống
 mổ hạt vài cái (mỏ chạm đất) rồi ngẩng lên; bắt đầu đi, dừng lại, đứng lên, cúi xuống đều nhẹ nhàng. Khi dừng lại, chim
 đứng thẳng lên, ưỡn ngực, cụp đuôi, ngó quanh, như bồ câu trong ảnh mẫu. Như bồ câu thật, có con nằm xuống nghỉ (lông xù
 tròn, chân thu vào trong lông), có con quay đầu ra sau rỉa lông lưng hay cúi rỉa lông ngực, có con trống gù: phồng cổ,
-xoè đuôi quét đất, cúi chào rồi xoay một hai vòng tại chỗ. Mỗi con một tính: con hay đi, con hay mổ, con lười nằm nghỉ,
+xoè đuôi quét đất, cúi chào, dậm chân tại chỗ. Mỗi con một tính: con hay đi, con hay mổ, con lười nằm nghỉ,
 con đi nhanh, con đi chậm. Bồ câu xám có màu đo theo ảnh mẫu: đầu xám xanh, cổ
 xanh lá, họng và chân cổ tím loang xuống ức, đầu từng chiếc lông nhỏ trên cổ lấp lánh thành vệt (đổi theo góc nhìn), ức
 xám tím, cánh xếp xám rất nhạt phủ kín hai bên thân, hai vạch đen cong trên cánh đúng như ảnh mẫu (mép sau răng cưa theo
@@ -415,8 +416,8 @@ tránh sang bên (con đang đứng không bị trượt), trên gờ mỗi con 
    - **Nằm nghỉ, rỉa lông**: kéo sang phải thì chim hay nằm xuống nghỉ và rỉa lông hơn (0: không bao giờ).
    - **Chim trống gù, xoè đuôi**: kéo sang phải thì chim trống hay gù hơn (khoảng một nửa đàn là chim trống; 0: không
      gù).
-   - **Đi quanh quẩn ← → đi khắp khung**: trái: chim đi vòng nhỏ quanh một chỗ; phải: chim đi những đường dài khắp
-     khung.
+   - **Đi quanh quẩn ← → đi khắp khung**: trái: chim đi ngắn, qua lại quanh một chỗ; phải: chim đi những đường dài
+     khắp khung.
    - **Mỗi con một kiểu**: trái: mọi con làm giống nhau như các thanh trên; phải: mỗi con một tính, rất khác nhau (con
      đi suốt, con nằm nghỉ lâu, con đi nhanh, con đi chậm).
 6. **Sáng theo cảnh**: chim lấy ánh sáng chỗ khung đứng trong video (cảnh tối thì chim tối, đèn vàng thì chim ấm).

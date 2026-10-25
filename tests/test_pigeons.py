@@ -59,10 +59,9 @@ class Loop(unittest.TestCase):
             self.assertGreater(float(a), 0.5, mode)
 
     def test_each_walker_comes_home(self):
-        """A bird goes round a closed path of its own, as far as it walks over the loop (once round, or more often
-        round a smaller path): at the loop's end where it started, facing the same way. Along a ledge its path goes
-        no farther from home than its room, however long it walks, and turns round at its ends in a narrow half
-        circle (TURN)."""
+        """A bird walks a closed path of its own over the loop: at the loop's end where it started, facing the same
+        way. Along a ledge its path is a line, no farther from home than its room either way, however long it
+        walks."""
         for seed in range(6):
             for busy in (0.0, 0.5, 1.0):
                 for loop, ledge, room in ((20.0, False, None), (20.0, False, 0.8), (20.0, True, 2.0),
@@ -74,7 +73,7 @@ class Loop(unittest.TestCase):
                     self.assertLess(abs(math.remainder(a1 - a0, math.tau)), 0.05, (seed, busy, ledge))
                     if ledge:
                         self.assertLessEqual(float(np.abs(walker.px).max()), room * 1.01, (seed, busy, loop))
-                        self.assertLessEqual(float(np.abs(walker.py).max()), pigeons.TURN * 1.01, (seed, busy, loop))
+                        self.assertLess(float(np.abs(walker.py).max()), 1e-9, (seed, busy, loop))
 
 
 class Walking(unittest.TestCase):
@@ -151,8 +150,9 @@ class Walking(unittest.TestCase):
 
     def test_no_jumps(self):
         """Nothing about a bird jumps from one moment to the next, all its day, about or along a ledge: its head and
-        its body glide (no faster than its head goes as it thrusts it forward), it turns no faster than its path bends
-        (never round on the spot), and its feet are together where each walk starts and stops."""
+        its body glide (no faster than its head goes as it thrusts it forward); walking, it turns no faster than its
+        walk curves; it turns on the spot only between its walks, a step at a time; standing, pecking, sitting,
+        preening or courting, it does not turn at all; its feet are together where each walk starts and stops."""
         fps = 240
         for ledge in (False, True):
             for seed in range(6):
@@ -172,15 +172,17 @@ class Walking(unittest.TestCase):
                 self.assertLess(float(speed[0].max()), 2.5, (ledge, seed))  # (units a second: the bird is 0.86)
                 self.assertLess(float(speed[1].max()), 1.0, (ledge, seed))
                 spin = np.abs(np.angle(np.exp(1j * np.diff(heading)))) * fps
-                bend = 1 / pigeons.TURN if ledge else 1 / pigeons.BEND
-                courting = np.zeros(len(spin), bool)  # (turning round on the spot, courting: at most twice round)
-                for kind, start, d, n in walker.segs:
-                    if kind == "court":
-                        courting |= (ts[1:] > start) & (ts[:-1] < start + d)
-                        most = math.tau * abs(n) / (d - 2 * pigeons.SPIN_IN) * 1.875 * 1.05
-                        self.assertLess(float(spin[(ts[1:] > start) & (ts[:-1] < start + d)].max()), most)
-                if (~courting).any():
-                    self.assertLess(float(spin[~courting].max()), bend * walker.speed * 1.15, (ledge, seed))
+                at = np.array([walker._seg(t) for t in ts])
+                for k in np.flatnonzero(at[1:] == at[:-1]):  # (each moment within one thing it does)
+                    kind, start, d, n = walker.segs[at[k]]
+                    b = walker.heads[at[k]][1]
+                    if kind == "walk":  # (as its walk curves, as fast as it walks: its curve over its time at speed)
+                        most = abs(b) / (d - min(pigeons.RAMP, d / 2))
+                    elif kind == "turn":  # (a step at a time: a little faster in the middle of a step)
+                        most = 1.4375 * abs(b) * (n + 1) / (n * d)
+                    else:
+                        most = 0.0
+                    self.assertLessEqual(float(spin[k]), most * 1.05 + 1e-6, (ledge, seed, kind, ts[k]))
                 for i, (kind, start, d, _) in enumerate(walker.segs):
                     if kind == "walk":
                         for t in (start + 1e-6, start + d - 1e-6):
@@ -188,17 +190,23 @@ class Walking(unittest.TestCase):
                             self.assertLess(max(abs(feet[0][0]), abs(feet[1][0])), 0.004, (ledge, seed, t))
                             self.assertLess(max(feet[0][2], feet[1][2]), 1e-3, (ledge, seed, t))
 
-    def test_paths_bend_gently(self):
-        """A bird's path about is a smooth wobbly loop of its own: never sharper than BEND (a short path: a
-        circle)."""
+    def test_walks_nearly_straight(self):
+        """Each walk nearly straight: curving ARC at most, end to end, no tighter than BEND (and a turn too small
+        to make on the spot, TINY, made as it walks off); between its walks it turns on the spot, never more than
+        TURN_MOST at once, no faster than TURN_FAST, at least a step and its other foot beside it."""
         for seed in range(40):
-            walker = pigeons.Walker(np.random.default_rng(seed), 30.0, 0.5, 1.0, room=1.0 + seed % 3)
-            x, y = walker.px, walker.py
-            dx, dy = (np.roll(x, -1) - np.roll(x, 1)) / 2, (np.roll(y, -1) - np.roll(y, 1)) / 2
-            ddx, ddy = np.roll(x, -1) - 2 * x + np.roll(x, 1), np.roll(y, -1) - 2 * y + np.roll(y, 1)
-            bend = np.abs(dx * ddy - dy * ddx) / (dx * dx + dy * dy) ** 1.5
-            most = max(1 / pigeons.BEND, math.tau / walker.length)
-            self.assertLess(float(bend.max()), most * 1.05, seed)
+            walker = pigeons.Walker(np.random.default_rng(seed), 30.0, seed % 3 / 2, 1.0, seed % 4 == 3,
+                                    room=0.4 + seed % 5 * 0.6, thin=seed % 2 * 0.8)
+            for i, (kind, start, d, n) in enumerate(walker.segs):
+                b = walker.heads[i][1]
+                if kind == "walk":
+                    far = walker.speeds[i] * (d - min(pigeons.RAMP, d / 2))
+                    self.assertLessEqual(abs(b), pigeons.ARC + 2 * pigeons.TINY, seed)
+                    self.assertLessEqual(abs(b), far / pigeons.BEND + 2 * pigeons.TINY, seed)
+                elif kind == "turn":
+                    self.assertLessEqual(abs(b), pigeons.TURN_MOST, seed)
+                    self.assertLessEqual(abs(b) / d, pigeons.TURN_FAST * 1.01, seed)
+                    self.assertGreaterEqual(n, 1)
 
     def test_its_beak_reaches_the_ground(self):
         for seed in range(4):
@@ -243,6 +251,65 @@ class Walking(unittest.TestCase):
         self.assertTrue(all(abs(p[2][2, 0]) < 1e-9 for p in flat))
 
 
+class Turning(unittest.TestCase):
+    """The owner (2026-10-25): "chim xoay tròn là không giống nhất" (the birds turning round and round looked least
+    like real ones: they walked round small loops of their own, and the males courting spun round on the spot). A
+    pigeon walks nearly straight, stops, and turns on the spot a step at a time, this way, then that."""
+
+    def test_never_spins_round(self):
+        """In any few seconds (6) in which it walks less than its own length, a bird turns a little over half round
+        at most (225 degrees), however little room it has, however much it walks, about or along a ledge."""
+        for ledge in (False, True):
+            for loop in (20.0, 60.0):
+                for room in (0.3, 0.8, 2.5):
+                    for busy in (0.0, 1.0):
+                        for seed in range(2):
+                            walker = pigeons.Walker(np.random.default_rng(seed), loop, busy, 1.0 + seed, ledge, room,
+                                                    hungry=0.5, rest=0.3, court=0.5, male=True, thin=0.6 * seed)
+                            fps = 12
+                            ts = np.arange(0.0, 2 * loop, 1 / fps)
+                            heading, walked = [], []
+                            for t in ts:
+                                i, into = walker._into(t % loop)
+                                heading.append(walker._where(t % loop)[2])
+                                walked.append(walker.walked[i] + into + (walker.length if t >= loop else 0.0))
+                            heading, walked = np.unwrap(heading), np.array(walked)
+                            ends = np.minimum(np.searchsorted(walked, walked + pigeons.LENGTH),
+                                              np.arange(len(ts)) + 6 * fps)
+                            most = max(float(np.ptp(heading[k:ends[k]])) for k in range(len(ts) // 2))
+                            self.assertLess(most, 1.25 * math.pi, (ledge, loop, room, busy, seed))
+
+    def test_turns_on_its_feet(self):
+        """Turning on the spot, it steps round: one foot always on the ground, each planted foot staying where it
+        was put down (and as it was put down: its toes turned with it) while the body turns over it; its feet
+        together where the turn starts and where it ends."""
+        found = 0
+        for seed in range(12):
+            walker = pigeons.Walker(np.random.default_rng(seed), 30.0, 0.6, 1.0, room=0.8)
+            for i, (kind, start, d, n) in enumerate(walker.segs):
+                if kind != "turn" or abs(walker.heads[i][1]) < 1.0:
+                    continue
+                found += 1
+                for t in (start + 1e-9, start + d - 1e-9):
+                    for f, side in zip(walker.pose(t).feet, (1, -1)):
+                        self.assertLess(abs(f[0]) + abs(f[1] - side * 0.034) + f[2] + abs(f[3]), 1e-6, seed)
+                planted = {1: [], -1: []}
+                for t in np.linspace(start + 1e-9, start + d - 1e-9, 400):
+                    x, y, a = walker.where(t)
+                    feet = walker.pose(t).feet
+                    self.assertTrue(feet[0][2] == 0.0 or feet[1][2] == 0.0, (seed, t))
+                    for f, side in zip(feet, (1, -1)):  # (where each planted foot is on the ground, its way)
+                        c, s = math.cos(a), math.sin(a)
+                        planted[side].append((x + f[0] * c - f[1] * s, y + f[0] * s + f[1] * c, a + f[3])
+                                             if f[2] == 0.0 else None)
+                for side, run in planted.items():
+                    for k in range(1, len(run)):
+                        if run[k] is not None and run[k - 1] is not None:
+                            self.assertLess(math.hypot(run[k][0] - run[k - 1][0], run[k][1] - run[k - 1][1]), 1e-9)
+                            self.assertLess(abs(run[k][2] - run[k - 1][2]), 1e-9)
+        self.assertGreater(found, 5)
+
+
 class Ways(unittest.TestCase):
     """Besides walking, looking round and pecking, a bird sits down a while, preens, or (a male) courts; each bird
     its own ways, as different from the next as "Mỗi con một kiểu" says."""
@@ -279,8 +346,9 @@ class Ways(unittest.TestCase):
                 self.assertLess(pose.head_pitch, -0.8)
 
     def test_courts(self):
-        """A male courting puffs up his neck and breast, spreads his tail down to the ground, bows, and turns round
-        on the spot once or twice, ending as he faced; a female never courts."""
+        """A male courting puffs up his neck and breast, spreads his tail down to the ground, bows and steps on the
+        spot, never turning round (the owner, 2026-10-25: "chim xoay tròn là không giống nhất"); a female never
+        courts."""
         walker, (_, start, d, n) = self.seg("court", court=1.0, male=True)
         mid = pigeons.parts(walker.pose(start + d / 2))
         calm = pigeons.parts(pigeons.Pose())
@@ -288,12 +356,12 @@ class Ways(unittest.TestCase):
         fan = [next(p for p in allp if p[0] == "fan")[3][1] for allp in (mid, calm)]
         self.assertGreater(neck[0], 1.3 * neck[1])
         self.assertGreater(fan[0], 1.5 * fan[1])
-        self.assertAlmostEqual(walker.spin(start + 1e-6), 0.0, places=6)
-        self.assertAlmostEqual(walker.spin(start + d - 1e-6), math.tau * n, places=4)
-        turned = [walker.spin(t) for t in np.linspace(start, start + d - 1e-6, 200)]
-        self.assertTrue(np.all(np.diff(turned) * np.sign(n) >= -1e-9))
+        ts = np.linspace(start + 1e-6, start + d - 1e-6, 200)
+        self.assertLess(float(np.ptp([walker.where(t)[2] for t in ts])), 1e-9)  # (facing one way all along)
         bows = [walker.pose(t).head[2] for t in np.linspace(start + 0.5, start + d - 0.5, 200)]
         self.assertGreater(max(bows) - min(bows), 0.06)
+        lifts = [max(f[2] for f in walker.pose(t).feet) for t in ts]
+        self.assertGreater(max(lifts), 0.005)  # (stepping on the spot)
         for seed in range(20):
             walker = pigeons.Walker(np.random.default_rng(seed), 40.0, 0.4, 1.0, court=1.0, male=False)
             self.assertNotIn("court", [s[0] for s in walker.segs])

@@ -26,18 +26,22 @@ lit by the scene where its box stands (as steam is: light_at), less where its bo
 between its parts, under it: ambient occlusion from the smooth distance), and lies in its own shadow: dark right under
 it, soft and wider away from the light.
 
-Every bird keeps its own day over the loop: walking a while round a closed path of its own (a smooth wobbly loop, never
-turning on the spot; whole laps a loop: back where it started), stopping to look round or, now and then ("Mổ hạt"), to
-peck at the ground a few times, its beak reaching it and its tail rising. As it walks, its planted foot stays put while
-the other steps forward, its body swaying a little over it, and its head is held still and thrust forward a step at a
-time, as pigeons do; it speeds up and slows down smoothly, its feet together where it starts and stops, and stands up
-tall, bends down and looks round without a jolt.
+Every bird keeps its own day over the loop: walking a while, nearly straight, then stopping to look round or, now and
+then ("Mổ hạt"), to peck at the ground a few times, its beak reaching it and its tail rising; between its walks it turns
+on the spot, a step at a time, this way, then that, as a pigeon does, never round and round (the owner, 2026-10-25:
+"chim xoay tròn là không giống nhất": birds walking round small loops of their own, males spinning round courting,
+looked least like real ones); at the loop's end back where it started, facing the same way. As it walks, its planted
+foot stays put while the other steps forward, its body swaying a little over it, and its head is held still and thrust
+forward a step at a time, as pigeons do; turning, each foot stays where it was put down while the body turns over it.
+It speeds up and slows down smoothly, its feet together where it starts and stops, and stands up tall, bends down and
+looks round without a jolt.
 
 No bird walks through another or stands in another (the owner, 2026-10-24): each is placed where, and its day begun
 when, its path meets the others' least (_spread); where two still meet, the one walking steps aside round the other,
 smoothly, a standing one never sliding (_plan: their footprints, ellipses round their bodies, kept apart); a box too
 small for so many birds that big holds only those it has room for. Along a ledge each bird walks to and fro on a stretch
-of its own. The flock is laid out in a box REF high, so it is the same at every size it is drawn at.
+of its own, turning round on the spot at its stops. The flock is laid out in a box REF high, so it is the same at every
+size it is drawn at.
 """
 import collections
 import math
@@ -262,18 +266,28 @@ class Pose:
         self.sit = self.tuck = self.puff = self.spread = 0.0
 
 
+def _heel(at):
+    """Where a foot's tarsus meets it (the foot `at`: x, y, how high it is lifted and, turning on the spot, its own
+    way: a planted foot stays as it was put down while the body turns over it)."""
+    own = float(at[3]) if len(at) > 3 else 0.0
+    c, s = math.cos(own), math.sin(own)
+    return np.array([at[0] + c * HEEL[0] - s * HEEL[1], at[1] + s * HEEL[0] + c * HEEL[1], at[2] + HEEL[2]])
+
+
 def _foot(side, hip, at, fine, tuck=0.0):
     """One foot's parts (the bird's frame; `side` 1 its left, -1 its right): its tarsus from under its belly's
-    feathers (`hip`) down to the foot (`at`: the foot's middle on the ground, and how high it is lifted), its four toes
-    flat on the ground, or curled and drawn together as the foot is lifted (or `tuck`ed under a bird sitting down),
-    each ending in a claw curving down to the ground; the toes joint by joint (`fine`) or one piece each."""
+    feathers (`hip`) down to the foot (`at`: the foot's middle on the ground, how high it is lifted and, turning on the
+    spot, its own way), its four toes flat on the ground, or curled and drawn together as the foot is lifted (or
+    `tuck`ed under a bird sitting down), each ending in a claw curving down to the ground; the toes joint by joint
+    (`fine`) or one piece each."""
     f = np.asarray(at[:2], np.float64)
     lift = float(at[2])
+    own = float(at[3]) if len(at) > 3 else 0.0
     hang = min(max(lift / 0.02 - float(tuck) * 1.7, 0.0), 1.0)  # (lifted: hanging down; tucked: folded up)
     fold = min(max(float(tuck), 0.0), 1.0)
     curl = max(hang, fold)
     foot = np.array([f[0], f[1], lift])
-    heel = foot + HEEL
+    heel = _heel(at)
     rot = _along(heel, hip)
     span = float(np.linalg.norm(hip - heel))
     out = []
@@ -284,9 +298,9 @@ def _foot(side, hip, at, fine, tuck=0.0):
         grow = 1.6 * rad if k else 0.8 * rad
         out.append(("leg", heel + (hip - heel) * (f0 + f1) / 2 + rot[:, 2] * (1.6 * rad - grow) / 2, rot,
                     np.array([rad, 0.92 * rad, span / 6 + (1.6 * rad + grow) / 2])))
-    base = foot + np.array([0.003, 0.0, 0.0])  # (where the toes leave the foot)
+    base = foot + np.array([0.003 * math.cos(own), 0.003 * math.sin(own), 0.0])  # (where the toes leave the foot)
     for turn, joints, thick, claw in TOES:
-        yaw = side * turn * (1.0 - 0.4 * curl) if turn < 3 else side * (math.pi + (turn - math.pi) * (1 - curl))
+        yaw = own + (side * turn * (1.0 - 0.4 * curl) if turn < 3 else side * (math.pi + (turn - math.pi) * (1 - curl)))
         cy, sy = math.cos(yaw), math.sin(yaw)
         a = z = 0.0  # (along the toe from its base, and down)
         ang = 0.35 * hang - 0.6 * fold  # (lifted: its toes hang down, bending more at each joint; tucked under a
@@ -354,10 +368,10 @@ def parts(pose, fine=True):
     for side, foot in zip((1, -1), pose.feet):
         hips.append(shift + tip @ (np.array([0.0, side * 0.03, 0.11]) - HIP))
         if pose.tuck > 0:  # (sitting down: its feet drawn up under its belly's feathers)
-            foot = (foot[0] - 0.01 * pose.tuck, foot[1], foot[2] + 0.034 * pose.tuck)
+            foot = (foot[0] - 0.01 * pose.tuck, foot[1], foot[2] + 0.034 * pose.tuck, *foot[3:])
         feet.append(foot)
     for hip, foot in zip(hips, feet):  # (its thighs, over the top of its legs)
-        heel = np.array(foot, np.float64) + HEEL
+        heel = _heel(foot)
         out.append(("thigh", hip + (heel - hip) * THIGH[0], _along(heel, hip),
                     np.array([THIGH[1], 0.88 * THIGH[1], THIGH[2]])))
     base = shift + tip @ (NECK + (NECK_UP - NECK) * k - HIP)
@@ -981,7 +995,6 @@ def _inside(ix, iy, shape, x0, y0, w, h):
 
 STRIDE = 0.32  # (how far it goes while each foot steps once, units: steps of 0.16, about 6 cm)
 WALK = 0.5  # (its walking speed, units a second, at "speed" 50: about three steps a second)
-TURN = 0.1  # (on a ledge: the radius it turns round at each end, units)
 PECK = np.array([0.31, 0.0, 0.099])  # (its head's middle as its beak touches the ground)
 WALK_UP, TAIL_WALK = 0.12, 0.05  # (walking: how far its body is tipped up and its tail bent up, radians)
 HEAD_UP = np.array([0.123, 0.0, 0.6])  # (its head's middle standing tall, its neck stretched)
@@ -989,46 +1002,287 @@ DOWN, PECKING, UP = 0.36, 0.45, 0.42  # (seconds: bending down to peck, each pec
 RAMP = 0.4  # (seconds: starting to walk, stopping)
 EASE = 0.3  # (seconds: into and out of walking, pecking, standing)
 THRUST = 0.4  # (its head thrust forward over this share of each step, held still the rest)
-BEND = 0.22  # (the tightest it turns as it walks round its path: a radius, units)
 SIT_TIME = 0.8  # (seconds: sitting down, getting up again)
-SPIN_IN = 0.3  # (seconds: courting, from puffing up to starting to turn round, and from stopping to calming down)
+STAMP = 0.3  # (seconds: courting, from puffing up to stepping on the spot, and from stopping to calming down)
 BOWS = 1.1  # (courting: bows a second)
+# Where it goes (the owner, 2026-10-25: "chim xoay tròn là không giống nhất"): walks nearly straight, turning between
+# them on the spot a step at a time, as a pigeon does; never round and round.
+ARC = 0.45  # (radians: the most a walk curves, end to end)
+BEND = 1.0  # (units: the tightest it curves as it walks)
+TURN_RATE, TURN_FAST = 2.4, 3.6  # (radians a second: turning on the spot; at the fastest, short of time)
+TURN_STEP = 0.75  # (radians: the most it turns at a step)
+TURN_LEAST = 0.45  # (seconds: the least a turn on the spot takes: a step, then its other foot put down beside it)
+TURN_MOST = 3.5  # (radians: at most a little over half round at once)
+TINY = 0.06  # (radians: a turn this small it makes as it walks off, not on the spot)
+BACK = 0.15  # (how often, between walks, it turns round to go back the way it came)
+ZIGZAG = 0.65  # (how often it turns the other way from its turn before: zigzagging, not going round its home)
+LONGER = (0.8, 1.25)  # (how much shorter or longer a walk on the ground may be made, a little slower or faster, so that
+# its path closes)
+SPIN_WALK, SPIN_TIME = 1.5 * LENGTH, 8.0  # (units, seconds: never more than a little over half round with less
+# than this walked, in less than this time; some to spare: the test is a bird's length, 6 seconds)
+WANDERS = 24  # (ways tried for each bird on the ground: the one keeping best within its room, changed least)
+ROOM = 2.0  # (units: how far its path may go from its home, when no room is given)
+CALM = 1.2, 5.0  # (with walks no longer than this (units) and less, seconds at least from one walk to the next, up to
+# this with no room at all: a bird with little room walks less often, pecking and looking round between)
+STOP_LEAST = {"stand": 0.5, "rest": 2 * SIT_TIME + 0.8, "preen": 1.4, "court": 2.0}  # (seconds: what a stop keeps
+# when a turn on the spot takes time from it; pecking, 0.85 of its pecks' own time)
 
 
-def _loop(rng, u, length, thin=0.0):
-    """A walker's path about: a smooth wobbly oval (a curve r(u) round its middle, so no cusp: it never turns on the
-    spot), `length` units round, turned any way, the narrower (and longer across) the more `thin` (0..1) is; made
-    rounder until it turns no tighter than BEND (a short one, a circle)."""
-    a = rng.random(6)
-    wob2, wob3, squash = 0.2 * a[0], 0.07 * a[1], (0.55 + 0.45 * a[2]) * (1.0 - 0.7 * thin)
-    c, s = math.cos(TAU * a[5]), math.sin(TAU * a[5])
-    for _ in range(16):
-        r = 1.0 + wob2 * np.cos(2 * u + TAU * a[3]) + wob3 * np.cos(3 * u + TAU * a[4])
-        x, y = r * np.cos(u), squash * r * np.sin(u)
-        x, y = c * x - s * y, s * x + c * y
-        k = length / float(np.hypot(np.roll(x, -1) - x, np.roll(y, -1) - y).sum())
-        x, y = x * k, y * k
-        dx, dy = (np.roll(x, -1) - np.roll(x, 1)) / 2, (np.roll(y, -1) - np.roll(y, 1)) / 2
-        ddx, ddy = np.roll(x, -1) - 2 * x + np.roll(x, 1), np.roll(y, -1) - 2 * y + np.roll(y, 1)
-        bend = np.abs(dx * ddy - dy * ddx) / np.maximum((dx * dx + dy * dy) ** 1.5, 1e-12)  # (its curvature)
-        if float(bend.max()) * BEND <= 1.0 or (wob2 + wob3 < 1e-3 and squash > 0.999):
+def _walk_time(far, speed):
+    """How long a walk `far` units long takes at `speed`, speeding up and slowing down over RAMP each (as _into)."""
+    x = far / max(speed, 1e-9)
+    return x + RAMP if x >= RAMP else 2.0 * x
+
+
+def _chords(lengths, arcs, heads):
+    """Where walks end, from where each starts (2 x n, units): each `lengths` long, setting off along `heads`,
+    curving `arcs` radians end to end (an arc of a circle)."""
+    k = np.asarray(lengths, np.float64) * np.sinc(np.asarray(arcs, np.float64) / TAU)
+    mid = np.asarray(heads, np.float64) + np.asarray(arcs, np.float64) / 2
+    return np.stack([k * np.cos(mid), k * np.sin(mid)])
+
+
+def _closed(lengths, arcs, heads, rounds=24, turn=1.0):
+    """The walks' headings changed as little as may be (and their lengths a little, within LONGER) for a path of them
+    to close: their chords adding up to nothing (Gauss-Newton: each round the least change of the headings and of the
+    lengths' logarithms closing it to first order, no heading more than half a radian a round; `turn`: how freely a
+    heading changes, a length's logarithm 0.3). The headings, each walk's length factor, how far it still misses."""
+    lengths, arcs = np.asarray(lengths, np.float64), np.asarray(arcs, np.float64)
+    n = len(lengths)
+    th, lf = np.array(heads, np.float64), np.zeros(n)
+    lo, hi = math.log(LONGER[0]), math.log(LONGER[1])
+    give = np.concatenate([np.full(n, turn), np.full(n, 0.3)])
+    for _ in range(rounds):
+        c = _chords(lengths * np.exp(lf), arcs, th)
+        miss = c.sum(axis=1)
+        if math.hypot(*miss) < 1e-9:
             break
-        wob2, wob3, squash = wob2 * 0.7, wob3 * 0.7, squash + (1.0 - squash) * 0.4
-    return x, y
+        jac = np.concatenate([np.stack([-c[1], c[0]]), c], axis=1)
+        step = -(give[:, None] * jac.T) @ np.linalg.solve((jac * give) @ jac.T + 1e-12 * np.eye(2), miss)
+        step *= min(1.0, 0.5 / max(float(np.abs(step[:n]).max()), 1e-12))
+        th += step[:n]
+        lf = np.clip(lf + step[n:], lo, hi)
+    miss = _chords(lengths * np.exp(lf), arcs, th).sum(axis=1)
+    return th, np.exp(lf), math.hypot(*miss)
+
+
+def _turns(heads, arcs):
+    """How far it turns before each walk, from the way the walk before it ended (radians, -pi .. pi)."""
+    return np.remainder(heads - np.roll(heads + arcs, 1) + math.pi, TAU) - math.pi
+
+
+def _spins(turns, fars, gaps, arcs=None):
+    """How far round it turns, all told, at most, in a while (less than SPIN_WALK walked, SPIN_TIME gone by between
+    its turns: radians, from one way it faces to the farthest round from it, either way). `turns[j]` comes before
+    walk j, `fars[j]` long, curving `arcs[j]`, `gaps[j]` seconds before the next turn."""
+    n, most = len(turns), 0.0
+    for j in range(n):
+        lo = hi = at = walked = gone = 0.0
+        for k in range(n):
+            if k:
+                q = (j + k - 1) % n
+                walked, gone = walked + fars[q], gone + gaps[q]
+                at += 0.0 if arcs is None else arcs[q]
+                lo, hi = min(lo, at), max(hi, at)
+                if walked >= SPIN_WALK or gone >= SPIN_TIME:
+                    break
+            at += turns[(j + k) % n]
+            lo, hi = min(lo, at), max(hi, at)
+        most = max(most, hi - lo)
+    return most
+
+
+def _unspun(turns, fars, gaps, search=False, alternate=True):
+    """Its turns, each that may go either way round (one near half round: no more than TURN_MOST the other way)
+    turning round one way, then back the other (`alternate`): never round and round. `search`: then each such turned
+    the other way round too, kept where it turns less far round in a while (_spins)."""
+    turns = np.array(turns, np.float64)
+    either = np.flatnonzero(np.abs(turns) >= TAU - TURN_MOST)
+    way = math.copysign(1.0, turns[either[0]]) if len(either) else 1.0
+    for j in either if alternate else ():
+        if math.copysign(1.0, turns[j]) != way:
+            turns[j] -= TAU * math.copysign(1.0, turns[j])
+        way = -way
+    for _ in range(3 if search else 0):
+        better = False
+        for j in either:
+            other = turns.copy()
+            other[j] -= TAU * math.copysign(1.0, turns[j])
+            if _spins(other, fars, gaps) < _spins(turns, fars, gaps) - 1e-9:
+                turns, better = other, True
+        if not better:
+            break
+    return turns
+
+
+def _wander(rng, lengths, gaps, room, thin):
+    """Which way each walk on the ground goes and how much it curves: from where the walk before it ended, a turn this
+    way or that, now and then right round (BACK), drawn back toward its home the farther out it is (its room, longer
+    along a way of its own the more `thin`), the walks then closed (_closed). Of WANDERS tries, the one keeping best
+    within its room, changed least to close, its turns smallest. Headings, curves, length factors."""
+    n = len(lengths)
+    axis = TAU * rng.random()
+    far, near = room * (1.0 + 1.5 * thin), room * (1.0 - 0.4 * thin)  # (along its own way, across it)
+    ca, sa = math.cos(axis), math.sin(axis)
+    best, least = None, math.inf
+    for _ in range(WANDERS):
+        arcs = np.clip(rng.normal(0.0, ARC / 2, n), -ARC, ARC)
+        arcs = np.clip(arcs, -lengths / BEND, lengths / BEND)
+        heads, p, way = np.zeros(n), np.zeros(2), rng.choice((-1.0, 1.0))
+        heads[0] = TAU * rng.random()
+        lately = []  # (its turns and walks lately, with less than SPIN_WALK walked since)
+        for i in range(n):
+            if i:
+                end = heads[i - 1] + arcs[i - 1]
+                way = -way if rng.random() < ZIGZAG else way  # (this way, then that, mostly: not round and round)
+                if rng.random() < BACK:
+                    head = end + way * rng.uniform(2.3, 3.1)
+                else:
+                    head = end + way * abs(float(np.clip(rng.normal(0.0, 0.9), -2.2, 2.2)))
+                qa, qb = (p[0] * ca + p[1] * sa) / far, (p[1] * ca - p[0] * sa) / near
+                left = float(lengths[i:].sum())  # (as far as it has still to walk)
+                pull = min(max((math.hypot(qa, qb) - 0.3) / 0.7, (math.hypot(*p) / max(left, 1e-9) - 0.35) / 0.45,
+                               0.0), 1.0)
+                if pull > 0:  # (the farther out, and the less it has still to walk, the more it heads home)
+                    head += pull * math.remainder(math.atan2(-p[1], -p[0]) - head, TAU)
+                if thin > 0:  # (roaming: mostly along its own way, to and fro)
+                    along = axis if math.cos(head - axis) >= 0 else axis + math.pi
+                    head += 0.6 * thin * math.remainder(along - head, TAU)
+                turn, net = math.remainder(head - end, TAU), sum(t for t, _, _ in lately)
+                if abs(net + turn) > 0.95 * math.pi:  # (turned round lately: back the other way, or not as far)
+                    other = turn - math.copysign(TAU, turn)
+                    turn = other if abs(net + other) < abs(net + turn) and abs(other) <= TURN_MOST else float(
+                        np.clip(net + turn, -0.95 * math.pi, 0.95 * math.pi) - net)
+                heads[i] = end + turn
+                lately.append((turn + arcs[i], lengths[i], gaps[i]))
+            else:
+                lately.append((arcs[0], lengths[0], gaps[0]))
+            while lately and (sum(w for _, w, _ in lately) >= SPIN_WALK or sum(g for _, _, g in lately) >= SPIN_TIME):
+                lately.pop(0)
+            p += _chords(lengths[i:i + 1], arcs[i:i + 1], heads[i:i + 1])[:, 0]
+        th, f, miss = _closed(lengths, arcs, heads)
+        c = _chords(lengths * f, arcs, th)
+        starts = np.concatenate([np.zeros((2, 1)), np.cumsum(c, axis=1)[:, :-1]], axis=1)
+        pts = np.concatenate([starts, starts + _chords(lengths * f / 2, arcs / 2, th)], axis=1)
+        u, v = pts[0] * ca + pts[1] * sa, pts[1] * ca - pts[0] * sa
+        out = max(float(np.ptp(u)) / (2 * far), float(np.ptp(v)) / (2 * near))
+        cost = (4.0 * max(out - 1.0, 0.0) + float(np.abs(th - heads).mean()) + 2.0 * float(np.abs(np.log(f)).mean())
+                + 20.0 * miss + _spun(th, arcs, lengths * f, gaps))
+        if cost < least:
+            best, least = (th, arcs, f), cost
+    # to and fro along a line of its own (a bird with little room, or little walking, can always do that)
+    ways, f = _to_and_fro(lengths, min(far, near * 1.5))
+    th, arcs = axis + np.where(ways > 0, 0.0, math.pi), np.zeros(n)
+    if 0.6 + 2.0 * float(np.abs(np.log(f)).mean()) + _spun(th, arcs, lengths * f, gaps) < least:
+        best = (th, arcs, f)
+    return best
+
+
+def _spun(heads, arcs, fars, gaps):
+    """How much a way of walking turns round and round (a cost): its turns' size, whole turns round its home over
+    the loop, and above all turning more than a little over half round in a while (_spins)."""
+    turns = _unspun(_turns(heads, arcs), fars, gaps)
+    rounds = abs(round(float(turns.sum() + arcs.sum()) / TAU))
+    return (0.05 * float(np.abs(turns).mean()) + 0.6 * rounds
+            + 20.0 * max(_spins(turns, fars, gaps) - 1.1 * math.pi, 0.0))
+
+
+def _to_and_fro(lengths, room, ways=None):
+    """To and fro along a line (a ledge's, or on the ground one of its own): which way each walk goes (1 or -1 along
+    it) and each one's length factor, so that it ends where it began, within its stretch (room each side of its
+    middle): of the ways tried (every one, or as many at random for many walks), the one closing with its walks
+    changed least, within its stretch, turning round least; closed by making the walks one way a little longer, the
+    others shorter (a little faster, slower). `ways` given: those."""
+    n = len(lengths)
+    if ways is None:
+        if n <= 12:
+            bits = (np.arange(2 ** (n - 1))[:, None] >> np.arange(n - 1)[None, :]) & 1
+        else:
+            bits = np.random.default_rng(n).integers(0, 2, (4096, n - 1))
+        ways = np.concatenate([np.ones((len(bits), 1)), 1.0 - 2.0 * bits], axis=1)
+    ways = np.atleast_2d(np.asarray(ways, np.float64))
+    net = (ways * lengths).sum(axis=1)
+    on = ways == np.where(net >= 0, 1.0, -1.0)[:, None]  # (the walks going the way it would end up)
+    big, small = (lengths * on).sum(axis=1), (lengths * ~on).sum(axis=1)
+    whole = np.maximum(big + small, 1e-12)
+    f = np.where(on, (2 * small / whole)[:, None], (2 * big / whole)[:, None])
+    at = np.cumsum(ways * lengths * f, axis=1)
+    span = np.maximum(at.max(axis=1), 0.0) - np.minimum(at.min(axis=1), 0.0)
+    with np.errstate(divide="ignore"):
+        changed = np.abs(np.log(np.maximum(f, 1e-300))).max(axis=1)
+    over = span / max(2 * room, 1e-9) - 1.0
+    turned = (ways != np.roll(ways, 1, axis=1)).sum(axis=1)  # (how often it turns round)
+    cost = changed + 100.0 * (over > 1e-3) + 3.0 * np.maximum(over, 0.0) + 0.03 * turned
+    q = int(np.argmin(cost))
+    return ways[q], f[q] / max(1.0, 1.0 + float(over[q]))  # (none within its stretch: all a little shorter)
 
 
 class Walker:
-    """One bird on the ground over the loop (`loop` seconds): walking round a closed path of its own (whole laps a
-    loop), stopping to look round, to peck at the ground, to sit down a while, to preen or (a male) to court, puffed
-    up. `busy`: 0 (mostly stopped) .. 1 (walking most of the time); `hungry`: 0 (never pecks) .. 1 (pecks at most
-    stops, a few times); `rest`: 0 .. 1, how often it sits down or preens; `court`: 0 .. 1, how often it courts (none
-    unless `male`); `ledge`: walking to and fro along a line (a narrow loop) rather than about; `room`: the farthest
-    its path may go from its home (units): a long walk goes round more than once; `thin`: 0 .. 1, its path about
-    narrower and longer across (roaming further)."""
+    """One bird on the ground over the loop (`loop` seconds): walking a while, nearly straight, then stopping to look
+    round, to peck at the ground, to sit down a while, to preen or (a male) to court, puffed up; turning on the spot
+    between its walks, a step at a time, as pigeons do, never round and round (the owner, 2026-10-25); at the loop's
+    end where it began, facing the same way. `busy`: 0 (mostly stopped) .. 1 (walking most of the time); `hungry`: 0
+    (never pecks) .. 1 (pecks at most stops, a few times); `rest`: 0 .. 1, how often it sits down or preens; `court`:
+    0 .. 1, how often it courts (none unless `male`); `ledge`: to and fro along a line, turning round on the spot at
+    its stops; `room`: the farthest its path may go from its home (units): walks no longer than it allows; `thin`:
+    0 .. 1, its path longer along a way of its own, to and fro (roaming further)."""
 
     def __init__(self, rng, loop, busy, pace, ledge=False, room=None, hungry=0.4, rest=0.0, court=0.0, male=False,
                  thin=0.0):
         self.loop = loop
+        segs = self._day(rng, loop, busy, hungry, rest, court, male)
+        speed = WALK * pace * rng.uniform(0.85, 1.15)
+        self.speed, self.ramp, self.room = speed, RAMP, room
+        reach = ROOM if room is None else room
+        far = reach * (1.0 + 1.5 * thin)
+        segs = self._fit(segs, speed, 1.6 * reach if ledge else 0.8 * far, 0.8 if ledge else 0.9)
+        legs = [i for i, s in enumerate(segs) if s[0] == "walk"]
+        lengths = np.array([speed * (segs[i][2] - min(RAMP, segs[i][2] / 2)) for i in legs])
+        gaps = np.diff(np.r_[[segs[i][1] for i in legs], legs and segs[legs[0]][1] + loop])  # (seconds from each
+        # walk's start to the next one's)
+        for line in (ledge, True):  # (about; to and fro along a line of its own if that would still spin round)
+            path = self._path(rng, segs, legs, lengths, gaps, speed, reach, thin, ledge, line)
+            if path[-1] <= 1.2 * math.pi:
+                break
+        segs, legs, fars, heads, arcs, turns, _ = path
+        self._lay(segs, legs, fars, heads, arcs, turns)
+        self.looks = rng.random(8) * TAU
+        self.shift = 0.0  # (seconds: its day begun this far into the loop, out of the other birds' way)
+        self._samples = None
+
+    def _path(self, rng, segs, legs, lengths, gaps, speed, reach, thin, ledge, line):
+        """Where its walks go (`line`: to and fro along a line, a ledge's or, on the ground, one of its own), its
+        turns on the spot put into its day; then its walks closed again, some shortened by the turns before them
+        (by their lengths, its turns kept as they go). Its day, its walks' places in it, their lengths, headings,
+        curves, the turns before them, and how far round it turns at most in a while (_spins)."""
+        if line:
+            ways, f = _to_and_fro(lengths, reach)
+            heads, arcs = (0.0 if ledge else TAU * rng.random()) + np.where(ways > 0, 0.0, math.pi), np.zeros(len(legs))
+        else:
+            heads, arcs, f = _wander(rng, lengths, gaps, reach, thin)
+        turns = _unspun(_turns(heads, arcs), lengths * f, gaps, search=True)
+        heads, arcs, turns = self._absorb(heads, arcs, turns, lengths * f)
+        segs, legs = self._on_the_spot(rng, segs, legs, turns)
+        lengths = np.array([speed * (segs[i][2] - min(RAMP, segs[i][2] / 2)) for i in legs])
+        if line:
+            _, f = _to_and_fro(lengths, reach, ways)
+        else:
+            heads, f, _ = _closed(lengths, arcs, heads, turn=0.02)  # (its lengths, not its turns, if it can)
+            turns = turns + np.remainder(_turns(heads, arcs) - turns + math.pi, TAU) - math.pi
+        spots = {self._serves(segs, k): k for k, s in enumerate(segs) if s[0] == "turn"}
+        when = [segs[spots[j]][1] if j in spots else segs[i][1] for j, i in enumerate(legs)]  # (each turn's time)
+        gaps = np.remainder(np.roll(when, -1) - np.array(when), self.loop)
+        turns = _unspun(turns, lengths * f, gaps, search=True, alternate=False)  # (its walks now as they are)
+        spot = np.array([j in spots for j in range(len(legs))], bool)
+        arcs = np.where(spot, arcs, arcs + turns)  # (no turn on the spot there: made as it walks off)
+        heads = np.where(spot, heads, heads - turns)
+        turns = np.where(spot, turns, 0.0)
+        return segs, legs, lengths * f, heads, arcs, turns, _spins(turns, lengths * f, gaps, arcs)
+
+    @staticmethod
+    def _day(rng, loop, busy, hungry, rest, court, male):
+        """What it does over the loop, by turns walking and stopping: [kind, start, seconds, n] (n: its pecks, which
+        side it preens), the loop's length in all."""
         segs, at = [], 0.0
         walk = rng.random() < 0.6
         sits, preens, courts = 0.4 * rest, 0.3 * rest, (0.5 * court if male else 0.0)  # (of its stops)
@@ -1036,9 +1290,8 @@ class Walker:
             pick = rng.random(2)
             if walk:
                 kind, d, n = "walk", (1.2 + 2.3 * pick[0]) * (0.6 + 0.8 * busy), 0
-            elif (r := rng.random()) < courts:  # (puffed up, bowing, turning round once or twice)
-                kind, d = "court", 3.0 + 3.5 * pick[0]
-                n = (1 + (d > 5.2)) * (1 if pick[1] < 0.5 else -1)
+            elif (r := rng.random()) < courts:  # (puffed up, bowing, stepping on the spot)
+                kind, d, n = "court", 3.0 + 3.5 * pick[0], 0
             elif r < courts + sits:  # (sitting down a while)
                 kind, d, n = "rest", (4.0 + 5.0 * pick[0]) * (1.3 - 0.6 * busy), 0
             elif r < courts + sits + preens:  # (preening a wing: its left or its right)
@@ -1055,52 +1308,172 @@ class Walker:
             segs[-2][2] += segs[-1][2]
             segs.pop()
         k = loop / sum(s[2] for s in segs)
+        for s in segs:
+            s[2] *= k
+        return Walker._timed(segs)
+
+    @staticmethod
+    def _timed(segs):
         at = 0.0
         for s in segs:
-            s[1], s[2] = at, s[2] * k
+            s[1] = at
             at += s[2]
+        return segs
+
+    @staticmethod
+    def _fit(segs, speed, cap, balance):
+        """Its walks fitted to its room: none longer than `cap` (units: the rest of its time it stands there), with
+        little room fewer of them (CALM), a lone walk made two (there and back again), the longest no longer than
+        `balance` of the others together (else its path could not close)."""
+        segs = [list(s) for s in segs]
+
+        def far(i):
+            return speed * (segs[i][2] - min(RAMP, segs[i][2] / 2))
+
+        def shorten(i, most):  # (walk i no longer than `most`: the time saved spent standing after it)
+            spare = segs[i][2] - _walk_time(most, speed)
+            if spare > 1e-9:
+                segs[i][2] -= spare
+                if segs[(i + 1) % len(segs)][0] == "stand":
+                    segs[(i + 1) % len(segs)][2] += spare
+                else:
+                    segs.insert(i + 1, ["stand", 0.0, spare, 0])
+
+        for i in [i for i, s in enumerate(segs) if s[0] == "walk"][::-1]:
+            if far(i) > cap:
+                shorten(i, cap)
+        apart = CALM[1] * min(max((CALM[0] - cap) / (CALM[0] - 0.4), 0.0), 1.0)  # (little room: fewer walks)
+        walks = [i for i, s in enumerate(segs) if s[0] == "walk"]
+        last = -math.inf
+        for i in walks:
+            if segs[i][1] - last < apart and len([s for s in segs if s[0] == "walk"]) > 2:
+                segs[i][0] = "stand"  # (standing there instead)
+            else:
+                last = segs[i][1]
+        walks = [i for i, s in enumerate(segs) if s[0] == "walk"]
+        if len(walks) == 1:  # (one walk: there and back again, a pause between)
+            i = walks[0]
+            d = segs[i][2]
+            pause = min(max(0.8, 0.3 * d), 0.5 * d)
+            segs[i][2] = (d - pause) / 2
+            segs[i + 1:i + 1] = [["stand", 0.0, pause, 0], ["walk", 0.0, (d - pause) / 2, 0]]
+        for _ in range(4):
+            walks = [i for i, s in enumerate(segs) if s[0] == "walk"]
+            fars = np.array([far(i) for i in walks])
+            most = int(np.argmax(fars))
+            rest = float(fars.sum() - fars[most])
+            if fars[most] <= balance * rest + 1e-9:
+                break
+            shorten(walks[most], balance * rest)
+        merged = []  # (standing on, one stand)
+        for s in segs:
+            if merged and s[0] == "stand" == merged[-1][0]:
+                merged[-1][2] += s[2]
+            else:
+                merged.append(s)
+        return Walker._timed(merged)
+
+    @staticmethod
+    def _absorb(heads, arcs, turns, fars):
+        """A turn too small to turn on the spot for, made as it walks off: its walk curving that much more (if it may:
+        no tighter than BEND)."""
+        small = (np.abs(turns) <= TINY) & (np.abs(arcs + turns) <= fars / BEND)
+        return heads - turns * small, arcs + turns * small, np.where(small, 0.0, turns)
+
+    @staticmethod
+    def _serves(segs, k):
+        """The walk a turn on the spot (segment k) comes before: its number among the walks (round the loop)."""
+        n = len(segs)
+        walks = [i for i, s in enumerate(segs) if s[0] == "walk"]
+        for step in range(1, n + 1):
+            i = (k + step) % n
+            if segs[i][0] == "walk":
+                return walks.index(i)
+        return 0
+
+    def _on_the_spot(self, rng, segs, legs, turns):
+        """A turn on the spot before each walk that needs one (a segment of its own: ["turn", start, seconds, steps]),
+        as long as its turn takes (TURN_RATE; TURN_LEAST at the least), out of the stop between the walks with the
+        most time to spare (as much as it can spare: STOP_LEAST), after it (or now and then before it); short of time,
+        quicker (TURN_FAST), the rest out of the walk. The day, and its walks' places in it."""
+        segs = [list(s) for s in segs]
+        n = len(legs)
+
+        def least(stop):  # (what a stop keeps of its time)
+            kind, _, _, k = segs[stop]
+            return 0.85 * (DOWN + k * PECKING + UP) if kind == "peck" else STOP_LEAST.get(kind, 0.5)
+
+        for j in range(n):
+            if turns[j] == 0.0:
+                continue
+            walks = [i for i, s in enumerate(segs) if s[0] == "walk"]
+            w = walks[j]
+            between = [(walks[j - 1] + k) % len(segs) for k in range(1, (w - walks[j - 1]) % len(segs) or len(segs))]
+            stop = max(between, key=lambda i: segs[i][2] - least(i)) if between else (w - 1) % len(segs)  # (the stop
+            # with most time to spare: the turn before it now and then (as it stops), else after it)
+            after = rng.random() < 0.35
+            d = segs[stop][2]
+            want = max(TURN_LEAST, abs(turns[j]) / TURN_RATE)
+            need = max(0.6 * TURN_LEAST, abs(turns[j]) / TURN_FAST)
+            took = min(want, max(d - least(stop), 0.0))
+            segs[stop][2] -= took
+            if took < need:  # (short of time: out of the walk too, as much as half of it; then the stop, but a little)
+                cut = min(need - took, 0.5 * segs[w][2])
+                segs[w][2] -= cut
+                more = min(need - took - cut, max(segs[stop][2] - 0.3, 0.0))
+                segs[stop][2] -= more
+                took += cut + more
+            steps = max(1, int(math.ceil(abs(turns[j]) / TURN_STEP)))
+            segs.insert(stop if after else stop + 1, ["turn", 0.0, took, steps])
+        segs = self._timed(segs)
+        return segs, [i for i, s in enumerate(segs) if s[0] == "walk"]
+
+    def _lay(self, segs, legs, fars, heads, arcs, turns):
+        """Its day laid out: each segment's heading (a + b * how far through it is: a walk's distance, a turn's
+        steps), each walk's speed and stride, how far it has walked before each, and its path (a table by distance
+        walked: the walks one after another, what it still misses at the end spread along it, so it closes)."""
         self.segs = segs
-        speed = WALK * pace * rng.uniform(0.85, 1.15)
-        self.ramp = RAMP
-        self.walked = []  # (distance walked before each segment)
-        self.strides = []  # (each walk's stride: a little shorter than STRIDE, so it takes a whole number of steps)
-        total = 0.0
-        for kind, start, d, _ in segs:
-            self.walked.append(total)
-            far = speed * (d - min(self.ramp, d / 2)) if kind == "walk" else 0.0
-            self.strides.append(far / (math.ceil(far / (STRIDE / 2) - 1e-9) / 2) if far > 0 else STRIDE)
-            total += far
-        self.speed = speed
-        laps = 1
-        if room is not None:  # (the longest path that keeps within `room` of home: along a ledge, to and fro; about,
-            # a round path, or a long narrow one)
-            laps = max(1, math.ceil(total / (4.0 * room if ledge else (0.55 + 1.0 * thin) * TAU * room)))
-        self.room = room
-        self.length = max(total / laps, 1e-6)  # (its path's length)
-        # its path: a closed curve this long (a narrow one along a ledge), as far round as it has walked
-        m = 512
-        u = np.linspace(0, TAU, m, endpoint=False)
-        if ledge:  # (to and fro along it, turning round over a step or two at each end: a long, narrow loop)
-            r = min(TURN, self.length / TAU)
-            run = (self.length - TAU * r) / 2
-            at = u / TAU * self.length
-            arc = np.clip(at - run, 0.0, math.pi * r) / r + np.clip(at - 2 * run - math.pi * r, 0.0, math.pi * r) / r
-            way = np.where(at < run, at, np.where(at < run + math.pi * r, run, np.where(
-                at < 2 * run + math.pi * r, 2 * run + math.pi * r - at, 0.0)))  # (how far along the straights)
-            px, py = way - run / 2 + r * np.sin(arc), -r * np.cos(arc)
-        else:
-            px, py = _loop(rng, u, self.length, thin)
-        seg = np.hypot(np.diff(px, append=px[:1]), np.diff(py, append=py[:1]))
-        k = self.length / max(float(seg.sum()), 1e-9)
-        self.px, self.py = px * k, py * k
-        self.cum = np.concatenate([[0.0], np.cumsum(seg * k)])
-        tx, ty = np.roll(self.px, -1) - np.roll(self.px, 1), np.roll(self.py, -1) - np.roll(self.py, 1)
-        norm = np.maximum(np.hypot(tx, ty), 1e-12)
-        self.tx, self.ty = tx / norm, ty / norm  # (its way at each point of its path: turning smoothly between them)
-        self.looks = rng.random(8) * TAU
-        self.flip = rng.random() < 0.5  # (which way round it goes)
-        self.shift = 0.0  # (seconds: its day begun this far into the loop, out of the other birds' way)
-        self._samples = None
+        n = len(segs)
+        leg_of = {i: j for j, i in enumerate(legs)}
+        self.speeds, self.strides, self.walked, self.heads = [0.0] * n, [STRIDE] * n, [0.0] * n, [None] * n
+        first = legs[0] if legs else 0
+        h = float(heads[0]) if len(legs) else 0.0
+        for step in range(n):
+            i = (first + step) % n
+            kind, _, d, _ = segs[i]
+            if kind == "walk":
+                j = leg_of[i]
+                self.heads[i] = (h, float(arcs[j]))
+                h += float(arcs[j])
+                self.speeds[i] = fars[j] / max(d - min(RAMP, d / 2), 1e-9)
+                self.strides[i] = fars[j] / (math.ceil(fars[j] / (STRIDE / 2) - 1e-9) / 2) if fars[j] > 0 else STRIDE
+            elif kind == "turn":
+                turn = float(turns[self._serves(segs, i)])
+                self.heads[i] = (h, turn)
+                h += turn
+            else:
+                self.heads[i] = (h, 0.0)
+        wraps = round((h - float(heads[0] if len(legs) else 0.0)) / TAU)  # (whole turns round over the loop)
+        for i in range(first):  # (before its first walk: as it was at the end of the loop, less those turns)
+            a, b = self.heads[i]
+            self.heads[i] = (a - TAU * wraps, b)
+        pts, cum, p, total = [np.zeros(2)], [0.0], np.zeros(2), 0.0
+        for i, (kind, _, d, _) in enumerate(segs):
+            self.walked[i] = total
+            if kind != "walk" or fars[leg_of[i]] <= 1e-9:
+                continue
+            far = fars[leg_of[i]]
+            q = np.linspace(0.0, far, max(2, int(math.ceil(far * 48))) + 1)[1:]
+            c = _chords(q, self.heads[i][1] * q / far, np.full(len(q), self.heads[i][0]))
+            pts.extend(p + c.T)
+            cum.extend(total + q)
+            p, total = p + c[:, -1], total + far
+        pts, cum = np.array(pts), np.array(cum)
+        if total > 1e-9:
+            pts -= p[None, :] * (cum / total)[:, None]  # (closed: what it misses spread along its way)
+        pts -= (pts.min(axis=0) + pts.max(axis=0)) / 2  # (its home the middle of its path)
+        self.px, self.py, self.cum = pts[:, 0], pts[:, 1], cum
+        self.length = max(total, 1e-6)  # (how far it walks over the loop)
 
     def _seg(self, t):
         for i in range(len(self.segs) - 1, -1, -1):
@@ -1123,11 +1496,11 @@ class Walker:
             return x ** 3 / r ** 2 - x ** 4 / (2 * r ** 3)
 
         s = ramp(x) if x < r else (full - ramp(d - x) if x > d - r else x - r / 2)
-        return i, self.speed * min(max(s, 0.0), full)
+        return i, self.speeds[i] * min(max(s, 0.0), full)
 
     def pace_at(self, t):
-        """How fast it walks at t: a share of its walking speed (0 standing .. 1 striding along), rising and falling
-        smoothly as it starts and stops (the speed _into goes at)."""
+        """How fast it walks at t: a share of its walking speed (0 standing, turning on the spot .. 1 striding
+        along), rising and falling smoothly as it starts and stops (the speed _into goes at)."""
         return self._pace((t + self.shift) % self.loop)
 
     def _pace(self, t):
@@ -1161,27 +1534,28 @@ class Walker:
         return np.array([(*self.where(t), self.pace_at(t)) for t in ts]).T
 
     def _where(self, t):
-        s = self.walked_at(t)
-        if self.flip:
-            s = (self.length - s) % self.length
-        u = np.interp(s, self.cum, np.arange(len(self.cum))) % len(self.px)
-        i = int(u)
-        f = u - i
-        j = (i + 1) % len(self.px)
-        x = self.px[i] * (1 - f) + self.px[j] * f
-        y = self.py[i] * (1 - f) + self.py[j] * f
-        dx, dy = self.tx[i] * (1 - f) + self.tx[j] * f, self.ty[i] * (1 - f) + self.ty[j] * f
-        if self.flip:
-            dx, dy = -dx, -dy
-        return x, y, math.atan2(dy, dx) + self.spin(t)
+        i, into = self._into(t)
+        kind, start, d, _ = self.segs[i]
+        s = (self.walked[i] + into) % self.length
+        x, y = float(np.interp(s, self.cum, self.px)), float(np.interp(s, self.cum, self.py))
+        a, b = self.heads[i]
+        if kind == "walk":
+            far = self.speeds[i] * (d - min(self.ramp, d / 2))
+            return x, y, a + b * (into / far if far > 0 else 0.0)
+        if kind == "turn":
+            return x, y, a + b * self._turned(i, t - start)
+        return x, y, a
 
-    def spin(self, t):
-        """How far it has turned round on the spot at t (radians: courting, it turns round once or twice, smoothly,
-        back the way it was facing)."""
-        kind, start, d, n = self.segs[self._seg(t)]
-        if kind != "court":
-            return 0.0
-        return TAU * n * float(_smoother((t - start - SPIN_IN) / max(d - 2 * SPIN_IN, 1e-6)))
+    def _turned(self, i, x):
+        """How far through a turn on the spot it is, x seconds into it (0 .. 1): its body turning with each step it
+        takes (a little faster in the middle of a step), still as it brings its other foot beside the last."""
+        _, _, d, m = self.segs[i]
+        tau = d / (m + 1)
+        j = min(int(x / tau), m)
+        if j >= m:
+            return 1.0
+        u = min(max(x / tau - j, 0.0), 1.0)
+        return (j + 0.5 * u + 0.5 * float(_smoother(u))) / m
 
     def reach(self, t):
         """How far down its head is at t (0 up .. 1 its beak on the ground): bending down, a few pecks, coming up."""
@@ -1199,8 +1573,8 @@ class Walker:
         return 0.75 + 0.25 * dip
 
     def pose(self, t):
-        """Its pose at t: stepping and bobbing its head as it walks, pecking, looking round, sitting, preening,
-        courting."""
+        """Its pose at t: stepping and bobbing its head as it walks, turning on the spot, pecking, looking round,
+        sitting, preening, courting."""
         t = (t + self.shift) % self.loop
         i, into = self._into(t)
         kind, start, d, n = self.segs[i]
@@ -1231,6 +1605,35 @@ class Walker:
             pose.sway = 0.006 * ease * math.sin(TAU * phase)
             pose.roll = -0.05 * ease * math.sin(TAU * phase)
             pose.bob = -0.003 * ease * math.cos(2 * TAU * phase)
+        elif kind == "turn":  # turning on the spot, a step at a time: each foot put down where the body will be turned
+            # at the end of its step, staying there as the body turns over it; its other foot brought beside at last
+            turn = self.heads[i][1]
+            tau = d / (n + 1)
+            j = min(int(x / tau), n)
+            u = min(max(x / tau - j, 0.0), 1.0)
+            body = turn * self._turned(i, x)
+            lead = 1 if turn >= 0 else -1  # (the foot on the side it turns to steps first)
+            feet = []
+            for side in (1, -1):
+                first = 0 if side == lead else 1
+
+                def put(k):  # (where this foot was put down at the end of its step k: turned as far as the body)
+                    return turn * min(k + 1, n) / n if k >= first else 0.0
+
+                if j >= first and (j - first) % 2 == 0:  # (stepping now)
+                    was = put(j - 2)
+                    way, lift = was + (put(j) - was) * float(_smooth(u)), 0.02 * math.sin(math.pi * u)
+                else:
+                    way, lift = put(j - 1 if (j - 1 - first) % 2 == 0 else j - 2), 0.0
+                rel = way - body  # (the foot's own way, in the bird's frame)
+                feet.append((-side * 0.034 * math.sin(rel), side * 0.034 * math.cos(rel), lift, rel))
+            pose.feet = tuple(feet)
+            stand = -lead if j % 2 == 0 else lead  # (the foot it stands on)
+            pose.sway = 0.004 * stand * math.sin(math.pi * u)
+            pose.roll = -0.03 * stand * math.sin(math.pi * u)
+            pose.head = HEAD + np.array([0.0, 0.0, -0.005 * math.sin(math.pi * u)])
+            pose.head_yaw = lead * min(0.45, 0.4 * abs(turn)) * math.sin(math.pi * min(1.25 * x / d, 1.0))  # (its
+            # head turned ahead of it)
         elif kind == "peck":
             reach = self.reach(t)
             pose.pitch = -WALK_UP + (0.45 + WALK_UP) * reach  # (its body tips forward, its tail rises)
@@ -1260,7 +1663,8 @@ class Walker:
             else:
                 pose.head = HEAD + (np.array([0.205, 0.0, 0.215]) - HEAD + nibble) * e
                 pose.head_pitch = 0.17 - 1.15 * e
-        elif kind == "court":  # a male courting: puffed up, its tail spread and dragged, bowing, turning round
+        elif kind == "court":  # a male courting: puffed up, its tail spread and dragged, bowing, stepping on the spot
+            # (never turning round: the owner, 2026-10-25)
             e = float(_smoother(min(x, d - x) / 0.5))
             pose.puff, pose.spread = e, e
             pose.tail = TAIL_WALK * (1 - e) - 0.32 * e  # (down to the ground, spread)
@@ -1268,9 +1672,8 @@ class Walker:
             pose.pitch = -WALK_UP * (1 - e) + 0.26 * bow
             pose.head = HEAD + np.array([0.0, 0.0, 0.025]) * e + np.array([0.05, 0.0, -0.1]) * bow
             pose.head_pitch = 0.17 - 0.3 * bow
-            if n:  # (stepping round as it turns: small steps, a foot at a time)
-                step = math.sin(TAU * 2.0 * x) * e * float(_smooth(min(x - SPIN_IN, d - SPIN_IN - x) / 0.3))
-                pose.feet = ((0.0, 0.034, 0.012 * max(step, 0.0)), (0.0, -0.034, 0.012 * max(-step, 0.0)))
+            step = math.sin(TAU * 2.0 * x) * e * float(_smooth(min(x - STAMP, d - STAMP - x) / 0.3))
+            pose.feet = ((0.0, 0.034, 0.012 * max(step, 0.0)), (0.0, -0.034, 0.012 * max(-step, 0.0)))
         else:  # standing: looking round now and then (a quick turn of the head, then still)
             k = int(x / 1.3)
             f = float(_smoother((x - k * 1.3) / 0.3))
@@ -1534,8 +1937,8 @@ SCHEMA = {
             "khung phủ chỗ đó: chim chỉ ở trong khung. Đáy khung là gần, đỉnh khung là xa: chim ở xa nhỏ hơn. Trên gờ "
             "tường, mái nhà: chọn Kiểu Đậu trên gờ, kéo khung cho đáy khung nằm trên gờ. (3) Chỉnh Số chim, Cỡ chim, "
             "Màu lông; Nhìn từ trên xuống cho hợp góc máy; Độ mềm cho chim mềm như trong ảnh chụp. (4) Chuyển động: "
-            "Đi lại nhiều, Mổ hạt, Nằm nghỉ và rỉa lông, Chim trống gù (phồng cổ, xoè đuôi, cúi chào, xoay vòng), Tốc "
-            "độ, Đi quanh quẩn hay đi khắp khung; Mỗi con một kiểu càng lớn thì mỗi con càng khác: con hay đi, con "
+            "Đi lại nhiều, Mổ hạt, Nằm nghỉ và rỉa lông, Chim trống gù (phồng cổ, xoè đuôi, cúi chào), Tốc độ, Đi "
+            "quanh quẩn hay đi khắp khung; Mỗi con một kiểu càng lớn thì mỗi con càng khác: con hay đi, con "
             "hay mổ, con lười nằm nghỉ, con đi nhanh, con đi chậm. Muốn đàn chim làm khác đi: bấm Đổi kiểu ngẫu "
             "nhiên. Chim tự tránh nhau, không đi xuyên qua nhau; chim to mà nhiều quá thì khung không đủ chỗ: app "
             "bớt chim. Chim sáng tối theo ánh sáng chỗ khung đứng trong video.",
@@ -1576,14 +1979,15 @@ class Pigeons(Effect):
     TURNS = False
     LIT = True
     PREVIEW = 1280
-    VERSION = 8  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
+    VERSION = 9  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
     # 4: standing tall as a photograph's, its folded wings and their primaries, the neck's sheen round its foot;
     # 5: smooth paths, steps, glides; creases shaded, a glossy feathered neck, catchlights, claws, the photo's colours;
     # 6: four scaly toes a foot, joint by joint, curling as a foot lifts; sitting, preening, courting; each its ways;
     # 7: the photograph's curved, scalloped wing bars, its colours measured again, a streaked neck, a purple bib,
     # feathered thighs, pale fringes on the long feathers, a satin sheen, checker wedges, the tail lower standing;
     # 8: out of each other's way: placed where and when they seldom meet, stepping aside, those the box has no room
-    # for left out, a stretch of its own each along a ledge)
+    # for left out, a stretch of its own each along a ledge; 9: walks nearly straight, turning on the spot between
+    # them a step at a time, never round and round, courting without turning round)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
 
