@@ -368,6 +368,18 @@ hiệu ứng. Cách dùng: `README.md`.
   khép bằng dài ngắn, trong đoạn của nó). Đường đi là bảng theo quãng đường (`_lay`: phần còn hở cuối vòng chia đều dọc
   đường). `VERSION` 9. Test: `Turning` (`test_never_spins_round`: trong 6 giây, đi chưa hết một thân, không quay quá
   225°; `test_turns_on_its_feet`), `test_walks_nearly_straight`, `test_courts`.
+  Lỗi màu, đi chậm hơn (chủ yêu cầu 2026-10-25: "có những chú chim bị lỗi màu, và tôi muốn chúng di chuyển chậm hơn"):
+  loang trắng trước đây là vài đốm sin 3D, mép mờ rộng: vệt tím, xám loang trên phần trắng, mảng cắt ngang thân; nay
+  trắng theo từng phần như bồ câu loang thật (`Coat.whites` từ `WHITES`: đầu, lông cánh, đuôi, yếm, bụng, mảng cánh,
+  lưng; chọn từ chính các số ngẫu nhiên đã có nên chỗ chim trong đàn không đổi; `white_on`: mỗi phần tự tính theo toạ
+  độ của nó, mép lượn, sắc tới một hai điểm ảnh, rồi `_albedo` làm gọn mép chỗ các phần gặp nhau) và vài đốm trắng nhỏ
+  (`white`, `FLECKS`; không trên lông dài đuôi, cánh). Đuôi: thân đuôi ngắn hơn, xoè cuối mỏng (`fan` dày 0,011), dải
+  cuối đuôi hẹp hơn, xám đậm (`band`): nhìn từ sau lúc mổ không còn "cái mũ đen". Đốm: mỗi lông phủ một mảng sẫm
+  rộng, đầu và mép lông nhạt (`_feathers(..., check=True)`, như bồ câu đốm thật; trước đây lưới đen trên nền sáng).
+  Nâu đỏ: cổ ánh đồng, ức be (trước đây hồng tím); ánh cổ tràn xuống ức theo độ bóng của bộ lông (`sheen`). Đi chậm
+  hơn: `WALK` 0,33 (khoảng hai bước mỗi giây), `RAMP` 0,5, quay tại chỗ `TURN_RATE` 1,7, `TURN_FAST` 2,6 (quay gần nửa
+  vòng thì giữ đủ thời gian cho cả hai chiều). `VERSION` 10. Test: `Coats` (`test_pied_white_clean`: trắng đỏ, màu
+  xanh, đếm điểm ảnh lẫn), `test_checks`, `test_slow`.
   Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
   nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao

@@ -103,6 +103,12 @@ class Walking(unittest.TestCase):
             for run in runs:
                 self.assertLess(max(run) - min(run), 0.004, side)  # (units: a bird is 0.86 long)
 
+    def test_slow(self):
+        """It walks slowly (the owner, 2026-10-25: "tôi muốn chúng di chuyển chậm hơn"): about two steps a second at
+        "Tốc độ" 50, a third slower than it was; it turns on the spot no faster than about a half turn in 1.2 s."""
+        self.assertTrue(1.7 < pigeons.WALK / (pigeons.STRIDE / 2) < 2.3)
+        self.assertLess(pigeons.TURN_FAST, math.pi / 1.15)
+
     def test_its_feet_take_turns(self):
         walker = pigeons.Walker(np.random.default_rng(4), 30.0, 0.8, 1.0)
         start, d = walks(walker)[0]
@@ -765,6 +771,73 @@ class Feathers(unittest.TestCase):
         self.assertLess(widths[1], widths[2])
         self.assertGreater(float(mark(0.8)[24]), 0.9)  # (dark in the middle near its tip)
         self.assertLess(float(mark(0.97).max()), 0.1)  # (its very tip pale)
+
+
+    def test_checks(self):
+        """A checker's check covers most of each covert, its tip and sides pale (a pale net over a darker wing, as a
+        checker pigeon's), some darker than others."""
+        size, aspect = 0.03, 0.7
+        frs = np.linspace(0.02, 0.98, 49)
+
+        def check(t):  # (across one feather of the first row, t of the way from its base to its tip)
+            b = frs * aspect * size
+            tip = 0.3 * (1 - (2 * frs - 1) ** 2)
+            return pigeons._feathers((t + tip) * size, b, size, aspect, 1e-5, True)[3]
+        self.assertGreater(float(np.mean([check(t).mean() for t in np.linspace(0.05, 0.95, 19)])), 0.45)
+        self.assertGreater(float(check(0.6)[24]), 0.95)  # (dark in its middle)
+        self.assertLess(float(check(0.97).max()), 0.15)  # (its tip pale)
+        self.assertLess(float(check(0.5)[0]), 0.1)  # (its sides pale)
+
+
+PURE = (np.array([1.0, 0.0, 0.0], np.float32), np.array([0.0, 1.0, 0.0], np.float32))  # (a pied bird's white, red;
+# its colour, green: how white each pixel is)
+
+
+class Coats(unittest.TestCase):
+    """The owner (2026-10-25): "có những chú chim bị lỗi màu": a pied bird's white smeared purple and grey, in patches
+    cutting across it; a black puck at its tail's end seen from behind; a checker's net; a red one's mauve breast."""
+
+    def test_pied_white_clean(self):
+        """A pied bird's white lies on whole parts of it (its head, bib, belly, flights, tail, a patch on its wing or
+        rump, a few flecks), its edges clean: hardly a pixel between its white and its colour, on every pied bird."""
+        tilt = math.radians(25)
+        way = np.array([-0.6, -0.55, 0.85])
+        lit = (np.ones(3, np.float32), way / np.linalg.norm(way), np.full(3, 0.5, np.float32))
+        kinds = set()
+        with mock.patch.object(pigeons, "WHITE", PURE[0]):
+            for seed in range(8):
+                coat = pigeons.Coat("pied", np.random.default_rng(seed))
+                kinds |= coat.whites
+                coat.c = {k: (PURE[1] if isinstance(v, np.ndarray) else v) for k, v in coat.c.items()}
+                for yaw in (0.0, math.pi / 2, -2.3):
+                    rgb, alpha, _ = pigeons.draw_bird(pigeons.Pose(), coat, yaw, 300.0, tilt, lit, 2)
+                    on = alpha > 0.999
+                    r, g = rgb[..., 0][on], rgb[..., 1][on]
+                    f = r / np.maximum(r + g, 1e-9)
+                    white, between = int((f > 0.85).sum()), int(((f > 0.15) & (f < 0.85)).sum())
+                    self.assertLess(between, 0.08 * max(white, 1) + 60, (seed, yaw))  # (clean edges)
+        self.assertGreaterEqual(len(kinds), 5)  # (white on all sorts of parts, bird by bird)
+
+    def test_tail_a_thin_fan(self):
+        """Its tail ends in a thin fan, past the end of its shaft (seen from behind: a thin fan, not a black puck);
+        its dark band dark grey, not black."""
+        def rear(part):  # (how far back a part reaches)
+            _, c, rot, r = part
+            return float(c[0] - math.sqrt(float(((rot[0, :] * r) ** 2).sum())))
+        for pose in (pigeons.Pose(), pigeons.Pose(tall=1.0)):
+            allp = pigeons.parts(pose)
+            tail, fan = (next(p for p in allp if p[0] == name) for name in ("tail", "fan"))
+            self.assertLess(rear(fan), rear(tail) - 0.02)
+            self.assertLessEqual(fan[3][2], 0.012)
+        grey = pigeons.Coat("grey", np.random.default_rng(0))
+        self.assertGreater(float(grey.c["band"] @ np.array([0.2126, 0.7152, 0.0722])), 0.018)  # (it was 0.0165)
+
+    def test_red_one_coppery(self):
+        """A red (ash-red) one's neck and breast fawn and copper, not mauve."""
+        c = pigeons.Coat("brown", np.random.default_rng(0)).c
+        for name in ("purple", "breast", "neck"):
+            self.assertLess(c[name][2], c[name][1] * 1.02, name)  # (no more blue than green)
+            self.assertGreater(c[name][0], c[name][2] * 1.3, name)
 
 
 class Picture(unittest.TestCase):

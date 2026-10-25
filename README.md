@@ -392,7 +392,10 @@ xám tím, cánh xếp xám rất nhạt phủ kín hai bên thân, hai vạch �
 đuôi, mắt cam có viền đỏ sậm và ánh sáng, đùi phủ lông xám, chân hồng đỏ như chân bồ câu thật: mỗi chân bốn ngón (ba
 ngón trước, một ngón sau), ngón có đốt, phủ vảy, móng đen cong chạm đất, nhấc chân thì các ngón co lại; nhìn gần thấy
 từng hàng lông trên cánh, lông dài ở đuôi, lông mềm như nhung hơi bóng, chỗ khe giữa cánh và thân tối hơn. Còn có bồ
-câu xám có đốm, loang trắng, trắng, nâu đỏ, xám đen. Chim sáng tối theo ánh sáng trong video và có bóng mềm dưới chân.
+câu xám có đốm (đốm xám đậm trên cánh, viền lông nhạt), loang trắng (trắng từng phần như bồ câu thật: đầu, yếm, bụng,
+lông cánh, đuôi, một mảng trên cánh hay lưng; mép gọn, vài đốm trắng nhỏ), trắng, nâu đỏ (màu be, cổ ánh đồng), xám
+đen. Đuôi xoè mỏng, dải cuối đuôi xám đậm. Chim đi chậm rãi, khoảng hai bước mỗi giây (muốn nhanh hơn: kéo **Tốc độ**
+sang phải). Chim sáng tối theo ánh sáng trong video và có bóng mềm dưới chân.
 Chim không đi xuyên qua nhau, không dính chồng lên nhau: mỗi con đứng chỗ ít gặp con khác, gặp nhau thì con đang đi
 tránh sang bên (con đang đứng không bị trượt), trên gờ mỗi con đi qua lại trên một đoạn riêng.
 

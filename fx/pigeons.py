@@ -18,8 +18,10 @@ as the owner's photograph has them (curving forward toward the wing's lower edge
 feathers' tips, each feather's pale tip behind them), the wing's lower edge tucked under the flank's feathers, the dark
 primaries behind, the long feathers' pale fringes, the black band at the tail's end, darker flanks and belly, its
 feathered thighs over the tops of its legs, a small orange eye with the light caught in it, the white cere, coral feet
-with dark claws (the colours measured on the photograph); or a checker (a dark wedge on each covert), a dark one, a red
-one, a pied one, a white dove; a faint mottling, a faint satin sheen, every pattern blurred to the pixel so it does not
+with dark claws (the colours measured on the photograph); or a checker (a dark check on most of each covert, their pale
+tips and edges a net over the wing), a dark one, a red (ash-red) one, fawn and copper, a pied one (white on whole parts
+of it as a pied pigeon's: its head, bib, belly, flights, tail, a patch on its wing or its rump, with clean edges, a few
+white flecks), a white dove; a faint mottling, a faint satin sheen, every pattern blurred to the pixel so it does not
 shimmer. One ray a pixel inside a bird DETAIL pixels long or more, ss x ss where its outline or a small part's crosses a
 pixel; drawn where it is to a fraction of a pixel (it glides); softened a little ("Độ mềm") as a photograph is. It is
 lit by the scene where its box stands (as steam is: light_at), less where its body shuts the light out (the creases
@@ -107,12 +109,13 @@ def _fade(freq, fp):
 
 # --- its feathers ----------------------------------------------------------------------------------------------------
 
-def _feathers(a, b, size, aspect, fp):
+def _feathers(a, b, size, aspect, fp, check=False):
     """Rows of overlapping feathers `size` units long, the rows `aspect` times as wide apart, at points (a: along the
     bird toward its tail, b: across the rows; units), each one's rounded tip pointing back over the next: how light
     each point is (about 1: darker just past the tip before it, lighter toward its own), how near a tip's edge (0..1),
-    a random number of its feather, and a mark near its tip (0..1: a checker's spot); faded out where the feathers
-    are smaller than a few pixels (`fp`: a pixel's width, units). None where they would only shimmer."""
+    a random number of its feather, and a mark near its tip (0..1: a dark wedge widening toward its tip; `check`: a
+    checker's check instead, dark over most of the feather, its tip and sides pale); faded out where the feathers are
+    smaller than a few pixels (`fp`: a pixel's width, units). None where they would only shimmer."""
     k = float(np.clip((aspect * size / max(fp, 1e-9) - 2.0) / 3.0, 0.0, 1.0))
     if k <= 0:
         return None
@@ -128,15 +131,19 @@ def _feathers(a, b, size, aspect, fp):
     rnd = np.sin(col * 12.9898 + row * 78.233) * 43758.5453
     rnd -= np.floor(rnd)
     light = 1 + k * (0.09 * t - 0.03 - 0.09 * (1 - _smooth(t / 0.3)) - 0.05 * (1 - _smooth(fr / 0.25)))
-    mark = _smooth(((t - 0.1) * 1.1 - np.abs(2 * fr - 1)) / 0.12) * _smooth((0.92 - t) / 0.05)  # (a dark wedge
-    # widening toward its tip, a pale edge round it)
+    if check:  # (a broad dark wedge, narrow at its base, nearly as wide as the feather at its tip, its tip pale:
+        # rows of pale chevrons over a dark wing, some feathers' wedges broader than others)
+        wide = 0.45 + (0.45 + 0.25 * rnd) * t
+        mark = _smooth((wide - np.abs(2 * fr - 1)) / 0.16) * _smooth((0.86 - t) / 0.1)
+    else:  # (a dark wedge widening toward its tip, a pale edge round it)
+        mark = _smooth(((t - 0.1) * 1.1 - np.abs(2 * fr - 1)) / 0.12) * _smooth((0.92 - t) / 0.05)
     return light, k * edge, rnd, k * mark
 
 
 COATS = {  # sRGB: a rock dove (blue bar), a dark one, a red (ash-red) one, a white dove
     "grey": {"head": (114, 121, 148), "neck": (44, 50, 60), "green": (30, 92, 80), "purple": (80, 60, 106),
              "breast": (128, 132, 156), "back": (176, 180, 196), "flank": (112, 117, 138), "bar": (30, 30, 36),
-             "prim": (60, 62, 72), "tail": (98, 102, 116), "band": (34, 34, 40), "belly": (134, 139, 158),
+             "prim": (60, 62, 72), "tail": (98, 102, 116), "band": (42, 42, 48), "belly": (134, 139, 158),
              "beak": (58, 56, 62), "cere": (206, 202, 196), "iris": (214, 96, 34), "feet": (192, 86, 94),
              "spot": (48, 50, 60), "sheen": 1.0},
     "dark": {"head": (52, 54, 60), "neck": (44, 48, 52), "green": (46, 104, 78), "purple": (96, 60, 104),
@@ -144,8 +151,8 @@ COATS = {  # sRGB: a rock dove (blue bar), a dark one, a red (ash-red) one, a wh
              "prim": (40, 42, 46), "tail": (54, 56, 62), "band": (30, 30, 34), "belly": (64, 66, 74),
              "beak": (36, 34, 36), "cere": (212, 210, 204), "iris": (210, 110, 42), "feet": (184, 82, 90),
              "spot": (34, 34, 38), "sheen": 1.1},
-    "brown": {"head": (150, 118, 104), "neck": (140, 104, 96), "green": (128, 118, 98), "purple": (156, 104, 120),
-              "breast": (150, 112, 104), "back": (196, 172, 156), "flank": (164, 134, 120), "bar": (122, 74, 58),
+    "brown": {"head": (150, 120, 106), "neck": (140, 106, 96), "green": (132, 120, 98), "purple": (150, 108, 102),
+              "breast": (160, 128, 114), "back": (196, 172, 156), "flank": (164, 134, 120), "bar": (122, 74, 58),
               "prim": (150, 124, 112), "tail": (176, 152, 138), "band": (142, 102, 88), "belly": (170, 146, 134),
               "beak": (196, 160, 146), "cere": (232, 226, 218), "iris": (210, 110, 42), "feet": (194, 90, 96),
               "spot": (138, 92, 76), "sheen": 0.5},
@@ -158,11 +165,14 @@ COATS = {  # sRGB: a rock dove (blue bar), a dark one, a red (ash-red) one, a wh
 MIXED = (("grey", 0.42), ("checker", 0.18), ("dark", 0.09), ("brown", 0.07), ("pied", 0.14), ("white", 0.1))  # (a
 # town's flock)
 WHITE = _lin((236, 236, 232))
+WHITES = (("head", 0.55), ("flights", 0.45), ("tail", 0.3), ("bib", 0.35), ("belly", 0.45), ("shield", 0.3),
+          ("rump", 0.25))  # (a pied pigeon's white: on which parts, how often)
+FLECKS = 2.6  # (its white flecks: this much smaller than its patches' waves)
 
 
 class Coat:
-    """A bird's feathers: its coat's colours (linear light), dark spots on its wings (a checker) or white patches (a
-    pied one), a little lighter or darker than the next bird, a faint mottling."""
+    """A bird's feathers: its coat's colours (linear light), dark checks on its wings (a checker) or white parts (a
+    pied one: `whites`, WHITES), a little lighter or darker than the next bird, a faint mottling."""
 
     def __init__(self, name, rng):
         base = name if name in COATS else "grey"
@@ -172,9 +182,12 @@ class Coat:
         self.tone = 0.92 + 0.16 * rng.random()
         self.waves = rng.normal(0.0, 1.0, (5, 3)) * 45.0  # (a faint mottling)
         self.phases = rng.random(5) * TAU
-        self.patches = rng.normal(0.0, 1.0, (4, 3)) * 11.0  # (a pied bird's white patches)
+        self.patches = rng.normal(0.0, 1.0, (4, 3)) * 11.0  # (a pied bird's white: its flecks, its edges' waves)
         self.patch_phases = rng.random(4) * TAU
-        self.patch_at = rng.uniform(-0.6, 0.3)  # (how much of it is white)
+        self.patch_at = rng.uniform(-0.6, 0.3)  # (how much of it is flecked white)
+        odds = 0.5 * (1.0 + np.array([math.erf(v) for v in self.patches.ravel() / (11.0 * math.sqrt(2.0))]))
+        self.whites = {name for (name, share), u in zip(WHITES, odds) if u < share} or {"head"}  # (a pied bird's
+        # white parts: from the numbers above, so a flock's birds are where they were)
 
     def grain(self, p, fp):
         """A faint mottling at points p (about 0.93..1.07): its waves longer than a few pixels (`fp`: a pixel's width,
@@ -186,12 +199,52 @@ class Coat:
                 out += k * np.sin(p @ w + ph).astype(np.float32)
         return 1.0 + 0.035 * out / 2.2
 
-    def white(self, p):
-        """How white a pied bird is at points p (0..1): a few big patches."""
+    def white(self, p, fp):
+        """A pied bird's white flecks at points p (0..1): small, here and there, as many as its patch_at says."""
         f = np.zeros(len(p), np.float32)
         for w, ph in zip(self.patches, self.patch_phases):
-            f += np.sin(p @ w + ph).astype(np.float32)
-        return _smooth((f / 2.0 - self.patch_at) / 0.25)
+            f += np.sin(p @ (FLECKS * w) + ph).astype(np.float32)
+        return _smooth((f / 4.0 - (0.72 + 0.15 * self.patch_at)) / max(0.05, 25.0 * fp))
+
+    def white_on(self, name, q, local, fp):
+        """How white a pied bird's part `name` is at points of it (q: where on the bird as it walks; local: in the
+        part's own unit frame), its white regions (`whites`) with wavy edges, sharp to a pixel or two (`fp`: a
+        pixel's width, units)."""
+        w = self.whites
+        wave = np.sin(q @ (3.5 * self.patches[0]) + self.patch_phases[1]) * 0.6 + np.sin(
+            q @ (2.5 * self.patches[1]) + self.patch_phases[2]) * 0.4  # (-1..1: its edges wavy)
+        edge = max(0.012, 2.0 * fp)
+
+        def side(d):  # (white on the side of an edge where d > 0, units, the edge wavy)
+            return _smooth((d + 0.02 * wave) / edge + 0.5)
+
+        out = np.zeros(len(q))
+        x, z = q[:, 0], q[:, 2]
+        if name == "head" or name in ("prim",) and "flights" in w or name in ("tail", "fan") and "tail" in w:
+            out[:] = 1.0 if (name == "head" and "head" in w) or name != "head" else 0.0
+        elif name == "neck":
+            lz, lx = local[:, 2], local[:, 0]
+            if "head" in w:
+                out = np.maximum(out, _smooth((lz - 0.35 + 0.2 * wave) / 0.15 + 0.5))
+            if "bib" in w:
+                out = np.maximum(out, _smooth((lx - 0.15 + 0.2 * wave) / 0.2 + 0.5) * _smooth((0.6 - lz) / 0.2))
+        elif name in ("breast", "body"):
+            if "bib" in w:
+                out = np.maximum(out, side(x - 0.11))
+            if "belly" in w:
+                out = np.maximum(out, side(0.19 - z))
+            if "rump" in w and name == "body":
+                out = np.maximum(out, side(z - 0.29) * side(-0.12 - x))
+        elif name in ("belly", "vent", "thigh"):
+            out[:] = 1.0 if "belly" in w else 0.0
+        elif name == "wing":
+            a, up = local[:, 0], local[:, 2]
+            if "shield" in w:
+                out = np.maximum(out, _smooth((a + 0.15 + 0.25 * wave) / 0.12 + 0.5)
+                                 * _smooth((up + 0.35 + 0.25 * wave) / 0.12 + 0.5))
+            if "flights" in w:
+                out = np.maximum(out, _smooth((-0.62 - a + 0.15 * wave) / 0.12 + 0.5))
+        return out
 
 
 # --- its shape and poses ----------------------------------------------------------------------------------------------
@@ -209,8 +262,8 @@ BODY = (("breast", (0.08, 0.0, 0.262), (0.132, 0.106, 0.132), 16),
         ("vent", (-0.2, 0.0, 0.188), (0.11, 0.058, 0.05), -9),
         ("wing", (-0.11, 0.062, 0.255), (0.2, 0.052, 0.085), 8, 9),
         ("wing", (-0.11, -0.062, 0.255), (0.2, 0.052, 0.085), 8, -9),
-        ("tail", (-0.35, 0.0, 0.2), (0.18, 0.056, 0.022), -9),
-        ("fan", (-0.45, 0.0, 0.184), (0.085, 0.064, 0.016), -9),
+        ("tail", (-0.335, 0.0, 0.198), (0.165, 0.056, 0.022), -9),
+        ("fan", (-0.45, 0.0, 0.184), (0.085, 0.064, 0.011), -9),
         ("prim", (-0.31, 0.032, 0.226), (0.165, 0.011, 0.026), -8, 11),
         ("prim", (-0.31, -0.032, 0.226), (0.165, 0.011, 0.026), -8, -11))
 # the body standing tall, breast out, as a rock dove at rest (the same parts, in the same order: a pose goes from BODY
@@ -221,8 +274,8 @@ BODY_UP = (("breast", (0.073, 0.0, 0.287), (0.165, 0.104, 0.105), 68),  # (fitte
            ("vent", (-0.205, 0.0, 0.104), (0.165, 0.05, 0.034), 32),
            ("wing", (-0.05, 0.06, 0.235), (0.23, 0.05, 0.1), 48, 9),
            ("wing", (-0.05, -0.06, 0.235), (0.23, 0.05, 0.1), 48, -9),
-           ("tail", (-0.24, 0.0, 0.071), (0.157, 0.052, 0.018), 17),
-           ("fan", (-0.355, 0.0, 0.036), (0.085, 0.06, 0.016), 17),
+           ("tail", (-0.226, 0.0, 0.075), (0.142, 0.052, 0.018), 17),
+           ("fan", (-0.355, 0.0, 0.036), (0.085, 0.06, 0.011), 17),
            ("prim", (-0.25, 0.05, 0.148), (0.17, 0.014, 0.04), 38, 6),
            ("prim", (-0.25, -0.05, 0.148), (0.17, 0.014, 0.04), 38, -6))
 NECK_UP = np.array([0.034, 0.0, 0.332])  # (where its neck leaves its shoulders, standing tall)
@@ -614,15 +667,15 @@ def _wing_colour(a, b, up, reach, c, coat, fp):
     shade = 1.0 + 0.05 * up - 0.06 * _smooth((-a - 0.1) / 0.5)
     out = c["back"] * shade[:, None]
     rows_b = (0.08 - high) + 0.15 * (1 - np.abs(b))
-    covert = _feathers(-along, rows_b, 0.03, 0.7, fp)
+    covert = _feathers(-along, rows_b, 0.03, 0.7, fp, coat.checker)
     front = _smooth((a + 0.1) / 0.15)
     if covert is not None:
         light, edge, rnd, mark = covert
         out = out * (1 + 0.6 * front * (light - 1))[:, None] + (0.02 * front * edge)[:, None] * c["back"]
-        if coat.checker:  # (a dark mark near the tip of each covert: a checker)
-            out = out + (c["spot"] - out) * (mark * (0.75 + 0.25 * rnd) * front)[:, None]
-    elif coat.checker:  # (too small to see each feather: the checker's mean)
-        out = out + (c["spot"] - out) * (0.3 * front)[:, None]
+        if coat.checker:  # (a check on each covert, some darker than others, between them a soft grey: a checker)
+            out = out + (c["spot"] - out) * ((0.25 + 0.5 * mark * (0.75 + 0.25 * rnd)) * front)[:, None]
+    elif coat.checker:  # (too small to see each feather: the checks' mean)
+        out = out + (c["spot"] - out) * (0.5 * front)[:, None]
     long_ = _feathers(-(along - SLANT * WING * up), rows_b, 0.09, 0.28, fp)  # (the secondaries, slanting as the
     # bars)
     if long_ is not None:
@@ -665,8 +718,8 @@ def _part_colour(name, q, local, rad, nz, facing, hood, c, coat, fp):
     if name in ("body", "belly", "vent", "breast", "thigh"):  # (iridescent, purple, round the neck's foot)
         out = _body_colour(q, nz, c, fp) * (0.95 if name == "vent" else 1.0) if name != "breast" else c["breast"]
         sheen = _sheen(c, facing)
-        sheen = sheen + (c["purple"] - sheen) * (0.7 if c["sheen"] else 0.0)
-        return out + (sheen - out) * hood[:, None], hood
+        sheen = sheen + (c["purple"] - sheen) * 0.7 * min(c["sheen"], 1.0)  # (as glossy as its coat is)
+        return out + (sheen - out) * (hood * min(1.0, 0.4 + 0.6 * c["sheen"]))[:, None], hood
     if name == "neck":  # (green, purple toward its foot, its head's slate toward the head; small feathers, each a
         # little greener or purpler, some catching the light more than others)
         sheen = _sheen(c, facing)
@@ -696,7 +749,8 @@ def _part_colour(name, q, local, rad, nz, facing, hood, c, coat, fp):
         tips = c["prim"] + (c["tail"] * 1.3 - c["prim"]) * (0.7 * _smooth((0.1 - local[:, 2]) / 0.9))[:, None]
         return (tips * (quills[0] * (1 - 0.35 * quills[1]) * _fringes(q, fp))[:, None] if quills is not None
                 else tips), 0.0
-    tail = c["tail"] + (c["band"] - c["tail"]) * _smooth((-x - 0.44) / 0.02)[:, None]
+    tail = c["tail"] + (c["band"] - c["tail"]) * _smooth((-x - 0.465) / 0.02)[:, None]  # (its dark band, the last
+    # 2.5 cm or so)
     return (tail * (quills[0] * (1 - 0.25 * quills[1]) * _fringes(q, fp))[:, None] if quills is not None
             else tail), 0.0
 
@@ -731,6 +785,7 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
     out = np.zeros((count, 3), np.float32)
     whole = np.zeros((count, 3))  # (where each point is on the bird as it walks, all its parts' shares: the patches)
     w_head = np.zeros(count)
+    white, small = np.zeros(count), np.zeros(count)  # (a pied bird's white, part by part; its small feathers)
     gloss = np.zeros(count)  # (the iridescent feathers: glossy)
     sharp = [sk ** 4 for sk in shares]  # (each part's colour mostly its own, smoothly blended where they meet)
     total = np.maximum(sum(sharp), 1e-12)
@@ -745,6 +800,10 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
         out[idx] += s[idx, None] * colour
         gloss[idx] += s[idx] * shine
         whole[idx] += s[idx, None] * qk
+        if coat.pied:
+            white[idx] += s[idx] * coat.white_on(name, qk, local, fp)
+            if name not in ("tail", "fan", "prim"):  # (flecks on its small feathers, not its long ones)
+                small[idx] += s[idx]
         if name == "head":
             w_head[idx] += s[idx]
     # its eyes: small, orange (a white dove's dark), deeper red round the iris' rim, a thin pale ring of bare skin, a
@@ -762,8 +821,8 @@ def _albedo(p, n, view, shares, body, coat, pose, fp):
         glint = np.sqrt((loc[:, 0] - 0.49) ** 2 + (loc[:, 2] - 0.27) ** 2 + 0.3 * (loc[:, 1] - side * 0.9) ** 2)
         m = (0.85 * _smooth((0.035 - glint) / edge) * on)[:, None]  # (the light caught in it)
         out = out * (1 - m) + 0.9 * m
-    if coat.pied:
-        white = coat.white(whole)[:, None]
+    if coat.pied:  # (white where its white parts are, with clean edges where they meet the rest, and a few flecks)
+        white = np.maximum(_smooth((white - 0.5) / 0.3 + 0.5), coat.white(whole, fp) * small)[:, None]
         out = out * (1 - white) + WHITE * white
         gloss *= 1.0 - white[:, 0]
     return out * (coat.tone * coat.grain(whole, fp))[:, None], gloss * min(c["sheen"], 1.0)
@@ -994,12 +1053,13 @@ def _inside(ix, iy, shape, x0, y0, w, h):
 # --- a bird's day on the ground ---------------------------------------------------------------------------------------
 
 STRIDE = 0.32  # (how far it goes while each foot steps once, units: steps of 0.16, about 6 cm)
-WALK = 0.5  # (its walking speed, units a second, at "speed" 50: about three steps a second)
+WALK = 0.33  # (its walking speed, units a second, at "speed" 50: about two steps a second; the owner, 2026-10-25:
+# slower)
 PECK = np.array([0.31, 0.0, 0.099])  # (its head's middle as its beak touches the ground)
 WALK_UP, TAIL_WALK = 0.12, 0.05  # (walking: how far its body is tipped up and its tail bent up, radians)
 HEAD_UP = np.array([0.123, 0.0, 0.6])  # (its head's middle standing tall, its neck stretched)
 DOWN, PECKING, UP = 0.36, 0.45, 0.42  # (seconds: bending down to peck, each peck, coming up again)
-RAMP = 0.4  # (seconds: starting to walk, stopping)
+RAMP = 0.5  # (seconds: starting to walk, stopping)
 EASE = 0.3  # (seconds: into and out of walking, pecking, standing)
 THRUST = 0.4  # (its head thrust forward over this share of each step, held still the rest)
 SIT_TIME = 0.8  # (seconds: sitting down, getting up again)
@@ -1009,7 +1069,7 @@ BOWS = 1.1  # (courting: bows a second)
 # them on the spot a step at a time, as a pigeon does; never round and round.
 ARC = 0.45  # (radians: the most a walk curves, end to end)
 BEND = 1.0  # (units: the tightest it curves as it walks)
-TURN_RATE, TURN_FAST = 2.4, 3.6  # (radians a second: turning on the spot; at the fastest, short of time)
+TURN_RATE, TURN_FAST = 1.7, 2.6  # (radians a second: turning on the spot; at the fastest, short of time)
 TURN_STEP = 0.75  # (radians: the most it turns at a step)
 TURN_LEAST = 0.45  # (seconds: the least a turn on the spot takes: a step, then its other foot put down beside it)
 TURN_MOST = 3.5  # (radians: at most a little over half round at once)
@@ -1413,14 +1473,17 @@ class Walker:
             # with most time to spare: the turn before it now and then (as it stops), else after it)
             after = rng.random() < 0.35
             d = segs[stop][2]
-            want = max(TURN_LEAST, abs(turns[j]) / TURN_RATE)
-            need = max(0.6 * TURN_LEAST, abs(turns[j]) / TURN_FAST)
+            most = abs(turns[j])  # (as far as it may turn: either way round, if it may go either way; and a little
+            # more, for its walks closed again)
+            most = (max(most, TAU - most) if most >= TAU - TURN_MOST else most) + 0.05
+            want = max(TURN_LEAST, most / TURN_RATE)
+            need = max(0.6 * TURN_LEAST, most / TURN_FAST)
             took = min(want, max(d - least(stop), 0.0))
             segs[stop][2] -= took
-            if took < need:  # (short of time: out of the walk too, as much as half of it; then the stop, but a little)
-                cut = min(need - took, 0.5 * segs[w][2])
+            if took < need:  # (short of time: out of the walk too, as much as 70% of it; then the stop, but a little)
+                cut = min(need - took, 0.7 * segs[w][2])
                 segs[w][2] -= cut
-                more = min(need - took - cut, max(segs[stop][2] - 0.3, 0.0))
+                more = min(need - took - cut, max(segs[stop][2] - 0.2, 0.0))
                 segs[stop][2] -= more
                 took += cut + more
             steps = max(1, int(math.ceil(abs(turns[j]) / TURN_STEP)))
@@ -1979,7 +2042,7 @@ class Pigeons(Effect):
     TURNS = False
     LIT = True
     PREVIEW = 1280
-    VERSION = 9  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
+    VERSION = 10  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
     # 4: standing tall as a photograph's, its folded wings and their primaries, the neck's sheen round its foot;
     # 5: smooth paths, steps, glides; creases shaded, a glossy feathered neck, catchlights, claws, the photo's colours;
     # 6: four scaly toes a foot, joint by joint, curling as a foot lifts; sitting, preening, courting; each its ways;
@@ -1987,7 +2050,8 @@ class Pigeons(Effect):
     # feathered thighs, pale fringes on the long feathers, a satin sheen, checker wedges, the tail lower standing;
     # 8: out of each other's way: placed where and when they seldom meet, stepping aside, those the box has no room
     # for left out, a stretch of its own each along a ledge; 9: walks nearly straight, turning on the spot between
-    # them a step at a time, never round and round, courting without turning round)
+    # them a step at a time, never round and round, courting without turning round; 10: a pied bird's white on whole
+    # parts of it, clean-edged; its tail's end a thin fan, its band dark grey; softer checks; a red one coppery; slower)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
 
