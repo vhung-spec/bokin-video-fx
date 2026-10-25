@@ -392,10 +392,11 @@ xám tím, cánh xếp xám rất nhạt phủ kín hai bên thân, hai vạch �
 đuôi, mắt cam có viền đỏ sậm và ánh sáng, đùi phủ lông xám, chân hồng đỏ như chân bồ câu thật: mỗi chân bốn ngón (ba
 ngón trước, một ngón sau), ngón có đốt, phủ vảy, móng đen cong chạm đất, nhấc chân thì các ngón co lại; nhìn gần thấy
 từng hàng lông trên cánh, lông dài ở đuôi, lông mềm và mờ như lông thật (không bóng), chỗ khe giữa cánh và thân tối hơn.
-Còn có bồ câu xám có đốm (đốm xám đậm trên cánh, viền lông nhạt), loang trắng (trắng từng phần như bồ câu thật: đầu,
-yếm, bụng, lông cánh, đuôi, một mảng trên cánh hay lưng; mép gọn, vài đốm trắng nhỏ), trắng, nâu đỏ (màu be, cổ ánh
-đồng), xám đen. Đuôi xoè mỏng, dải cuối đuôi xám đậm. Chim đi chậm rãi, khoảng hai bước mỗi giây (muốn nhanh hơn: kéo
-**Tốc độ** sang phải). Chim sáng tối theo ánh sáng trong video và có bóng mềm dưới chân.
+Mặc định cả đàn là bồ câu xám có đốm (đốm sẫm hình nêm rõ trên cánh nhạt, cổ xanh tím). Còn có bồ câu xám xanh không
+đốm, loang trắng (trắng từng phần như bồ câu thật: đầu, yếm, bụng, lông cánh, đuôi, một mảng trên cánh hay lưng; mép
+gọn, vài đốm trắng nhỏ), trắng, nâu đỏ (màu be, cổ ánh đồng), xám đen. Đuôi xoè mỏng, dải cuối đuôi xám đậm. Chim đi
+chậm rãi, khoảng hai bước mỗi giây (muốn nhanh hơn: kéo **Tốc độ** sang phải). Chim sáng tối theo ánh sáng trong video
+và có bóng mềm dưới chân.
 Chim không đi xuyên qua nhau, không dính chồng lên nhau: mỗi con đứng chỗ ít gặp con khác, gặp nhau thì con đang đi
 tránh sang bên (con đang đứng không bị trượt), trên gờ mỗi con đi qua lại trên một đoạn riêng.
 
@@ -405,8 +406,9 @@ tránh sang bên (con đang đứng không bị trượt), trên gờ mỗi con 
      khung là chỗ gần máy quay, đỉnh khung là chỗ xa: chim ở xa nhỏ hơn.
    - **Đậu trên gờ tường, mái nhà**: kéo khung cho **đáy khung nằm trên gờ**. Chim đứng trên đáy khung, đi qua đi
      lại dọc gờ.
-3. Chọn **Màu lông**: **Nhiều màu như đàn chim phố**, **Xám xanh (bồ câu thường)**, **Xám có đốm**, **Loang trắng**,
-   **Bồ câu trắng**, **Nâu đỏ**, **Xám đen**. Chỉnh **Số chim**, **Cỡ chim** (chim ở đáy khung, so với chiều cao
+3. Chọn **Màu lông**: **Xám có đốm** (có sẵn khi thêm chim: cả đàn một màu này), **Nhiều màu như đàn chim phố**,
+   **Xám xanh (bồ câu thường)**, **Loang trắng**, **Bồ câu trắng**, **Nâu đỏ**, **Xám đen**. Đổi màu lông thì chim
+   vẫn ở đúng chỗ, đi y như trước, chỉ đổi màu. Chỉnh **Số chim**, **Cỡ chim** (chim ở đáy khung, so với chiều cao
    khung; kéo hết sang phải: chim dài bằng nửa chiều cao khung, như chim ngay trước máy quay), **Gần xa** (chim xa nhỏ
    đi bao nhiêu). Chim to mà nhiều quá thì khung không đủ chỗ cho chừng ấy chim: app bớt chim cho chim không chen vào
    nhau (muốn nhiều chim hơn: kéo khung to ra hoặc giảm **Cỡ chim**).

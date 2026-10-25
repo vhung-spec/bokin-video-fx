@@ -772,20 +772,17 @@ class Feathers(unittest.TestCase):
         self.assertGreater(float(mark(0.8)[24]), 0.9)  # (dark in the middle near its tip)
         self.assertLess(float(mark(0.97).max()), 0.1)  # (its very tip pale)
 
-    def test_checks(self):
-        """A checker's check covers most of each covert, its tip and sides pale (a pale net over a darker wing, as a
-        checker pigeon's), some darker than others."""
-        size, aspect = 0.03, 0.7
-        frs = np.linspace(0.02, 0.98, 49)
-
-        def check(t):  # (across one feather of the first row, t of the way from its base to its tip)
-            b = frs * aspect * size
-            tip = 0.3 * (1 - (2 * frs - 1) ** 2)
-            return pigeons._feathers((t + tip) * size, b, size, aspect, 1e-5, True)[3]
-        self.assertGreater(float(np.mean([check(t).mean() for t in np.linspace(0.05, 0.95, 19)])), 0.45)
-        self.assertGreater(float(check(0.6)[24]), 0.95)  # (dark in its middle)
-        self.assertLess(float(check(0.97).max()), 0.15)  # (its tip pale)
-        self.assertLess(float(check(0.5)[0]), 0.1)  # (its sides pale)
+    def test_checker_crisp(self):
+        """A checker's marks crisp on its pale wing, as the owner chose it (2026-10-25: "tôi chỉ cần con chim màu
+        này", a checker as 1.0.83 drew it): the darkest nearly its spots' colour, between them as pale as a plain wing
+        (1.0.84's softer checks greyed all of it)."""
+        checker, grey = (pigeons.Coat(name, np.random.default_rng(0)) for name in ("checker", "grey"))
+        a, up = (v.ravel() for v in np.meshgrid(np.linspace(0.15, 0.95, 160), np.linspace(-0.3, 0.7, 100)))
+        b = np.ones_like(a)
+        ratio = (self.luma(pigeons._wing_colour(a, b, up, pigeons.WING, checker.c, checker, 1e-4))
+                 / self.luma(pigeons._wing_colour(a, b, up, pigeons.WING, grey.c, grey, 1e-4)))
+        self.assertGreater(float(np.median(ratio)), 0.95)  # (between its marks: as pale as a plain wing)
+        self.assertLess(float(ratio.min()), 0.15)  # (its marks: dark)
 
 
 PURE = (np.array([1.0, 0.0, 0.0], np.float32), np.array([0.0, 1.0, 0.0], np.float32))  # (a pied bird's white, red;
@@ -995,6 +992,17 @@ class Settings(unittest.TestCase):
             self.assertEqual(p["mode"], "ground")
             self.assertNotIn("way", p)
             self.assertGreater(len(make(old).u), 0)
+
+    def test_all_checkers(self):
+        """The flock all checkers unless another coat is chosen (the owner, 2026-10-25: "tôi chỉ cần con chim màu
+        này"); choosing another coat changes their colours only: every bird where it was, doing what it did."""
+        fx = make(DAY)
+        self.assertTrue(fx.coats and all(c.checker for c in fx.coats))
+        mixed = make({"coat": "mixed", **DAY})
+        self.assertGreater(len({(c.checker, c.pied, round(float(c.c["back"][0]), 3)) for c in mixed.coats}), 2)
+        for t in (0, 77, 160):
+            self.assertEqual([bird[:4] for bird in fx._ground(t, *fx.box())],
+                             [bird[:4] for bird in mixed._ground(t, *mixed.box())])
 
     def test_coats_and_views(self):
         """Each coat a picture of its own; the view from above changes how they are seen."""

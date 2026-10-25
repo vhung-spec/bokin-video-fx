@@ -374,15 +374,18 @@ hiệu ứng. Cách dùng: `README.md`.
   lưng; chọn từ chính các số ngẫu nhiên đã có nên chỗ chim trong đàn không đổi; `white_on`: mỗi phần tự tính theo toạ
   độ của nó, mép lượn, sắc tới một hai điểm ảnh, rồi `_albedo` làm gọn mép chỗ các phần gặp nhau) và vài đốm trắng nhỏ
   (`white`, `FLECKS`; không trên lông dài đuôi, cánh). Đuôi: thân đuôi ngắn hơn, xoè cuối mỏng (`fan` dày 0,011), dải
-  cuối đuôi hẹp hơn, xám đậm (`band`): nhìn từ sau lúc mổ không còn "cái mũ đen". Đốm: mỗi lông phủ một mảng sẫm
-  rộng, đầu và mép lông nhạt (`_feathers(..., check=True)`, như bồ câu đốm thật; trước đây lưới đen trên nền sáng).
+  cuối đuôi hẹp hơn, xám đậm (`band`): nhìn từ sau lúc mổ không còn "cái mũ đen". Đốm (chỉ ở 1.0.84, xem dưới):
+  mỗi lông phủ một mảng sẫm rộng, đầu và mép lông nhạt.
   Nâu đỏ: cổ ánh đồng, ức be (trước đây hồng tím); ánh cổ tràn xuống ức theo độ bóng của bộ lông (`sheen`). Đi chậm
   hơn: `WALK` 0,33 (khoảng hai bước mỗi giây), `RAMP` 0,5, quay tại chỗ `TURN_RATE` 1,7, `TURN_FAST` 2,6 (quay gần nửa
   vòng thì giữ đủ thời gian cho cả hai chiều). Bớt bóng (chủ yêu cầu 2026-10-25: "bớt bóng hơn để nhìn thật hơn"):
   lông mờ như lông thật: không còn lớp bóng phủ khắp lông (`SATIN` 0, trước 0,06), ánh viền nhung nhẹ (`RIM` 0,12,
   trước 0,35), cổ, chân, móng chỉ hơi bóng (`GLOSS` 0,2, trước 0,6; vệt rộng hơn, mũ 16). `VERSION` 10. Test: `Coats`
   (`test_pied_white_clean`: trắng đỏ, màu xanh, đếm điểm ảnh lẫn; `test_matte`: so với chim mờ hẳn, sáng thêm chưa tới
-  4%, xám đen 8%), `test_checks`, `test_slow`.
+  4%, xám đen 8%), `test_slow`. Cả đàn màu Xám có đốm (chủ gửi ảnh con xám có đốm của 1.0.83, 2026-10-25: "tôi chỉ
+  cần con chim màu này"): đốm lại như 1.0.83 (nêm sẫm, rõ trên cánh nhạt: `_feathers` không còn `check`),
+  `DEFAULTS["coat"]` là `checker`; mỗi con luôn rút một số chọn màu (`rng.random()`) dù chọn màu nào, nên đổi Màu
+  lông thì chim không dời chỗ, chỉ đổi màu. `VERSION` 11. Test: `test_checker_crisp`, `test_all_checkers`.
   Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
   nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao

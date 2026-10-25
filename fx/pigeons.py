@@ -18,15 +18,15 @@ across them as the owner's photograph has them (curving forward toward the wing'
 by the feathers' tips, each feather's pale tip behind them), the wing's lower edge tucked under the flank's feathers,
 the dark primaries behind, the long feathers' pale fringes, the black band at the tail's end, darker flanks and belly,
 its feathered thighs over the tops of its legs, a small orange eye with the light caught in it, the white cere, coral
-feet with dark claws (the colours measured on the photograph); or a checker (a dark check on most of each covert, their
-pale tips and edges a net over the wing), a dark one, a red (ash-red) one, fawn and copper, a pied one (white on whole
-parts of it as a pied pigeon's: its head, bib, belly, flights, tail, a patch on its wing or its rump, with clean edges,
-a few white flecks), a white dove; a faint mottling, every pattern blurred to the pixel so it does not shimmer. Matte,
-as feathers are (only its neck and feet faintly glossy). One ray a pixel inside a bird DETAIL pixels long or more, ss x
-ss where its outline or a small part's crosses a pixel; drawn where it is to a fraction of a pixel (it glides); softened
-a little ("Độ mềm") as a photograph is. It is lit by the scene where its box stands (as steam is: light_at), less where
-its body shuts the light out (the creases between its parts, under it: ambient occlusion from the smooth distance), and
-lies in its own shadow: dark right under it, soft and wider away from the light.
+feet with dark claws (the colours measured on the photograph); or a checker (a dark wedge on each covert, crisp on the
+pale wing: the owner's choice, all the flock by default), a dark one, a red (ash-red) one, fawn and copper, a pied one
+(white on whole parts of it as a pied pigeon's: its head, bib, belly, flights, tail, a patch on its wing or its rump,
+with clean edges, a few white flecks), a white dove; a faint mottling, every pattern blurred to the pixel so it does not
+shimmer. Matte, as feathers are (only its neck and feet faintly glossy). One ray a pixel inside a bird DETAIL pixels
+long or more, ss x ss where its outline or a small part's crosses a pixel; drawn where it is to a fraction of a pixel
+(it glides); softened a little ("Độ mềm") as a photograph is. It is lit by the scene where its box stands (as steam is:
+light_at), less where its body shuts the light out (the creases between its parts, under it: ambient occlusion from the
+smooth distance), and lies in its own shadow: dark right under it, soft and wider away from the light.
 
 Every bird keeps its own day over the loop: walking a while, nearly straight, then stopping to look round or, now and
 then ("Mổ hạt"), to peck at the ground a few times, its beak reaching it and its tail rising; between its walks it turns
@@ -109,13 +109,12 @@ def _fade(freq, fp):
 
 # --- its feathers ----------------------------------------------------------------------------------------------------
 
-def _feathers(a, b, size, aspect, fp, check=False):
+def _feathers(a, b, size, aspect, fp):
     """Rows of overlapping feathers `size` units long, the rows `aspect` times as wide apart, at points (a: along the
     bird toward its tail, b: across the rows; units), each one's rounded tip pointing back over the next: how light
     each point is (about 1: darker just past the tip before it, lighter toward its own), how near a tip's edge (0..1),
-    a random number of its feather, and a mark near its tip (0..1: a dark wedge widening toward its tip; `check`: a
-    checker's check instead, dark over most of the feather, its tip and sides pale); faded out where the feathers are
-    smaller than a few pixels (`fp`: a pixel's width, units). None where they would only shimmer."""
+    a random number of its feather, and a mark near its tip (0..1: a checker's spot); faded out where the feathers
+    are smaller than a few pixels (`fp`: a pixel's width, units). None where they would only shimmer."""
     k = float(np.clip((aspect * size / max(fp, 1e-9) - 2.0) / 3.0, 0.0, 1.0))
     if k <= 0:
         return None
@@ -131,12 +130,8 @@ def _feathers(a, b, size, aspect, fp, check=False):
     rnd = np.sin(col * 12.9898 + row * 78.233) * 43758.5453
     rnd -= np.floor(rnd)
     light = 1 + k * (0.09 * t - 0.03 - 0.09 * (1 - _smooth(t / 0.3)) - 0.05 * (1 - _smooth(fr / 0.25)))
-    if check:  # (a broad dark wedge, narrow at its base, nearly as wide as the feather at its tip, its tip pale:
-        # rows of pale chevrons over a dark wing, some feathers' wedges broader than others)
-        wide = 0.45 + (0.45 + 0.25 * rnd) * t
-        mark = _smooth((wide - np.abs(2 * fr - 1)) / 0.16) * _smooth((0.86 - t) / 0.1)
-    else:  # (a dark wedge widening toward its tip, a pale edge round it)
-        mark = _smooth(((t - 0.1) * 1.1 - np.abs(2 * fr - 1)) / 0.12) * _smooth((0.92 - t) / 0.05)
+    mark = _smooth(((t - 0.1) * 1.1 - np.abs(2 * fr - 1)) / 0.12) * _smooth((0.92 - t) / 0.05)  # (a dark wedge
+    # widening toward its tip, a pale edge round it)
     return light, k * edge, rnd, k * mark
 
 
@@ -171,7 +166,7 @@ FLECKS = 2.6  # (its white flecks: this much smaller than its patches' waves)
 
 
 class Coat:
-    """A bird's feathers: its coat's colours (linear light), dark checks on its wings (a checker) or white parts (a
+    """A bird's feathers: its coat's colours (linear light), dark spots on its wings (a checker) or white parts (a
     pied one: `whites`, WHITES), a little lighter or darker than the next bird, a faint mottling."""
 
     def __init__(self, name, rng):
@@ -669,15 +664,16 @@ def _wing_colour(a, b, up, reach, c, coat, fp):
     shade = 1.0 + 0.05 * up - 0.06 * _smooth((-a - 0.1) / 0.5)
     out = c["back"] * shade[:, None]
     rows_b = (0.08 - high) + 0.15 * (1 - np.abs(b))
-    covert = _feathers(-along, rows_b, 0.03, 0.7, fp, coat.checker)
+    covert = _feathers(-along, rows_b, 0.03, 0.7, fp)
     front = _smooth((a + 0.1) / 0.15)
     if covert is not None:
         light, edge, rnd, mark = covert
         out = out * (1 + 0.6 * front * (light - 1))[:, None] + (0.02 * front * edge)[:, None] * c["back"]
-        if coat.checker:  # (a check on each covert, some darker than others, between them a soft grey: a checker)
-            out = out + (c["spot"] - out) * ((0.25 + 0.5 * mark * (0.75 + 0.25 * rnd)) * front)[:, None]
-    elif coat.checker:  # (too small to see each feather: the checks' mean)
-        out = out + (c["spot"] - out) * (0.5 * front)[:, None]
+        if coat.checker:  # (a dark mark near the tip of each covert, crisp on the pale wing: a checker, as the
+            # owner chose it, 2026-10-25)
+            out = out + (c["spot"] - out) * (mark * (0.75 + 0.25 * rnd) * front)[:, None]
+    elif coat.checker:  # (too small to see each feather: the checker's mean)
+        out = out + (c["spot"] - out) * (0.3 * front)[:, None]
     long_ = _feathers(-(along - SLANT * WING * up), rows_b, 0.09, 0.28, fp)  # (the secondaries, slanting as the
     # bars)
     if long_ is not None:
@@ -1991,7 +1987,7 @@ def _along_loop(plan, i, x):
 
 # --- the effect -------------------------------------------------------------------------------------------------------
 
-DEFAULTS = {"mode": "ground", "coat": "mixed", "amount": 40, "size": 50, "depth": 50, "view": 40, "shadow": 60,
+DEFAULTS = {"mode": "ground", "coat": "checker", "amount": 40, "size": 50, "depth": 50, "view": 40, "shadow": 60,
             "soft": 30, "busy": 50, "peck": 40, "rest": 30, "court": 25, "speed": 50, "roam": 50, "differ": 60,
             "lit": 70}
 
@@ -2044,7 +2040,7 @@ class Pigeons(Effect):
     TURNS = False
     LIT = True
     PREVIEW = 1280
-    VERSION = 10  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
+    VERSION = 11  # (2: one smooth body, pecking now and then; 3: rows of feathers, soft as velvet, sturdier legs;
     # 4: standing tall as a photograph's, its folded wings and their primaries, the neck's sheen round its foot;
     # 5: smooth paths, steps, glides; creases shaded, a glossy feathered neck, catchlights, claws, the photo's colours;
     # 6: four scaly toes a foot, joint by joint, curling as a foot lifts; sitting, preening, courting; each its ways;
@@ -2054,7 +2050,8 @@ class Pigeons(Effect):
     # for left out, a stretch of its own each along a ledge; 9: walks nearly straight, turning on the spot between
     # them a step at a time, never round and round, courting without turning round; 10: a pied bird's white on whole
     # parts of it, clean-edged; its tail's end a thin fan, its band dark grey; softer checks; a red one coppery; slower;
-    # matte: no satin sheen, a fainter rim, a fainter gloss)
+    # matte: no satin sheen, a fainter rim, a fainter gloss; 11: the checker's crisp dark wedges again, as the owner
+    # chose it)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
 
@@ -2072,15 +2069,14 @@ class Pigeons(Effect):
             n = min(n, max(1, int((w - 1.2 * self.size * h) / (LEDGE * self.size * h / LENGTH))))
         coats = []
         for _ in range(CAP[self.mode]):
-            if p["coat"] == "mixed":
-                r, name = rng.random(), MIXED[-1][0]
+            r, name = rng.random(), p["coat"]  # (drawn whatever the coat: choosing another moves no bird)
+            if name == "mixed":
+                name = MIXED[-1][0]
                 for nm, share in MIXED:
                     if r < share:
                         name = nm
                         break
                     r -= share
-            else:
-                name = p["coat"]
             coats.append(Coat(name, rng))
         self.coats = coats[:n]
         u = rng.random((CAP[self.mode], 8))[:n]
