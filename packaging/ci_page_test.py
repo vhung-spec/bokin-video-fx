@@ -8,8 +8,9 @@ clips, undoes, paints a still area, zooms and moves the picture (a clip outside 
 30-second video. It checks the timeline the page saved, that the live preview plays the light copies (H.264 and
 transparent WebM), the falling leaves' settings (each shape a checkbox, "Loại lá" following them), rustling leaves
 painted into their area (their live preview against the exact frame), the Phím tắt window (a key changed, taken from
-another action, refused; the guide), saving (Ctrl+S, "Lưu thành bản khác"), the activation screen first (a wrong key
-refused, the right one opens the app), and that the page reports no script errors.
+another action, refused; the guide), the video guide (its parts, where it was left), saving (Ctrl+S, "Lưu thành bản
+khác"), the activation screen first (the video guide over it; a wrong key refused, the right one opens the app), and
+that the page reports no script errors.
 Screenshots of each step go to the folder given (default: page-test).
 
 The browser: Edge when installed (Windows), else the Chromium of Playwright, or BOKIN_BROWSER (a path).
@@ -1094,6 +1095,42 @@ def pigeons(page, shot):
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 
+PLAYS = "!!document.createElement('video').canPlayType('video/mp4; codecs=\"avc1.640028\"')"  # (Edge: H.264)
+
+
+def video_guide(page, shot):
+    """The video guide (HUONG-DAN.mp4): from the Hướng dẫn tab and from the header, its parts listed beside it; a part a
+    click away, marked in the list as it plays; Esc closes it, stopped; it goes on where it was left."""
+    plays = page.evaluate(PLAYS)
+    page.click("#keysBtn")
+    page.click('[data-ktab="guide"]')
+    page.wait_for_selector("#kGuide [data-gvideo]")
+    page.click("#kGuide [data-gvideo]")  # (the guide's own button for it)
+    page.wait_for_selector("#gvParts li")
+    check("the video guide from the Hướng dẫn tab: its parts beside it", page.locator("#gvParts li").count() == 17 and
+          "9. Lửa lò sưởi" in page.inner_text("#gvParts"), page.inner_text("#gvParts")[:200])
+    if plays:
+        page.wait_for_function("$('#gvVideo').readyState >= 1", timeout=30000)
+        page.click("#gvParts li:nth-child(10) button")  # 9. Lửa lò sưởi
+        page.wait_for_function("Math.abs($('#gvVideo').currentTime - 529.04) < 3 && "
+                               "$$('#gvParts li')[9].classList.contains('on')", timeout=30000)
+        length = page.evaluate("$('#gvVideo').duration")
+        check("a part a click away (9. Lửa lò sưởi), marked in the list; the whole video", abs(length - 826.56) < 1,
+              str(length))
+    shot("05j-video-guide")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    check("Esc closes the video guide, stopped", not page.is_visible("#modal") and page.evaluate("$('#gvVideo').paused"))
+    page.click("#guideBtn")  # the header's button
+    page.wait_for_selector("#gvParts li")
+    if plays:
+        page.wait_for_function("$('#gvVideo').readyState >= 1 && $('#gvVideo').currentTime > 520", timeout=30000)
+    check("the header's button: the video guide, on where it was left", page.is_visible("#gv"))
+    page.click("#gvClose")
+    page.wait_for_timeout(200)
+    check("Đóng closes it", not page.is_visible("#modal"))
+
+
 def shortcuts(page, shot):
     """The Phím tắt window: a key changed, taken from another action, refused, searched; the guide; all back."""
     def row(i):
@@ -1177,6 +1214,20 @@ def activation(page, shot):
     check("activation screen: the machine code, nothing else started", page.inner_text("#licMachine") == machine and
           page.evaluate("!S.schema"), page.inner_text("#licMachine"))
     shot("00-activation")
+    page.click("#licVideo")  # the video guide, over the activation screen, at its part on how to activate
+    page.wait_for_selector("#gvParts li")
+    over = page.evaluate("[getComputedStyle($('#modal')).zIndex, getComputedStyle($('#lic')).zIndex]")
+    check("activation screen: the video guide over it, its parts beside it", over == ["94", "93"] and
+          page.is_visible("#gv") and page.locator("#gvParts li").count() == 17, str(over))
+    if page.evaluate(PLAYS):
+        page.wait_for_function("Math.abs($('#gvVideo').currentTime - 12) < 2 && $$('#gvParts li')[1].classList.contains('on')",
+                               timeout=30000)
+        check("activation screen: the video at how to activate", True)
+    shot("00-video-guide")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    check("activation screen: Esc closes the video, the screen still there", not page.is_visible("#modal") and
+          page.is_visible("#lic") and page.evaluate("$('#gvVideo').paused"))
     page.fill("#licKey", license_keys.make_key(SECRET, machine, ["loop"]))
     page.click("#licGo")
     page.wait_for_function("document.querySelector('#licErr').textContent.length > 0")
@@ -1620,6 +1671,7 @@ def run(page, folder, edge):
     page.wait_for_timeout(200)
     check("redo", len([x for x in clips() if x["kind"] == "snow"]) == 2)
     shortcuts(page, shot)
+    video_guide(page, shot)
 
     page.click(".clip.base >> nth=0")
     page.click("#paintFreeze")

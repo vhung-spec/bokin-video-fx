@@ -24,7 +24,7 @@ from PIL import Image
 
 import bokin_license
 
-from . import colourmatch, effects, engine, jobs, keys, library, licensing, overlay, paths, projects, timeline, video
+from . import colourmatch, effects, engine, guide, jobs, keys, library, licensing, overlay, paths, projects, timeline, video
 
 UPLOAD_LIMITS = {"video": 4 << 30, "replace": 4 << 30, "library": 4 << 30, "still": 200 << 20}
 UPLOAD_TYPES = {"video": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
@@ -42,7 +42,7 @@ ERRORS = (projects.UserError, video.VideoError, library.LibraryError, bokin_lice
           colourmatch.MatchError)
 # What answers before the app is activated (licensing): the page and its activation screen, the installer's and the
 # updater's questions. Everything else is refused.
-FREE_GET = {"/", "/index.html", "/api/ping", "/api/license", "/api/state"}
+FREE_GET = {"/", "/index.html", "/api/ping", "/api/license", "/api/state", "/api/guide/video", "/media/guide"}
 FREE_POST = {"/api/license", "/api/update/check", "/api/update", "/api/quit"}
 
 
@@ -242,6 +242,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/guide":  # the owner's guide (Markdown), shown in the page's Phím tắt window
             with open(keys.guide_path(), "rb") as f:
                 return self.send(200, f.read(), "text/markdown; charset=utf-8")
+        if path == "/api/guide/video":  # the video guide's chapters (also before activation: how to activate)
+            return self.send(200, guide.view())
+        if path == "/media/guide":  # the video guide itself (HUONG-DAN.mp4, bundled)
+            return self.send_file(guide.video_path(), "video/mp4")
         if path == "/api/project":
             return self.send(200, self.project_view(projects.load(q.get("id"))))
         if path == "/api/frame":  # a frame of the video at the masks' size, to paint on

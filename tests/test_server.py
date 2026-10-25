@@ -77,6 +77,19 @@ class Server(unittest.TestCase):
         self.assertTrue(headers["Content-Type"].startswith("text/markdown"))
         self.assertIn("Phím tắt", body.decode("utf-8"))
 
+    def test_video_guide(self):
+        """The video guide's chapters, and the video in parts (the player asks for byte ranges)."""
+        code, body, _ = request(self.base + "/api/guide/video")
+        view = json.loads(body)
+        self.assertEqual((code, view["ready"]), (200, True))
+        self.assertEqual(view["chapters"][1], {"at": 12.0, "title": "1. Kích hoạt app"})
+        size = os.path.getsize(server.guide.video_path())
+        code, body, headers = request(self.base + "/media/guide", headers={"Range": "bytes=0-99"})
+        self.assertEqual((code, headers["Content-Type"], len(body)), (206, "video/mp4", 100))
+        self.assertEqual((headers["Content-Range"], body[4:8]), (f"bytes 0-99/{size}", b"ftyp"))
+        code, body, headers = request(self.base + "/media/guide", headers={"Range": f"bytes={size - 10}-"})
+        self.assertEqual((code, len(body)), (206, 10))
+
     def test_project_flow(self):
         clip = helpers.make_loop(os.path.join(helpers.ROOT, "server.mp4"), 160, 90, 12)
         with open(clip, "rb") as f:

@@ -61,6 +61,9 @@ Premiere Pro:
     mục **Dây đèn tự vẽ** bên dưới).
 
 Mọi thao tác chuột và phím tắt: [HUONG-DAN.md](HUONG-DAN.md) (trong app: nút **Phím tắt**, thẻ **Hướng dẫn**).
+Video hướng dẫn (gần 14 phút, không có tiếng, làm theo chữ trên màn hình): nút **Video hướng dẫn** ở thanh trên cùng.
+Bên phải video là các phần: bấm một phần để xem đúng đoạn đó; đóng rồi mở lại, video chạy tiếp chỗ đang xem. Màn
+hình kích hoạt cũng có nút **Xem video hướng dẫn** (mở ở phần **Kích hoạt app**).
 
 ## Cài đặt
 

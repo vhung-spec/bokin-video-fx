@@ -661,6 +661,26 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
 .modal .pa .groups { columns: 2; column-gap: var(--s5); margin: var(--s1) 0 var(--s2); }
 .modal .pa .groups label { break-inside: avoid; margin: 0 0 6px; }
 .modal video { display: block; max-width: 86vw; max-height: 74vh; background: #000; border-radius: var(--r-sm); }
+.modal.over { z-index: 94; }  /* (opened from the activation screen: above it) */
+/* the video guide (HUONG-DAN.mp4): the video, its parts beside it */
+.modal .box:has(.gv) { display: flex; width: min(1320px, 96vw); max-width: 96vw; max-height: 94vh; padding: 0; overflow: hidden; }
+.gv { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.gv-head { display: flex; align-items: center; gap: var(--s3); padding: 12px var(--s5); border-bottom: 1px solid var(--line); }
+.gv-head h3 { margin: 0; white-space: nowrap; }
+.gv-head .grow { flex: 1; }
+.gv-note { color: var(--text-3); font-size: var(--fs-sm); }
+.gv-body { display: flex; min-height: 0; }
+.modal .gv video { flex: 1; min-width: 0; width: 100%; max-width: none; max-height: calc(94vh - 58px); aspect-ratio: 16 / 9; border-radius: 0; }
+.gv-parts { flex: none; width: 270px; margin: 0; padding: var(--s2); overflow-y: auto; list-style: none; border-left: 1px solid var(--line); }
+.gv-parts button { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); width: 100%; min-height: 0;
+  padding: 7px 9px; border-radius: var(--r-sm); background: transparent; color: var(--text-2); font-size: var(--fs-sm); text-align: left;
+  white-space: normal; line-height: 1.35; }
+.gv-parts span { min-width: 0; }
+.gv-parts button:hover { background: var(--raised); color: var(--text); }
+.gv-parts li.on button { background: var(--field); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
+.gv-parts i { flex: none; color: var(--text-3); font-style: normal; font-variant-numeric: tabular-nums; }
+.gv-none { margin: var(--s5); color: var(--text-2); }
+@media (max-width: 900px) { .gv-body { flex-direction: column; } .gv-parts { width: auto; max-height: 26vh; border-left: 0; border-top: 1px solid var(--line); } }
 /* the Phím tắt window: every action and its keys (changed by pressing a new one), and the guide (HUONG-DAN.md) */
 .modal .box:has(.kd) { display: flex; width: min(880px, 94vw); max-width: 94vw; height: min(780px, 90vh); padding: 0; overflow: hidden; }
 .kd { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
@@ -732,6 +752,7 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
     <div class="grow"></div>
     <span class="prep" id="prep"></span>
     <div class="update" id="update"><span id="updateText"></span><button class="small primary" id="updateBtn">Cập nhật ngay</button></div>
+    <button id="guideBtn" data-icon="guide" data-tip="Xem video hướng dẫn dùng app (không có tiếng, có chữ hướng dẫn)">Video hướng dẫn</button>
     <button id="keysBtn" data-icon="keyboard" data-tip="Xem và đổi phím tắt, đọc hướng dẫn ({keys})">Phím tắt</button>
     <button class="primary" id="exportBtn" data-icon="export" disabled data-tip="Xuất video ({export})">Xuất video</button>
   </header>
@@ -847,6 +868,7 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
   <p class="lic-err" id="licErr"></p>
   <div class="acts"><button id="licClose" style="display:none">Đóng</button><button class="primary" id="licGo">Kích hoạt</button></div>
   <p class="lic-note">Key gắn với máy tính này. Key mua chung cho nhiều app Bokin: kích hoạt ở một app là các app kia trên máy này cùng mở.</p>
+  <p class="lic-note"><button class="small" id="licVideo" data-icon="guide" title="Video hướng dẫn dùng app, mở ở phần Kích hoạt app">Xem video hướng dẫn</button></p>
 </div></div>
 <div class="offline" id="offline"><div>Mất kết nối với app Bokin FX.<br><small>Nếu đã đóng app, hãy mở lại từ menu Start.</small></div></div>
 <div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
@@ -925,6 +947,7 @@ const ICONS = {
   chimney: '<path d="M2.5 12.5L10 6.5l7.5 6"/><path d="M4.5 11v6.5h11V11"/><path d="M13.2 9V5.5h2.6v5.6"/><path d="M14.6 4c-1.1-.8.2-1.9-.8-2.7"/>',  // a roof, its chimney, its smoke
   flicker: '<path d="M10 3.5c2.4 2.6 3.4 4.5 3.4 6.2a3.4 3.4 0 0 1-6.8 0c0-1.7 1-3.6 3.4-6.2z"/><path d="M10 9.6c.9 1 1.3 1.8 1.3 2.4a1.3 1.3 0 0 1-2.6 0c0-.6.4-1.4 1.3-2.4z"/><path d="M3.5 7.5l1.6.7M16.5 7.5l-1.6.7M4 13.5l1.7-.3M16 13.5l-1.7-.3M10 17.2v-1.4"/>',  // a flame and its light
   film: '<rect x="3" y="4" width="14" height="12" rx="1.8"/><path d="M6.5 4v12M13.5 4v12M3 8h3.5M3 12h3.5M13.5 8H17M13.5 12H17"/>',
+  guide: '<circle cx="10" cy="10" r="7.25"/><path class="f" d="M8.4 7.1v5.8c0 .4.5.7.8.4l4.4-2.9a.5.5 0 0 0 0-.8L9.2 6.7c-.3-.3-.8 0-.8.4z"/>',
 };
 function icon(name, cls = "") {
   return `<svg class="ic ic-${name}${cls ? " " + cls : ""}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" ` +
@@ -4560,7 +4583,7 @@ $("#updateBtn").onclick = async () => {
   try { await post("/api/update", {}); $("#updateText").textContent = "Đang cập nhật… app sẽ tự mở lại."; $("#updateBtn").style.display = "none"; S.updating = true; }
   catch (e) { fail(e); }
 };
-function closeModal() { $("#modal").style.display = "none"; const v = $("#modal video"); if (v) v.pause(); S.keyWait = null; }
+function closeModal() { $("#modal").style.display = "none"; $("#modal").classList.remove("over"); const v = $("#modal video"); if (v) v.pause(); S.keyWait = null; }
 $("#modal").addEventListener("click", e => { if (e.target.id === "modal" && !$("#modal").dataset.locked) closeModal(); });
 function renderJobs(list) {
   const el = $("#jobs");
@@ -4693,15 +4716,19 @@ function mdHtml(md) {  // the guide (our own HUONG-DAN.md): headings, lists, tab
   const inline = t => esc(t).replace(/``\s?(.+?)\s?``|`([^`]+)`/g, (_, a, b) => `<kbd>${a || b}</kbd>`)
     .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
   // the block of default keys: the Phím tắt tab has the keys in use
-  const lines = md.replace(/<!-- keys:[\s\S]*?<!-- \/keys -->/, "@@keys@@").replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
+  const lines = md.replace(/<!-- keys:[\s\S]*?<!-- \/keys -->/, "@@keys@@").replace(/<!-- video -->/, "@@video@@")
+    .replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
   const item = /^(\s*)([-*]|\d+\.)\s+(.*)$/, head = /^(#{1,5})\s+(.*)$/, out = [];
-  const special = l => !l.trim() || head.test(l) || l.startsWith("|") || item.test(l) || l.trim() === "@@keys@@";
+  const special = l => !l.trim() || head.test(l) || l.startsWith("|") || item.test(l) || /^@@(keys|video)@@$/.test(l.trim());
   for (let i = 0; i < lines.length;) {
     const l = lines[i], h = head.exec(l);
     if (!l.trim()) { i++; continue; }
     if (h) { const n = Math.min(h[1].length + 1, 6); out.push(`<h${n}>${inline(h[2])}</h${n}>`); i++; continue; }
     if (l.trim() === "@@keys@@") {
       out.push(`<p><button class="small primary" data-ktab="keys">${icon("keyboard", "lead")}Xem và đổi phím tắt</button></p>`); i++; continue;
+    }
+    if (l.trim() === "@@video@@") {
+      out.push(`<p><button class="small primary" data-gvideo="1">${icon("guide", "lead")}Xem video hướng dẫn</button></p>`); i++; continue;
     }
     if (l.startsWith("|")) {
       const rows = [];
@@ -4739,6 +4766,7 @@ function mdHtml(md) {  // the guide (our own HUONG-DAN.md): headings, lists, tab
 $("#keysBtn").onclick = () => keysDialog();
 $("#modalBox").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b || !$("#kd")) return;
+  if (b.dataset.gvideo) return guideVideo();
   if (b.id === "kClose") return closeModal();
   if (b.dataset.ktab) { S.keyTab = b.dataset.ktab; S.keyWait = S.keyMsg = null; return renderKeys(); }
   if (b.id === "kResetAll") {  // a second press: (nothing is lost by a stray one)
@@ -4757,6 +4785,69 @@ $("#modalBox").addEventListener("keydown", e => {  // Esc in the search field: e
   if (e.target.id !== "kFind" || e.key !== "Escape") return;
   if (e.target.value) { e.target.value = S.keyFind = ""; renderKeyList(); } else closeModal();
 });
+// --- the video guide (HUONG-DAN.mp4, fx/guide.py): silent, every step written on the screen; its parts beside it, each
+// a click away; it goes on where it was left (also from the activation screen: how to activate is its first part) ----
+const GUIDE_AT = "fx.guideAt";
+function guideAt(t) {  // where the video was left (seconds); with t: keep it
+  try {
+    if (t === undefined) return +localStorage.getItem(GUIDE_AT) || 0;
+    localStorage.setItem(GUIDE_AT, String(Math.round(t)));
+  } catch (e) { /* storage blocked */ }
+  return 0;
+}
+async function guideVideo(part) {  // part: the number of the part to show; none: where it was left
+  pause();
+  $("#modal").classList.toggle("over", $("#lic").style.display === "flex");
+  $("#modalBox").innerHTML = `<div class="gv" id="gv"><div class="gv-head"><h3>Video hướng dẫn dùng Bokin FX</h3>
+      <span class="gv-note">Video không có tiếng: làm theo chữ hiện trên màn hình. Bấm một phần bên phải để xem đúng đoạn đó.</span>
+      <div class="grow"></div><button id="gvClose">Đóng</button></div>
+    <div class="gv-body"><video id="gvVideo" controls muted preload="metadata"></video><ol class="gv-parts" id="gvParts"></ol></div></div>`;
+  $("#modal").style.display = "flex";
+  const video = $("#gvVideo");
+  video.muted = true;  // (it has no sound: so it may start by itself)
+  let v;
+  try { v = await get("/api/guide/video"); } catch (e) { v = {ready: false}; }
+  if (!video.isConnected) return;  // (closed, or another window, meanwhile)
+  if (!v.ready) { $("#gv .gv-body").innerHTML = '<p class="gv-none">Bản app này chưa có video hướng dẫn.</p>'; return; }
+  const parts = v.chapters, mmss = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  $("#gvParts").innerHTML = parts.map(c => `<li><button data-at="${c.at}"><span>${esc(c.title)}</span><i>${mmss(c.at)}</i></button></li>`).join("");
+  const start = part !== undefined && parts[part] ? parts[part].at : guideAt();
+  video.addEventListener("loadedmetadata", () => {
+    if (start > 1 && start < video.duration - 3) video.currentTime = start;
+    if (part !== undefined) video.play().catch(() => {});
+  }, {once: true});
+  let shown = -1, kept = 0;
+  video.addEventListener("timeupdate", () => {  // the part on screen marked in the list; where it is, kept
+    const t = video.currentTime;
+    let i = 0;
+    while (i + 1 < parts.length && parts[i + 1].at <= t + 0.05) i++;
+    if (i !== shown) {
+      shown = i;
+      const items = $$("#gvParts li");
+      items.forEach((li, k) => li.classList.toggle("on", k === i));
+      if (items[i]) items[i].scrollIntoView({block: "nearest"});
+    }
+    if (Math.abs(t - kept) > 2) { kept = t; guideAt(t); }
+  });
+  video.addEventListener("pause", () => guideAt(video.currentTime));
+  video.addEventListener("ended", () => guideAt(0));  // (seen to the end: next time from the start)
+  video.addEventListener("error", () => {
+    $("#gv .gv-note").textContent = "Không phát được video trên máy này. Đọc hướng dẫn chữ: nút Phím tắt, thẻ Hướng dẫn.";
+  });
+  video.src = "/media/guide";
+}
+$("#guideBtn").onclick = () => guideVideo();
+$("#licVideo").onclick = () => guideVideo(1);
+$("#modalBox").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || !$("#gv")) return;
+  if (b.id === "gvClose") return closeModal();
+  if (b.dataset.at !== undefined) {
+    const video = $("#gvVideo");
+    video.currentTime = +b.dataset.at;
+    video.play().catch(() => {});
+  }
+});
+
 window.addEventListener("keydown", e => {  // the window waiting for a new key takes every key (before the page's own)
   if (!S.keyWait) return;
   e.preventDefault(); e.stopImmediatePropagation();

@@ -15,7 +15,7 @@ from fx import licensing, server
 
 class Licence(unittest.TestCase):
     """Before a key for this computer is activated the app shows only its activation screen: the server refuses
-    the work (projects, media, export) and still answers the installer and the updater."""
+    the work (projects, media, export) and still answers the installer, the updater and the video guide."""
 
     @classmethod
     def setUpClass(cls):
@@ -54,6 +54,9 @@ class Licence(unittest.TestCase):
         self.assertEqual(json.loads(request(self.base + "/api/ping")[1])["app"], "bokin-fx")
         self.assertIn("update", json.loads(request(self.base + "/api/state")[1]))
         self.assertEqual(self.post("/api/update/check", {})[0], 200)
+        # the video guide too (its first part is how to activate)
+        self.assertTrue(json.loads(request(self.base + "/api/guide/video")[1])["ready"])
+        self.assertEqual(request(self.base + "/media/guide", headers={"Range": "bytes=0-7"})[0], 206)
         view = json.loads(request(self.base + "/api/license")[1])
         self.assertFalse(view["licensed"])
         self.assertRegex(view["machine"], r"^[A-Z2-7]{4}(-[A-Z2-7]{4}){3}$")

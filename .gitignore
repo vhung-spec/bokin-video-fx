@@ -8,6 +8,7 @@ fx/version.txt
 packaging/icon.ico
 notes.md
 *.mp4
+!/HUONG-DAN.mp4
 *.mov
 *.webm
 page-test/

@@ -59,6 +59,20 @@ hiệu ứng. Cách dùng: `README.md`.
   `keydown` của trang, rồi `python -m fx.keys` ghi lại bảng phím mặc định trong `HUONG-DAN.md` (test kiểm).
   `HUONG-DAN.md` (hướng dẫn thao tác cho chủ, đi kèm bản cài, `/api/guide`) hiện ở thẻ Hướng dẫn (`mdHtml`: tiêu đề,
   danh sách, bảng, **đậm**, `phím`). Sửa thao tác trên trang thì sửa cả file đó.
+- Video hướng dẫn (chủ yêu cầu 2026-10-25: "chèn video hướng dẫn sử dụng vào trong app"): `HUONG-DAN.mp4` cạnh
+  `HUONG-DAN.md`, đi kèm bản cài (`BokinFX.spec` `datas`; bản cài nặng thêm khoảng 30 MB), `fx/guide.py` (`VIDEO`,
+  `CHAPTERS`: giây bắt đầu và tên mỗi phần, `LENGTH`, `video_path()`, `view()`). Máy chủ: `/api/guide/video` (các phần)
+  và `/media/guide` (video, theo byte), cả hai trong `FREE_GET` (xem được trước khi kích hoạt: phần 1 là cách kích
+  hoạt).
+  Trang: `guideVideo(part)` mở cửa sổ video với danh sách phần bên phải (`#gvParts`: bấm là tới đúng đoạn, phần đang
+  xem được đánh dấu), chạy tiếp chỗ đã xem (`fx.guideAt` trong localStorage, xem hết thì về đầu); mở từ nút
+  `#guideBtn` trên thanh trên cùng, `#licVideo` trên màn hình kích hoạt (ở phần 1; `#modal.over` nằm trên `#lic`), và
+  nút trong thẻ Hướng dẫn (dòng `<!-- video -->` trong `HUONG-DAN.md`). Video không có tiếng, chữ hướng dẫn trên màn
+  hình: chủ chọn bỏ giọng đọc (giọng Piper vi_VN-vais1000 tinh chỉnh từ giọng lessac, dữ liệu lessac/Blizzard chỉ cho
+  nghiên cứu). Làm từ bản video hướng dẫn có giọng đọc (2026-10-24, app 1.0.82): bỏ tiếng, xoá dòng ghi nguồn giọng ở
+  cảnh kết (`delogo`), H.264 CRF 32, 1600x900, chỉ mục đầu file (faststart), không còn tên công cụ. Quay lại video khi
+  giao diện đổi nhiều thì sửa `CHAPTERS` theo video mới. Test: `tests/test_guide.py`, `test_video_guide` (server),
+  licence, selftest ("video guide bundled"), trang (`video_guide`, màn hình kích hoạt).
 - `fx/timeline.py`: luật thời gian của clip (độ dài 30/60 giây, `Span`: bắt đầu, kết thúc, mờ dần). `index.html` có
   bản sao bằng JavaScript (`span`, `weight`, `plan`, `fileTime`): sửa một bên thì sửa cả bên kia.
 - `fx/projects.py`: dự án trong `%APPDATA%\Bokin\FX\projects\<id>` (project.json, input.*, proxy.mp4, still.png,

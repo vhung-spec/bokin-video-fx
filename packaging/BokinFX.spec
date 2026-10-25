@@ -8,7 +8,8 @@ from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))  # noqa: F821 (SPECPATH is set by PyInstaller)
 FX = os.path.join(ROOT, "fx")
-datas = [(os.path.join(FX, "index.html"), "."), (os.path.join(ROOT, "HUONG-DAN.md"), ".")]  # the page, the guide
+datas = [(os.path.join(FX, "index.html"), "."), (os.path.join(ROOT, "HUONG-DAN.md"), "."),  # the page, the guide,
+         (os.path.join(ROOT, "HUONG-DAN.mp4"), ".")]  # the video guide (fx/guide.py)
 if os.path.exists(os.path.join(FX, "version.txt")):
     datas.append((os.path.join(FX, "version.txt"), "."))
 

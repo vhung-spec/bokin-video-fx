@@ -25,7 +25,7 @@ import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw
 
-from . import effects, engine, keys, library, paths, projects, sheet, timeline, updater, video
+from . import effects, engine, guide, keys, library, paths, projects, sheet, timeline, updater, video
 
 W, H, FPS, P = 1920, 1080, 24, 48
 RESULTS = []
@@ -185,6 +185,9 @@ def run():
             check("page bundled", "Bokin FX" in f.read())
         with open(keys.guide_path(), encoding="utf-8") as f:
             check("guide bundled, with the default keys", keys.markdown() in f.read())
+        with open(guide.video_path(), "rb") as f:  # (an MP4 whose index is at the front: it plays at once)
+            head = f.read(1 << 16)
+        check("video guide bundled", head[4:8] == b"ftyp" and b"moov" in head and os.path.getsize(guide.video_path()) > 1e7)
         encoders = subprocess.run([video.ffmpeg_exe(), "-hide_banner", "-encoders"], capture_output=True,
                                   stdin=subprocess.DEVNULL, **video.NO_WINDOW).stdout.decode("utf-8", "replace")
         check("ffmpeg with libx264", "libx264" in encoders)
