@@ -19,14 +19,14 @@ by the feathers' tips, each feather's pale tip behind them), the wing's lower ed
 the dark primaries behind, the long feathers' pale fringes, the black band at the tail's end, darker flanks and belly,
 its feathered thighs over the tops of its legs, a small orange eye with the light caught in it, the white cere, coral
 feet with dark claws (the colours measured on the photograph); or a checker (a dark wedge on each covert, crisp on the
-pale wing: the owner's choice, all the flock by default), a dark one, a red (ash-red) one, fawn and copper, a pied one
-(white on whole parts of it as a pied pigeon's: its head, bib, belly, flights, tail, a patch on its wing or its rump,
-with clean edges, a few white flecks), a white dove; a faint mottling, every pattern blurred to the pixel so it does not
-shimmer. Matte, as feathers are (only its neck and feet faintly glossy). One ray a pixel inside a bird DETAIL pixels
-long or more, ss x ss where its outline or a small part's crosses a pixel; drawn where it is to a fraction of a pixel
-(it glides); softened a little ("Độ mềm") as a photograph is. It is lit by the scene where its box stands (as steam is:
-light_at), less where its body shuts the light out (the creases between its parts, under it: ambient occlusion from the
-smooth distance), and lies in its own shadow: dark right under it, soft and wider away from the light.
+pale wing), a dark one (these two the owner's choice: the flock by default), a red (ash-red) one, fawn and copper, a
+pied one (white on whole parts of it as a pied pigeon's: its head, bib, belly, flights, tail, a patch on its wing or its
+rump, with clean edges, a few white flecks), a white dove; a faint mottling, every pattern blurred to the pixel so it
+does not shimmer. Matte, as feathers are (only its neck and feet faintly glossy). One ray a pixel inside a bird DETAIL
+pixels long or more, ss x ss where its outline or a small part's crosses a pixel; drawn where it is to a fraction of a
+pixel (it glides); softened a little ("Độ mềm") as a photograph is. It is lit by the scene where its box stands (as
+steam is: light_at), less where its body shuts the light out (the creases between its parts, under it: ambient occlusion
+from the smooth distance), and lies in its own shadow: dark right under it, soft and wider away from the light.
 
 Every bird keeps its own day over the loop: walking a while, nearly straight, then stopping to look round or, now and
 then ("Mổ hạt"), to peck at the ground a few times, its beak reaching it and its tail rising; between its walks it turns
@@ -159,6 +159,10 @@ COATS = {  # sRGB: a rock dove (blue bar), a dark one, a red (ash-red) one, a wh
 }
 MIXED = (("grey", 0.42), ("checker", 0.18), ("dark", 0.09), ("brown", 0.07), ("pied", 0.14), ("white", 0.1))  # (a
 # town's flock)
+PAIR = (("checker", 0.6), ("dark", 0.4))  # (the owner's flock, 2026-10-25: checkers and dark ones only, so many of
+# each however few birds)
+MIXES = {"mixed": MIXED, "checker_dark": PAIR}
+GOLDEN = (math.sqrt(5.0) - 1.0) / 2.0
 WHITE = _lin((236, 236, 232))
 WHITES = (("head", 0.55), ("flights", 0.45), ("tail", 0.3), ("bib", 0.35), ("belly", 0.45), ("shield", 0.3),
           ("rump", 0.25))  # (a pied pigeon's white: on which parts, how often)
@@ -1987,7 +1991,7 @@ def _along_loop(plan, i, x):
 
 # --- the effect -------------------------------------------------------------------------------------------------------
 
-DEFAULTS = {"mode": "ground", "coat": "checker", "amount": 40, "size": 50, "depth": 50, "view": 40, "shadow": 60,
+DEFAULTS = {"mode": "ground", "coat": "checker_dark", "amount": 40, "size": 50, "depth": 50, "view": 40, "shadow": 60,
             "soft": 30, "busy": 50, "peck": 40, "rest": 30, "court": 25, "speed": 50, "roam": 50, "differ": 60,
             "lit": 70}
 
@@ -2006,7 +2010,8 @@ SCHEMA = {
     "params": [
         _choice("mode", "Kiểu", DEFAULTS["mode"], [("ground", "Đi lại, mổ hạt trên mặt đất"),
                                                    ("ledge", "Đậu trên gờ tường, mái nhà")], group="Kiểu"),
-        _choice("coat", "Màu lông", DEFAULTS["coat"], [("mixed", "Nhiều màu như đàn chim phố"),
+        _choice("coat", "Màu lông", DEFAULTS["coat"], [("checker_dark", "Xám có đốm và xám đen"),
+                                                       ("mixed", "Nhiều màu như đàn chim phố"),
                                                        ("grey", "Xám xanh (bồ câu thường)"),
                                                        ("checker", "Xám có đốm"), ("pied", "Loang trắng"),
                                                        ("white", "Bồ câu trắng"), ("brown", "Nâu đỏ"),
@@ -2068,11 +2073,16 @@ class Pigeons(Effect):
         if self.mode == "ledge":  # (a ledge holds only so many birds, each walking to and fro on its own stretch)
             n = min(n, max(1, int((w - 1.2 * self.size * h) / (LEDGE * self.size * h / LENGTH))))
         coats = []
-        for _ in range(CAP[self.mode]):
+        first = None
+        for k in range(CAP[self.mode]):
             r, name = rng.random(), p["coat"]  # (drawn whatever the coat: choosing another moves no bird)
-            if name == "mixed":
-                name = MIXED[-1][0]
-                for nm, share in MIXED:
+            if name == "checker_dark":  # (spread evenly over the flock: so many of each, however few birds)
+                first = r if first is None else first
+                r = (first + k * GOLDEN) % 1.0
+            if name in MIXES:
+                mix = MIXES[name]
+                name = mix[-1][0]
+                for nm, share in mix:
                     if r < share:
                         name = nm
                         break

@@ -993,11 +993,16 @@ class Settings(unittest.TestCase):
             self.assertNotIn("way", p)
             self.assertGreater(len(make(old).u), 0)
 
-    def test_all_checkers(self):
-        """The flock all checkers unless another coat is chosen (the owner, 2026-10-25: "tôi chỉ cần con chim màu
-        này"); choosing another coat changes their colours only: every bird where it was, doing what it did."""
+    def test_checkers_and_dark_ones(self):
+        """The flock checkers and dark ones unless another coat is chosen (the owner, 2026-10-25, two of the birds
+        shown: "tôi chỉ cần con chim màu này", "và chim màu này"), so many of each however few birds; choosing another
+        coat changes their colours only: every bird where it was, doing what it did."""
+        for amount in (12, 30, 60):
+            coats = make({"amount": amount, **DAY}).coats
+            dark = sum(c.c["back"][0] < 0.1 for c in coats)
+            self.assertTrue(all(c.checker or c.c["back"][0] < 0.1 for c in coats))
+            self.assertLessEqual(abs(dark - 0.4 * len(coats)), 1, (amount, len(coats)))
         fx = make(DAY)
-        self.assertTrue(fx.coats and all(c.checker for c in fx.coats))
         mixed = make({"coat": "mixed", **DAY})
         self.assertGreater(len({(c.checker, c.pied, round(float(c.c["back"][0]), 3)) for c in mixed.coats}), 2)
         for t in (0, 77, 160):

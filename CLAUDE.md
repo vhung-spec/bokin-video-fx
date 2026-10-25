@@ -382,10 +382,12 @@ hiệu ứng. Cách dùng: `README.md`.
   lông mờ như lông thật: không còn lớp bóng phủ khắp lông (`SATIN` 0, trước 0,06), ánh viền nhung nhẹ (`RIM` 0,12,
   trước 0,35), cổ, chân, móng chỉ hơi bóng (`GLOSS` 0,2, trước 0,6; vệt rộng hơn, mũ 16). `VERSION` 10. Test: `Coats`
   (`test_pied_white_clean`: trắng đỏ, màu xanh, đếm điểm ảnh lẫn; `test_matte`: so với chim mờ hẳn, sáng thêm chưa tới
-  4%, xám đen 8%), `test_slow`. Cả đàn màu Xám có đốm (chủ gửi ảnh con xám có đốm của 1.0.83, 2026-10-25: "tôi chỉ
-  cần con chim màu này"): đốm lại như 1.0.83 (nêm sẫm, rõ trên cánh nhạt: `_feathers` không còn `check`),
-  `DEFAULTS["coat"]` là `checker`; mỗi con luôn rút một số chọn màu (`rng.random()`) dù chọn màu nào, nên đổi Màu
-  lông thì chim không dời chỗ, chỉ đổi màu. `VERSION` 11. Test: `test_checker_crisp`, `test_all_checkers`.
+  4%, xám đen 8%), `test_slow`. Đàn chỉ có Xám có đốm và Xám đen (chủ gửi hai ảnh, 2026-10-25: con xám có đốm của
+  1.0.83 "tôi chỉ cần con chim màu này", rồi con xám đen "và chim màu này"): đốm lại như 1.0.83 (nêm sẫm, rõ trên
+  cánh nhạt: `_feathers` không còn `check`); Màu lông mặc định `checker_dark` ("Xám có đốm và xám đen", `PAIR`:
+  60% có đốm, 40% xám đen, rải đều theo thứ tự chim bằng tỉ lệ vàng `GOLDEN`: đàn ít chim vẫn đủ hai màu; `MIXES`);
+  mỗi con luôn rút một số chọn màu (`rng.random()`) dù chọn màu nào, nên đổi Màu lông thì chim không dời chỗ, chỉ
+  đổi màu. `VERSION` 11. Test: `test_checker_crisp`, `test_checkers_and_dark_ones`.
   Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
   nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao
