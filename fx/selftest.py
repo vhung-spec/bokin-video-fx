@@ -94,7 +94,7 @@ def periodic_checks():
             # a herringbone
             third = {"wood": "oak", "stack": "heap", "embers": 100, "frame": "arch", "walls": "herring"}
         if kind == "pigeons":  # many pigeons pecking often on a ledge, soft as a photograph
-            third = {"mode": "ledge", "amount": 100, "peck": 100, "soft": 100}
+            third = {"mode": "ledge", "birds": 14, "size": 50, "peck": 100, "soft": 100}
         if kind == "chimney":  # chimneys near and far, a gusty wind from the right
             third = {"breeze": -80, "gust": 100, "stacks": [[0.25, 0.85, 0.05, 0.5], [0.6, 0.6, 0.025, 1.0],
                                                             [0.85, 0.5, 0.012, 0.3]]}

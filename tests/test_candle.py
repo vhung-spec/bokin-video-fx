@@ -495,7 +495,7 @@ class Settings(unittest.TestCase):
         self.assertTrue(a.endswith(".webm"))
         self.assertNotEqual(a, b)
         self.assertEqual(engine.fx_clip_frame(info, "candle", {"kind": "candle", "params": {"scale": 13}}),
-                         (104, 140))  # no bigger than the box is in the video
+                         (70, 94))  # no bigger than the box is in the copy of the video the page plays (1280 wide)
 
     def test_preview_follows_the_still_area_under_its_box(self):
         """The preview clip is made again when the still area under its box changes (its mask, softness, picture),

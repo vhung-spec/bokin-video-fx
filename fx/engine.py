@@ -37,6 +37,9 @@ from . import effects, library, overlay, paths, sheet, timeline, video
 
 LOOK_WIDTH = 1280
 FX_CLIP_WIDTH = 640
+PROXY_WIDTH = 1280  # (the light copy of the video the page plays: video.make_proxy)
+SNUG = (270, 360, 480, 640)  # (a placed effect's preview clip heights: the first its box in that copy fits, so that
+# sizing the box makes the clip again only across a step)
 
 
 def mask_path(folder, name):
@@ -550,21 +553,26 @@ def sharper_size(info, width):
 def fx_clip_frame(info, kind, layer=None):
     """The size of a built-in effect's preview clip: the video's, small (FX_CLIP_WIDTH wide, or as many pixels as a
     16:9 clip the effect's own PREVIEW wide: small falling leaves and thin rain streaks blur at 640); for a placed effect, its box's shape
-    (one made from the picture under it no bigger than the box is in the video; one with a PREVIEW, its PREVIEW high
-    when the box is big in the video)."""
+    no sharper than the box is in the light copy of the video the page plays under it (PROXY_WIDTH: finer would not
+    show, and costs time a pixel: a few big birds, each pixel a ray traced; the owner, 2026-10-26, "load khá lâu"),
+    in steps (SNUG: sizing the box makes it again only across one); one made from the picture under it, exactly that
+    size (its place is in its name anyway); one with a PREVIEW, its PREVIEW high when the box is big in the video."""
     cls = effects.KINDS[kind]
     box = cls.BOX
     if not box:
         return sharper_size(info, cls.PREVIEW) if cls.PREVIEW else fx_clip_size(info)
     h = min(FX_CLIP_WIDTH, max(64, info["h"]))
-    if cls.PREVIEW and layer is not None and not cls.UNDER:  # (a big box of small things: string lights drawn over
-        # the whole picture get a sharper clip, at two sizes only, so sizing the box does not make it again and again)
+    if layer is not None:
         p = effects.clean_params(kind, layer.get("params"))
-        if min(info["w"] / box[0], info["h"] / box[1]) * p["scale"] / 100 * box[1] > 1.5 * FX_CLIP_WIDTH:
+        tall = min(info["w"] / box[0], info["h"] / box[1]) * p["scale"] / 100 * box[1]  # (the box in the video)
+        seen = tall * min(1.0, PROXY_WIDTH / info["w"])  # (and in the copy the page plays)
+        if cls.UNDER:
+            h = min(h, max(64, math.ceil(seen)))
+        elif cls.PREVIEW and tall > 1.5 * FX_CLIP_WIDTH:  # (a big box of small things: string lights drawn over the
+            # whole picture, birds close to the camera, get a sharper clip)
             h = cls.PREVIEW
-    if cls.UNDER and layer is not None:
-        p = effects.clean_params(kind, layer.get("params"))
-        h = min(h, max(64, math.ceil(min(info["w"] / box[0], info["h"] / box[1]) * p["scale"] / 100 * box[1])))
+        else:
+            h = min(h, next((s for s in SNUG if s >= seen), h))
     h -= h % 2
     return max(2, round(h * box[0] / box[1] / 2) * 2), h
 

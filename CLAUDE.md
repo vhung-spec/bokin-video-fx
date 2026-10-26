@@ -402,6 +402,15 @@ hiệu ứng. Cách dùng: `README.md`.
   60% có đốm, 40% xám đen, rải đều theo thứ tự chim bằng tỉ lệ vàng `GOLDEN`: đàn ít chim vẫn đủ hai màu; `MIXES`);
   mỗi con luôn rút một số chọn màu (`rng.random()`) dù chọn màu nào, nên đổi Màu lông thì chim không dời chỗ, chỉ
   đổi màu. `VERSION` 11. Test: `test_checker_crisp`, `test_checkers_and_dark_ones`.
+  Vừa khung (chủ yêu cầu 2026-10-26, kèm ảnh khung trên vỉa hè: "vừa với khung để tôi có thể đặt vào các vị trí trong
+  video", "load khá lâu, tôi chỉ cần 3-5 con chim bồ câu là đủ"): khung là một nhóm chim, chim to vừa khung; mặc định 4
+  con (`birds`: "Số chim" là số con 1–30; trước đó là `amount` 0..100: `upgrade` đổi thành đúng số chim cũ, `count`),
+  `size` 82 (con gần nhất khoảng 0,3 chiều cao khung), `depth` 20, khung `scale` 35; clip cũ giữ cỡ, gần xa đã lưu.
+  Clip xem nhanh không to hơn khung trong video (`SNUG`: nấc `engine.SNUG` 270/360/480/640, đổi cỡ khung chỉ làm lại
+  khi qua một nấc; khung gần cả khung hình: `PREVIEW` 1280 như cũ). Vẽ nhanh hơn khoảng 13% (`_ellipsoids`, `_union`:
+  float32, ít mảng tạm; `_Body._qi`: các tia vừa hỏi giữ lại khi khép dần vào mặt), hình như cũ (lệch tối đa 0,1%).
+  Test: `test_a_few_filling_their_box`, `test_old_settings_keep_their_birds`, `test_preview_clip_no_bigger_than_its_box`;
+  các test cũ vẫn dùng chim cũ (`FLOCK`: size 50, depth 50).
   Chim dài từ `DETAIL` điểm ảnh: một tia mỗi điểm ảnh, `ss`x`ss` chỉ ở điểm ảnh có mép. "Cỡ chim": độ dài chim gần
   nhất từ `SMALLEST` tới `LARGEST` chiều cao khung (theo hàm
   mũ; 100 là nửa khung, như chim ngay trước máy quay trong ảnh chủ gửi). "Độ mềm" (`soft`) làm nhoè theo phần chiều cao
@@ -424,7 +433,8 @@ hiệu ứng. Cách dùng: `README.md`.
   (`_even`), lệch nhẹ (`jitter`), màu lần lượt dọc dây (`PALETTES`). Mỗi bóng: lõi gần trắng, quầng màu, tia sáng khi
   loé; "Chỉ ánh sáng" (`bulb` = `glow`): không lõi, chỉ quầng mềm + tia. Kiểu nháy (`levels()`): từng bóng, nhóm thở
   lần lượt, chạy đuổi dọc dây (`CHASE` bóng một sóng), hai nhóm, sáng đứng; mọi tần số số nguyên vòng mỗi loop.
-  Hộp to (cây gần phủ cả hình): clip xem nhanh cao `PREVIEW` 1280 thay vì 640 (`engine.fx_clip_frame`, hai cỡ). Dây
+  Hộp to (cây gần phủ cả hình): clip xem nhanh cao `PREVIEW` 1280 (`engine.fx_clip_frame`; hộp nhỏ hơn: theo nấc
+  `engine.SNUG`, không nét hơn hộp trong bản nhẹ của video). Dây
   vẽ tay ở chỗ bất kỳ là hiệu ứng riêng (Dây đèn tự vẽ, ngay dưới); "Theo đèn có sẵn trong video" đã bỏ (chủ yêu cầu
   2026-10-22): clip cũ dùng nó thành cây (`clean_params`).
 - Dây đèn tự vẽ (`fx/garland.py`, mã loại `garland`): hiệu ứng phủ cả hình (không `BOX`, không xoay), lớp con của
@@ -481,7 +491,10 @@ hiệu ứng. Cách dùng: `README.md`.
   thêm tiền cảnh đảo ngược, `mask-composite: intersect`). Một đồng hồ chung giữ mọi video khớp nhau.
 - Hiệu ứng tạo sẵn: app kết xuất cả độ dài video thành clip nhỏ (rộng 640, hoặc `PREVIEW` của hiệu ứng: lá rơi 960;
   WebM trong suốt, hoặc H.264 cho hạt sáng dùng Screen). Tên file theo nội dung (`fx-<khoá>.webm`), hai nửa của clip
-  bị cắt dùng chung.
+  bị cắt dùng chung. Hiệu ứng đặt một chỗ (`BOX`): clip là cái hộp, không nét hơn hộp trong bản nhẹ trang phát dưới nó
+  (`engine.PROXY_WIDTH` 1280: nét hơn cũng không thấy; chủ yêu cầu 2026-10-26 "tối ưu code để các hiệu ứng load nhanh
+  hơn"), theo nấc `engine.SNUG` (270/360/480/640: đổi cỡ hộp chỉ làm lại clip khi qua một nấc); làm từ hình dưới hộp
+  (`UNDER`): đúng cỡ đó; hộp to có `PREVIEW` (dây đèn, đom đóm, chim gần máy quay): `PREVIEW` như cũ.
 - Khung chính xác từ `engine.Looks` (`/api/look`) là thứ video xuất ra. Trang chỉ hiện nó khi dừng hình nếu người dùng
   bật nút Khung chính xác (`#tExact`), hoặc khi bản xem nhanh còn thiếu (`liveIncomplete`). Không tự thay ảnh khi
   dừng: mắt thấy như hình bị giật.

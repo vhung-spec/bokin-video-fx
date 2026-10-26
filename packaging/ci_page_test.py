@@ -1069,10 +1069,12 @@ def pigeons(page, shot):
         !!$('#ec [data-num="rot_x"]'), $('#xformMark').style.display]""")
     box = page.evaluate(BOX)
     x0, y0, w, h = fx_effects.box_of("pigeons", page.evaluate(f"clipById('{cid}').params"), vw, vh)
-    shown = """['busy', 'peck', 'view', 'shadow', 'soft'].map(k => !!$(`#ec input[data-param="${k}"]`))
+    shown = """['busy', 'peck', 'view', 'shadow', 'soft', 'birds'].map(k => !!$(`#ec input[data-param="${k}"]`))
         .concat([!!$('#ec select[data-param="way"]'),
                  [...$('#ec select[data-param="mode"]').options].map(o => o.value).join()])"""
     ground = page.evaluate(shown)
+    few = page.evaluate(f"[clipById('{cid}').params.birds, clipById('{cid}').params.scale]")  # (a few birds filling
+    # their box: the owner, 2026-10-26)
     page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want && "
                            f"S.els['{cid}']", timeout=300000)
     want = page.evaluate(f"S.fx['{cid}'].want")
@@ -1080,10 +1082,11 @@ def pigeons(page, shot):
     page.wait_for_timeout(300)
     ledge = page.evaluate(shown)
     check("Chim bồ câu: its box where the renderer puts it; no turn, no mark; on the ground or a ledge, every setting "
-          "shown for both (Mổ hạt, Độ mềm too)", ui == ["block", "none", "none", False, "none"] and
+          "shown for both (Mổ hạt, Độ mềm, Số chim too); 4 birds in a box a third of the frame high",
+          ui == ["block", "none", "none", False, "none"] and
           all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])) and
-          ground == [True] * 5 + [False, "ground,ledge"] and ledge == ground,
-          str([ui, box, [x0, y0, x0 + w, y0 + h], ground, ledge]))
+          ground == [True] * 6 + [False, "ground,ledge"] and ledge == ground and few == [4, 35],
+          str([ui, box, [x0, y0, x0 + w, y0 + h], ground, ledge, few]))
     page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].want !== '{want}' && "
                            f"S.fx['{cid}'].shown === S.fx['{cid}'].want && S.els['{cid}']", timeout=300000)
     page.evaluate("applyTime()")

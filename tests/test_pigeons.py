@@ -12,12 +12,13 @@ from fx import engine, overlay, pigeons
 
 W, H = 480, 270
 AT = {"scale": 90, "x": 0, "y": 0}
+FLOCK = {"size": 50, "depth": 50}  # (the birds these tests were written for: smaller than a few filling their box)
 MODES = ("ground", "ledge")
 DAY = {"lit": 0}  # (lit by daylight, not by a scene)
 
 
 def make(params=None, frames=240, fps=24, w=W, h=H, seed=3, light=None):
-    return effects.make("pigeons", {**AT, **(params or {})}, seed, frames, fps, w, h, light)
+    return effects.make("pigeons", {**AT, **FLOCK, **(params or {})}, seed, frames, fps, w, h, light)
 
 
 def drawn(fx, t):
@@ -47,14 +48,15 @@ class Loop(unittest.TestCase):
     def test_frame_p_is_frame_0(self):
         for mode in MODES:
             for frames, fps in ((240, 24), (150, 25)):
-                fx = make({"mode": mode, "amount": 70, "peck": 100, "rest": 100, "court": 100}, frames, fps)
+                fx = make({"mode": mode, "birds": pigeons.count(mode, 70), "peck": 100, "rest": 100, "court": 100}, frames,
+                           fps)
                 a, b = drawn(fx, 0), drawn(fx, frames)
                 self.assertLess(float(np.abs(a[0] - b[0]).max()), 1e-6, (mode, frames, fps))
                 self.assertLess(float(np.abs(a[1] - b[1]).max()), 1e-6, (mode, frames, fps))
 
     def test_they_move(self):
         for mode in MODES:
-            fx = make({"mode": mode, "amount": 70, "busy": 100})
+            fx = make({"mode": mode, "birds": pigeons.count(mode, 70), "busy": 100})
             a = sum(np.abs(drawn(fx, 0)[1] - drawn(fx, t)[1]).max() for t in (6, 30, 90))
             self.assertGreater(float(a), 0.5, mode)
 
@@ -375,10 +377,10 @@ class Ways(unittest.TestCase):
     def test_each_its_own_ways(self):
         """"Mỗi con một kiểu" 0: every bird as the settings say; more: each its own (busier or lazier, hungrier,
         fast or slow, resting more or less); about half of them males."""
-        same = make({"amount": 100, "differ": 0})
+        same = make({"birds": 30, "differ": 0})
         ways = np.array([[same.temper(i)[j] for j in (0, 1, 2, 4)] for i in range(len(same.u))])
         self.assertLess(float(ways.std(axis=0).max()), 1e-9)
-        apart = make({"amount": 100, "differ": 100})
+        apart = make({"birds": 30, "differ": 100})
         ways = np.array([apart.temper(i)[:5] for i in range(len(apart.u))])
         self.assertGreater(float(ways[:, 0].std()), 0.15)  # (busy)
         self.assertGreater(float(ways[:, 1].std()), 0.15)  # (hungry)
@@ -390,7 +392,7 @@ class Ways(unittest.TestCase):
         """"Đi quanh quẩn ← → đi khắp khung": their paths small round their homes, or wide over the box."""
         spans = []
         for roam in (0, 100):
-            fx = make({"amount": 60, "busy": 100, "roam": roam}, frames=720)
+            fx = make({"birds": 16, "busy": 100, "roam": roam}, frames=720)
             spans.append(np.mean([(float(np.ptp(w.px)) + float(np.ptp(w.py))) * fx._scale(u, fx.box()[3])
                                   for w, u in zip(fx.walkers, fx.u)]))
         self.assertGreater(spans[1], 1.5 * spans[0])
@@ -449,9 +451,10 @@ class Apart(unittest.TestCase):
     (_plan); too many for the box, the birds it has no room for are left out."""
 
     def test_none_walk_into_another(self):
-        for params in ({}, {"amount": 100}, {"amount": 100, "size": 70}, {"amount": 70, "size": 60, "roam": 100},
-                       {"amount": 100, "size": 40, "roam": 0}, {"amount": 100, "busy": 100, "speed": 100},
-                       {"mode": "ledge", "amount": 100}, {"mode": "ledge", "amount": 60, "size": 70}):
+        for params in ({}, {"birds": 30}, {"birds": 30, "size": 70}, {"birds": 20, "size": 60, "roam": 100},
+                       {"birds": 30, "size": 40, "roam": 0}, {"birds": 30, "busy": 100, "speed": 100},
+                       {"mode": "ledge", "birds": 14}, {"mode": "ledge", "birds": 8, "size": 70},
+                       {"birds": 5, "size": 82, "depth": 20}, {"birds": 4, "size": 100, "depth": 20}):
             for seed in (3, 11):
                 fx = make(params, 480, seed=seed)
                 self.assertLess(overlaps(fx), 0.05, (params, seed))
@@ -461,26 +464,26 @@ class Apart(unittest.TestCase):
         with mock.patch.object(pigeons.Pigeons, "_spread", lambda self, w, h: np.arange(len(self.walkers))), \
                 mock.patch.object(pigeons, "_plan", lambda walkers, *a: (None, np.zeros((len(walkers),) * 2))):
             pigeons._PLANS.clear()
-            worst = max(overlaps(make({"amount": 100}, 480, seed=seed)) for seed in (3, 11))
+            worst = max(overlaps(make({"birds": 30}, 480, seed=seed)) for seed in (3, 11))
         pigeons._PLANS.clear()
         self.assertGreater(worst, 0.3)
 
     def test_most_keep_their_own_places(self):
         """Few birds: each where its own numbers put it unless it would meet another there; with room, every bird
         asked for (as many as "Số chim" says)."""
-        for amount in (20, 40, 70, 100):
-            fx = make({"amount": amount}, 480)
-            self.assertEqual(len(fx.walkers), pigeons.count("ground", amount), amount)
+        for birds in (3, 4, 10, 20, 30):
+            fx = make({"birds": birds}, 480)
+            self.assertEqual(len(fx.walkers), birds, birds)
 
     def test_too_many_for_the_box(self):
         """Big birds, many of them: the box holds only so many without them walking into each other; those left
         out, the rest apart. On a ledge, each bird a stretch of its own as long as LEDGE at least."""
         for mode in MODES:
-            fx = make({"mode": mode, "amount": 100, "size": 100}, 480)
+            fx = make({"mode": mode, "birds": 30, "size": 100}, 480)
             self.assertLess(len(fx.walkers), pigeons.CAP[mode], mode)
             self.assertGreater(len(fx.walkers), 0, mode)
             self.assertLess(overlaps(fx), 0.05, mode)
-        fx = make({"mode": "ledge", "amount": 100, "size": 60}, 480)
+        fx = make({"mode": "ledge", "birds": 14, "size": 60}, 480)
         x0, y0, w, h = fx.box()
         slots = sorted(fx._slots(fx.u, w, h))
         self.assertGreaterEqual(min(s[1] for s in slots) * 2, pigeons.LEDGE * fx.size * h / pigeons.LENGTH - 1e-6)
@@ -489,7 +492,7 @@ class Apart(unittest.TestCase):
     def test_standing_still_it_does_not_slide(self):
         """Stepping aside only as it walks: while a bird stands (looks round, pecks, sits, preens, courts) its feet
         stay put."""
-        for params in ({"amount": 100, "size": 70}, {"amount": 70, "size": 85, "busy": 100}):
+        for params in ({"birds": 30, "size": 70}, {"birds": 20, "size": 85, "busy": 100}):
             fx = make(params, 480)
             self.assertIsNotNone(fx.plan, params)
             x0, y0, w, h = fx.box()
@@ -520,7 +523,7 @@ class Apart(unittest.TestCase):
     def test_the_same_each_time(self):
         """The flock (places, days, steps aside, birds kept) is the same whenever it is made: each clip of an export
         draws the same birds."""
-        params = {"amount": 100, "size": 70}
+        params = {"birds": 30, "size": 70}
         pigeons._PLANS.clear()
         a = make(params, 480)
         pigeons._PLANS.clear()
@@ -536,7 +539,7 @@ class Apart(unittest.TestCase):
     def test_the_same_at_every_size(self):
         """Laid out in a box of one size (REF high), the flock is the same however big it is drawn: the preview clip
         and the video show the same birds in the same places, doing the same."""
-        params = {"amount": 100, "size": 70}
+        params = {"birds": 30, "size": 70}
         a, b = make(params, 480), make(params, 480, w=1280, h=720)
         self.assertTrue(np.array_equal(a.u, b.u) and np.array_equal(a.plan, b.plan))
         for t in (0, 101, 333):
@@ -666,7 +669,7 @@ class Body(unittest.TestCase):
     def test_soft_as_a_photograph(self):
         """"Độ mềm": the birds' edges softer as it rises (the same amount of bird)."""
         def edges(soft):
-            fx = make({"soft": soft, "amount": 30, "size": 70, **DAY}, w=960, h=540)
+            fx = make({"soft": soft, "birds": 7, "size": 70, **DAY}, w=960, h=540)
             a = drawn(fx, 12)[1]
             return float(((a > 0.02) & (a < 0.98)).sum()), float(a.sum())
         sharp, soft = edges(0), edges(100)
@@ -678,7 +681,7 @@ class Body(unittest.TestCase):
         pic = np.full((540, 960, 3), 0.6, np.float32)
 
         def frame(shadow):
-            fx = make({"shadow": shadow, "amount": 30, "size": 65, **DAY}, w=960, h=540)
+            fx = make({"shadow": shadow, "birds": 7, "size": 65, **DAY}, w=960, h=540)
             canvas = effects.Canvas(960, 540)
             fx.draw(12, canvas, None)
             a = canvas.a.copy()  # (before it is laid: laying clears the canvas)
@@ -863,8 +866,9 @@ class Picture(unittest.TestCase):
     def test_only_in_its_box(self):
         """Nothing outside the box (its preview clip is the box alone): the birds walk in it."""
         for mode in MODES:
-            for params in ({}, {"amount": 100, "size": 100, "depth": 100, "busy": 100, "speed": 100},
-                           {"amount": 100, "size": 100, "x": 30, "y": -20, "scale": 40}):
+            for params in ({}, {"birds": 30, "size": 100, "depth": 100, "busy": 100, "speed": 100},
+                           {"birds": 30, "size": 100, "x": 30, "y": -20, "scale": 40},
+                           {"birds": 5, "size": 100, "depth": 0, "busy": 100, "roam": 100}):
                 fx = make({"mode": mode, **params})
                 x0, y0, w, h = fx.box()
                 outside = np.ones((H, W), bool)  # (the pixels the box's edges cross are partly inside)
@@ -873,19 +877,17 @@ class Picture(unittest.TestCase):
                     self.assertEqual(float(drawn(fx, t)[1][outside].max(initial=0.0)), 0.0, (mode, params, t))
 
     def test_how_many(self):
+        """"Số chim" is the number of birds (each mode holds only so many: CAP)."""
         for mode in MODES:
-            self.assertEqual(len(make({"mode": mode, "amount": 0}).u), 0)
-            self.assertEqual(float(drawn(make({"mode": mode, "amount": 0}), 5)[1].max()), 0.0)
-            counts = [len(make({"mode": mode, "amount": a, "size": 30}).u) for a in (10, 35, 80, 100)]
-            self.assertEqual(counts, sorted(counts), mode)
-            self.assertGreater(counts[0], 0, mode)
-            self.assertEqual(counts[-1], pigeons.CAP[mode], mode)
+            counts = [len(make({"mode": mode, "birds": n, "size": 30}).u) for n in (1, 3, 5, 12, 30)]
+            self.assertEqual(counts, [1, 3, 5, 12, pigeons.CAP[mode]], mode)
+            self.assertGreater(float(drawn(make({"mode": mode, "birds": 1}), 5)[1].max()), 0.5, mode)
 
     def test_their_coats(self):
         """A white dove is pale, a dark one dark, a brown one reddish, a rock dove grey with a green neck; a checker
         darker than a plain grey one, a pied one paler."""
         def colour(coat):
-            fx = make({"coat": coat, "amount": 60, "size": 70, **DAY}, w=960, h=540)
+            fx = make({"coat": coat, "birds": 16, "size": 70, **DAY}, w=960, h=540)
             rgb, a = drawn(fx, 0)
             return rgb.reshape(-1, 3).sum(axis=0) / max(float(a.sum()), 1e-9)
         white, grey, dark, brown, checker, pied = (colour(c) for c in ("white", "grey", "dark", "brown", "checker",
@@ -907,7 +909,7 @@ class Picture(unittest.TestCase):
         warm = np.array([1.0, 0.6, 0.3, 0.5, 0.35, 0.2, 0.0], np.float32)
 
         def colour(params, light):
-            fx = make({"mode": "ground", "amount": 60, "size": 65, **params}, w=960, h=540, light=light)
+            fx = make({"mode": "ground", "birds": 16, "size": 65, **params}, w=960, h=540, light=light)
             rgb, a = drawn(fx, 30)
             return rgb.reshape(-1, 3).sum(axis=0) / max(float(a.sum()), 1e-9)
         day = colour(DAY, None)
@@ -920,7 +922,7 @@ class Picture(unittest.TestCase):
         """On the ground, the farther up the box (the smaller their feet's y) the smaller ("Gần xa"); with no depth,
         all alike."""
         for depth, smaller in ((100, True), (0, False)):
-            fx = make({"amount": 100, "depth": depth})
+            fx = make({"birds": 30, "depth": depth})
             x0, y0, w, h = fx.box()
             birds = fx._ground(0, x0, y0, w, h)
             ys, scales = np.array([b[1] for b in birds]), np.array([b[2] for b in birds])
@@ -932,7 +934,7 @@ class Picture(unittest.TestCase):
 
     def test_a_ledge_is_a_line(self):
         """On a ledge they stand on one line near the box's bottom edge, walking to and fro along it."""
-        fx = make({"mode": "ledge", "amount": 100})
+        fx = make({"mode": "ledge", "birds": 14})
         x0, y0, w, h = fx.box()
         for t in (0, 77, 160):
             feet = np.array([b[1] for b in fx._ground(t, x0, y0, w, h)])
@@ -947,7 +949,7 @@ class Preview(unittest.TestCase):
         from PIL import Image
         info = {"w": 1920, "h": 1080, "fps": "24", "frames": 240}
         for mode in MODES:
-            params = {**AT, "mode": mode, "amount": 50, **DAY}
+            params = {**AT, **FLOCK, "mode": mode, "birds": pigeons.count(mode, 50), **DAY}
             layer = {"kind": "pigeons", "params": params}
             cw, ch = engine.fx_clip_frame(info, "pigeons", layer)
             self.assertAlmostEqual(cw / ch, 16 / 9, places=1)
@@ -960,6 +962,21 @@ class Preview(unittest.TestCase):
                     (cw, ch), Image.Resampling.BOX, box=(x0, y0, x0 + bw, y0 + bh)), np.float32) / 255
                 self.assertLess(float(np.abs(part - clip).mean()), 0.004, (mode, t))
                 self.assertGreater(float(clip.mean()), 0.003, (mode, t))
+
+    def test_preview_clip_no_bigger_than_its_box(self):
+        """Its preview clip no sharper than its box is in the light copy the page plays under it (1280 wide), a
+        step up (a few big birds, every pixel a ray traced: the owner, 2026-10-26, "load khá lâu"), so that sizing
+        the box makes it again only across a step; a box nearly as big as the frame, sharper. Every placed effect's
+        too."""
+        info = {"w": 1920, "h": 1080, "fps": "24"}
+
+        def tall(kind, scale):
+            return engine.fx_clip_frame(info, kind, {"kind": kind, "params": {"scale": scale}})[1]
+        self.assertEqual([tall("pigeons", s) for s in (15, 24, 30, 37, 44, 55, 80, 95)],
+                         [270, 270, 270, 270, 360, 480, 640, 1280])
+        self.assertEqual([tall("steam", s) for s in (10, 40, 60, 177.8)], [270, 360, 480, 640])
+        self.assertEqual(engine.fx_clip_frame(dict(info, w=1280, h=720), "pigeons",
+                                              {"kind": "pigeons", "params": {"scale": 50}}), (640, 360))
 
     def test_drawn_over_the_picture(self):
         cls = pigeons.Pigeons
@@ -985,6 +1002,37 @@ class Settings(unittest.TestCase):
         modes = [o["value"] for o in next(p for p in pigeons.SCHEMA["params"] if p["key"] == "mode")["options"]]
         self.assertEqual(sorted(modes), sorted(MODES))
 
+    def test_a_few_filling_their_box(self):
+        """A new clip: a few birds filling their box, the box their place in the video (the owner, 2026-10-26: "vừa
+        với khung để tôi có thể đặt vào các vị trí trong video", "chỉ cần 3-5 con chim bồ câu là đủ"): 4 birds, the
+        nearest about a third of the box high, each whole inside it (none cut off at its edges)."""
+        p = effects.defaults("pigeons")
+        self.assertEqual(p["birds"], 4)
+        for seed in (3, 8):
+            fx = effects.make("pigeons", {**p, **DAY}, seed, 240, 24, 960, 540)
+            self.assertEqual(len(fx.u), 4)
+            self.assertTrue(0.27 < fx.size < 0.34, fx.size)
+            x0, y0, w, h = fx.box()
+            ring = np.zeros((540, 960), bool)
+            ring[math.ceil(y0):math.floor(y0 + h), math.ceil(x0):math.floor(x0 + w)] = True
+            inner = ring.copy()
+            inner[2:-2, 2:-2] = ring[4:, 4:] & ring[:-4, :-4]
+            ring &= ~inner  # (the box's edge, two pixels wide, inside it)
+            for t in range(0, 240, 6):
+                self.assertLess(float(drawn(fx, t)[1][ring].max(initial=0.0)), 0.05, (seed, t))
+
+    def test_old_settings_keep_their_birds(self):
+        """A clip saved when "Số chim" was an amount (1.0.87 and before) keeps its birds: as many, the same ones,
+        where they were and doing what they did (its size and depth were saved with it)."""
+        for mode, amount, birds in (("ground", 40, 10), ("ground", 100, 30), ("ledge", 40, 5), ("ground", 0, 1)):
+            p = effects.clean_params("pigeons", {"mode": mode, "amount": amount, "size": 50, "depth": 50})
+            self.assertEqual((p["birds"], p["size"], p["depth"]), (birds, 50, 50), (mode, amount))
+            self.assertNotIn("amount", p)
+        self.assertEqual(effects.clean_params("pigeons", {"birds": 3, "amount": 100})["birds"], 3)
+        old, new = make({"amount": 40, **DAY}, 240), make({"birds": 10, **DAY}, 240)
+        self.assertTrue(np.array_equal(old.u, new.u))
+        self.assertEqual([b[:4] for b in old._ground(50, *old.box())], [b[:4] for b in new._ground(50, *new.box())])
+
     def test_birds_of_the_air_come_down(self):
         """A clip of 1.0.71 flying in a flock or past is a clip on the ground now (the owner only needs them there)."""
         for old in ({"mode": "flock", "way": "left"}, {"mode": "pass"}):
@@ -997,11 +1045,11 @@ class Settings(unittest.TestCase):
         """The flock checkers and dark ones unless another coat is chosen (the owner, 2026-10-25, two of the birds
         shown: "tôi chỉ cần con chim màu này", "và chim màu này"), so many of each however few birds; choosing another
         coat changes their colours only: every bird where it was, doing what it did."""
-        for amount in (12, 30, 60):
-            coats = make({"amount": amount, **DAY}).coats
+        for birds in (2, 4, 7, 16):
+            coats = make({"birds": birds, **DAY}).coats
             dark = sum(c.c["back"][0] < 0.1 for c in coats)
             self.assertTrue(all(c.checker or c.c["back"][0] < 0.1 for c in coats))
-            self.assertLessEqual(abs(dark - 0.4 * len(coats)), 1, (amount, len(coats)))
+            self.assertLessEqual(abs(dark - 0.4 * len(coats)), 1, (birds, len(coats)))
         fx = make(DAY)
         mixed = make({"coat": "mixed", **DAY})
         self.assertGreater(len({(c.checker, c.pied, round(float(c.c["back"][0]), 3)) for c in mixed.coats}), 2)

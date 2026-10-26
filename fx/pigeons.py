@@ -501,7 +501,9 @@ class _Body:
         q = np.einsum("in,kij->jkn", o, rots) - np.einsum("ki,kij->jk", centres, rots)[:, :, None]
         q /= radii.T[:, :, None]
         dd = np.einsum("i,kij->jk", rays.d, rots) / radii.T
-        self.q, self.dd, self.r = q.astype(np.float32), dd[:, :, None].astype(np.float32), radii.T[:, :, None]
+        self.q, self.dd = q.astype(np.float32), dd[:, :, None].astype(np.float32)
+        self.ir = (1.0 / radii.T[:, :, None]).astype(np.float32)  # (each part's radii, inverted: a multiply each)
+        self._idx = self._qi = None  # (the rays last asked about: the same again as the surface is closed in on)
 
         def enter(q, dd):  # (where rays enter and leave each unit sphere: parts x rays, nan where they miss)
             a = (dd * dd).sum(0)[:, None]
@@ -521,24 +523,15 @@ class _Body:
 
     def distance(self, idx, t, shares=False):
         """The smooth body's distance along rays `idx` at distances t (shares=True: also each part's share of it)."""
-        a = self.q[:, :, idx] + t.astype(np.float32)[None, None, :] * self.dd  # (each part's unit sphere)
-        k0 = np.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
-        b = a / self.r
-        each = k0 * (k0 - 1.0) / np.maximum(np.sqrt(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]), 1e-9)
-        d, out = each[0], [np.ones(len(idx))]
-        for k in range(1, len(each)):
-            blend = self.blends[k]
-            h = np.clip(0.5 + 0.5 * (each[k] - d) / blend, 0.0, 1.0)
-            d = each[k] + (d - each[k]) * h - blend * h * (1.0 - h)
-            if shares:
-                out = [s * h for s in out]
-                out.append(1.0 - h)
-        return (d, out) if shares else d
+        if idx is not self._idx:
+            self._idx, self._qi = idx, self.q[:, :, idx]
+        a = self._qi + t.astype(np.float32)[None, None, :] * self.dd  # (each part's unit sphere)
+        return _union(_ellipsoids(a, self.ir), self.blends, shares)
 
     def _refine(self, idx, lo, hi, dlo, dhi, steps):
         """The surface between lo (outside) and hi (inside) along rays idx: false position, kept off the ends."""
         for _ in range(steps):
-            f = np.clip(dlo / np.maximum(dlo - dhi, 1e-12), 0.15, 0.85)
+            f = np.minimum(np.maximum(dlo / np.maximum(dlo - dhi, 1e-12), 0.15), 0.85)
             tm = lo + (hi - lo) * f
             dm = self.distance(idx, tm)
             out = dm > 0
@@ -580,20 +573,48 @@ class _Body:
         return out
 
 
+def _ellipsoids(a, ir):
+    """Each part's signed distance (Inigo Quilez's bound for an ellipsoid) at points `a` in the parts' unit spheres
+    (3 x parts x n, float32; ir: the parts' radii inverted, 3 x parts x 1)."""
+    k0 = np.sqrt(np.einsum("ikn,ikn->kn", a, a))
+    a *= ir
+    k1 = np.sqrt(np.einsum("ikn,ikn->kn", a, a))
+    np.maximum(k1, 1e-9, out=k1)
+    d = k0 - 1.0  # (k0 (k0 - 1) / k1)
+    d *= k0
+    d /= k1
+    return d
+
+
+def _union(each, blends, shares=False):
+    """The parts' distances (parts x n) melted into one smooth body, in order (polynomial smooth minimum, each part's
+    own blend), and with shares=True each part's share of it."""
+    d, out = each[0], [np.ones(each.shape[1], np.float32)]
+    for k in range(1, len(each)):
+        e, blend = each[k], blends[k]
+        diff = d - e
+        h = diff * (-0.5 / blend)
+        h += 0.5
+        np.minimum(np.maximum(h, 0.0, out=h), 1.0, out=h)  # (as e + (d - e) h - blend h (1 - h))
+        d = h * blend
+        d -= blend
+        d += diff
+        d *= h
+        d += e
+        if shares:
+            out = [s * h for s in out]
+            out.append(1.0 - h)
+    return (d, out) if shares else d
+
+
 def _sdf(p, body):
     """The smooth body's distance at points p (n x 3, the bird's frame), as _Body.distance has it along rays."""
-    d = None
-    for (name, c, rot, r), blend in zip(body, [TIGHT.get(part[0], BLEND) for part in body]):
-        a = (((p - c) @ rot) / r).T
-        k0 = np.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
-        b0, b1, b2 = a[0] / r[0], a[1] / r[1], a[2] / r[2]
-        each = k0 * (k0 - 1.0) / np.maximum(np.sqrt(b0 * b0 + b1 * b1 + b2 * b2), 1e-9)
-        if d is None:
-            d = each
-        else:
-            h = np.clip(0.5 + 0.5 * (each - d) / blend, 0.0, 1.0)
-            d = each + (d - each) * h - blend * h * (1.0 - h)
-    return d
+    rots = np.array([part[2] for part in body])
+    radii = np.array([part[3] for part in body])
+    a = (np.einsum("ni,kij->jkn", p, rots) - np.einsum("ki,kij->jk", np.array([part[1] for part in body]), rots)
+         [:, :, None]) / radii.T[:, :, None]
+    return _union(_ellipsoids(a.astype(np.float32), (1.0 / radii.T[:, :, None]).astype(np.float32)),
+                  [TIGHT.get(part[0], BLEND) for part in body])
 
 
 SATIN = 0.0  # (the feathers' broad sheen: none, matte as feathers are; the owner, 2026-10-25: "bớt bóng")
@@ -1991,17 +2012,20 @@ def _along_loop(plan, i, x):
 
 # --- the effect -------------------------------------------------------------------------------------------------------
 
-DEFAULTS = {"mode": "ground", "coat": "checker_dark", "amount": 40, "size": 50, "depth": 50, "view": 40, "shadow": 60,
+DEFAULTS = {"mode": "ground", "coat": "checker_dark", "birds": 4, "size": 82, "depth": 20, "view": 40, "shadow": 60,
             "soft": 30, "busy": 50, "peck": 40, "rest": 30, "court": 25, "speed": 50, "roam": 50, "differ": 60,
-            "lit": 70}
+            "lit": 70}  # (a few birds filling their box, the box their place in the video: the owner, 2026-10-26, "vừa
+# với khung để tôi có thể đặt vào các vị trí trong video", "chỉ cần 3-5 con chim bồ câu")
 
 SCHEMA = {
     "label": "Chim bồ câu",
     "note": "Chim bồ câu vẽ bằng app (không phải ảnh có sẵn): đi lại, gật gù, đứng ngó quanh, thỉnh thoảng cúi xuống "
-            "mổ hạt. (1) Bấm Suốt video. (2) Kéo khung trắng tới chỗ chim đứng (sân, vỉa hè, đường đi), kéo góc cho "
-            "khung phủ chỗ đó: chim chỉ ở trong khung. Đáy khung là gần, đỉnh khung là xa: chim ở xa nhỏ hơn. Trên gờ "
-            "tường, mái nhà: chọn Kiểu Đậu trên gờ, kéo khung cho đáy khung nằm trên gờ. (3) Chỉnh Số chim, Cỡ chim, "
-            "Màu lông; Nhìn từ trên xuống cho hợp góc máy; Độ mềm cho chim mềm như trong ảnh chụp. (4) Chuyển động: "
+            "mổ hạt. Khung trắng là một nhóm chim: chim to vừa khung. (1) Bấm Suốt video. (2) Kéo khung trắng tới "
+            "chỗ chim đứng (sân, vỉa hè, đường đi); kéo góc khung cho chim to nhỏ hợp với cảnh (to như vật bên cạnh): "
+            "chim chỉ ở trong khung. Muốn chim ở nhiều chỗ: thêm hiệu ứng nữa, đặt khung ở chỗ khác. Đáy khung là gần, "
+            "đỉnh khung là xa. Trên gờ tường, mái nhà: chọn Kiểu Đậu trên gờ, kéo khung cho đáy khung nằm trên gờ. "
+            "(3) Chỉnh Số chim (3 đến 5 con là vừa; ít chim thì xem nhanh có sớm hơn), Cỡ chim (so với khung), Màu "
+            "lông; Nhìn từ trên xuống cho hợp góc máy; Độ mềm cho chim mềm như trong ảnh chụp. (4) Chuyển động: "
             "Đi lại nhiều, Mổ hạt, Nằm nghỉ và rỉa lông, Chim trống gù (phồng cổ, xoè đuôi, cúi chào), Tốc độ, Đi "
             "quanh quẩn hay đi khắp khung; Mỗi con một kiểu càng lớn thì mỗi con càng khác: con hay đi, con "
             "hay mổ, con lười nằm nghỉ, con đi nhanh, con đi chậm. Muốn đàn chim làm khác đi: bấm Đổi kiểu ngẫu "
@@ -2016,7 +2040,7 @@ SCHEMA = {
                                                        ("checker", "Xám có đốm"), ("pied", "Loang trắng"),
                                                        ("white", "Bồ câu trắng"), ("brown", "Nâu đỏ"),
                                                        ("dark", "Xám đen")], group="Kiểu"),
-        _num("amount", "Số chim", DEFAULTS["amount"], group="Chim"),
+        _num("birds", "Số chim", DEFAULTS["birds"], 1, 30, group="Chim"),
         _num("size", "Cỡ chim", DEFAULTS["size"], group="Chim"),
         _num("depth", "Gần xa (chim xa nhỏ hơn)", DEFAULTS["depth"], group="Chim"),
         _num("view", "Nhìn từ trên xuống (ngang ← → cao)", DEFAULTS["view"], group="Chim"),
@@ -2030,14 +2054,28 @@ SCHEMA = {
         _num("roam", "Đi quanh quẩn ← → đi khắp khung", DEFAULTS["roam"], group="Chuyển động"),
         _num("differ", "Mỗi con một kiểu (giống nhau ← → khác nhau)", DEFAULTS["differ"], group="Chuyển động"),
         _num("lit", "Sáng theo cảnh", DEFAULTS["lit"], group="Ánh sáng"),
-        *_place(50)]}
+        *_place(35)]}
 
 DAYLIGHT = (np.array([1.15, 1.1, 1.04], np.float32), np.array([0.5, 0.54, 0.6], np.float32))  # key, ambient
 
 
 def count(mode, amount):
-    """How many birds an "amount" (0..100) makes."""
+    """How many birds an "amount" (0..100) made: "Số chim" before it was the number itself (1.0.87 and before)."""
     return int(round(CAP[mode] * (amount / 100) ** 1.2))
+
+
+def upgrade(raw):
+    """Settings saved by an older version: "Số chim" was an amount (0..100), now it is the number of birds."""
+    if not isinstance(raw, dict) or "birds" in raw or "amount" not in raw:
+        return raw
+    try:
+        amount = min(max(float(raw["amount"]), 0.0), 100.0)
+    except (TypeError, ValueError, OverflowError):
+        amount = 40.0
+    amount = 40.0 if amount != amount else amount
+    out = {k: v for k, v in raw.items() if k != "amount"}
+    out["birds"] = max(1, count(raw.get("mode") if raw.get("mode") in CAP else "ground", amount))
+    return out
 
 
 class Pigeons(Effect):
@@ -2059,13 +2097,14 @@ class Pigeons(Effect):
     # chose it)
     light_at = staticmethod(steam.light_at)
     rounded_light = staticmethod(steam.rounded_light)
+    upgrade = staticmethod(upgrade)
 
     def __init__(self, *a, light=None):
         super().__init__(*a)
         p = self.p
         self.mode = p["mode"] if p["mode"] in CAP else "ground"
         rng = np.random.default_rng([self.seed, 4407])
-        n = count(self.mode, p["amount"])
+        n = min(int(p["birds"]), CAP[self.mode])
         self.size = SMALLEST * (LARGEST / SMALLEST) ** (p["size"] / 100)  # (a bird's length, box heights, nearest)
         self.rw, self.rh = REF * self.BOX[0] / self.BOX[1], REF  # (the flock laid out in a box this size, whatever
         # size it is drawn at: the same birds in the same places doing the same, in the preview clip and the video)
@@ -2273,7 +2312,7 @@ class Pigeons(Effect):
         again, at most DROPS times over), their homes. Kept for the next clip with the same birds (_PLANS): a big
         flock takes a while."""
         key = (self.seed, self.P, self.fps, round(w, 3), round(h, 3),
-               tuple((k, self.p.get(k)) for k in ("mode", "amount", "size", "depth", "view", "busy", "peck", "rest",
+               tuple((k, self.p.get(k)) for k in ("mode", "birds", "size", "depth", "view", "busy", "peck", "rest",
                                                    "court", "speed", "roam", "differ")))
         with _PLANS_LOCK:
             made = _PLANS.pop(key, None) or self._lay_out(w, h)

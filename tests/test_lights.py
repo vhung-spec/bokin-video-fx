@@ -105,7 +105,9 @@ class Lights(unittest.TestCase):
         self.assertEqual(engine.fx_clip_frame(info, "lights"), (640, 640))
         project = {"video": info, "length": 30}
         a = engine.fx_clip_name(project, {"kind": "lights", "params": {"scale": 50, "x": 10}})
-        self.assertEqual(a, engine.fx_clip_name(project, {"kind": "lights", "params": {"scale": 20, "y": -30}}))
+        self.assertEqual(a, engine.fx_clip_name(project, {"kind": "lights", "params": {"scale": 45, "y": -30}}))
+        # (sized across a step: a clip of another size, engine.SNUG)
+        self.assertNotEqual(a, engine.fx_clip_name(project, {"kind": "lights", "params": {"scale": 20, "y": -30}}))
         self.assertTrue(a.endswith(".mp4"))  # (light on black, laid with Screen)
 
     def test_only_their_light(self):
@@ -116,11 +118,13 @@ class Lights(unittest.TestCase):
         self.assertLess(float(b.max()), 0.85 * float(a.max()))
 
     def test_big_box_sharper_clip(self):
-        """A big box of small bulbs (a tree filling the picture): a preview clip PREVIEW high (tiny bulbs blur at 640),
-        at two sizes only (sizing the box does not make it again and again)."""
+        """A big box of small bulbs (a tree filling the picture): a preview clip PREVIEW high (tiny bulbs blur at 640);
+        a smaller one no sharper than the box is in the copy of the video the page plays, a step up (sizing the box
+        does not make it again and again)."""
         info = {"w": 1920, "h": 1080, "fps": 24, "frames": 144}
         size = lambda scale: engine.fx_clip_frame(info, "lights", {"kind": "lights", "params": {"scale": scale}})
-        self.assertEqual(size(60), (640, 640))
+        self.assertEqual(size(60), (480, 480))
+        self.assertEqual(size(66), (480, 480))
         self.assertEqual(size(100), (1280, 1280))
         self.assertEqual(size(177.8), (1280, 1280))
         self.assertEqual(engine.fx_clip_frame(info, "steam", {"kind": "steam", "params": {"scale": 177.8}}),

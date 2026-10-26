@@ -109,6 +109,10 @@ Máy của chủ dự án: mở Key Center trên máy đó và cấp key cho ch�
 
 Kéo đường kẻ giữa các vùng để đổi cỡ.
 
+Thêm hiệu ứng hay đổi thông số, app cần một lúc để chuẩn bị bản xem nhanh (dòng "Đang chuẩn bị xem nhanh" ở trên
+cùng); trong lúc đó bản cũ vẫn phát. Hiệu ứng đặt ở một chỗ (khói, nến, lò sưởi, dây đèn, đom đóm, chim bồ câu): bản
+xem nhanh chỉ nét bằng video trên trang (không hơn), nên khung càng nhỏ càng có sớm.
+
 ## Cách dùng
 
 1. **Mở video**: bấm **+ Video mới…** hoặc kéo file video vào màn hình. Thường là video loop 6 giây (1920×1080).
@@ -403,18 +407,23 @@ xám đen. Đuôi xoè mỏng, dải cuối đuôi xám đậm. Chim đi chậm 
 Chim không đi xuyên qua nhau, không dính chồng lên nhau: mỗi con đứng chỗ ít gặp con khác, gặp nhau thì con đang đi
 tránh sang bên (con đang đứng không bị trượt), trên gờ mỗi con đi qua lại trên một đoạn riêng.
 
+Khung trắng là chỗ đặt một nhóm chim: khi thêm, có 4 con, chim to vừa khung (con gần nhất cao khoảng một phần ba
+khung). Kéo khung tới đâu chim ở đó, kéo góc khung thì chim to nhỏ theo khung. **Số chim** là số con (1 đến 30;
+clip làm bằng bản cũ giữ đúng số chim của nó). Ít chim, khung nhỏ thì bản xem nhanh có sớm hơn.
+
 1. Bấm **Tạo sẵn** → **Chim bồ câu**, kéo xuống một track trống, bấm **Suốt video**.
 2. Chọn **Kiểu**, rồi kéo khung trắng tới chỗ chim. Chim chỉ ở trong khung.
-   - **Đi lại, mổ hạt trên mặt đất**: kéo khung tới sân, vỉa hè, quảng trường, kéo góc cho khung phủ chỗ chim đi. Đáy
-     khung là chỗ gần máy quay, đỉnh khung là chỗ xa: chim ở xa nhỏ hơn.
+   - **Đi lại, mổ hạt trên mặt đất**: kéo khung tới sân, vỉa hè, quảng trường. Kéo góc khung cho chim to nhỏ hợp với
+     cảnh: con chim to cỡ vật bên cạnh (bồ câu dài cỡ một quả bí ngô). Đáy khung là chỗ gần máy quay, đỉnh khung là chỗ
+     xa: chim ở xa nhỏ hơn một chút.
    - **Đậu trên gờ tường, mái nhà**: kéo khung cho **đáy khung nằm trên gờ**. Chim đứng trên đáy khung, đi qua đi
      lại dọc gờ.
 3. Chọn **Màu lông**: **Xám có đốm và xám đen** (có sẵn khi thêm chim), **Nhiều màu như đàn chim phố**, **Xám xanh (bồ
    câu thường)**, **Xám có đốm**, **Loang trắng**, **Bồ câu trắng**, **Nâu đỏ**, **Xám đen** (chọn một màu: cả đàn màu
-   đó). Đổi màu lông thì chim vẫn ở đúng chỗ, đi y như trước, chỉ đổi màu. Chỉnh **Số chim**, **Cỡ chim** (chim ở đáy
-   khung, so với chiều cao khung; kéo hết sang phải: chim dài bằng nửa chiều cao khung, như chim ngay trước máy quay),
-   **Gần xa** (chim xa nhỏ đi bao nhiêu). Chim to mà nhiều quá thì khung không đủ chỗ cho chừng ấy chim: app bớt chim
-   cho chim không chen vào nhau (muốn nhiều chim hơn: kéo khung to ra hoặc giảm **Cỡ chim**).
+   đó). Đổi màu lông thì chim vẫn ở đúng chỗ, đi y như trước, chỉ đổi màu. Chỉnh **Số chim** (3 đến 5 con là vừa; ít
+   chim thì bản xem nhanh có sớm hơn), **Cỡ chim** (chim ở đáy khung, so với chiều cao khung; kéo hết sang phải: chim
+   dài bằng nửa chiều cao khung), **Gần xa** (chim xa nhỏ đi bao nhiêu). Chim to mà nhiều quá thì khung không đủ chỗ
+   cho chừng ấy chim: app bớt chim cho chim không chen vào nhau (muốn nhiều chim hơn: giảm **Cỡ chim**).
 4. **Nhìn từ trên xuống** cho hợp góc máy (máy quay thấp, ngang tầm chim: kéo về trái; nhìn từ trên cao: kéo sang
    phải), **Bóng dưới chân**, **Độ mềm** (kéo sang phải: chim mềm như trong ảnh chụp, hợp với video hơi nhoè; kéo về
    trái: nét).
