@@ -114,8 +114,8 @@ def periodic_checks():
             if not check(f"{kind} {extra or ''} returns to frame 0 after one loop", diff < 1 / 512, f"max diff {diff:.6f}"):
                 return
     picture = Image.fromarray((scene * 255 + 0.5).astype(np.uint8))
-    for kind in ("snow", "rain", "glass", "steam", "frost", "lights"):  # placed and turned in 3D: drawn on a sheet,
-        # warped onto the frame
+    for kind in ("snow", "rain", "glass", "steam", "frost", "lights", "hearth"):  # placed and turned in 3D: drawn on
+        # a sheet, warped onto the frame (a fireplace's fire: its change a layer laid on the frame)
         fx = sheet.Sheet(kind, {"rot_x": 20, "rot_y": -30, "rot_z": 8, "persp": 60, "scale": 70}, 5, P, FPS, 640, 360,
                          light=light)
         a, b = (np.asarray(fx.draw(t, picture.copy())).astype(int) for t in (0, P))

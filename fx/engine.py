@@ -644,6 +644,9 @@ def _under_key(project, layer):
     w, h = info["w"], info["h"]
     if effects.KINDS[layer["kind"]].BOX:
         x0, y0, bw, bh = effects.box_of(layer["kind"], layer.get("params"), w, h)
+        if effects.on_sheet(layer["kind"], layer.get("params")):  # (turned: what its quad covers)
+            xs, ys = zip(*effects.quad(layer["kind"], layer.get("params"), w, h))
+            x0, y0, bw, bh = min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
     else:  # its own area (the page lays the clip's area and the foreground over it, as over any clip)
         area = _area_painted(folder, layer["id"])
         if area is None:
@@ -845,6 +848,18 @@ def _area_part(project, layer, total, folder, start, end, path):
             under.close()
 
 
+def upright_under(kind, params, rect, w, h, size):
+    """A placed effect turned in 3D: Pillow PERSPECTIVE coefficients that bring the picture under its quad upright
+    onto its preview clip (`size`: cw, ch; the page lays the clip with the same turn: overlay.homography); None when
+    it is not turned."""
+    if not effects.on_sheet(kind, params):
+        return None
+    (cw, ch), (bw, bh) = size, rect[2:]
+    hm = overlay.homography(effects.clean_params(kind, params), rect, w, h)[0]
+    g = hm @ np.array([[bw / cw, 0.0, 0.0], [0.0, bh / ch, 0.0], [0.0, 0.0, 1.0]])
+    return tuple(float(v) for v in (g / g[2, 2]).flatten()[:8])
+
+
 def _under_part(project, layer, total, folder, start, end, path):
     """fx_part of an effect made from the picture under its box (Effect.UNDER): the video and its still area there,
     the box alone applied to it; only its change is kept (change_rgba), fading out toward the box's edges, so it
@@ -858,6 +873,7 @@ def _under_part(project, layer, total, folder, start, end, path):
     cw, ch = fx_clip_frame(info, kind, layer)
     x0, y0, bw, bh = effects.make(kind, layer.get("params"), seed, total, fps, w, h).box()
     alone = effects.make(kind, fx_clip_params(kind, layer.get("params")), seed, total, fps, cw, ch)
+    back = upright_under(kind, layer.get("params"), (x0, y0, bw, bh), w, h, (cw, ch))
     yy, xx = np.mgrid[0:ch, 0:cw].astype(np.float32)
     edge = np.minimum(np.minimum(xx + 0.5, cw - 0.5 - xx), np.minimum(yy + 0.5, ch - 0.5 - yy))
     fade = np.clip(edge / max(2.0, effects.KINDS[kind].UNDER_FADE * min(cw, ch)), 0.0, 1.0)
@@ -871,7 +887,9 @@ def _under_part(project, layer, total, folder, start, end, path):
                 writer.abort()
                 return False
             img = under.image(t, base)
-            if inside:
+            if back is not None:
+                img = img.transform((cw, ch), Image.Transform.PERSPECTIVE, back, Image.Resampling.BICUBIC)
+            elif inside:
                 img = img.resize((cw, ch), Image.Resampling.BICUBIC, box=(x0, y0, x0 + bw, y0 + bh))
             else:  # partly outside the frame (black there)
                 img = img.crop((math.floor(x0), math.floor(y0), math.ceil(x0 + bw), math.ceil(y0 + bh))).resize(

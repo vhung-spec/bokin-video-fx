@@ -22,13 +22,17 @@ glow blended, then coloured), so frame P is frame 0 again.
 Colour: a real fire's colours by brightness (measured from footage of a wood fire: dark red where faint, orange-red,
 orange, yellow, white-yellow where it burns hottest), a glow round the flames as a camera sees it, laid with Screen.
 """
+import hashlib
+import json
 import math
+import os
+import secrets
 import threading
 
 import numpy as np
 from PIL import Image
 
-from . import firebox, logs
+from . import firebox, logs, paths
 from .effects import Effect, _choice, _lerp, _num, _place, blur
 
 TAU = 2 * math.pi
@@ -43,6 +47,9 @@ KNEE = 1.5  # (and their brightest parts held back softly under this: yellow hea
 STORE = 3.0  # (the glow is kept as 8 bits: its square root, up to this)
 LEVEL = 0.155  # a middling fire's mean glow (a bigger fire throws more light on the room)
 KEEP = 240e6  # bytes of fires kept for later (the newest)
+ON_DISK = 6  # fires kept on disk (paths.cache_dir; the newest): one is made once, then read by every process that
+# needs it (the pieces of a preview clip or an export, the exact frame) and by later clips with the same fire
+FIRE_V = 1  # (raised when the simulation makes another fire: the fires kept on disk are not read)
 HALO = 0.18  # the glow round the flames (a camera's), as bright as the flames blurred times this
 HALO_R = 0.07  # (its blur: box heights)
 # the flames' light on the firebox: their glow (as bright as they are drawn) spread as a fire's light falls off (a
@@ -108,9 +115,10 @@ SCHEMA = {
             "lò), lửa bốc lên từ trên đống củi, than hồng trong vết nứt; chỉnh Cách xếp, Khúc củi to, Cháy sém, Nhìn "
             "từ trên xuống cho hợp góc máy. Bên trong lò tối, không rõ tường: chọn Tường lò (gạch chịu lửa, xếp xương "
             "cá, gạch đỏ): app vẽ tường sau, hai tường bên và sàn lò trong miệng lò, gạch sáng lên theo ánh lửa, muội "
-            "khói đen phía trên; chỉnh Lò sâu, Viên gạch to, Ám khói đen, Nhìn từ trên xuống. Lửa không xoay 3D: lửa "
-            "luôn bốc thẳng lên. Mỗi lần đổi Ngọn lửa cao, Lửa dày, Bập bùng, Tốc độ (và cỡ, cách xếp củi), app tính "
-            "lại lửa từ đầu: dừng hình lần đầu có thể chờ vài giây.",
+            "khói đen phía trên; chỉnh Lò sâu, Viên gạch to, Ám khói đen, Nhìn từ trên xuống. Lò sưởi nhìn nghiêng "
+            "(ở tường bên, máy quay thấp hay cao): kéo nút 3D cạnh khung (hoặc các thanh Xoay 3D) cho khung nằm "
+            "nghiêng theo mặt lò sưởi; lửa vẫn bốc thẳng lên theo mặt lò. Mỗi lần đổi Ngọn lửa cao, Lửa dày, Bập "
+            "bùng, Tốc độ (và cỡ, cách xếp củi), app tính lại lửa từ đầu: dừng hình lần đầu có thể chờ vài giây.",
     # for the page: where the fire burns, a flat ellipse sitting on the middle of the box's bottom edge, as wide as
     # "bed" (% of the box's width)
     "mark": {"width": "bed", "ratio": MARK, "sits": True, "label": "chỗ lửa cháy (mặt củi)",
@@ -370,6 +378,45 @@ class _Fire:
         self.made = 0
         self.fluid = None
         self.lock = threading.Lock()
+        key = json.dumps([FIRE_V, sorted(k.items()), int(seed), self.P, round(float(fps), 6)])
+        self.file = "fire-" + hashlib.sha1(key.encode()).hexdigest()[:16] + ".npz"
+        self._read()
+
+    def _read(self):
+        """The whole fire, if made before and kept on disk."""
+        path = os.path.join(paths.cache_dir(), self.file)
+        try:
+            with np.load(path) as kept:
+                if kept["kept"].shape != self.kept.shape or kept["level"].shape != self.level.shape:
+                    return
+                self.kept[:], self.level[:], self.mean = kept["kept"], kept["level"], float(kept["mean"])
+            self.made = len(self.kept)
+            os.utime(path)  # (used now: the last kept)
+        except (OSError, KeyError, ValueError, EOFError):  # (none yet, or not readable: made here)
+            pass
+
+    def _write(self):
+        """The whole fire kept on disk (written whole under another name first: a half-written one is never read),
+        and only the ON_DISK used last."""
+        folder = paths.cache_dir()
+        tmp = os.path.join(folder, f"{self.file}.{secrets.token_hex(3)}.part")
+        try:
+            with open(tmp, "wb") as f:
+                np.savez_compressed(f, kept=self.kept, level=self.level, mean=np.float64(self.mean))
+            os.replace(tmp, os.path.join(folder, self.file))
+        except OSError:  # (a full disk, or another process reading it as it is replaced: only slower next time)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            return
+        try:
+            fires = sorted((e for e in os.scandir(folder) if e.name.startswith("fire-") and e.name.endswith(".npz")),
+                           key=lambda e: e.stat().st_mtime, reverse=True)
+            for old in fires[ON_DISK:]:
+                os.remove(old.path)
+        except OSError:  # (one another process is reading: removed later)
+            pass
 
     def _make(self, upto):
         """Frames made until index `upto` (frame upto - join) is."""
@@ -393,8 +440,9 @@ class _Fire:
             self.kept[self.made] = np.sqrt(np.minimum(g, STORE) * (1 / STORE)) * 255.0 + 0.5
             self.level[self.made] = float(g.mean())
             self.made += 1
-        if self.made == len(self.kept):
+        if self.made == len(self.kept) and self.fluid is not None:
             self.fluid = None  # (all made: its fields are not needed any more)
+            self._write()
 
     def _glow(self, i):
         g = self.kept[i].astype(np.float32) * (1 / 255.0)
@@ -417,6 +465,16 @@ class _Fire:
                 g += w * g0
                 level += w * (l0 - level)
         return g, level
+
+
+def kept_of(before, after):
+    """How much of each pixel a change keeps (0..1): the least for which `after` is `before` * kept + a colour laid
+    over it at 1 - kept (Normal), every channel (both float RGB, 0..1). The change of a turned lens is that layer,
+    warped onto the frame (sheet.Sheet): where nothing changes, 1 (the frame's pixels stay as they are)."""
+    d = np.clip(after, 0.0, 1.0) - before
+    with np.errstate(divide="ignore", invalid="ignore"):
+        need = np.where(d > 0, d / np.maximum(1.0 - before, 1e-4), -d / np.maximum(before, 1e-4))
+    return 1.0 - np.clip(need.max(axis=-1), 0.0, 1.0)
 
 
 _FIRES = {}  # (what a fire is made of, its seed, its loop) -> _Fire, the newest last
@@ -443,7 +501,10 @@ class Hearth(Effect):
     lens = True
     UNDER = True  # its preview clip: the picture under the box with the fire in it (the old fire dimmed: "cover")
     UNDER_FADE = 0.0  # (its change already fades out toward the box's edges; its logs stand on its bottom edge)
-    TURNS = False  # a fire always rises straight up
+    # turned in 3D as a file clip is, to sit in a fireplace seen from one side or from below (the owner, 2026-10-26:
+    # "hiệu ứng lò sưởi cần thêm di chuyển 3D để phù hợp với các lò sưởi của tôi"): drawn upright on its sheet,
+    # warped with it (sheet.Sheet), its change a layer over the frame (apply's kept)
+    TURNS = True
     VERSION = 5  # (2: logs burnt where the fire reaches them, glowing red; fuller flames; 3: the firebox lit by the
     # flames, the logs on a bed of glowing coals, brighter flames; 4: the firebox's walls drawn, if chosen; 5: split
     # firewood come to rest on each other, flames from the top of the pile, crisper flames, patchier embers)
@@ -840,13 +901,23 @@ class Hearth(Effect):
 
     def apply(self, t, picture, mask, gain, kept=None):
         """The fire on `picture` (float32 RGB 0..1, changed in place) in its box, `gain` (0..1, a fade) times as
-        strongly, where `mask` (0..1, the clip's area; None: everywhere) says."""
+        strongly, where `mask` (0..1, the clip's area; None: everywhere) says. Turned (on a sheet): `kept` says how
+        much of each pixel it keeps (the least that makes its change a layer laid over the picture: kept_of())."""
         if gain <= 0:
             return
         x0, y0, w, h = self.box()
         r = self._rect(x0, y0, x0 + w, y0 + h)
         if r is None:
             return
+        rx0, ry0, rx1, ry1 = r
+        if kept is not None:
+            before = picture[ry0:ry1, rx0:rx1].copy()
+            self._apply(t, picture, mask, gain, r, x0, y0, w, h)
+            kept[ry0:ry1, rx0:rx1] = kept_of(before, picture[ry0:ry1, rx0:rx1])
+            return
+        self._apply(t, picture, mask, gain, r, x0, y0, w, h)
+
+    def _apply(self, t, picture, mask, gain, r, x0, y0, w, h):
         rx0, ry0, rx1, ry1 = r
         lay = self._layout(r, x0, y0, w, h)
         src, size = lay["src"], lay["size"]

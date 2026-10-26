@@ -474,7 +474,7 @@ class Handler(BaseHTTPRequestHandler):
             at = None  # where a clip made from the picture under its box was made for (it shows only there)
             if effects.KINDS[layer["kind"]].UNDER and effects.KINDS[layer["kind"]].BOX:  # (under an area: anywhere)
                 p = effects.clean_params(layer["kind"], layer.get("params"))
-                at = [p["x"], p["y"], p["scale"]]
+                at = [p["x"], p["y"], p["scale"]] + [p.get(k, 0) for k in effects.TURN_KEYS]  # (and its turn)
             if os.path.exists(os.path.join(projects.folder(project["id"]), "clips", name)):
                 return self.send(200, {"name": name, "ready": True, "length": length, "at": at})
             wanted = {engine.fx_clip_name(project, lay) for lay in project["layers"] if lay["kind"] != "file"}

@@ -59,6 +59,13 @@ def updates_dir():
     return os.path.join(data_dir(), "updates")
 
 
+def cache_dir():
+    """Things made once and kept to be read again rather than made again (a fireplace's simulated fire)."""
+    path = os.path.join(data_dir(), "cache")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def out_dir():
     path = os.environ.get("BOKIN_FX_OUT") or os.path.join(os.path.expanduser("~"), "Videos", "Bokin FX")
     os.makedirs(path, exist_ok=True)

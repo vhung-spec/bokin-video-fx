@@ -37,7 +37,8 @@ def box_of(fx):
 
 
 def _glow_elsewhere(k, seed, frames, fps, t):
-    """(In another process) the glow of a fire at frame t."""
+    """(In another process) the glow of a fire at frame t, made there (not read from the fires kept on disk)."""
+    hearth._Fire._read = lambda self: None
     return hearth._Fire(k, seed, frames, fps).frame(t)[0].tobytes()
 
 
@@ -97,6 +98,39 @@ class Loop(unittest.TestCase):
         self.assertIsNot(make({"height": 70}).frames(), a)
         self.assertIsNot(make({}, seed=4).frames(), a)
         self.assertIsNot(make({}, 120).frames(), a)
+
+    def test_kept_on_disk(self):
+        """A fire made whole is kept on disk: another process (a piece of a preview clip or of the video, the exact
+        frame, a later clip with the same flames) reads it rather than make it again, the same to the byte; another
+        fire is made; only the ON_DISK used last stay."""
+        import os
+        import time
+        from fx import paths
+        folder = paths.cache_dir()
+        for e in os.scandir(folder):
+            if e.name.startswith("fire-"):
+                os.remove(e.path)
+        k = dict(make({}).k, pace=1.3)  # (a fire no other test makes)
+        made = hearth._Fire(k, 7, 48, 24.0)
+        whole = [made.frame(t) for t in range(48)]
+        self.assertTrue(os.path.exists(os.path.join(folder, made.file)))
+        read = hearth._Fire(k, 7, 48, 24.0)
+        self.assertEqual((read.made, read.fluid, read.mean), (len(read.kept), None, made.mean))  # (nothing to make)
+        for t in (0, 20, 47):
+            glow, level = read.frame(t)
+            self.assertEqual((glow.tobytes(), level), (whole[t][0].tobytes(), whole[t][1]), t)
+        self.assertEqual(hearth._Fire(k, 8, 48, 24.0).made, 0)  # (another seed: another fire)
+        long_ago = time.time() - 3600
+        for i in range(hearth.ON_DISK + 2):
+            old = os.path.join(folder, f"fire-old{i}.npz")
+            with open(old, "wb") as f:
+                f.write(b"old")
+            os.utime(old, (long_ago + i, long_ago + i))
+        made._write()
+        kept = sorted(e.name for e in os.scandir(folder) if e.name.startswith("fire-"))
+        self.assertEqual(len(kept), hearth.ON_DISK)
+        self.assertIn(made.file, kept)
+        self.assertNotIn("fire-old0.npz", kept)
 
     def test_the_same_fire_in_another_process(self):
         """A video is made in pieces in several processes: each makes the fire from its start, and the same."""
@@ -810,16 +844,77 @@ class Preview(unittest.TestCase):
 
     def test_a_lens_from_the_picture_under_its_box(self):
         cls = hearth.Hearth
-        self.assertEqual((cls.blend, cls.lens, cls.UNDER, cls.TURNS, cls.BOX), ("screen", True, True, False, (4, 3)))
+        self.assertEqual((cls.blend, cls.lens, cls.UNDER, cls.TURNS, cls.BOX), ("screen", True, True, True, (4, 3)))
         info = {"w": 1920, "h": 1080, "fps": "24", "frames": 144, "seconds": 6.0}
         project = {"video": info, "length": 30}
         a = engine.fx_clip_name(project, {"kind": "hearth", "params": {}})
         self.assertTrue(a.endswith(".webm"))
         self.assertNotEqual(a, engine.fx_clip_name(project, {"kind": "hearth", "params": {"x": 5}}))
         self.assertNotEqual(a, engine.fx_clip_name(project, {"kind": "hearth", "params": {"height": 60}}))
+        self.assertNotEqual(a, engine.fx_clip_name(project, {"kind": "hearth", "params": {"rot_y": 30}}))  # (made
+        # from the picture under its turned quad)
         w, h = engine.fx_clip_frame(info, "hearth", {"kind": "hearth", "params": {"scale": 20}})
         self.assertAlmostEqual(w / h, 4 / 3, places=1)
         self.assertLessEqual(h, 1080 * 0.2 + 2)  # (no bigger than the box is in the video)
+
+
+class Turned(unittest.TestCase):
+    """Turned in 3D as a file clip is, to sit in a fireplace seen from one side or from below (the owner, 2026-10-26:
+    "hiệu ứng lò sưởi cần thêm di chuyển 3D để phù hợp với các lò sưởi của tôi"): drawn upright on its sheet and
+    warped with it (sheet.Sheet); its change a layer laid over the frame, whose own pixels stay everywhere else."""
+    TURN = {"rot_y": 35, "rot_x": -8, "persp": 60}
+
+    def test_in_its_quad(self):
+        from PIL import Image, ImageDraw, ImageFilter
+        from fx import sheet
+        img = Image.fromarray((ROOM * 255 + 0.5).astype(np.uint8))
+        for params in ({}, {"wood": "oak", "frame": "arch"}, {"walls": "firebrick", "rot_z": 6}):
+            p = {**AT, "scale": 60, **self.TURN, **params}
+            self.assertTrue(effects.on_sheet("hearth", p))
+            fx = sheet.Sheet("hearth", p, 3, 96, 24, W, H)
+            a = np.asarray(fx.draw(0, img.copy())).astype(int)
+            b = np.asarray(fx.draw(96, img.copy())).astype(int)
+            self.assertEqual(int(np.abs(a - b).max()), 0, params)  # (frame P is frame 0)
+            quad = Image.new("L", (W, H), 0)
+            ImageDraw.Draw(quad).polygon(effects.quad("hearth", p, W, H), fill=255)
+            near = np.asarray(quad.filter(ImageFilter.MaxFilter(5))) > 0
+            changed = np.abs(a - np.asarray(img).astype(int)).max(axis=2) > 0
+            self.assertFalse((changed & ~near).any(), params)
+            inside = np.asarray(quad) > 0
+            self.assertGreater(int((changed & inside).sum()), 0.3 * int(inside.sum()), params)
+
+    def test_its_change_a_layer(self):
+        """Turned, it says how much of each pixel it keeps (kept): its change is exactly a colour laid over the
+        picture at 1 - kept (what the sheet warps onto the frame), everything kept where nothing changes; the picture
+        it makes is the same as upright."""
+        for params in ({"wood": "oak"}, {"walls": "herring", "frame": "rect", "cover": 80}):
+            fx = make(params)
+            for t in (0, 33):
+                plain, pic = lens(fx, t), ROOM.copy()
+                kept = np.ones(ROOM.shape[:2], np.float32)
+                fx.apply(t, pic, None, 1.0, kept)
+                self.assertTrue(np.array_equal(plain, pic), (params, t))
+                added = pic - ROOM * kept[..., None]
+                self.assertGreaterEqual(float(added.min()), -1e-5, (params, t))
+                self.assertLessEqual(float((added - (1 - kept)[..., None]).max()), 1e-5, (params, t))
+                self.assertTrue(np.all(kept[np.abs(pic - ROOM).max(axis=2) == 0] == 1.0), (params, t))
+                self.assertLess(float(kept.min()), 0.5, (params, t))
+
+    def test_preview_clip_from_under_its_quad(self):
+        """Its preview clip is the picture under its turned quad brought upright (the page lays it with the same
+        turn): the clip's corners land on the quad's."""
+        info = {"w": 1920, "h": 1080}
+        p = {**AT, "scale": 40, **self.TURN}
+        layer = {"kind": "hearth", "params": p}
+        cw, ch = engine.fx_clip_frame(info, "hearth", layer)
+        rect = effects.box_of("hearth", p, 1920, 1080)
+        back = engine.upright_under("hearth", p, rect, 1920, 1080, (cw, ch))
+        a, b, c, d, e, f, g, h = back
+        got = [((a * x + b * y + c) / (g * x + h * y + 1), (d * x + e * y + f) / (g * x + h * y + 1))
+               for x, y in ((0, 0), (cw, 0), (cw, ch), (0, ch))]
+        for (gx, gy), (qx, qy) in zip(got, effects.quad("hearth", p, 1920, 1080)):
+            self.assertLess(math.hypot(gx - qx, gy - qy), 1e-6)
+        self.assertIsNone(engine.upright_under("hearth", {**AT, "scale": 40}, rect, 1920, 1080, (cw, ch)))
 
 
 class Settings(unittest.TestCase):
@@ -830,7 +925,8 @@ class Settings(unittest.TestCase):
             self.assertTrue(p.get("group") and p["label"], p["key"])
         for k in ("look", "bed", "height", "cover", "x", "y", "scale"):
             self.assertIn(k, keys)
-        self.assertFalse(set(overlay.ROTATIONS) & set(keys))  # (a fire rises straight up: no turn)
+        self.assertFalse(set(overlay.ROTATIONS) & set(keys))  # (its own settings; turned as a file clip is:)
+        self.assertTrue(set(overlay.ROTATIONS) <= {p["key"] for p in effects.SCHEMA["hearth"]["params"]})
         self.assertTrue(hearth.SCHEMA["note"])
 
     def test_looks(self):

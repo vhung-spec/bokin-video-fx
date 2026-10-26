@@ -198,7 +198,7 @@ hiệu ứng. Cách dùng: `README.md`.
   không còn trong danh sách kiểu khói: clip cũ thành clip `chimney` (`steam.moved`, `chimney.from_steam`: một ống khói
   ở chỗ hình bầu dục cũ trên khung, cả khi đã xoay 3D; "Khói bay cao" theo `rim` cũ).
 - Lửa lò sưởi (`fx/hearth.py`, mã loại `hearth`, từ 1.0.67): hiệu ứng đặt một chỗ như nến (`BOX` 4:3, lens, `UNDER`:
-  clip xem nhanh là hình dưới hộp có lửa, không xoay). Hình bầu dục `mark` ở đáy hộp (thông số `bed`) là mặt củi. Ngọn
+  clip xem nhanh là hình dưới hộp có lửa; xoay 3D từ 2026-10-26: xem cuối mục Tường lò). Hình bầu dục `mark` ở đáy hộp (thông số `bed`) là mặt củi. Ngọn
   lửa là mô phỏng chất lưu nhỏ (stable fluids) trên lưới riêng của hộp (`GRID` 192x144, `_Fluid`: nhiên liệu nạp ở vài
   chỗ cháy trong hình bầu dục, mỗi chỗ cháy to nhỏ theo nhịp riêng, cháy thành nhiệt (bốc lên) và ánh lửa (mờ nhanh),
   xoáy giữ bằng vorticity confinement, áp suất Jacobi trên dải ô liền (`_project`), ánh lửa và nhiên liệu chở bằng
@@ -287,6 +287,18 @@ hiệu ứng. Cách dùng: `README.md`.
   không dùng `_light` (ánh lửa trên hình); lớp than dưới củi sáng theo ánh lửa của tường. Không chọn Khung lò: tường
   tới sát mép khung trắng, mép gọn (`_opening(..., whole)`). Không làm lại lửa; mỗi khung không chậm hơn (bỏ `_light`),
   đặt chỗ mới tính lại khoảng 1 giây. `VERSION` 4. Test: `Walls` trong `tests/test_hearth.py`.
+  Lửa lò sưởi xoay 3D (chủ yêu cầu 2026-10-26, kèm ảnh lò sưởi đá ở tường bên, nhìn chếch: "hiệu ứng lò sưởi cần thêm
+  di chuyển 3D để phù hợp với các lò sưởi của tôi"): `TURNS` như clip file (`rot_x`, `rot_y`, `rot_z`, `persp`;
+  `sheet.Sheet`: vẽ thẳng trên tấm rồi nắn, lửa bốc thẳng lên theo mặt lò). Lens xoay được: `apply(..., kept)` báo phần
+  giữ lại của mỗi điểm ảnh, ít nhất để phần đổi là đúng một lớp đặt Normal (`kept_of`); không xoay: đường cũ. Clip xem
+  nhanh làm từ hình dưới tứ giác đưa về thẳng (`engine.upright_under`), trang đặt bằng `turnCSS` trong `underBox`; tên
+  clip, `at` của server và `placeOf` của trang có cả góc xoay (`effects.TURN_KEYS`: clip làm cho góc khác thì ẩn);
+  `_under_key` theo hộp quanh tứ giác; ô cam Khung lò kéo qua phép xoay ngược (`boxPoint`, `inv3`). Lửa giữ trên đĩa
+  (`_Fire._read`, `_write`: `paths.cache_dir()`, `ON_DISK` 6 lửa dùng gần nhất, `FIRE_V`; ghi file tạm rồi đổi tên):
+  lửa tính xong một lần, tiến trình khác (các đoạn xem nhanh, xuất video, khung chính xác) và clip sau cùng lửa đọc lại
+  thay vì tính lại (đổi màu, ánh lửa, củi, tường, khung, chỗ đặt, góc xoay: không tính lửa). Test: `Turned`,
+  `test_kept_on_disk` (tiến trình khác vẫn tự tính lửa trong `test_the_same_fire_in_another_process`); trang: bước
+  `hearth` (góc trang với Python, `boxPoint`).
 - Đom đóm (`fx/fireflies.py`, mã loại `fireflies`, từ 1.0.68): hiệu ứng đặt một chỗ (`BOX` 16:9: khung trên khóm
   hoa và khoảng trời phía trên), ánh sáng (Screen: clip xem nhanh H.264 nền đen, `PREVIEW` 1280 khi khung to), không
   xoay. Mỗi con một chỗ ở trong khung, bay lượn bằng ba vòng sin mỗi chiều (số nguyên vòng mỗi loop: `where()`), nháy

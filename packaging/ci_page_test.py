@@ -920,10 +920,11 @@ def chimneys(page, shot):
 
 def hearth(page, shot):
     """Lửa lò sưởi: a box on the picture where the renderer puts it, its mark (where the fire burns: an ellipse on the
-    box's bottom edge, as wide as "Lửa rộng"), no turn; its preview clip made from the picture under the box, laid
-    just over the video (under every track); logs chosen: their settings shown, the preview clip with them; the
-    fireplace's opening (Khung lò): its outline on the box, dragged by its handles; its walls (Tường lò): their
-    settings shown once chosen."""
+    box's bottom edge, as wide as "Lửa rộng"), its turn handles; its preview clip made from the picture under the
+    box, laid just over the video (under every track); logs chosen: their settings shown, the preview clip with them;
+    the fireplace's opening (Khung lò): its outline on the box, dragged by its handles; its walls (Tường lò): their
+    settings shown once chosen; turned in 3D: its preview clip from under its turned quad, on the renderer's
+    corners."""
     from fx import effects as fx_effects
     page.click('.tab[data-bin="fx"]')
     page.dblclick('.tile[data-kind="hearth"]')
@@ -938,8 +939,8 @@ def hearth(page, shot):
         m.width / b.width, m.height / m.width]; })()""")
     box = page.evaluate(BOX)
     x0, y0, w, h = fx_effects.box_of("hearth", page.evaluate(f"clipById('{cid}').params"), vw, vh)
-    check("Lửa lò sưởi: its box where the renderer puts it; the bed's mark on its bottom edge, as wide as the fire; no "
-          "turn", mk[:7] == ["block", "xmark dot", "chỗ lửa cháy (mặt củi)", "none", "none", False, True] and
+    check("Lửa lò sưởi: its box where the renderer puts it; the bed's mark on its bottom edge, as wide as the fire; its "
+          "turn (3D)", mk[:7] == ["block", "xmark dot", "chỗ lửa cháy (mặt củi)", "block", "block", True, False] and
           abs(mk[7]) < 3 and abs(mk[8] - 0.7) < 0.03 and 0.05 < mk[9] < 0.15 and
           all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])), str([mk, box, [x0, y0, x0 + w, y0 + h]]))
     page.evaluate(f"(() => {{ clipById('{cid}').params.bed = 45; edited(); renderControls(); showXform(); }})()")
@@ -1016,6 +1017,24 @@ def hearth(page, shot):
           abs(dragged[1] - 50) < 3 and abs(after[1] - dragged[0] / 100) < 0.02 and abs(after[2] - dragged[1] / 100) < 0.02,
           str([shown, dragged, after]))
     shot("05l-hearth-frame")
+    # turned in 3D (a fireplace on a side wall, seen from one side: the owner, 2026-10-26): its preview clip, made
+    # from the picture under its turned quad, lies on the renderer's corners; a point of the box back through the
+    # turn (the opening's handles drag on the box's own picture)
+    want = page.evaluate(f"S.fx['{cid}'].want")
+    page.evaluate(f"""(() => {{ const c = clipById('{cid}'); Object.assign(c.params, {{rot_y: 35, rot_x: -8, persp: 60}});
+        edited(); select(c.id); }})()""")
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].want !== '{want}' && "
+                           f"S.fx['{cid}'].shown === S.fx['{cid}'].want && S.els['{cid}'] && "
+                           f"!elsewhere(clipById('{cid}'))", timeout=300000)
+    page.evaluate("applyTime()")
+    off = max(math.dist(a, b) for a, b in zip(page.evaluate(CORNERS, cid), clip_quad(page, cid, vw, vh)))
+    turned = page.evaluate(f"""(c => {{ const e = S.els[c.id], r = placed(c), q = quad(c);
+        return [e.wrap.style.display, e.wrap.parentNode === $('#layers').firstChild, $('#xform3d').style.display,
+                ...boxPoint(c, r, q[2][0], q[2][1]).map((v, i) => Math.abs(v - [r.w, r.h][i]))]; }})(clipById('{cid}'))""")
+    check("Lửa lò sưởi: turned in 3D, its preview clip (from under its turned quad) on the renderer's corners, just "
+          "over the video; the box's own points back through the turn", off < 0.5 and turned[:3] == ["", True, "block"]
+          and max(turned[3:]) < 1e-6, f"{off:.3f} px, {turned}")
+    shot("05l-hearth-turned")
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 

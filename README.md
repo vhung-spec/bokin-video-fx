@@ -360,10 +360,18 @@ gạch được chiếu sáng, không phải phủ một lớp sương cam.
    Chỉnh thêm **Lò sâu**, **Viên gạch to**, **Ám khói đen** (kéo sang phải: muội đen nhiều, xuống thấp hơn), **Nhìn từ
    trên xuống** (mục **Góc máy**, dùng chung với củi). Thường chọn cùng **Củi**: củi nằm trên lớp than trên sàn lò.
 
+9. Lò sưởi nhìn nghiêng (ở tường bên phòng, máy quay đứng chếch sang một bên, hay máy quay thấp nhìn lên): kéo nút
+   **3D** cạnh khung trắng (kéo sang trái / phải là xoay trái / phải, kéo lên / xuống là nghiêng trước / sau), hoặc
+   chỉnh các thanh ở mục **Xoay 3D**, cho khung trắng nằm nghiêng theo mặt lò sưởi: lửa, củi, tường lò nghiêng theo,
+   lửa vẫn bốc thẳng lên theo mặt lò. Rồi kéo khung, kéo góc, kéo ô cam của **Khung lò** như bình thường. Bấm đúp nút
+   **3D** là khung thẳng lại. Sau mỗi lần xoay, app làm lại bản xem nhanh (một lúc); trong lúc đó, khi phát chỉ thấy
+   video gốc ở chỗ lò sưởi.
+
 Lần đầu, và mỗi lần đổi **Lửa rộng**, **Ngọn lửa cao**, **Lửa dày**, **Bập bùng**, **Tốc độ** (hay cỡ, cách xếp, góc
-nhìn của củi), app tính lửa lại từ đầu: bản xem nhanh cần chừng nửa phút, dừng hình lần đầu có thể chờ vài giây. Đổi
-màu, độ sáng, ánh lửa, than hồng, loại củi, cháy sém, tường lò, chỗ đặt thì không phải tính lại. Lửa không xoay 3D: lửa luôn bốc
-thẳng lên. Nhiều lò sưởi thì mỗi lò một clip.
+nhìn của củi), app tính lửa lại từ đầu: bản xem nhanh cần chừng nửa phút, dừng hình lần đầu có thể chờ vài giây. Lửa đã
+tính được giữ lại (6 ngọn lửa dùng gần nhất): đổi màu, độ sáng, ánh lửa, than hồng, loại củi, cháy sém, tường lò, khung
+lò, chỗ đặt, xoay 3D thì không phải tính lại, bản xem nhanh và video xuất làm nhanh hơn. Nhiều lò sưởi thì mỗi lò một
+clip.
 
 ### Đom đóm
 

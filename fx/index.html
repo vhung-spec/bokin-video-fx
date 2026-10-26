@@ -1743,7 +1743,9 @@ function styleBase() {
     stillImg.style.display = url && !onlyBase() ? "block" : "none";
   } else stillImg.style.display = "none";
 }
-function placeOf(c) { return [+c.params.x, +c.params.y, +c.params.scale]; }
+function placeOf(c) {  // where its box is, and its turn (server: "at")
+  return [+c.params.x, +c.params.y, +c.params.scale, ...["rot_x", "rot_y", "rot_z", "persp"].map(k => +c.params[k] || 0)];
+}
 function elsewhere(c) {  // a preview clip made from the picture under its box, now somewhere else: not shown
   if (!(S.schema.under || {})[c.kind]) return false;
   if (S.xdrag && S.xdrag.c === c) return true;  // being moved: the picture under the box shows
@@ -1854,6 +1856,18 @@ function hitsClip(c, vx, vy) {  // is this point of the video (its pixels) on th
     if (s > 0) pos++; else if (s < 0) neg++;
   }
   return !(pos && neg);
+}
+function inv3(m) {  // a 3 x 3 matrix inverted (its adjugate over its determinant)
+  const [[a, b, c], [d, e, f], [g, h, i]] = m, A = e * i - f * h, B = f * g - d * i, C = d * h - e * g;
+  const k = 1 / (a * A + b * B + c * C);
+  return [[A * k, (c * h - b * i) * k, (b * f - c * e) * k], [B * k, (a * i - c * g) * k, (c * d - a * f) * k],
+          [C * k, (b * g - a * h) * k, (a * e - b * d) * k]];
+}
+function boxPoint(c, r, vx, vy) {  // a point of the video (its pixels) on a clip's own picture placed at r (0..r.w, 0..r.h)
+  if (!turned(c)) return [vx - r.x, vy - r.y];
+  const W = info().w, H = info().h, m = inv3(homography(c.params, r, W, H).m);
+  const z = m[2][0] * vx + m[2][1] * vy + m[2][2];
+  return [(m[0][0] * vx + m[0][1] * vy + m[0][2]) / z, (m[1][0] * vx + m[1][1] * vy + m[1][2]) / z];
 }
 const xform3d = $("#xform3d"), xformRot = $("#xformRot"), xformLab = $("#xformLab");
 const TILT_DEG = 0.3;  // degrees of tilt per pixel the "3D" handle is dragged
@@ -2026,10 +2040,10 @@ function moveXdrag(e) {
     pr.rot_x = placeParam(c, "rot_x", (+d.p0.rot_x || 0) - dy * TILT_DEG);
   } else if (d.h.startsWith("frame")) {  // a fireplace's opening: its sides (as far each side of the middle), its top
     const fs = S.schema.kinds[c.kind].frame, r = d.r0, W = info().w, H = info().h;
-    const bx = d.sc.left + r.x / W * d.sc.width, bw = r.w / W * d.sc.width;  // (the box on the screen)
-    const by = d.sc.top + r.y / H * d.sc.height, bh = r.h / H * d.sc.height;
-    if (d.h === "frameT") pr[fs.height] = placeParam(c, fs.height, (by + bh - e.clientY) / bh * 100);
-    else pr[fs.width] = placeParam(c, fs.width, Math.abs(e.clientX - (bx + bw / 2)) * 2 / bw * 100);
+    // the pointer on the box's own picture (a turned box: back through its turn)
+    const [u, v] = boxPoint(c, r, (e.clientX - d.sc.left) / d.sc.width * W, (e.clientY - d.sc.top) / d.sc.height * H);
+    if (d.h === "frameT") pr[fs.height] = placeParam(c, fs.height, (r.h - v) / r.h * 100);
+    else pr[fs.width] = placeParam(c, fs.width, Math.abs(u - r.w / 2) * 2 / r.w * 100);
   } else if (d.scale && (e.altKey || turned(c))) {  // around the middle (a turned clip: always)
     pr.scale = placeParam(c, "scale", d.p0.scale * Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.d0);
     pr.x = d.p0.x; pr.y = d.p0.y;

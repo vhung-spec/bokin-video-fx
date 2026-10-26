@@ -515,7 +515,8 @@ KINDS = {"snow": snow.Snow, "leaves": leaves.Leaves, "rain": rain.Rain, "glow": 
 # Placed and turned like a file clip (Effect.TURNS): the same settings as a file clip's, under the same headings,
 # after the effect's own. A full-frame effect gets a place and a size (at 100 and in the middle: the frame itself, as
 # before); every effect that turns gets the turn in 3D (a placed effect's place and size are its box's: _place()).
-SHEET_KEYS = ("x", "y", "scale") + overlay.ROTATIONS + ("persp",)  # its place and turn: not in its preview clip
+TURN_KEYS = overlay.ROTATIONS + ("persp",)  # its turn in 3D
+SHEET_KEYS = ("x", "y", "scale") + TURN_KEYS  # its place and turn: not in its preview clip
 _FILE = {p["key"]: p for p in overlay.SCHEMA["params"]}
 _PLACE = [dict(_FILE[k], group="Vị trí và cỡ") for k in ("scale", "x", "y")]
 _TURN = [dict(_FILE[k], group="Xoay 3D") for k in overlay.ROTATIONS + ("persp",)]
