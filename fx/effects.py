@@ -141,6 +141,16 @@ def _lerp(a, b, t):
     return a + (b - a) * t
 
 
+def kept_of(before, after):
+    """How much of each pixel a change keeps (0..1): the least for which `after` is `before` * kept + a colour laid
+    over it at 1 - kept (Normal), every channel (both float RGB, 0..1). The change of a turned lens is that layer,
+    warped onto the frame (sheet.Sheet): where nothing changes, 1 (the frame's pixels stay as they are)."""
+    d = np.clip(after, 0.0, 1.0) - before
+    with np.errstate(divide="ignore", invalid="ignore"):
+        need = np.where(d > 0, d / np.maximum(1.0 - before, 1e-4), -d / np.maximum(before, 1e-4))
+    return 1.0 - np.clip(need.max(axis=-1), 0.0, 1.0)
+
+
 # --- the light of a scene (for effects lit by it) ------------------------------------------------------------------
 
 LIGHT_H = 135  # rows of a scene's light map (an eighth of 1080); its sizes below are in its own pixels
@@ -358,6 +368,11 @@ class Effect:
     # area: it works inside the clip's painted area only (rustling leaves: never the whole picture); with no area
     # (None: the whole frame) it changes nothing
     AREA = False
+    # moves: a lens that moves the picture's own pixels (a sleeping dog breathing), and the clip's area is what it
+    # moves (apply's mask, as the source of each pixel): what is not painted stays as it was, and what moves may pass
+    # over it. So the area is not laid over its result as a crossfade (on a sheet, in its preview clip, on the page):
+    # its preview clip is made with the area and laid without it
+    MOVES = False
     # turns: placed and turned in 3D as a file clip is (sheet.Sheet): a full-frame effect on a sheet of the frame's
     # shape, a placed one in its box. A candle's flame does not turn (it always rises straight up).
     TURNS = True
@@ -500,17 +515,19 @@ class Glow(Effect):
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)
 
 
-from . import (candle, chimney, fireflies, flicker, foliage, frost, garland, glass, hearth, leaves, lights,  # (here:
-               pigeons, rain, snow, steam)  # they build on the classes above)
+from . import (breath, candle, chimney, fireflies, flicker, foliage, frost, garland, glass, hearth, leaves,  # (here:
+               lights, pigeons, rain, snow, steam)  # they build on the classes above)
 
 SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "steam": steam.SCHEMA,
           "chimney": chimney.SCHEMA, "candle": candle.SCHEMA, "hearth": hearth.SCHEMA, "leaves": leaves.SCHEMA,
           "foliage": foliage.SCHEMA, "lights": lights.SCHEMA, "garland": garland.SCHEMA, "frost": frost.SCHEMA,
-          "flicker": flicker.SCHEMA, "fireflies": fireflies.SCHEMA, "pigeons": pigeons.SCHEMA, **SCHEMA}
+          "flicker": flicker.SCHEMA, "fireflies": fireflies.SCHEMA, "pigeons": pigeons.SCHEMA,
+          "breath": breath.SCHEMA, **SCHEMA}
 KINDS = {"snow": snow.Snow, "leaves": leaves.Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
          "steam": steam.Steam, "chimney": chimney.Chimney, "candle": candle.Candle, "hearth": hearth.Hearth,
          "foliage": foliage.Foliage, "lights": lights.Lights, "garland": garland.Garland, "frost": frost.Frost,
-         "flicker": flicker.Flicker, "fireflies": fireflies.Fireflies, "pigeons": pigeons.Pigeons}
+         "flicker": flicker.Flicker, "fireflies": fireflies.Fireflies, "pigeons": pigeons.Pigeons,
+         "breath": breath.Breath}
 
 # Placed and turned like a file clip (Effect.TURNS): the same settings as a file clip's, under the same headings,
 # after the effect's own. A full-frame effect gets a place and a size (at 100 and in the middle: the frame itself, as

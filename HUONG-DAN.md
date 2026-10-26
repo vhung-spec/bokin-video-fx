@@ -115,6 +115,7 @@ Chọn clip là trên hình có khung trắng quanh nó.
 | Xoay phẳng | Kéo nút tròn phía trên khung. Giữ `Shift`: từng nấc 15°. Bấm đúp nút tròn: về 0° |
 | Nghiêng 3D | Nhấn giữ nút **3D** (cạnh nút tròn) rồi kéo: trái / phải là xoay trái / phải, lên / xuống là nghiêng trước / sau. Giữ `Shift`: chỉ một hướng. Bấm đúp nút **3D**: thẳng lại |
 | Gõ số cho thật đúng | Gõ vào ô số cạnh thanh trượt trong Bảng chỉnh hiệu ứng, rồi bấm `Enter` |
+| Viền cam trong khung (Khung lò của Lửa lò sưởi, thân chó của Chó ngủ thở) | Kéo ô cam hai bên: viền rộng ra, hẹp lại (hai bên cùng lúc). Kéo ô cam ở cạnh trên: viền cao lên, thấp xuống. Viền luôn đứng trên cạnh dưới khung |
 | Khớp màu với cảnh (video / ảnh ngoài) | Đặt clip vào đúng chỗ, chọn chế độ hoà trộn, rồi bấm **Khớp màu với cảnh** ở mục **Màu sắc**. App đo màu video ở chỗ clip nằm và tự đặt các thanh màu. Sau đó vẫn kéo tay được. `Ctrl+Z`: bỏ |
 
 Lúc đang kéo, góc trên bên trái hình ghi tên clip, cỡ, vị trí và góc xoay.
@@ -182,6 +183,21 @@ Trên hình: mỗi ống khói là một hình bầu dục vàng ở miệng ố
 | Xoá ống khói đang chọn | Nút **Xoá ống khói này**, hoặc `Delete` |
 | Xong | Nút **Xong, thôi đặt**, hoặc `Esc` |
 | Đặt thêm, sửa sau | Chọn clip rồi bấm lên hình, hoặc nút **Đặt / sửa ống khói** |
+
+## Chó ngủ thở
+
+Thêm **Chó ngủ thở** từ thẻ **Tạo sẵn**, bấm **Suốt video**. Bụng con chó (hay con mèo) đang ngủ trong video phồng lên
+xẹp xuống như đang thở. Trên hình: khung trắng, trong khung có viền cam ("thân chó") đứng trên cạnh dưới khung.
+
+| Thao tác | Cách làm |
+|---|---|
+| Đặt lên con chó | Kéo khung trắng cho **cạnh dưới khung** nằm ở chỗ con chó nằm trên nệm. Kéo góc khung cho khung cao hơn lưng con chó một khoảng |
+| Ôm thân con chó | Kéo **ô cam** hai bên tới vai và hông. Kéo **ô cam ở cạnh trên** tới mép trên của thân (lưng). Đầu, chân ngoài viền cam đứng yên |
+| Tường, nệm đứng yên hẳn | Mục **Vùng** của clip: bấm **Vẽ vùng**, tô cả thân con chó (tô lấn ra ngoài mép lông một chút), bấm **Xong**. Chỉ phần đã tô chuyển động, lưng nhô lên che lên tường |
+| Thở nhiều, ít, nhanh, chậm | Chọn **Kiểu**, hoặc kéo **Bụng phồng**, **Nhịp thở** (số hơi thở mỗi phút) |
+| Con chó nằm nghiêng hướng khác | Xoay khung (nút tròn) cho cạnh dưới khung nằm dọc chỗ nằm |
+
+Chưa tô vùng: ngay trên lưng, tường hơi co giãn theo hơi thở trong một dải mỏng. Tô vùng con chó thì tường đứng yên hẳn.
 
 ## Xem video
 

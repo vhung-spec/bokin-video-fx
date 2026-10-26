@@ -455,6 +455,35 @@ clip làm bằng bản cũ giữ đúng số chim của nó). Ít chim, khung nh
 Chim không xoay 3D: chim luôn đứng thẳng trên mặt đất. Chim không bay: clip "Bay lượn thành đàn", "Bay ngang qua" của
 bản 1.0.71 thành chim đi lại trên mặt đất trong khung đó.
 
+### Chó ngủ thở
+
+Làm con chó (hay con mèo) đang ngủ trong video thở như thật: bụng, sườn phồng lên rồi xẹp xuống nhịp nhàng, mép lưng
+nhô lên hạ xuống. Hít vào êm, thở ra nhanh lúc đầu rồi chậm dần, nghỉ một chút rồi tới hơi thở sau; mỗi hơi thở dài
+ngắn, sâu nông khác nhau một chút như thật. App không vẽ thêm gì: chính hình con chó trong video chuyển động, lông vẫn
+sắc nét. Lúc nghỉ giữa hai hơi thở, hình giống hệt video gốc.
+
+1. Bấm **Tạo sẵn** → **Chó ngủ thở**, kéo xuống một track trống, bấm **Suốt video**.
+2. Kéo khung trắng lên con chó: **cạnh dưới khung** ở chỗ con chó nằm trên nệm (hay sàn). Kéo góc khung cho khung cao
+   hơn lưng con chó một khoảng.
+3. Trong khung có **viền cam** ("thân chó") đứng trên cạnh dưới khung. Kéo **ô cam** hai bên tới vai và hông con chó,
+   kéo **ô cam ở cạnh trên** tới mép trên của thân (lưng) (hoặc kéo các thanh **Thân chó rộng**, **Thân chó cao**).
+   Chỉ thân trong viền cam thở: giữa thân phồng nhiều nhất, về phía vai và hông ít dần; đầu, chân, nệm ngoài viền cam
+   đứng yên.
+4. Chọn **Kiểu**: **Chó ngủ say** (có sẵn khi thêm), **Chó nhỏ, mèo (thở nhanh, nhẹ)**, **Thở sâu, chậm**. Chỉnh thêm
+   nếu cần: **Bụng phồng** (ít ← → nhiều), **Nhịp thở** (số hơi thở mỗi phút; chó lớn ngủ say khoảng 15 đến 20),
+   **Mỗi hơi thở một khác** (0: hơi thở nào cũng như nhau).
+5. **Để tường, nệm đứng yên hẳn** (nên làm): ở mục **Vùng** của clip bấm **Vẽ vùng**, tô lên cả thân con chó (cả lưng,
+   tô lấn ra ngoài mép lông một chút; đầu tô hay không cũng được), bấm **Xong**. Chỉ phần đã tô chuyển động: tường,
+   nệm không tô thì giữ nguyên từng điểm ảnh, lưng chó nhô lên **che lên** tường như thật. Mép tô hơi cứng thì kéo
+   **Độ mềm mép vùng** lên một chút (vài điểm ảnh).
+6. Con chó nằm nghiêng theo hướng khác (lưng chếch lên, nằm trên dốc): xoay khung bằng nút tròn trên khung cho cạnh
+   dưới khung nằm dọc chỗ nằm; nhìn chếch thì nghiêng khung bằng nút **3D**.
+
+Chưa tô vùng thì mọi thứ trong viền cam chuyển động, và ngay trên lưng, trong một dải mỏng (khoảng một phần ba bề cao
+thân chó), tường hơi co lại khi lưng nhô lên rồi giãn ra khi lưng hạ xuống. Tô vùng con chó như bước 5 thì hết. Nhiều
+con chó: mỗi con một clip Chó ngủ thở (mỗi con thở theo nhịp riêng). Khi phát, bản xem nhanh gần đúng; dừng hình thì
+trang hiện khung chính xác như video xuất ra.
+
 ### Lá cây lay động
 
 Làm lá của bụi cây, tán cây, giỏ hoa có sẵn trong video rung nhẹ như có gió: mỗi chùm lá lay một chút theo nhịp riêng,

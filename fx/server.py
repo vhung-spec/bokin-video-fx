@@ -233,6 +233,8 @@ class Handler(BaseHTTPRequestHandler):
                                    "under": {k: True for k, c in effects.KINDS.items() if c.UNDER},
                                    # only inside the clip's painted area (no area: nothing)
                                    "area": {k: True for k, c in effects.KINDS.items() if c.AREA},
+                                   # the clip's area is what it moves: its preview clip made with it, laid without it
+                                   "moves": {k: True for k, c in effects.KINDS.items() if c.MOVES},
                                    # turned in 3D like a file clip; on a sheet of the frame's shape (not a box)
                                    "turns": {k: True for k, c in effects.KINDS.items() if c.TURNS},
                                    "sheet": {k: True for k, c in effects.KINDS.items() if c.TURNS and not c.BOX},

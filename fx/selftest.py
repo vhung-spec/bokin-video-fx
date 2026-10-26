@@ -95,6 +95,8 @@ def periodic_checks():
             third = {"wood": "oak", "stack": "heap", "embers": 100, "frame": "arch", "walls": "herring"}
         if kind == "pigeons":  # many pigeons pecking often on a ledge, soft as a photograph
             third = {"mode": "ledge", "birds": 14, "size": 50, "peck": 100, "soft": 100}
+        if kind == "breath":  # a quick, deep, uneven breathing of a tall body with little room above it
+            third = {"amount": 100, "rate": 40, "vary": 100, "frame_h": 80, "frame_w": 30}
         if kind == "chimney":  # chimneys near and far, a gusty wind from the right
             third = {"breeze": -80, "gust": 100, "stacks": [[0.25, 0.85, 0.05, 0.5], [0.6, 0.6, 0.025, 1.0],
                                                             [0.85, 0.5, 0.012, 0.3]]}
@@ -114,8 +116,9 @@ def periodic_checks():
             if not check(f"{kind} {extra or ''} returns to frame 0 after one loop", diff < 1 / 512, f"max diff {diff:.6f}"):
                 return
     picture = Image.fromarray((scene * 255 + 0.5).astype(np.uint8))
-    for kind in ("snow", "rain", "glass", "steam", "frost", "lights", "hearth"):  # placed and turned in 3D: drawn on
-        # a sheet, warped onto the frame (a fireplace's fire: its change a layer laid on the frame)
+    for kind in ("snow", "rain", "glass", "steam", "frost", "lights", "hearth", "breath"):  # placed and turned in
+        # 3D: drawn on a sheet, warped onto the frame (a fireplace's fire, a dog breathing: its change a layer laid on
+        # the frame)
         fx = sheet.Sheet(kind, {"rot_x": 20, "rot_y": -30, "rot_z": 8, "persp": 60, "scale": 70}, 5, P, FPS, 640, 360,
                          light=light)
         a, b = (np.asarray(fx.draw(t, picture.copy())).astype(int) for t in (0, P))

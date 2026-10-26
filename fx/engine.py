@@ -676,6 +676,52 @@ def _under_key(project, layer):
     return key + [feather, painted, picture or ["frame", still.get("frame", 0)]]
 
 
+def _mask_hash(folder, name):
+    """A short hash of what a mask has painted (blank and painted all over too), or None when there is no mask.
+    Kept for the file's stamp."""
+    path = mask_path(folder, name)
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    key = (path, (st.st_mtime_ns, st.st_size), "hash")
+    if key not in _near:
+        try:
+            with Image.open(path) as im:
+                im.load()
+                m = im.getchannel("A") if "A" in im.getbands() else im.convert("L")
+            painted = hashlib.sha1(m.tobytes()).hexdigest()[:12]
+        except (OSError, ValueError):
+            painted = "unreadable"  # (made again when it can be read)
+        if len(_near) > 256:
+            _near.clear()
+        _near[key] = painted
+    return _near[key]
+
+
+def _moves_key(project, layer):
+    """What a clip that moves its area (Effect.MOVES) moves: its area as painted and how soft, and the foreground it
+    passes behind."""
+    folder = _folder_of(project)
+    key = ["moves", _mask_hash(folder, layer["id"]) if layer.get("id") else None, float(area_feather(layer) or 0)]
+    if layer.get("behind"):
+        key += ["behind", _mask_hash(folder, "fg"), float((project.get("fg") or {}).get("feather", 0) or 0)]
+    return key
+
+
+def moving_area(folder, project, layer, size):
+    """What a clip that moves its area (Effect.MOVES) moves, as Scene gives it: its area (soft within its outline)
+    and not the foreground it passes behind, an "L" image at `size`; None: everything."""
+    vh, saved = project["video"]["h"], project.get("_masks")
+    area = mask_image(folder, layer["id"], size, area_feather(layer), vh, saved, inside=True)
+    if layer.get("behind"):
+        fg = mask_image(folder, "fg", size, (project.get("fg") or {}).get("feather", 0), vh, saved)
+        if fg is not None and fg.getbbox() is not None:
+            hidden = ImageChops.invert(fg)
+            area = hidden if area is None else ImageChops.multiply(area, hidden)
+    return None if area is None or area.getextrema() == (255, 255) else area
+
+
 def _veil_key(project, layer):
     """What a veil's preview clip (Effect.VEIL: nothing of the picture under it) is made of: its area as painted."""
     area = _area_painted(_folder_of(project), layer["id"])
@@ -705,6 +751,8 @@ def fx_clip_name(project, layer):
                                     rounded=True)
         at = [["at", [round(float(v), 6) for v in tone]]] if tone is not None else []
     under = [p, (_veil_key if cls.VEIL else _under_key)(project, layer), 2] if cls.UNDER else []
+    if cls.MOVES:  # (its area too: made with it, laid without it)
+        under.append(_moves_key(project, layer))
     key = json.dumps([layer["kind"], fx_clip_params(layer["kind"], layer.get("params")), layer.get("seed", 1),
                       project_frames(project), info["fps"],
                       fx_clip_frame(info, layer["kind"], layer)] + [cls.VERSION] * (cls.VERSION > 1)  # (1: as before)
@@ -727,7 +775,8 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
     total = project_frames(project)
     if effects.KINDS[layer["kind"]].LIT:  # (the video's light, read here: the workers read nothing)
         project = dict(project, _light=scene_light(folder, project))
-    if effects.KINDS[layer["kind"]].AREA:  # (the masks read once, here: every piece is made with the same area)
+    if effects.KINDS[layer["kind"]].AREA or effects.KINDS[layer["kind"]].MOVES:  # (the masks read once, here: every
+        # piece is made with the same area)
         project = dict(project, _masks={n: _read(mask_path(folder, n)) for n in ("freeze", "fg", layer_id)})
     count = max(1, min(processes or workers(False), total // 48))
     work = os.path.join(folder, "render-" + secrets.token_hex(3))
@@ -879,24 +928,28 @@ def _under_part(project, layer, total, folder, start, end, path):
     fade = np.clip(edge / max(2.0, effects.KINDS[kind].UNDER_FADE * min(cw, ch)), 0.0, 1.0)
     fade = (fade * fade * (3 - 2 * fade))[..., None]
     inside = 0 <= x0 and 0 <= y0 and x0 + bw <= w and y0 + bh <= h
+
+    def onto_clip(img, resample):  # the picture under the box (or under its turned quad, upright) at the clip's size
+        if back is not None:
+            return img.transform((cw, ch), Image.Transform.PERSPECTIVE, back, resample)
+        if inside:
+            return img.resize((cw, ch), resample, box=(x0, y0, x0 + bw, y0 + bh))
+        return img.crop((math.floor(x0), math.floor(y0), math.ceil(x0 + bw), math.ceil(y0 + bh))).resize(
+            (cw, ch), resample)  # (partly outside the frame: black there)
+    moving = moving_area(folder, project, layer, (w, h)) if effects.KINDS[kind].MOVES else None
+    if moving is not None:  # (what it moves: its area, under the box as the picture is)
+        moving = np.asarray(onto_clip(moving, Image.Resampling.BILINEAR), np.float32) * (1 / 255.0)
     under = Scene(folder, dict(project, layers=[]), (w, h), total)  # the video with its still area, no clips
-    writer = video.ClipWriter(path, cw, ch, info["fps"], True)
+    # (BT.709, tagged: the page reads its colours exactly as the video's it lies on)
+    writer = video.ClipWriter(path, cw, ch, info["fps"], True, getattr(alone, "PREVIEW_CRF", None), bt709=True)
     try:
         for t, base in zip(range(start, end), base_frames(folder, project, (w, h), start, end)):
             if _stopped():
                 writer.abort()
                 return False
-            img = under.image(t, base)
-            if back is not None:
-                img = img.transform((cw, ch), Image.Transform.PERSPECTIVE, back, Image.Resampling.BICUBIC)
-            elif inside:
-                img = img.resize((cw, ch), Image.Resampling.BICUBIC, box=(x0, y0, x0 + bw, y0 + bh))
-            else:  # partly outside the frame (black there)
-                img = img.crop((math.floor(x0), math.floor(y0), math.ceil(x0 + bw), math.ceil(y0 + bh))).resize(
-                    (cw, ch), Image.Resampling.BICUBIC)
-            picture = np.asarray(img, np.float32) * (1 / 255.0)
+            picture = np.asarray(onto_clip(under.image(t, base), Image.Resampling.BICUBIC), np.float32) * (1 / 255.0)
             before = picture.copy()
-            alone.apply(t, picture, None, 1.0)
+            alone.apply(t, picture, moving, 1.0)
             writer.write(change_rgba(before, picture, fade))
             _count_frame()
         writer.close()

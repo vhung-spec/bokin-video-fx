@@ -85,6 +85,10 @@ class Sheet(overlay.Laid):
         pts, seen, box = overlay.outline(hm, sw, sh, w, h)
         self.empty = box[0] >= box[2] or box[1] >= box[3]
         self.box, self.full = box, box == (0, 0, w, h)
+        # (a lens that moves its area, Effect.MOVES: the area brought onto the sheet as the picture is, as what moves,
+        # not laid over its change afterwards)
+        self.moving = weight if cls.MOVES and cls.lens and not self.empty else None
+        weight = None if self.moving is not None else weight
         self.weight = None if weight is None or self.empty else (weight if self.full else weight.crop(box))
         if self.empty:
             return
@@ -153,6 +157,14 @@ class Sheet(overlay.Laid):
         g = g / g[2, 2]
         self.back = tuple(float(v) for v in g.flatten()[:8])
         self.forward = overlay.warp_coefficients(self.hm, (x0 * su, y0 * sv, su, sv), self.pad, self.box)
+        if self.moving is not None:  # what moves, under the part as the picture is (0 outside the part)
+            top, bottom, left, right = self.edges
+            m = np.asarray(self.moving.crop(self.crop))
+            if top or bottom or left or right:
+                m = np.pad(m, ((top, bottom), (left, right)), mode="edge")
+            m = Image.fromarray(m).transform((x1 - x0, y1 - y0), PERSPECTIVE, self.back, BILINEAR)
+            self.mask = np.zeros((ch, cw), np.float32)
+            self.mask[y0:y1, x0:x1] = np.asarray(m, np.float32) * (1 / 255.0)
 
     def draw(self, t, img, gain=1.0):
         """Frame t of the effect laid over `img` (an RGB image of the whole frame, changed in place), `gain` (0..1,

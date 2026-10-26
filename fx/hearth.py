@@ -33,7 +33,7 @@ import numpy as np
 from PIL import Image
 
 from . import firebox, logs, paths
-from .effects import Effect, _choice, _lerp, _num, _place, blur
+from .effects import Effect, _choice, _lerp, _num, _place, blur, kept_of
 
 TAU = 2 * math.pi
 GRID = (192, 144)  # the simulation's cells over the box (BOX's shape), x then y
@@ -465,16 +465,6 @@ class _Fire:
                 g += w * g0
                 level += w * (l0 - level)
         return g, level
-
-
-def kept_of(before, after):
-    """How much of each pixel a change keeps (0..1): the least for which `after` is `before` * kept + a colour laid
-    over it at 1 - kept (Normal), every channel (both float RGB, 0..1). The change of a turned lens is that layer,
-    warped onto the frame (sheet.Sheet): where nothing changes, 1 (the frame's pixels stay as they are)."""
-    d = np.clip(after, 0.0, 1.0) - before
-    with np.errstate(divide="ignore", invalid="ignore"):
-        need = np.where(d > 0, d / np.maximum(1.0 - before, 1e-4), -d / np.maximum(before, 1e-4))
-    return 1.0 - np.clip(need.max(axis=-1), 0.0, 1.0)
 
 
 _FIRES = {}  # (what a fire is made of, its seed, its loop) -> _Fire, the newest last

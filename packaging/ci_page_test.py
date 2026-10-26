@@ -1117,6 +1117,102 @@ def pigeons(page, shot):
     page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
 
 
+def breath(page, shot):
+    """Chó ngủ thở (the owner, 2026-10-26: "hiệu ứng con chó đang ngủ ... bụng của con chó nhấp nhô như đang thở"): a box
+    on the picture where the renderer puts it, its turn handles, no yellow mark; the dog's body an orange outline on
+    the box's bottom edge, as wide and high as its settings, its handles (their own tips) dragging its sides and top;
+    a look sets the breathing; its preview clip made from the picture under the box, laid just over the video; the dog
+    painted as its area (what moves), the clip made again with it and laid with no area over it; turned in 3D (a dog
+    lying on a slope), its preview clip on the renderer's corners."""
+    from fx import effects as fx_effects
+    page.click('.tab[data-bin="fx"]')
+    page.dblclick('.tile[data-kind="breath"]')
+    cid = page.evaluate("S.sel")
+    page.click("#fullBtn")
+    page.wait_for_timeout(300)
+    vw, vh = page.evaluate("[info().w, info().h]")
+    ui = page.evaluate("""[$('#xform').style.display, $('#xformRot').style.display, $('#xform3d').style.display,
+        !!$('#ec [data-num="rot_x"]'), $('#xformMark').style.display, $('#xformFrame').dataset.lab,
+        $('#xformFrame i[data-h="frameL"]').title, $('#xformFrame i[data-h="frameT"]').title]""")
+    box = page.evaluate(BOX)
+    x0, y0, w, h = fx_effects.box_of("breath", page.evaluate(f"clipById('{cid}').params"), vw, vh)
+    tips = fx_effects.SCHEMA["breath"]["frame"]
+    check("Chó ngủ thở: its box where the renderer puts it; its turn (3D), no yellow mark; the body's outline, its "
+          "handles' own tips", ui == ["block", "block", "block", True, "none", "thân chó", tips["side_tip"],
+                                       tips["top_tip"]] and
+          all(abs(a - b) < 1.5 for a, b in zip(box, [x0, y0, x0 + w, y0 + h])), str([ui, box, [x0, y0, x0 + w, y0 + h]]))
+    frame = """(() => { const f = $('#xformFrame').getBoundingClientRect(), b = $('#xform').getBoundingClientRect();
+        return [$('#xformFrame').style.display, f.width / b.width, f.height / b.height, (f.left + f.right) / 2 -
+        (b.left + b.right) / 2, b.bottom - f.bottom, parseFloat(getComputedStyle($('#xformFrame')).borderTopLeftRadius),
+        !!$('#ec input[data-param="frame_w"]'), !!$('#ec input[data-param="frame_h"]')]; })()"""
+    shown = page.evaluate(frame)
+    right = page.locator('#xformFrame i[data-h="frameR"]').bounding_box()
+    top = page.locator('#xformFrame i[data-h="frameT"]').bounding_box()
+    xb = page.locator("#xform").bounding_box()
+    page.mouse.move(right["x"] + right["width"] / 2, right["y"] + right["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(xb["x"] + xb["width"] * 0.9, right["y"] + right["height"] / 2, steps=5)
+    page.mouse.up()
+    page.mouse.move(top["x"] + top["width"] / 2, top["y"] + top["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(top["x"] + top["width"] / 2, xb["y"] + xb["height"] * 0.4, steps=5)
+    page.mouse.up()
+    page.wait_for_timeout(300)
+    dragged = page.evaluate(f"[clipById('{cid}').params.frame_w, clipById('{cid}').params.frame_h]")
+    after = page.evaluate(frame)
+    check("Chó ngủ thở: the body, an outline on the box's bottom edge as wide and high as its settings; its handles "
+          "drag its sides and top", shown[0] == "block" and abs(shown[1] - 0.75) < 0.02 and abs(shown[2] - 0.7) < 0.02
+          and abs(shown[3]) < 2 and abs(shown[4]) < 2 and shown[5] == 0 and shown[6:] == [True, True] and
+          abs(dragged[0] - 80) < 3 and abs(dragged[1] - 60) < 3 and abs(after[1] - dragged[0] / 100) < 0.02 and
+          abs(after[2] - dragged[1] / 100) < 0.02, str([shown, dragged, after]))
+    page.select_option('#ec select[data-param="look"]', "small")
+    page.wait_for_timeout(200)
+    look = page.evaluate(f"[clipById('{cid}').params.rate, clipById('{cid}').params.amount]")
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want && "
+                           f"S.els['{cid}']", timeout=300000)
+    page.evaluate("applyTime()")
+    laid = page.evaluate(f"""(() => {{ const e = S.els['{cid}']; return [e.media.getAttribute('src').includes('.webm'),
+        e.wrap.style.mixBlendMode, e.wrap.parentNode === $('#layers').firstChild]; }})()""")
+    check("Chó ngủ thở: a look sets the breathing; its preview clip (the picture under the box, breathing), laid just "
+          "over the video", look == [26, 38] and laid == [True, "normal", True], str([look, laid]))
+    shot("05o-breath")
+    # the dog painted (the owner, 2026-10-26: "tự tô phần bụng con chó ... để không dính hiệu ứng vào tường"): what
+    # moves; its preview clip made again with it, laid with no area over it (the back rises over the wall)
+    want = page.evaluate(f"S.fx['{cid}'].want")
+    before = page.evaluate("[$('#ec').textContent.includes('Phần chuyển động'), "
+                           "$('#ec').textContent.includes('cả thân trong viền cam'), "
+                           f"$('#ec').textContent.includes({json.dumps(fx_effects.SCHEMA['breath']['area_note'])})]")
+    page.click("#paintArea")
+    page.keyboard.press("l")
+    sc = page.locator("#screen").bounding_box()
+    for fx_, fy_ in [(0.4, 0.45), (0.6, 0.45), (0.62, 0.62), (0.38, 0.62)]:
+        page.mouse.click(sc["x"] + sc["width"] * fx_, sc["y"] + sc["height"] * fy_)
+        page.wait_for_timeout(150)
+    page.click("[data-done]")
+    page.evaluate("S.brush.tool = 'brush'")
+    page.wait_for_function(f"S.project.masks.includes('{cid}') && S.fx['{cid}'].want !== '{want}' && "
+                           f"S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want && S.els['{cid}']",
+                           timeout=300000)
+    page.evaluate("applyTime()")
+    painted = page.evaluate(f"""(() => {{ const e = S.els['{cid}']; return [$('#ec').textContent.includes('vùng đã tô'),
+        e.wrap.style.maskImage || 'none', e.wrap.parentNode === $('#layers').firstChild]; }})()""")
+    check("Chó ngủ thở: the dog painted is what moves: its preview clip made again with it, no area laid over it",
+          before == [True, True, True] and painted == [True, "none", True], str([before, painted]))
+    shot("05o-breath-area")
+    want = page.evaluate(f"S.fx['{cid}'].want")
+    page.evaluate(f"""(() => {{ const c = clipById('{cid}'); Object.assign(c.params, {{rot_z: 12, rot_x: 15, persp: 60}});
+        edited(); select(c.id); }})()""")
+    page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].want !== '{want}' && "
+                           f"S.fx['{cid}'].shown === S.fx['{cid}'].want && S.els['{cid}'] && "
+                           f"!elsewhere(clipById('{cid}'))", timeout=300000)
+    page.evaluate("applyTime()")
+    off = max(math.dist(a, b) for a, b in zip(page.evaluate(CORNERS, cid), clip_quad(page, cid, vw, vh)))
+    check("Chó ngủ thở: turned in 3D, its preview clip (from under its turned quad) on the renderer's corners",
+          off < 0.5, f"{off:.3f} px")
+    shot("05o-breath-turned")
+    page.evaluate(f"(() => {{ select('{cid}'); deleteClip(clipById('{cid}')); edited(); }})()")
+
+
 PLAYS = "!!document.createElement('video').canPlayType('video/mp4; codecs=\"avc1.640028\"')"  # (Edge: H.264)
 
 
@@ -1635,8 +1731,8 @@ def run(page, folder, edge):
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
           glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "hearth", "leaves", "foliage",
-                    "fireflies", "pigeons", "flicker", "lights", "garland"],  # (Hạt sáng no longer offered: an old
-          # clip still plays)
+                    "fireflies", "pigeons", "breath", "flicker", "lights", "garland"],  # (Hạt sáng no longer
+          # offered: an old clip still plays)
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)
@@ -2189,6 +2285,7 @@ def run(page, folder, edge):
     hearth(page, shot)
     fireflies(page, shot)
     pigeons(page, shot)
+    breath(page, shot)
 
     page.evaluate("saveNow()")
     saved = page.evaluate("(async () => (await get('/api/project?id=' + S.project.id)).layers"

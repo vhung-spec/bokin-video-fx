@@ -89,9 +89,9 @@ hiệu ứng. Cách dùng: `README.md`.
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/hearth.py`, `fx/frost.py`,
-  `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`, `fx/pigeons.py`: tuyết, mưa, lá rơi, nước trên kính, khói, khói
-  ống khói, lửa nến, lửa lò sưởi (củi của nó: `fx/logs.py`, tường lò: `fx/firebox.py`), tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, chim bồ
-  câu, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
+  `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`, `fx/pigeons.py`, `fx/breath.py`: tuyết, mưa, lá rơi, nước trên
+  kính, khói, khói ống khói, lửa nến, lửa lò sưởi (củi của nó: `fx/logs.py`, tường lò: `fx/firebox.py`), tuyết bám kính,
+  dây đèn, dây đèn tự vẽ, đom đóm, chim bồ câu, chó ngủ thở, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
   nồi; và ống khói, chỉ dùng cho Khói ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn:
   `edge`, `side`; `preset` của kiểu đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
@@ -144,7 +144,7 @@ hiệu ứng. Cách dùng: `README.md`.
   (`liveIncomplete`).
 - Hiệu ứng đặt một chỗ (`BOX`: khói, nến): thông số `x`, `y`, `scale` (`_place()`), `box()` cùng công thức với clip
   file (vừa khung). `UNDER` (nến): clip xem nhanh làm từ chính hình dưới hộp (video + vùng đứng yên, `apply()`),
-  chỉ giữ phần đổi (`change_rgba`: độ đục vừa đủ), trang đặt nó bằng Normal ngay trên video và vùng đứng yên, dưới
+  chỉ giữ phần đổi (`change_rgba`: độ đục vừa đủ; WebM có thẻ BT.709, `PREVIEW_CRF` của hiệu ứng), trang đặt nó bằng Normal ngay trên video và vùng đứng yên, dưới
   mọi track (`underBox`), nên clip ở track dưới vẫn hiện (gần đúng). Tên clip đổi theo chỗ đặt, video, và phần vùng
   đứng yên mà mép mềm chạm hộp (`_under_key`, hash điểm ảnh mặt nạ quanh hộp). Clip làm cho chỗ khác thì trang không
   hiện (`elsewhere`, server trả `at`); vẽ vùng đứng yên xong thì trang hỏi lại (`requestAllFx`). `mark` (chỗ khói bốc lên),
@@ -439,6 +439,30 @@ hiệu ứng. Cách dùng: `README.md`.
   Không bay nữa: clip
   bay (`flock`, `pass`) của 1.0.71 thành `ground` (`clean_params`: lựa chọn không còn thì về mặc định). `VERSION` 2:
   clip xem nhanh làm lại. Mọi thứ cắt ở mép khung (`_inside`: clip xem nhanh chỉ là cái khung).
+- Chó ngủ thở (`fx/breath.py`, mã loại `breath`, từ 2026-10-26; chủ gửi ảnh chó golden ngủ trên nệm cạnh lò sưởi: "hiệu
+  ứng con chó đang ngủ ... bụng của con chó nhấp nhô như đang thở, tôi sẽ kéo hiệu ứng này vào vùng bụng con chó"): hiệu
+  ứng đặt một chỗ (`BOX` 4:3, lens, `UNDER`, `UNDER_FADE` 0), xoay 3D như lò sưởi (`apply(..., kept)`; `kept_of` nay ở
+  `effects`). Không vẽ gì: hình của chính video dời lên rồi về, chỉ theo chiều dọc (mỗi cột đọc từ chính nó, phía dưới:
+  nhanh), đọc bằng bộ lọc cubic Catmull-Rom kẹp trong hai điểm ảnh gần nhất (`_read`: lông vẫn nét, không gợn ở mép).
+  Thân chó là viền cam đứng trên cạnh dưới khung (`frame_w`, `frame_h` như Khung lò; schema `frame.fixed` = "rect":
+  trang luôn hiện viền, `side_tip`, `top_tip`: chữ của ô kéo; `FRAME_TIPS` của trang cho Khung lò): từ đáy khung nhô lên
+  dần (smoothstep) tới cạnh trên viền, phía trên nhạt dần trong dải `FADE` bề cao thân (không quá đỉnh khung: `frame_h`
+  tối đa 80), ngang: nhiều nhất giữa thân, về 0 ở hai bên viền trong `SIDE`; dốc nhất `STEEPEST` (không gập hình). Ngoài
+  viền (đầu, chân), trên dải và dưới đáy khung y như video. Hơi thở (`breath()`): hít vào (`INHALE`, smoothstep), thở ra
+  (`EXHALE`, nhanh rồi chậm), nghỉ; số nguyên hơi mỗi vòng theo "Nhịp thở" (hơi mỗi phút), mỗi hơi dài ngắn (`LONGER`),
+  sâu nông (`DEEPER`; hơi dài sâu hơn) theo "Mỗi hơi thở một khác", vòng bắt đầu ở chỗ khác nhau theo seed (`start`);
+  lúc nghỉ hình y như video (con chó trong video là lúc thở ra). Đã thử tự tìm mép lưng theo màu rồi bỏ: lưng trong
+  bóng gần màu tường đá, máy nhận nhầm. Vùng của clip là phần chuyển động (`MOVES`; chủ yêu cầu 2026-10-26 sau khi
+  thấy tường trên lưng bị kéo theo: "tự tô phần bụng con chó hoặc có thể tự mask để không dính hiệu ứng vào tường"):
+  như lớp có mask trong After Effects, mỗi điểm ảnh lấy cái đã nhô lên tới đó theo phần vùng ở chỗ nó tới
+  (`apply`: mask đọc ở chỗ nguồn), còn lại giữ như cũ: tường, nệm không tô đứng yên từng điểm ảnh, lưng nhô lên che
+  lên tường. Vùng là vùng như Scene đưa (mép mềm trong mép tô, nhân với phần không phải tiền cảnh nếu "Bay ra sau tiền
+  cảnh": vật tiền cảnh đứng yên, gần đúng). Tấm xoay 3D mang vùng lên tấm như hình (`sheet.Sheet.moving`) và không đặt
+  vùng lên phần đổi; clip xem nhanh làm cùng vùng (`engine.moving_area`, tên theo `_moves_key`: hash mask
+  `_mask_hash`, độ mềm, tiền cảnh khi ở sau nó); trang không đặt mask vùng, tiền cảnh lên clip này (`movesKind`), tô
+  vùng / tiền cảnh xong thì hỏi lại clip. Chưa tô: mọi thứ trong viền cam chuyển động (dải `FADE` trên lưng co giãn).
+  Clip xem nhanh dưới hộp (`UNDER`) của mọi hiệu ứng nay là WebM thẻ BT.709 và theo `PREVIEW_CRF` của hiệu ứng
+  (chó ngủ thở: 30). Test: `tests/test_breath.py`; trang: bước `breath` (cả tô vùng).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D
