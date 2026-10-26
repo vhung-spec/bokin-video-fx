@@ -461,6 +461,8 @@ hiệu ứng. Cách dùng: `README.md`.
   vùng lên phần đổi; clip xem nhanh làm cùng vùng (`engine.moving_area`, tên theo `_moves_key`: hash mask
   `_mask_hash`, độ mềm, tiền cảnh khi ở sau nó); trang không đặt mask vùng, tiền cảnh lên clip này (`movesKind`), tô
   vùng / tiền cảnh xong thì hỏi lại clip. Chưa tô: mọi thứ trong viền cam chuyển động (dải `FADE` trên lưng co giãn).
+  Mép mềm của vùng nằm trong mép tô, ở đó chỉ chuyển động một phần: clip mới của nó có mép mềm `SCHEMA["feather"]` 2
+  (trang: `S.schema.kinds[kind].feather`, các loại khác 20: với 20 lưng chỉ nhô chừng một phần năm).
   Clip xem nhanh dưới hộp (`UNDER`) của mọi hiệu ứng nay là WebM thẻ BT.709 và theo `PREVIEW_CRF` của hiệu ứng
   (chó ngủ thở: 30). Test: `tests/test_breath.py`; trang: bước `breath` (cả tô vùng).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem

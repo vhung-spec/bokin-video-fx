@@ -1167,14 +1167,15 @@ def breath(page, shot):
           abs(after[2] - dragged[1] / 100) < 0.02, str([shown, dragged, after]))
     page.select_option('#ec select[data-param="look"]', "small")
     page.wait_for_timeout(200)
-    look = page.evaluate(f"[clipById('{cid}').params.rate, clipById('{cid}').params.amount]")
+    look = page.evaluate(f"[clipById('{cid}').params.rate, clipById('{cid}').params.amount, clipById('{cid}').feather]")
     page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want && "
                            f"S.els['{cid}']", timeout=300000)
     page.evaluate("applyTime()")
     laid = page.evaluate(f"""(() => {{ const e = S.els['{cid}']; return [e.media.getAttribute('src').includes('.webm'),
         e.wrap.style.mixBlendMode, e.wrap.parentNode === $('#layers').firstChild]; }})()""")
     check("Chó ngủ thở: a look sets the breathing; its preview clip (the picture under the box, breathing), laid just "
-          "over the video", look == [26, 38] and laid == [True, "normal", True], str([look, laid]))
+          "over the video; its area a little soft (the back rises cleanly)", look == [26, 38, 2] and
+          laid == [True, "normal", True], str([look, laid]))
     shot("05o-breath")
     # the dog painted (the owner, 2026-10-26: "tự tô phần bụng con chó ... để không dính hiệu ứng vào tường"): what
     # moves; its preview clip made again with it, laid with no area over it (the back rises over the wall)

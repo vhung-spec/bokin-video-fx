@@ -474,8 +474,8 @@ sắc nét. Lúc nghỉ giữa hai hơi thở, hình giống hệt video gốc.
    **Mỗi hơi thở một khác** (0: hơi thở nào cũng như nhau).
 5. **Để tường, nệm đứng yên hẳn** (nên làm): ở mục **Vùng** của clip bấm **Vẽ vùng**, tô lên cả thân con chó (cả lưng,
    tô lấn ra ngoài mép lông một chút; đầu tô hay không cũng được), bấm **Xong**. Chỉ phần đã tô chuyển động: tường,
-   nệm không tô thì giữ nguyên từng điểm ảnh, lưng chó nhô lên **che lên** tường như thật. Mép tô hơi cứng thì kéo
-   **Độ mềm mép vùng** lên một chút (vài điểm ảnh).
+   nệm không tô thì giữ nguyên từng điểm ảnh, lưng chó nhô lên **che lên** tường như thật. **Độ mềm mép vùng** của
+   clip này để nhỏ (có sẵn 2; 0 tới 5): mép càng mềm thì mép lưng nhô lên càng ít.
 6. Con chó nằm nghiêng theo hướng khác (lưng chếch lên, nằm trên dốc): xoay khung bằng nút tròn trên khung cho cạnh
    dưới khung nằm dọc chỗ nằm; nhìn chếch thì nghiêng khung bằng nút **3D**.
 

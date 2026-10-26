@@ -289,6 +289,28 @@ class Picture(unittest.TestCase):
         deep[int(top) + 8:int(bottom) - 8, int(left) + 30:int(right) - 30] = True
         self.assertTrue(np.allclose(out[deep & inside], plain[deep & inside], atol=1e-6))  # (inside: as without)
 
+    def test_the_dog_painted_softly(self):
+        """A new clip's area is soft over a few pixels (SCHEMA "feather"; the page's own is 20): the back still rises
+        nearly all the way. (Soft within what is painted, what moves near the outline moves only partly: an edge as
+        soft as the page's own 20 pixels would keep the back from rising.)"""
+        from PIL import ImageFilter
+        fx = make({"amount": 100, **STEADY})
+        pic = scene(fx)
+        t = max(range(fx.P), key=fx.level)
+        left, top, right, bottom = body(fx)
+        mid = int((left + right) / 2)
+        y0, y1 = int(top) - 15, int(top) + 15
+        painted = Image.fromarray((dog_area(fx) * 255).astype(np.uint8))
+
+        def risen(feather):  # (as engine.mask_image softens a clip's area: within its outline)
+            m = painted.filter(ImageFilter.GaussianBlur(feather)).point(engine.INSIDE) if feather else painted
+            out = lens(fx, t, pic, np.asarray(m, np.float32) / 255)
+            return edge_at(pic, mid, y0, y1) - edge_at(out, mid, y0, y1)
+        lift = fx.level(t) * fx.rise * fx.box()[3]
+        self.assertLessEqual(breath.SCHEMA["feather"], 3)
+        self.assertGreater(risen(breath.SCHEMA["feather"]), 0.75 * lift)
+        self.assertLess(risen(20), 0.5 * lift)
+
     def test_the_dog_painted_turned(self):
         """Turned in 3D, the area painted on the frame is what moves on the sheet too: the wall beside and above the
         dog stays exactly as it was."""

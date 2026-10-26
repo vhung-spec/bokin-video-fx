@@ -198,6 +198,7 @@ xẹp xuống như đang thở. Trên hình: khung trắng, trong khung có vi�
 | Con chó nằm nghiêng hướng khác | Xoay khung (nút tròn) cho cạnh dưới khung nằm dọc chỗ nằm |
 
 Chưa tô vùng: ngay trên lưng, tường hơi co giãn theo hơi thở trong một dải mỏng. Tô vùng con chó thì tường đứng yên hẳn.
+**Độ mềm mép vùng** của clip này để nhỏ (có sẵn 2): mép càng mềm thì mép lưng nhô lên càng ít.
 
 ## Xem video
 

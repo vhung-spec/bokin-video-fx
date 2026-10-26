@@ -4073,7 +4073,8 @@ function addClip(item, trackId, s, en) {
   const params = {};
   for (const d of S.schema.kinds[kind].params) params[d.key] = d.value;
   let name = kindLabel(kind);
-  const c = {id: newId(kind.slice(0, 2)), kind, name, on: true, behind: false, feather: 20, seed: Math.floor(Math.random() * 2147483647),
+  const c = {id: newId(kind.slice(0, 2)), kind, name, on: true, behind: false, feather: S.schema.kinds[kind].feather ?? 20,
+    seed: Math.floor(Math.random() * 2147483647),
     params, track: trackId, start: s, end: en, fade_in: 0, fade_out: 0, skip: 0};
   if (kind === "file") {
     const it = libItem(item.lib); if (!it) return;

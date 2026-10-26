@@ -79,7 +79,11 @@ SCHEMA = {"label": "Chó ngủ thở", "params": [
     "area_tip": "Tô lên cả thân con chó, cả lưng, tô lấn ra ngoài mép lông một chút. Chỉ phần đã tô chuyển động; "
                 "tường, nệm không tô thì đứng yên, lưng chó nhô lên che lên tường.",
     "area_note": "Muốn tường, nệm đứng yên hẳn: bấm Vẽ vùng, tô cả thân con chó rồi bấm Xong. Chưa tô: mọi thứ trong "
-                 "viền cam chuyển động, tường ngay trên lưng hơi co giãn theo."}
+                 "viền cam chuyển động, tường ngay trên lưng hơi co giãn theo. Độ mềm mép vùng để nhỏ (0 tới 5): mép "
+                 "càng mềm, mép lưng nhô lên càng ít.",
+    # a new clip's area softness (pixels of the video): the soft edge lies within what is painted, and what moves
+    # there moves only partly, so a soft edge as wide as the rise keeps the back from rising (the page's own is 20)
+    "feather": 2}
 
 
 def _smooth(x):
