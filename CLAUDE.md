@@ -69,10 +69,13 @@ hiệu ứng. Cách dùng: `README.md`.
   `#guideBtn` trên thanh trên cùng, `#licVideo` trên màn hình kích hoạt (ở phần 1; `#modal.over` nằm trên `#lic`), và
   nút trong thẻ Hướng dẫn (dòng `<!-- video -->` trong `HUONG-DAN.md`). Video không có tiếng, chữ hướng dẫn trên màn
   hình: chủ chọn bỏ giọng đọc (giọng Piper vi_VN-vais1000 tinh chỉnh từ giọng lessac, dữ liệu lessac/Blizzard chỉ cho
-  nghiên cứu). Làm từ bản video hướng dẫn có giọng đọc (2026-10-24, app 1.0.82): bỏ tiếng, xoá dòng ghi nguồn giọng ở
-  cảnh kết (`delogo`), H.264 CRF 32, 1600x900, chỉ mục đầu file (faststart), không còn tên công cụ. Quay lại video khi
-  giao diện đổi nhiều thì sửa `CHAPTERS` theo video mới. Test: `tests/test_guide.py`, `test_video_guide` (server),
-  licence, selftest ("video guide bundled"), trang (`video_guide`, màn hình kích hoạt).
+  nghiên cứu). Phần 0 tới 15 quay 2026-10-24 (app 1.0.82, bản có giọng đọc, bỏ tiếng). Phần 16 "Chó ngủ thở" (chủ
+  yêu cầu 2026-10-27: "thêm video hướng dẫn làm hiệu ứng chó ngủ vào trong app") và cảnh kết quay lại 2026-10-27 (app
+  1.0.92): con chó, nệm, tường đá vẽ bằng mã (không dùng ảnh của chủ), chữ hiện lâu như các phần trước, cảnh kết không
+  còn dòng ghi nguồn giọng. Cả video mã hoá một lần từ các bản quay gốc: H.264 CRF 32, 1600x900, chỉ mục đầu file
+  (faststart), không còn tên công cụ. Quay lại video khi giao diện đổi nhiều thì sửa `CHAPTERS` theo video mới. Test:
+  `tests/test_guide.py`, `test_video_guide` (server), licence, selftest ("video guide bundled"), trang (`video_guide`:
+  số phần và độ dài đọc từ `fx/guide.py`, màn hình kích hoạt).
 - `fx/timeline.py`: luật thời gian của clip (độ dài 30/60 giây, `Span`: bắt đầu, kết thúc, mờ dần). `index.html` có
   bản sao bằng JavaScript (`span`, `weight`, `plan`, `fileTime`): sửa một bên thì sửa cả bên kia.
 - `fx/projects.py`: dự án trong `%APPDATA%\Bokin\FX\projects\<id>` (project.json, input.*, proxy.mp4, still.png,

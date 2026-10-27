@@ -11,9 +11,9 @@ lên một nút cũng thấy phím của nút đó.
 
 ## Video hướng dẫn
 
-Bấm nút **Video hướng dẫn** ở thanh trên cùng (cạnh **Phím tắt**). Video dài gần 14 phút, không có tiếng: làm theo chữ
-hiện trên màn hình. Bên phải video là các phần (kích hoạt, vùng đứng yên, tuyết, dây đèn, lửa lò sưởi, xuất video…):
-bấm một phần để xem đúng đoạn đó. Đóng rồi mở lại, video chạy tiếp chỗ đang xem. Màn hình kích hoạt cũng có nút
+Bấm nút **Video hướng dẫn** ở thanh trên cùng (cạnh **Phím tắt**). Video dài gần 16 phút, không có tiếng: làm theo chữ
+hiện trên màn hình. Bên phải video là các phần (kích hoạt, vùng đứng yên, tuyết, dây đèn, lửa lò sưởi, xuất video, chó
+ngủ thở…): bấm một phần để xem đúng đoạn đó. Đóng rồi mở lại, video chạy tiếp chỗ đang xem. Màn hình kích hoạt cũng có nút
 **Xem video hướng dẫn** (mở ở phần **Kích hoạt app**).
 
 <!-- video -->

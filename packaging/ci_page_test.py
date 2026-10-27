@@ -1220,22 +1220,26 @@ PLAYS = "!!document.createElement('video').canPlayType('video/mp4; codecs=\"avc1
 def video_guide(page, shot):
     """The video guide (HUONG-DAN.mp4): from the Hướng dẫn tab and from the header, its parts listed beside it; a part a
     click away, marked in the list as it plays; Esc closes it, stopped; it goes on where it was left."""
+    from fx import guide
     plays = page.evaluate(PLAYS)
     page.click("#keysBtn")
     page.click('[data-ktab="guide"]')
     page.wait_for_selector("#kGuide [data-gvideo]")
     page.click("#kGuide [data-gvideo]")  # (the guide's own button for it)
     page.wait_for_selector("#gvParts li")
-    check("the video guide from the Hướng dẫn tab: its parts beside it", page.locator("#gvParts li").count() == 17 and
-          "9. Lửa lò sưởi" in page.inner_text("#gvParts"), page.inner_text("#gvParts")[:200])
+    listed = page.inner_text("#gvParts")
+    check("the video guide from the Hướng dẫn tab: its parts beside it",
+          page.locator("#gvParts li").count() == len(guide.CHAPTERS) and "9. Lửa lò sưởi" in listed and
+          "16. Chó ngủ thở" in listed, listed[:200])
     if plays:
+        fire = [title for _, title in guide.CHAPTERS].index("9. Lửa lò sưởi")
         page.wait_for_function("$('#gvVideo').readyState >= 1", timeout=30000)
-        page.click("#gvParts li:nth-child(10) button")  # 9. Lửa lò sưởi
-        page.wait_for_function("Math.abs($('#gvVideo').currentTime - 529.04) < 3 && "
-                               "$$('#gvParts li')[9].classList.contains('on')", timeout=30000)
+        page.click(f"#gvParts li:nth-child({fire + 1}) button")
+        page.wait_for_function(f"Math.abs($('#gvVideo').currentTime - {guide.CHAPTERS[fire][0]}) < 3 && "
+                               f"$$('#gvParts li')[{fire}].classList.contains('on')", timeout=30000)
         length = page.evaluate("$('#gvVideo').duration")
-        check("a part a click away (9. Lửa lò sưởi), marked in the list; the whole video", abs(length - 826.56) < 1,
-              str(length))
+        check("a part a click away (9. Lửa lò sưởi), marked in the list; the whole video",
+              abs(length - guide.LENGTH) < 1, str(length))
     shot("05j-video-guide")
     page.keyboard.press("Escape")
     page.wait_for_timeout(300)
@@ -1333,14 +1337,15 @@ def activation(page, shot):
     check("activation screen: the machine code, nothing else started", page.inner_text("#licMachine") == machine and
           page.evaluate("!S.schema"), page.inner_text("#licMachine"))
     shot("00-activation")
+    from fx import guide
     page.click("#licVideo")  # the video guide, over the activation screen, at its part on how to activate
     page.wait_for_selector("#gvParts li")
     over = page.evaluate("[getComputedStyle($('#modal')).zIndex, getComputedStyle($('#lic')).zIndex]")
     check("activation screen: the video guide over it, its parts beside it", over == ["94", "93"] and
-          page.is_visible("#gv") and page.locator("#gvParts li").count() == 17, str(over))
+          page.is_visible("#gv") and page.locator("#gvParts li").count() == len(guide.CHAPTERS), str(over))
     if page.evaluate(PLAYS):
-        page.wait_for_function("Math.abs($('#gvVideo').currentTime - 12) < 2 && $$('#gvParts li')[1].classList.contains('on')",
-                               timeout=30000)
+        page.wait_for_function(f"Math.abs($('#gvVideo').currentTime - {guide.CHAPTERS[1][0]}) < 2 && "
+                               "$$('#gvParts li')[1].classList.contains('on')", timeout=30000)
         check("activation screen: the video at how to activate", True)
     shot("00-video-guide")
     page.keyboard.press("Escape")

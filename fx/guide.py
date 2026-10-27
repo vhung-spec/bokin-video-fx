@@ -14,8 +14,9 @@ CHAPTERS = (  # (where each part starts, seconds; its title in the page's list)
     (100.52, "4. Vùng đứng yên"), (170.76, "5. Tuyết rơi ngoài cửa sổ (vẽ vùng cho hiệu ứng)"), (282.96, "6. Dây đèn"),
     (373.8, "7. Vùng sáng nhấp nháy"), (441.68, "8. Sao chép thiết lập và vùng"), (529.04, "9. Lửa lò sưởi"),
     (594.2, "10. Thư viện: file hiệu ứng"), (647.08, "11. Sửa trên timeline"), (710.76, "12. Xem cho kỹ"),
-    (740.44, "13. Lưu dự án"), (755.68, "14. Xuất video"), (789.64, "15. Phím tắt và Hướng dẫn"), (811.96, "Kết thúc"))
-LENGTH = 826.56  # (seconds)
+    (740.44, "13. Lưu dự án"), (755.68, "14. Xuất video"), (789.64, "15. Phím tắt và Hướng dẫn"),
+    (811.96, "16. Chó ngủ thở"), (939.6, "Kết thúc"))
+LENGTH = 956.44  # (seconds)
 
 
 def video_path():
