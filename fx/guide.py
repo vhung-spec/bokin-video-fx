@@ -12,11 +12,12 @@ VIDEO = "HUONG-DAN.mp4"
 CHAPTERS = (  # (where each part starts, seconds; its title in the page's list)
     (0.0, "Mở đầu"), (12.0, "1. Kích hoạt app"), (42.8, "2. Giao diện"), (73.48, "3. Mở video loop"),
     (100.52, "4. Vùng đứng yên"), (170.76, "5. Tuyết rơi ngoài cửa sổ (vẽ vùng cho hiệu ứng)"), (282.96, "6. Dây đèn"),
-    (373.8, "7. Vùng sáng nhấp nháy"), (441.68, "8. Sao chép thiết lập và vùng"), (529.04, "9. Lửa lò sưởi"),
-    (594.2, "10. Thư viện: file hiệu ứng"), (647.08, "11. Sửa trên timeline"), (710.76, "12. Xem cho kỹ"),
-    (740.44, "13. Lưu dự án"), (755.68, "14. Xuất video"), (789.64, "15. Phím tắt và Hướng dẫn"),
-    (811.96, "16. Chó ngủ thở"), (939.6, "Kết thúc"))
-LENGTH = 956.44  # (seconds)
+    (373.8, "7. Vùng sáng nhấp nháy"), (441.68, "8. Sao chép thiết lập và vùng"),
+    (529.04, "9. Thư viện: file hiệu ứng"), (581.92, "10. Sửa trên timeline"), (645.6, "11. Xem cho kỹ"),
+    (675.28, "12. Lưu dự án"), (690.52, "13. Xuất video"), (724.48, "14. Phím tắt và Hướng dẫn"),
+    (746.8, "15. Chó ngủ thở"), (874.44, "Kết thúc"))
+# (part 9, Lửa lò sưởi, taken out 2026-11-02 with the effect: the parts after it renumbered, on their cards too)
+LENGTH = 891.28  # (seconds)
 
 
 def video_path():

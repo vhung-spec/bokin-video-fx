@@ -3,10 +3,12 @@ summer evening (a placed effect: Effect.BOX; drawn as light, laid with Screen; s
 loops).
 
 The box goes over the bushes (the flowers, the grass, a little air above them): the fireflies live in it, each round
-a place of its own, wandering slowly in loops and bobbing (sums of sines, whole cycles a loop); each flashes on its
-own beat as a firefly does: its light comes up quickly, stays a moment, and fades more slowly, dark or faintly lit
-between flashes ("Nhấp nháy"). Near ones are bigger and softer (out of focus, as a camera sees them), far ones
-small points; a hot, paler core and a halo of their colour. Toward the box's edges they fade out: nothing is cut.
+a place of its own, floating slowly in loops and bobbing (sums of sines, whole cycles a loop); each glows up on its
+own slow beat: its light comes up softly, stays a moment, and fades out slowly, dark or faintly lit between flashes
+("Nhấp nháy"; calm, as the owner asked 2026-11-02: "nhấp nháy chill hơn"). Near ones are bigger and softer (out of
+focus, as a camera sees them), far ones small points; a core paler than their colour only when fully lit, a halo of
+their colour and a wide bloom that grow and fade with their light (never popping on), each one's colour leaning a
+little toward yellow or green. Toward the box's edges they fade out: nothing is cut.
 
 Inside the box every length is in box heights (as the string lights'), so the preview clip (the box alone) and the
 video show the same.
@@ -24,8 +26,13 @@ CAP = 160  # fireflies at most (the first ones: the same random draws, however m
 EDGE = 0.07  # they fade out within this much of the box's edges (box heights)
 SOFT = 0.04  # and their light within this much (none beyond the box: its preview clip is the box alone)
 LIFT = 0.012  # how far a firefly rises as it flashes (box heights)
-RISE, HOLD, FADE = 0.12, 0.1, 0.32  # a flash: seconds its light takes to come up, stays, and takes to fade (by e)
-HALO, CORE, BLOOM = 0.9, 2.6, 0.12  # light at the middle of its halo, its core, its wide bloom (times its light)
+RISE, HOLD, FALL = 0.7, 0.4, 1.7  # a flash: seconds its light takes to come up, stays, and takes to fade out
+# (smoothly, each way; a beat too short for them all: each in proportion, within SHARE of the beat)
+SHARE = 0.8
+HALO, CORE, BLOOM = 0.9, 2.1, 0.16  # light at the middle of its halo, its core, its wide bloom (times its light)
+PALE = (0.2, 0.4)  # how much paler than its colour its core is: faintly lit .. fully lit (a hot middle when bright)
+LEAN = 0.35  # how far each one's colour may lean toward yellow or toward green
+YELLOW, GREEN = (1.0, 0.86, 0.3), (0.55, 1.0, 0.42)
 TONES = {"lime": "#c8ff4f", "warm": "#ffe066", "green": "#8dff6a"}
 
 DEFAULTS = {"amount": 35, "size": 45, "brightness": 70, "twinkle": 65, "blink": 50, "wander": 50, "speed": 45,
@@ -78,6 +85,7 @@ class Fireflies(Effect):
     BOX = (16, 9)
     TURNS = False  # (a swarm of points: nothing to turn)
     PREVIEW = 1280  # its preview clip's height when its box is big in the video
+    VERSION = 2  # (2026-11-02: calm flashes, colours, bloom)
 
     def __init__(self, *a):
         super().__init__(*a)
@@ -90,25 +98,25 @@ class Fireflies(Effect):
         self.hx = EDGE + u[:, 0] * (wide - 2 * EDGE)
         self.hy = 0.12 + 0.8 * u[:, 1] ** 0.8
         near = p["depth"] / 100 * u[:, 2] ** 2
-        # wandering: three loops each way (slow, middle, quick), whole cycles a loop, as far as "Bay lượn xa" says
-        pace = 2.0 ** ((p["speed"] - 50) / 50)
+        # floating: three loops each way (slow, middle, a gentle bob), whole cycles a loop, as far as "Bay lượn xa"
+        # says
+        pace = 2.0 ** ((p["speed"] - 50) / 50) * 0.8
         reach = _lerp(0.2, 1.8, p["wander"] / 100) * (0.6 + 0.8 * u[:, 3])
-        rates = np.stack([_lerp(0.025, 0.06, u[:, 4]), _lerp(0.07, 0.16, u[:, 5]), _lerp(0.18, 0.4, u[:, 6])])
+        rates = np.stack([_lerp(0.025, 0.06, u[:, 4]), _lerp(0.07, 0.16, u[:, 5]), _lerp(0.12, 0.26, u[:, 6])])
         self.mx = self.cycles(rates * pace)
         self.my = self.cycles(np.stack([_lerp(0.03, 0.07, u[:, 7]), _lerp(0.08, 0.18, u[:, 8]),
-                                        _lerp(0.2, 0.45, u[:, 9])]) * pace)
-        self.ax = np.array([0.1, 0.045, 0.015])[:, None] * reach
-        self.ay = np.array([0.055, 0.03, 0.01])[:, None] * reach
+                                        _lerp(0.14, 0.3, u[:, 9])]) * pace)
+        self.ax = np.array([0.1, 0.045, 0.009])[:, None] * reach
+        self.ay = np.array([0.055, 0.03, 0.007])[:, None] * reach
         self.px_ = u[:, 10:13].T * TAU
         self.py_ = u[:, 13:16].T * TAU
-        # flashing: its own beat (whole flashes a loop), a quick rise, a moment lit, a slower fade
+        # flashing: its own slow beat (whole flashes a loop), a soft rise, a moment lit, a slow fade
         beat = 2.0 ** ((p["blink"] - 50) / 50)
-        self.mf = self.cycles(_lerp(0.15, 0.4, u[:, 16]) * beat)
+        self.mf = self.cycles(_lerp(0.07, 0.17, u[:, 16]) * beat)
         self.pf = u[:, 17]
         period = self.loop_s / self.mf  # (seconds a beat)
-        self.rise, self.hold = RISE / period, HOLD / period  # (shares of a beat)
-        self.fade = FADE / period
-        self.tail = np.exp(-(1 - self.rise - self.hold) / self.fade)  # (what is left at the beat's end: taken away)
+        k = np.minimum(1.0, SHARE * period / (RISE + HOLD + FALL)) / period
+        self.rise, self.hold, self.fall = RISE * k, HOLD * k, FALL * k  # (shares of a beat)
         self.tw = p["twinkle"] / 100
         self.glow = _lerp(0.55, 1.0, u[:, 18]) * p["brightness"] / 100 * 1.6
         # sizes (box heights): near ones bigger and softer, as much light spread wider
@@ -118,8 +126,9 @@ class Fireflies(Effect):
         self.bloom = size * (10.0 + 6.0 * near)
         self.glow /= 1 + 1.5 * near  # (a near one's light spread over a bigger disc: dimmer at its middle)
         colour = _rgb(p["color"])
-        self.c_halo = colour.astype(np.float32)
-        self.c_core = (colour + (1 - colour) * 0.6).astype(np.float32)  # (its middle burns paler)
+        lean = (u[:, 20] - 0.5) * 2 * LEAN  # (toward yellow above 0, toward green below)
+        to = np.where(lean[:, None] > 0, np.array(YELLOW), np.array(GREEN))
+        self.c_halo = (colour + np.abs(lean)[:, None] * (to - colour)).astype(np.float32)
         self._clip = None
         self.cache = (sprites.SpriteCache(lambda key, fx, fy: _core(key, fx, fy)),
                       sprites.SpriteCache(lambda key, fx, fy: _halo(key, fx, fy)))  # (halos and blooms alike)
@@ -134,7 +143,7 @@ class Fireflies(Effect):
         """Each firefly's flash at loop phase tau: 0 (between flashes) .. 1."""
         ph = (self.mf * tau + self.pf) % 1.0
         up = _smooth(ph / self.rise)
-        down = (np.exp(-np.maximum(ph - self.rise - self.hold, 0.0) / self.fade) - self.tail) / (1 - self.tail)
+        down = 1.0 - _smooth((ph - self.rise - self.hold) / self.fall)
         return np.where(ph < self.rise, up, np.where(ph < self.rise + self.hold, 1.0, down))
 
     def flashes(self, tau):
@@ -163,7 +172,10 @@ class Fireflies(Effect):
         flash = self.flash(tau)
         y = y - LIFT * flash  # (a firefly rises a little as it flashes)
         edge = _smooth(np.minimum(np.minimum(x, self.wide - x), np.minimum(y, 1 - y)) / EDGE)
-        lit = ((1 - self.tw) * 0.6 + self.tw * flash) * self.glow * edge
+        level = (1 - self.tw) * 0.6 + self.tw * flash  # (0 dark .. 1 fully lit)
+        lit = level * self.glow * edge
+        bloom = BLOOM * lit * level  # (the wide bloom grows with its light: there when it glows, never popping on)
+        pale = PALE[0] + (PALE[1] - PALE[0]) * level
         xs, ys = x0 + x * h, y0 + y * h
         core, halo = self.cache
         reach = self.bloom * h * 2.6 + 2
@@ -172,10 +184,11 @@ class Fireflies(Effect):
                 continue
             ix, iy = math.floor(xs[i]), math.floor(ys[i])
             fx, fy = xs[i] - ix, ys[i] - iy
-            if lit[i] > 0.25:  # (a wide bloom when it flashes; too faint to see between flashes)
+            tone = self.c_halo[i]
+            if bloom[i] > 0.003:
                 spot, sx, sy = halo.get(sprites.bucket(max(self.bloom[i] * h, 0.5)), fx, fy)
-                canvas.light(ix + sx, iy + sy, spot, self.c_halo * (BLOOM * lit[i]), mask)
+                canvas.light(ix + sx, iy + sy, spot, tone * bloom[i], mask)
             spot, sx, sy = halo.get(sprites.bucket(max(self.halo[i] * h, 0.5)), fx, fy)
-            canvas.light(ix + sx, iy + sy, spot, self.c_halo * (HALO * lit[i]), mask)
+            canvas.light(ix + sx, iy + sy, spot, tone * (HALO * lit[i]), mask)
             spot, sx, sy = core.get(sprites.bucket(max(self.core[i] * h, 0.3)), fx, fy)
-            canvas.light(ix + sx, iy + sy, spot, self.c_core * (CORE * lit[i]), mask)
+            canvas.light(ix + sx, iy + sy, spot, (tone + (1 - tone) * pale[i]) * (CORE * lit[i]), mask)

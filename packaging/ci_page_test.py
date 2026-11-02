@@ -924,10 +924,11 @@ def hearth(page, shot):
     box, laid just over the video (under every track); logs chosen: their settings shown, the preview clip with them;
     the fireplace's opening (Khung lò): its outline on the box, dragged by its handles; its walls (Tường lò): their
     settings shown once chosen; turned in 3D: its preview clip from under its turned quad, on the renderer's
-    corners."""
+    corners. (No longer offered in the Tạo sẵn tab since 2026-11-02: a clip of it in an older project still plays and
+    is edited as before; added here as such a clip is.)"""
     from fx import effects as fx_effects
     page.click('.tab[data-bin="fx"]')
-    page.dblclick('.tile[data-kind="hearth"]')
+    page.evaluate("addHere({kind: 'hearth'})")
     cid = page.evaluate("S.sel")
     page.click("#fullBtn")
     page.wait_for_timeout(300)
@@ -1228,17 +1229,18 @@ def video_guide(page, shot):
     page.click("#kGuide [data-gvideo]")  # (the guide's own button for it)
     page.wait_for_selector("#gvParts li")
     listed = page.inner_text("#gvParts")
+    titles = [title for _, title in guide.CHAPTERS]
+    fire = len(titles) // 2  # (a part halfway through)
     check("the video guide from the Hướng dẫn tab: its parts beside it",
-          page.locator("#gvParts li").count() == len(guide.CHAPTERS) and "9. Lửa lò sưởi" in listed and
-          "16. Chó ngủ thở" in listed, listed[:200])
+          page.locator("#gvParts li").count() == len(guide.CHAPTERS) and titles[fire] in listed and
+          "Chó ngủ thở" in listed and "Lửa lò sưởi" not in listed, listed[:200])
     if plays:
-        fire = [title for _, title in guide.CHAPTERS].index("9. Lửa lò sưởi")
         page.wait_for_function("$('#gvVideo').readyState >= 1", timeout=30000)
         page.click(f"#gvParts li:nth-child({fire + 1}) button")
         page.wait_for_function(f"Math.abs($('#gvVideo').currentTime - {guide.CHAPTERS[fire][0]}) < 3 && "
                                f"$$('#gvParts li')[{fire}].classList.contains('on')", timeout=30000)
         length = page.evaluate("$('#gvVideo').duration")
-        check("a part a click away (9. Lửa lò sưởi), marked in the list; the whole video",
+        check(f"a part a click away ({titles[fire]}), marked in the list; the whole video",
               abs(length - guide.LENGTH) < 1, str(length))
     shot("05j-video-guide")
     page.keyboard.press("Escape")
@@ -1247,7 +1249,8 @@ def video_guide(page, shot):
     page.click("#guideBtn")  # the header's button
     page.wait_for_selector("#gvParts li")
     if plays:
-        page.wait_for_function("$('#gvVideo').readyState >= 1 && $('#gvVideo').currentTime > 520", timeout=30000)
+        page.wait_for_function(f"$('#gvVideo').readyState >= 1 && "
+                               f"$('#gvVideo').currentTime > {guide.CHAPTERS[fire][0] - 10}", timeout=30000)
     check("the header's button: the video guide, on where it was left", page.is_visible("#gv"))
     page.click("#gvClose")
     page.wait_for_timeout(200)
@@ -1736,9 +1739,9 @@ def run(page, folder, edge):
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
-          glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "hearth", "leaves", "foliage",
-                    "fireflies", "pigeons", "breath", "flicker", "lights", "garland"],  # (Hạt sáng no longer
-          # offered: an old clip still plays)
+          glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "leaves", "foliage",
+                    "fireflies", "pigeons", "breath", "flicker", "lights", "garland"],  # (Hạt sáng and Lửa lò sưởi
+          # no longer offered: an old clip still plays)
           str(glass))
     page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
                            "return c && S.fx[c.id] && S.fx[c.id].ready; })()", timeout=180000)

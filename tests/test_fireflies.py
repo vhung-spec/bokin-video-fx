@@ -39,8 +39,8 @@ class Loop(unittest.TestCase):
         self.assertGreater(float(np.ptp(x, axis=0).mean()), 0.05 * h)  # (they get about)
 
     def test_flashes(self):
-        """A firefly's flash comes up quickly and fades more slowly; with "Nhấp nháy" 100 it is dark between
-        flashes, with 0 it glows steadily."""
+        """A firefly's flash comes up softly and fades out more slowly (calm: the owner, 2026-11-02); with "Nhấp nháy"
+        100 it is dark between flashes, with 0 it glows steadily."""
         fx = make({"twinkle": 100}, 720, 24)
         tau = np.arange(720 * 4) / (720 * 4)
         lit = np.array([fx.flashes(t) for t in tau])  # (time x fireflies)
@@ -56,6 +56,18 @@ class Loop(unittest.TestCase):
         self.assertLess(rise, fall)
         steady = make({"twinkle": 0}, 720, 24)
         self.assertLess(float(np.ptp([steady.flashes(t) for t in tau[::40]])), 1e-9)
+
+    def test_calm(self):
+        """Calm flashes: a few seconds apart, each taking well over a second to come and go, with no jump in its
+        light from one frame to the next; the wide bloom grows with the light (never popping on)."""
+        fx = make({"twinkle": 100}, 720, 24)
+        hz = fx.mf / fx.loop_s
+        self.assertLessEqual(float(hz.max()), 0.2)
+        tau = np.arange(720) / 720
+        lit = np.array([fx.flash(t) for t in tau])
+        self.assertLess(float(np.abs(np.diff(lit, axis=0)).max()), 0.12)  # (frame to frame)
+        on = (lit > 0.05).mean(axis=0) * fx.loop_s / fx.mf  # (seconds lit a flash)
+        self.assertGreater(float(on.min()), 1.5)
 
     def test_moves(self):
         fx = make()

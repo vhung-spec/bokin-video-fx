@@ -121,7 +121,7 @@ class Periodic(unittest.TestCase):
 class Params(unittest.TestCase):
     def test_clean_params(self):
         p = effects.clean_params("snow", {"amount": 1e9, "wind": "-500", "color": "red", "junk": 1})
-        self.assertEqual(p["amount"], 100)
+        self.assertEqual(p["amount"], 200)  # (snow's "Mật độ" goes to 200)
         self.assertEqual(p["wind"], -100)
         self.assertEqual(p["color"], "#ffffff")
         self.assertNotIn("junk", p)

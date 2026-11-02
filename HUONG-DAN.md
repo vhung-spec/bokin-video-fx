@@ -11,9 +11,9 @@ lên một nút cũng thấy phím của nút đó.
 
 ## Video hướng dẫn
 
-Bấm nút **Video hướng dẫn** ở thanh trên cùng (cạnh **Phím tắt**). Video dài gần 16 phút, không có tiếng: làm theo chữ
-hiện trên màn hình. Bên phải video là các phần (kích hoạt, vùng đứng yên, tuyết, dây đèn, lửa lò sưởi, xuất video, chó
-ngủ thở…): bấm một phần để xem đúng đoạn đó. Đóng rồi mở lại, video chạy tiếp chỗ đang xem. Màn hình kích hoạt cũng có nút
+Bấm nút **Video hướng dẫn** ở thanh trên cùng (cạnh **Phím tắt**). Video dài gần 15 phút, không có tiếng: làm theo chữ
+hiện trên màn hình. Bên phải video là các phần (kích hoạt, vùng đứng yên, tuyết, dây đèn, xuất video, chó ngủ
+thở…): bấm một phần để xem đúng đoạn đó. Đóng rồi mở lại, video chạy tiếp chỗ đang xem. Màn hình kích hoạt cũng có nút
 **Xem video hướng dẫn** (mở ở phần **Kích hoạt app**).
 
 <!-- video -->
@@ -115,7 +115,7 @@ Chọn clip là trên hình có khung trắng quanh nó.
 | Xoay phẳng | Kéo nút tròn phía trên khung. Giữ `Shift`: từng nấc 15°. Bấm đúp nút tròn: về 0° |
 | Nghiêng 3D | Nhấn giữ nút **3D** (cạnh nút tròn) rồi kéo: trái / phải là xoay trái / phải, lên / xuống là nghiêng trước / sau. Giữ `Shift`: chỉ một hướng. Bấm đúp nút **3D**: thẳng lại |
 | Gõ số cho thật đúng | Gõ vào ô số cạnh thanh trượt trong Bảng chỉnh hiệu ứng, rồi bấm `Enter` |
-| Viền cam trong khung (Khung lò của Lửa lò sưởi, thân chó của Chó ngủ thở) | Kéo ô cam hai bên: viền rộng ra, hẹp lại (hai bên cùng lúc). Kéo ô cam ở cạnh trên: viền cao lên, thấp xuống. Viền luôn đứng trên cạnh dưới khung |
+| Viền cam trong khung (thân chó của Chó ngủ thở; Khung lò của Lửa lò sưởi trong dự án cũ) | Kéo ô cam hai bên: viền rộng ra, hẹp lại (hai bên cùng lúc). Kéo ô cam ở cạnh trên: viền cao lên, thấp xuống. Viền luôn đứng trên cạnh dưới khung |
 | Khớp màu với cảnh (video / ảnh ngoài) | Đặt clip vào đúng chỗ, chọn chế độ hoà trộn, rồi bấm **Khớp màu với cảnh** ở mục **Màu sắc**. App đo màu video ở chỗ clip nằm và tự đặt các thanh màu. Sau đó vẫn kéo tay được. `Ctrl+Z`: bỏ |
 
 Lúc đang kéo, góc trên bên trái hình ghi tên clip, cỡ, vị trí và góc xoay.

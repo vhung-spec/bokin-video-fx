@@ -7,8 +7,10 @@ crystal style; the natural style only has a rare small, soft one near the camera
 decided in a 1080-line frame, so the small preview, the video and 4K show the same ones. Every flake flutters (side
 sway at two whole-number frequencies per loop, slowing at the ends of each swing), drifts in gentle swirls (a
 smooth flow field that changes with tau) and with the wind, which blows in gusts that sweep across the frame (always
-with the wind), and some of them glint now and then. A haze of snow too far to see flake by flake can veil the
-scene: streaky drifts of it blow along with the snow, up to a whiteout in a blizzard.
+with the wind), and some of them glint now and then. Some of them can also twinkle gently ("Vài hạt nhấp nháy
+nhẹ", the owner asked 2026-11-02): they slowly light up with a soft glow round them and dim again, each on its own slow
+beat. A haze of snow too far to see flake by flake can veil the scene: streaky drifts of it blow along with the snow,
+up to a whiteout in a blizzard. "Mật độ" goes to 200 (twice the old heaviest snow; the owner, 2026-11-02).
 """
 import math
 
@@ -21,29 +23,38 @@ from .effects import Falling, _choice, _colour, _lerp, _num, _rgb
 LOOKS = {  # the "Kiểu tuyết" presets: every setting but the colours ("medium" is the defaults, added below)
     "light": {"flake": "mixed", "amount": 22, "size": 35, "speed": 25, "sway": 45, "swirl": 25, "spin": 35,
               "wind": 5, "gust": 15, "depth": 60, "blur": 35, "near": 10, "haze": 0, "twinkle": 15, "glow": 0,
-              "opacity": 80},
+              "shimmer": 0, "opacity": 80},
     "heavy": {"flake": "mixed", "amount": 90, "size": 55, "speed": 40, "sway": 35, "swirl": 35, "spin": 40,
               "wind": 15, "gust": 30, "depth": 70, "blur": 50, "near": 40, "haze": 30, "twinkle": 10, "glow": 0,
-              "opacity": 90},
+              "shimmer": 0, "opacity": 90},
+    "dense": {"flake": "mixed", "amount": 170, "size": 45, "speed": 35, "sway": 40, "swirl": 35, "spin": 40,
+              "wind": 10, "gust": 25, "depth": 70, "blur": 45, "near": 35, "haze": 20, "twinkle": 10, "glow": 0,
+              "shimmer": 0, "opacity": 90},
     "blizzard": {"flake": "soft", "amount": 100, "size": 45, "speed": 90, "sway": 30, "swirl": 70, "spin": 60,
                  "wind": 75, "gust": 80, "depth": 75, "blur": 60, "near": 45, "haze": 75, "twinkle": 0, "glow": 0,
-                 "opacity": 95},
+                 "shimmer": 0, "opacity": 95},
     "sparkle": {"flake": "crystal", "amount": 35, "size": 60, "speed": 25, "sway": 40, "swirl": 25, "spin": 50,
                 "wind": 5, "gust": 15, "depth": 60, "blur": 30, "near": 15, "haze": 0, "twinkle": 70, "glow": 35,
-                "opacity": 90},
+                "shimmer": 0, "opacity": 90},
+    "shimmer": {"flake": "mixed", "amount": 50, "size": 45, "speed": 22, "sway": 50, "swirl": 30, "spin": 35,
+                "wind": 5, "gust": 10, "depth": 65, "blur": 40, "near": 15, "haze": 0, "twinkle": 0, "glow": 0,
+                "shimmer": 60, "opacity": 85},
     "dreamy": {"flake": "mixed", "amount": 30, "size": 75, "speed": 15, "sway": 60, "swirl": 40, "spin": 35,
                "wind": 5, "gust": 10, "depth": 80, "blur": 70, "near": 45, "haze": 0, "twinkle": 20, "glow": 25,
-               "opacity": 85},
+               "shimmer": 0, "opacity": 85},
 }
 
 SCHEMA = {"label": "Tuyết rơi", "params": [
     _choice("look", "Kiểu tuyết", "medium",
-            [("light", "Tuyết nhẹ"), ("medium", "Tuyết vừa"), ("heavy", "Tuyết dày"), ("blizzard", "Bão tuyết"),
-             ("sparkle", "Tuyết lấp lánh"), ("dreamy", "Bông to bay chậm")], presets=LOOKS, group="Kiểu"),
+            [("light", "Tuyết nhẹ"), ("medium", "Tuyết vừa"), ("heavy", "Tuyết dày"),
+             ("dense", "Tuyết rơi dày đặc"), ("blizzard", "Bão tuyết"),
+             ("shimmer", "Tuyết rơi, vài hạt nhấp nháy nhẹ"), ("sparkle", "Tuyết lấp lánh"),
+             ("dreamy", "Bông to bay chậm")], presets=LOOKS, group="Kiểu"),
     _choice("flake", "Hình bông tuyết", "mixed",
             [("soft", "Tròn mềm"), ("crystal", "Tinh thể sáu cánh"),
              ("mixed", "Tự nhiên (bông tròn, thỉnh thoảng thấy cánh)")], group="Kiểu"),
-    _num("amount", "Mật độ", 45, group="Bông tuyết"), _num("size", "Cỡ bông", 40, group="Bông tuyết"),
+    _num("amount", "Mật độ (100: tuyết dày, 200: dày gấp đôi)", 45, 0, 200, group="Bông tuyết"),
+    _num("size", "Cỡ bông", 40, group="Bông tuyết"),
     _num("speed", "Tốc độ rơi", 35, group="Chuyển động"), _num("sway", "Đung đưa", 40, group="Chuyển động"),
     _num("swirl", "Xoáy nhẹ theo gió", 35, group="Chuyển động"),
     _num("spin", "Xoay, lật bông tinh thể", 40, group="Chuyển động"),
@@ -54,6 +65,7 @@ SCHEMA = {"label": "Tuyết rơi", "params": [
     _num("near", "Bông to sát ống kính", 25, group="Chiều sâu"),
     _num("haze", "Màn tuyết mờ (trắng xoá khi bão)", 0, group="Chiều sâu"),
     _num("twinkle", "Lấp lánh", 15, group="Ánh sáng"), _num("glow", "Quầng sáng quanh bông", 0, group="Ánh sáng"),
+    _num("shimmer", "Vài hạt nhấp nháy nhẹ (sáng lên rồi mờ đi)", 0, group="Ánh sáng"),
     _num("opacity", "Độ đậm", 85, group="Màu"), _colour("color", "Màu", "#ffffff", group="Màu"),
     _colour("far_color", "Màu bông ở xa", "#e4ebf4", group="Màu")]}
 LOOKS["medium"] = {p["key"]: p["value"] for p in SCHEMA["params"] if p["key"] in LOOKS["light"]}
@@ -379,10 +391,17 @@ def sample(field, u, v):
 
 
 class Snow(Falling):
-    CAP = 9000  # flakes with fixed random draws
+    CAP = 24000  # flakes with fixed random draws (enough for "Mật độ" 200)
+    PART = 9000  # (the far band's share of the flakes, measured over the first of them, as when CAP was this: the
+    # snow of a clip made before stays as it was)
     NEAR = 240  # flakes right at the lens (their own draws)
     VERSION = 2
     SHARP = 16  # how brief a glint is
+    SHIMMER = (0.06, 0.34)  # the share of the flakes in focus that twinkle gently: "Vài hạt nhấp nháy nhẹ" low .. 100
+    SHIMMER_HZ = (0.12, 0.3)  # their beats a second (whole beats a loop)
+    SHIMMER_DIM = 0.45  # how much dimmer than the others they are between twinkles
+    SHIMMER_GLOW = (0.65, 2.2, 2.5)  # their glow at the top of a twinkle: strength, size (times the flake's radius, plus
+    # pixels of a 1080-line frame)
     SHUTTER = 0.35  # a frame's share the camera's shutter is open: how much a moving flake smears
     CRISP = 0.8  # crystals smear a little less, so their arms stay clear
     FAR = 0.35  # the far band: many more of these tiny flakes when the snow is heavy
@@ -459,13 +478,15 @@ class Snow(Falling):
         # also are), the first candidates of each band; drawn far to near. Heavy snow has many more flakes, far
         # ones most (fewer extra ones when they are big: big wet flakes fall as fewer clumps)
         scale = self.aspect / (16 / 9)
+        first = np.arange(len(z)) < self.PART
         wider = [(1 + 2 * float(margin_x[k].mean()) / self.aspect) * (1 + 2 * float(margin_y[k].mean()))
-                 for k in (~near, near)]
+                 for k in (first, near)]
         wanted = p["amount"] / 100 * 1100 * scale * wider[0]
         wanted_near = p["near"] / 100 * math.sqrt(p["amount"] / 100) * 28 * scale * wider[1]
-        far = np.flatnonzero(z[:self.CAP] < self.FAR)
-        mid = np.flatnonzero(z[:self.CAP] >= self.FAR)
-        part = float(share[far].sum() / max(share[:self.CAP].sum(), 1e-9))  # the far band's part of them
+        pool = self.PART if p["amount"] <= 100 else self.CAP  # (up to 100, the candidates there were: the same snow)
+        far = np.flatnonzero(z[:pool] < self.FAR)
+        mid = np.flatnonzero(z[:pool] >= self.FAR)
+        part = float(share[far[far < self.PART]].sum() / max(share[:self.PART].sum(), 1e-9))  # the far band's part
         more = heavy ** 1.5 * min(max((100 - p["size"]) / 45, 0.0), 1.0)
         pick = np.concatenate([mid[self._first(share[mid], wanted * (1 - part) * (1 + 1.2 * more))],
                                far[self._first(share[far], wanted * part * (1 + 3 * more))],
@@ -523,6 +544,19 @@ class Snow(Falling):
         self.glints = np.where((u[:, 24] < 0.03 + 0.4 * tw) & self.sharp & (tw > 0), 0.5 + 0.5 * tw, 0.0)
         self.q = self.cycles(_lerp(0.1, 0.35, u[:, 25]))
         self.qph = u[:, 26] * 2 * math.pi
+
+        # gentle twinkles: a share of the flakes in focus (never at the lens) slowly light up with a soft glow round
+        # them and dim again, each on its own slow beat. Drawn from a generator of their own: the other flakes stay
+        # as they were
+        sh = p.get("shimmer", 0) / 100
+        w = np.random.default_rng([self.seed, 1103, 4]).random((len(z), 3))[order]
+        self.shim = ((w[:, 0] < _lerp(*self.SHIMMER, sh)) & self.sharp & ~self.near
+                     & (self.radius >= 0.8 * px) & (sh > 0))
+        self.sm = self.cycles(_lerp(*self.SHIMMER_HZ, w[:, 1]))
+        self.sph = w[:, 2] * 2 * math.pi
+        k, size, plus = self.SHIMMER_GLOW
+        self.sglow = np.where(self.shim, k * (0.5 + 0.5 * sh), 0.0)
+        self.sspread = np.where(self.shim, np.maximum(self.spread, size * self.radius + plus * px), self.spread)
 
         # a crystal too small (in this frame) to show its arms is drawn as a round flake with as much ink
         self.ink_r = np.zeros(self.n)
@@ -611,6 +645,14 @@ class Snow(Falling):
         tau = self.tau(t)
         spark = self.glints * np.maximum(np.sin(2 * math.pi * self.q * tau + self.qph), 0.0) ** self.SHARP
         opacity = np.minimum(1.0, self.opacity * (1 + 1.5 * spark))
+        halo, spread = self.halo, self.spread
+        if self.shim.any():  # gentle twinkles: dimmer between them, up to full with a soft glow at their top
+            beat = (0.5 - 0.5 * np.cos(2 * math.pi * self.sm * tau + self.sph)) ** 2
+            up = np.where(self.shim, beat, 0.0)
+            opacity = np.where(self.shim, np.minimum(1.0, opacity * (1 - self.SHIMMER_DIM * (1 - beat))
+                                                     + (1 - opacity) * 0.5 * beat), opacity)
+            halo = self.halo + self.sglow * up
+            spread = np.where(self.shim, self.sspread, self.spread)
         turn = self.rot0 + 2 * math.pi * self.turns * tau + self.wobble * np.sin(2 * math.pi * self.mw * tau + self.phw)
         squash = 1 - self.tumble * (0.5 - 0.5 * np.cos(2 * math.pi * self.mt * tau + self.pht))
         reach = self.reach + 0.5 * np.hypot(mx, my)
@@ -623,12 +665,12 @@ class Snow(Falling):
         # (behind the others); those at the lens or far out of focus and the crystals one by one, far to near
         group = round_ & self.together
         dots = self._together(canvas, mask, veil, np.flatnonzero(round_), group, x, y, r, mx, my, opacity,
-                              np.flatnonzero(group & lit), spark, ray)
+                              np.flatnonzero(group & lit), spark, ray, halo, spread)
         for i in np.flatnonzero(seen & ~group):
-            if self.halo[i] > 0:  # the glow first, the flake over it
+            if halo[i] > 0:  # the glow first, the flake over it
                 ix, iy = math.floor(x[i]), math.floor(y[i])
-                cover, x0, y0 = self.halos.get(sprites.bucket(self.spread[i], 1.1), x[i] - ix, y[i] - iy)
-                canvas.over(ix + x0, iy + y0, cover, self.colour[i], self.halo[i] * opacity[i], mask)
+                cover, x0, y0 = self.halos.get(sprites.bucket(spread[i], 1.1), x[i] - ix, y[i] - iy)
+                canvas.over(ix + x0, iy + y0, cover, self.colour[i], min(1.0, halo[i]) * opacity[i], mask)
             if i in dots:
                 cover, x0, y0 = dots[i]
                 canvas.over(x0, y0, cover, self.colour[i], opacity[i], mask)
@@ -653,7 +695,7 @@ class Snow(Falling):
         np.add.at(self._acc[1], at, wt * np.broadcast_to(self.mix[idx].astype(np.float32)[:, None, None],
                                                          ok.shape)[ok])
 
-    def _together(self, canvas, mask, veil, idx, group, x, y, r, mx, my, opacity, lit, spark, ray):
+    def _together(self, canvas, mask, veil, idx, group, x, y, r, mx, my, opacity, lit, spark, ray, halo, spread):
         """The round flakes `idx` (a crystal too small to show its arms is one, with as much ink), worked out
         together, a group of flakes on the same grid size at a time. Those in `group` (with their glow, and the
         glints of those in `lit`) are added up and laid over the frame at once (where they overlap, they cover it),
@@ -678,12 +720,13 @@ class Snow(Falling):
                 if add.any():
                     f = f[add]
                     self._add(cover[add], f, x[f], y[f], hx, hy, opacity[f])
-        glow = idx[group[idx] & (self.halo[idx] > 0)]
+        glow = idx[group[idx] & (halo[idx] > 0)]
         if len(glow):  # the glow around them
-            gx = _grid_of(2.5 * self.spread[glow])
+            gx = _grid_of(2.5 * spread[glow])
             for k in np.unique(gx):
                 f = glow[gx == k]
-                self._add(halos(x[f], y[f], self.spread[f], k, k), f, x[f], y[f], k, k, self.halo[f] * opacity[f])
+                self._add(halos(x[f], y[f], spread[f], k, k), f, x[f], y[f], k, k,
+                          np.minimum(halo[f], 1.0) * opacity[f])
         if len(lit):  # glints
             gx = _grid_of(ray[lit] + 1.5)
             for k in np.unique(gx):

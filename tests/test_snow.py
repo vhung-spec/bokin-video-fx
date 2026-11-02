@@ -83,7 +83,7 @@ class Loops(unittest.TestCase):
 class Settings(unittest.TestCase):
     def test_old_settings_keep_their_meaning(self):
         """Old projects keep what they had: the first version's settings, ranges and defaults are all there."""
-        old = {"amount": (0, 100, 45), "size": (0, 100, 40), "speed": (0, 100, 35), "wind": (-100, 100, 10),
+        old = {"amount": (0, 200, 45), "size": (0, 100, 40), "speed": (0, 100, 35), "wind": (-100, 100, 10),
                "sway": (0, 100, 40), "depth": (0, 100, 60), "blur": (0, 100, 40), "opacity": (0, 100, 85)}
         by = {p["key"]: p for p in snow.SCHEMA["params"]}
         for key, (lo, hi, value) in old.items():
@@ -160,6 +160,37 @@ class Settings(unittest.TestCase):
             sky = frame(made["blizzard"], t, base=0.72)
             self.assertGreater(float(sky.mean()), 0.75)  # whiter
             self.assertGreater(float(coverage(made["heavy"], t).mean()), 10 * float(coverage(made["medium"], t).mean()))
+
+    def test_denser_up_to_200(self):
+        """"Mật độ" goes to 200 (the owner, 2026-11-02): about twice the flakes of 100. Up to 100 the flakes are
+        drawn from the candidates there were before, so a clip made before keeps its snow."""
+        a, b = (effects.make("snow", {"amount": v}, 2, 144, 24, 1920, 1080) for v in (100, 200))
+        self.assertGreater(b.n, 1.7 * a.n)
+        self.assertLess(int(np.flatnonzero(~a.near).size), snow.Snow.PART)
+        made = {name: effects.make("snow", dict(snow.LOOKS[name]), 2, 144, 24, W, H) for name in ("heavy", "dense")}
+        self.assertGreater(made["dense"].n, 1.4 * made["heavy"].n)
+        a, b = (effects.make("snow", {"amount": v}, 2, 144, 24, W, H) for v in (100, 200))
+        self.assertGreater(float(coverage(b, 30).mean()), 1.4 * float(coverage(a, 30).mean()))
+
+    def test_gentle_twinkles(self):
+        """"Vài hạt nhấp nháy nhẹ": a share of the flakes in focus slowly light up with a soft glow round them and dim
+        again, each on its own slow beat; the flakes stay where they were, and at 0 nothing twinkles."""
+        plain = effects.make("snow", {}, 2, 240, 24, W, H)
+        fx = effects.make("snow", {"shimmer": 100}, 2, 240, 24, W, H)
+        self.assertFalse(plain.shim.any())
+        self.assertTrue(np.array_equal(frame(plain, 40), frame(effects.make("snow", {"shimmer": 0}, 2, 240, 24, W, H),
+                                                               40)))
+        focus = fx.sharp & ~fx.near & (fx.radius >= 0.8 * fx.px)
+        self.assertTrue(0.2 < fx.shim.sum() / focus.sum() < 0.45)
+        self.assertFalse((fx.shim & fx.near).any())
+        for a, b in zip(plain.at(50), fx.at(50)):
+            self.assertTrue(np.array_equal(a, b))
+        hz = fx.sm[fx.shim] / fx.loop_s  # (slow: a beat every few seconds)
+        self.assertGreaterEqual(float(hz.min()), 0.09)
+        self.assertLessEqual(float(hz.max()), 0.35)
+        lit = [float(np.abs(frame(fx, t) - frame(plain, t)).sum()) for t in range(0, 240, 20)]
+        self.assertGreater(min(lit), 0.0)  # (some flake glows at any time)
+        self.assertGreater(max(lit), 1.3 * min(lit))  # (and they come and go)
 
     def test_glints_show_by_default(self):
         """A few clear glints at a time, almost always; more of them up the slider, none at 0."""

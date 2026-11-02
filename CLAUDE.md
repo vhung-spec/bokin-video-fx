@@ -73,7 +73,10 @@ hiệu ứng. Cách dùng: `README.md`.
   yêu cầu 2026-10-27: "thêm video hướng dẫn làm hiệu ứng chó ngủ vào trong app") và cảnh kết quay lại 2026-10-27 (app
   1.0.92): con chó, nệm, tường đá vẽ bằng mã (không dùng ảnh của chủ), chữ hiện lâu như các phần trước, cảnh kết không
   còn dòng ghi nguồn giọng. Cả video mã hoá một lần từ các bản quay gốc: H.264 CRF 32, 1600x900, chỉ mục đầu file
-  (faststart), không còn tên công cụ. Quay lại video khi giao diện đổi nhiều thì sửa `CHAPTERS` theo video mới. Test:
+  (faststart), không còn tên công cụ. Phần 9 "Lửa lò sưởi" bỏ 2026-11-02 (hiệu ứng bỏ khỏi thẻ Tạo sẵn): phần 10 tới
+  16 thành 9 tới 15; số "PHẦN n" trên thẻ tiêu đề sửa ngay trên khung hình đã quay (nhãn vẽ lại bằng DejaVu Sans, font
+  của bản quay, trộn theo độ đục của thẻ lúc hiện và lúc mờ đi), phần còn lại giữ nguyên. Quay lại video khi giao diện
+  đổi nhiều thì sửa `CHAPTERS` theo video mới. Test:
   `tests/test_guide.py`, `test_video_guide` (server), licence, selftest ("video guide bundled"), trang (`video_guide`:
   số phần và độ dài đọc từ `fx/guide.py`, màn hình kích hoạt).
 - `fx/timeline.py`: luật thời gian của clip (độ dài 30/60 giây, `Span`: bắt đầu, kết thúc, mờ dần). `index.html` có
@@ -204,7 +207,9 @@ hiệu ứng. Cách dùng: `README.md`.
   khói đang chọn, Esc thôi đặt (`act`: `deleteClip`). Khói kiểu "Khói ống khói" của hiệu ứng Khói (1.0.60 tới 1.0.62)
   không còn trong danh sách kiểu khói: clip cũ thành clip `chimney` (`steam.moved`, `chimney.from_steam`: một ống khói
   ở chỗ hình bầu dục cũ trên khung, cả khi đã xoay 3D; "Khói bay cao" theo `rim` cũ).
-- Lửa lò sưởi (`fx/hearth.py`, mã loại `hearth`, từ 1.0.67): hiệu ứng đặt một chỗ như nến (`BOX` 4:3, lens, `UNDER`:
+- Lửa lò sưởi (`fx/hearth.py`, mã loại `hearth`, từ 1.0.67; bỏ khỏi thẻ Tạo sẵn 2026-11-02, chủ: "hãy bỏ hiệu ứng lò
+  lửa": `FX_KINDS` của trang, clip trong dự án cũ vẫn chạy, chỉnh, xuất như trước; bài thử trang thêm clip bằng
+  `addHere`): hiệu ứng đặt một chỗ như nến (`BOX` 4:3, lens, `UNDER`:
   clip xem nhanh là hình dưới hộp có lửa; xoay 3D từ 2026-10-26: xem cuối mục Tường lò). Hình bầu dục `mark` ở đáy hộp (thông số `bed`) là mặt củi. Ngọn
   lửa là mô phỏng chất lưu nhỏ (stable fluids) trên lưới riêng của hộp (`GRID` 192x144, `_Fluid`: nhiên liệu nạp ở vài
   chỗ cháy trong hình bầu dục, mỗi chỗ cháy to nhỏ theo nhịp riêng, cháy thành nhiệt (bốc lên) và ánh lửa (mờ nhanh),
@@ -308,10 +313,14 @@ hiệu ứng. Cách dùng: `README.md`.
   `hearth` (góc trang với Python, `boxPoint`).
 - Đom đóm (`fx/fireflies.py`, mã loại `fireflies`, từ 1.0.68): hiệu ứng đặt một chỗ (`BOX` 16:9: khung trên khóm
   hoa và khoảng trời phía trên), ánh sáng (Screen: clip xem nhanh H.264 nền đen, `PREVIEW` 1280 khi khung to), không
-  xoay. Mỗi con một chỗ ở trong khung, bay lượn bằng ba vòng sin mỗi chiều (số nguyên vòng mỗi loop: `where()`), nháy
-  theo nhịp riêng (số nguyên lần mỗi loop: `flash()`, `flashes()`: lên nhanh `RISE`, giữ `HOLD`, tắt dần `FADE`;
-  "Nhấp nháy" 0 là sáng đều), nháy thì bay lên một chút (`LIFT`). Con gần (`depth`) to, nhoè, tâm tối hơn (cùng lượng ánh sáng); lõi nhạt màu hơn, quầng, quầng rộng
-  (`BLOOM`, chỉ khi đang nháy). Gần mép khung thì mờ (`EDGE`), ánh sáng không ra ngoài khung (`_inside`, mép mềm
+  xoay. Mỗi con một chỗ ở trong khung, bay lượn chậm bằng ba vòng sin mỗi chiều (số nguyên vòng mỗi loop: `where()`;
+  vòng nhanh nhất chỉ nhấp nhô nhẹ), nháy theo nhịp riêng, chậm (số nguyên lần mỗi loop, 0,07–0,17 lần mỗi giây ở "Nhịp
+  nháy" 50: `flash()`, `flashes()`: sáng dần lên `RISE`, giữ `HOLD`, mờ dần `FALL`, cả hai chiều mượt (smoothstep);
+  nhịp ngắn hơn chừng ấy thì co lại trong `SHARE` của nhịp; "Nhấp nháy" 0 là sáng đều; chủ yêu cầu 2026-11-02 "đẹp hơn,
+  nhấp nháy chill hơn": `VERSION` 2), nháy thì bay lên một chút (`LIFT`). Con gần (`depth`) to, nhoè, tâm tối hơn (cùng
+  lượng ánh sáng); mỗi con một màu ngả vàng hay xanh lá quanh màu đã chọn (`LEAN`, `YELLOW`, `GREEN`); lõi nhạt màu hơn
+  chỉ khi sáng hẳn (`PALE`: lúc mờ không thành chấm xám), quầng, quầng rộng (`BLOOM`, lớn dần theo ánh sáng của con đó:
+  không bật lên đột ngột). Gần mép khung thì mờ (`EDGE`), ánh sáng không ra ngoài khung (`_inside`, mép mềm
   `SOFT`: clip xem nhanh chỉ là cái khung). Mọi độ dài theo chiều cao khung. "Màu ánh sáng" (`tone`, `match`: chọn màu
   tay thì thành "Tự chọn").
 - Chim bồ câu (`fx/pigeons.py`, mã loại `pigeons`, từ 1.0.71; làm lại 1.0.72, chủ yêu cầu 2026-10-23 kèm ảnh bồ câu trên
@@ -472,6 +481,14 @@ hiệu ứng. Cách dùng: `README.md`.
   (trang: `S.schema.kinds[kind].feather`, các loại khác 20: với 20 lưng chỉ nhô chừng một phần năm).
   Clip xem nhanh dưới hộp (`UNDER`) của mọi hiệu ứng nay là WebM thẻ BT.709 và theo `PREVIEW_CRF` của hiệu ứng
   (chó ngủ thở: 30). Test: `tests/test_breath.py`; trang: bước `breath` (cả tô vùng).
+- Tuyết rơi (`fx/snow.py`, mã loại `snow`): "Mật độ" tới 200 (chủ yêu cầu 2026-11-02 "số lượng tuyết có thể nhiều hơn
+  nữa"; 100 là mức dày nhất cũ): `CAP` 24000 ứng viên; tới 100 vẫn chọn trong `PART` (9000) ứng viên đầu như trước, và
+  phần dải xa, lề tính trên chừng ấy: tuyết của clip cũ giống hệt từng điểm ảnh. "Vài hạt nhấp nháy nhẹ" (`shimmer`,
+  chủ: "có chế độ tuyết rơi và nhấp nháy nhẹ nhàng 1 số hạt"): một phần bông rõ nét (không ở sát ống kính:
+  `SHIMMER`) từ từ sáng lên, toả quầng mềm (`SHIMMER_GLOW`), rồi mờ đi (tối hơn bông khác `SHIMMER_DIM`), mỗi bông một
+  nhịp chậm (`SHIMMER_HZ`, số nguyên lần mỗi vòng); số ngẫu nhiên riêng (`[seed, 1103, 4]`): bông không dời chỗ. Kiểu
+  "Tuyết rơi dày đặc" (`dense`, mật độ 170), "Tuyết rơi, vài hạt nhấp nháy nhẹ" (`shimmer`). Test: `test_denser_up_to_200`,
+  `test_gentle_twinkles`.
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D

@@ -15,7 +15,9 @@ Premiere Pro:
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
 - **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói (cà phê, trà, nhang, nồi), khói ống khói, lửa nến, lá rơi, lá
   cây lay động, nhấp nháy vùng, tuyết bám kính, dây đèn. App tự vẽ, chỉnh được mật độ, cỡ, gió… (**Hạt sáng**, tức đom đóm /
-  bụi sáng, đã bỏ khỏi thẻ Tạo sẵn; clip Hạt sáng trong dự án cũ vẫn chạy như trước, không cần thì xoá clip đó.)
+  bụi sáng, đã bỏ khỏi thẻ Tạo sẵn; clip Hạt sáng trong dự án cũ vẫn chạy như trước, không cần thì xoá clip đó.
+  **Lửa lò sưởi** cũng đã bỏ khỏi thẻ Tạo sẵn từ 02/11/2026: clip Lửa lò sưởi trong dự án cũ vẫn chạy và chỉnh được như
+  trước.)
   - **Mưa**: chọn nhanh ở **Kiểu mưa** (mưa phùn, mưa vừa, mưa to, mưa bão), rồi chỉnh thêm từng mục: hạt mưa (dày,
     dài, đậm nhạt, viền tối để thấy rõ trên trời sáng), gió và gió giật, mưa từng đợt, chiều sâu (hạt xa mảnh và rơi
     chậm, hạt gần to, nhanh và nhoè), màn mưa bay theo gió, hơi nước, chớp sáng. Khi có mặt đất trong hình (mục **Mặt
@@ -27,9 +29,11 @@ Premiere Pro:
     giảm mục này hoặc tăng **Độ đậm**). Bản xem nhanh của mưa nét gần bằng video xuất, nên lần đầu chuẩn bị lâu hơn
     hiệu ứng khác (khoảng 20 giây cho 30 giây video). Mưa đã thu nhỏ, dời chỗ hay xoay 3D: lúc phát, chỗ sáng theo đèn
     chỉ gần đúng; dừng hình để thấy đúng như video xuất ra.
-  - **Tuyết**: **Kiểu tuyết** (tuyết nhẹ, vừa, dày, bão tuyết, lấp lánh, bông to bay chậm) và **Hình bông tuyết** (tròn
-    mềm, tinh thể sáu cánh, tự nhiên). Chỉnh thêm: đung đưa, xoáy nhẹ, gió giật, bông to sát ống kính (nhoè), màn tuyết
-    mờ trắng xoá, lấp lánh, quầng sáng, màu bông ở gần và ở xa.
+  - **Tuyết**: **Kiểu tuyết** (tuyết nhẹ, vừa, dày, dày đặc, bão tuyết, tuyết rơi có vài hạt nhấp nháy nhẹ, lấp lánh,
+    bông to bay chậm) và **Hình bông tuyết** (tròn mềm, tinh thể sáu cánh, tự nhiên). **Mật độ** kéo tới 200 (100 là
+    tuyết dày như trước, 200 dày gấp đôi). Chỉnh thêm: đung đưa, xoáy nhẹ, gió giật, bông to sát ống kính (nhoè), màn
+    tuyết mờ trắng xoá, lấp lánh, quầng sáng, **Vài hạt nhấp nháy nhẹ** (một số bông tuyết từ từ sáng lên, toả quầng
+    mềm, rồi mờ đi, mỗi bông một nhịp chậm; 0: không có), màu bông ở gần và ở xa.
   - **Lá rơi**: chọn nhanh ở **Loại lá** (rừng phong, phong Nhật đỏ rực, lá bàng mùa đông, bạch quả vàng, rừng sồi,
     bạch dương vàng, lá liễu, lá hình tim, hoa anh đào, rừng thu nhiều loại lá) và **Kiểu lá rơi** (lác đác, vừa, dày,
     gió thu cuốn lá, lá to bay chậm). Muốn tự trộn: tích các ô ở **Kiểu dáng lá** (lá phong 5 thuỳ, lá phong Nhật, lá
@@ -61,7 +65,7 @@ Premiere Pro:
     mục **Dây đèn tự vẽ** bên dưới).
 
 Mọi thao tác chuột và phím tắt: [HUONG-DAN.md](HUONG-DAN.md) (trong app: nút **Phím tắt**, thẻ **Hướng dẫn**).
-Video hướng dẫn (gần 16 phút, không có tiếng, làm theo chữ trên màn hình): nút **Video hướng dẫn** ở thanh trên cùng.
+Video hướng dẫn (gần 15 phút, không có tiếng, làm theo chữ trên màn hình): nút **Video hướng dẫn** ở thanh trên cùng.
 Bên phải video là các phần: bấm một phần để xem đúng đoạn đó; đóng rồi mở lại, video chạy tiếp chỗ đang xem. Màn
 hình kích hoạt cũng có nút **Xem video hướng dẫn** (mở ở phần **Kích hoạt app**).
 
@@ -110,7 +114,7 @@ Máy của chủ dự án: mở Key Center trên máy đó và cấp key cho ch�
 Kéo đường kẻ giữa các vùng để đổi cỡ.
 
 Thêm hiệu ứng hay đổi thông số, app cần một lúc để chuẩn bị bản xem nhanh (dòng "Đang chuẩn bị xem nhanh" ở trên
-cùng); trong lúc đó bản cũ vẫn phát. Hiệu ứng đặt ở một chỗ (khói, nến, lò sưởi, dây đèn, đom đóm, chim bồ câu): bản
+cùng); trong lúc đó bản cũ vẫn phát. Hiệu ứng đặt ở một chỗ (khói, nến, dây đèn, đom đóm, chim bồ câu, chó ngủ thở): bản
 xem nhanh chỉ nét bằng video trên trang (không hơn), nên khung càng nhỏ càng có sớm.
 
 ## Cách dùng
@@ -302,6 +306,9 @@ video gốc ở chỗ ngọn nến. Sau khi vẽ vùng đứng yên lên ngọn 
 
 ### Lửa lò sưởi
 
+Đã bỏ khỏi thẻ **Tạo sẵn** từ 02/11/2026 (chủ dự án yêu cầu). Phần dưới dành cho clip Lửa lò sưởi có sẵn trong dự án
+cũ: clip đó vẫn chạy, chỉnh được và xuất video như trước.
+
 Lửa củi cháy trong lò sưởi có sẵn trong video, như lửa quay thật: ngọn lửa liếm lên, cuộn xoáy, tách ngọn; gốc lửa vàng
 trắng, ngọn cam đỏ; than hồng dưới chân lửa; thỉnh thoảng tia lửa nhỏ bay lên. Lửa do app tự tính (như khí nóng bốc lên
 thật), không phải một video có sẵn, nên vừa mọi lò sưởi và lặp liền mạch.
@@ -310,7 +317,7 @@ thật), không phải một video có sẵn, nên vừa mọi lò sưởi và l
 bập bùng theo từng ngọn lửa (lửa bùng bên trái thì bên trái sáng hơn). Vẫn thấy rõ từng viên gạch, mạch vữa vẫn tối:
 gạch được chiếu sáng, không phải phủ một lớp sương cam.
 
-1. Bấm **Tạo sẵn** → **Lửa lò sưởi**, kéo xuống một track trống, bấm **Suốt video**.
+1. Chọn clip Lửa lò sưởi có sẵn trong dự án cũ (thẻ Tạo sẵn không còn Lửa lò sưởi để kéo xuống).
 2. Kéo khung trắng tới lò sưởi. Ở đáy khung có **hình bầu dục vàng** (ghi "chỗ lửa cháy"): đặt nó lên **mặt củi**, chỗ
    lửa bốc lên. Kéo thanh **Lửa rộng** cho hình bầu dục rộng bằng đống củi. Kéo góc khung cho lửa cao vừa miệng lò:
    lửa chỉ cháy trong khung.
@@ -375,9 +382,10 @@ clip.
 
 ### Đom đóm
 
-Đom đóm bay lượn chậm quanh khóm hoa, mỗi con nháy sáng theo nhịp riêng như đom đóm thật: sáng lên nhanh, sáng một
-chút, tắt dần chậm hơn. Con ở gần to và nhoè (như máy quay thấy), con ở xa là chấm nhỏ. Đẹp nhất trong cảnh chiều tối,
-ban đêm.
+Đom đóm bay lượn chậm quanh khóm hoa, mỗi con nháy sáng nhẹ nhàng theo nhịp riêng: sáng dần lên, giữ một chút, rồi
+mờ dần thật chậm, mấy giây mới nháy lại. Mỗi con một sắc vàng chanh hơi khác (con ngả vàng, con ngả xanh lá), quầng sáng
+lớn dần theo ánh sáng của nó. Con ở gần to và nhoè (như máy quay thấy), con ở xa là chấm nhỏ. Đẹp nhất trong cảnh chiều
+tối, ban đêm.
 
 1. Bấm **Tạo sẵn** → **Đom đóm**, kéo xuống một track trống, bấm **Suốt video**.
 2. Kéo khung trắng tới khóm hoa, kéo góc cho khung phủ khóm hoa và khoảng trời phía trên: đom đóm chỉ bay trong khung,
