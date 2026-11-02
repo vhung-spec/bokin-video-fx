@@ -409,15 +409,49 @@ def render_part(folder, project, size, period, crf, preset, threads, start, end,
         scene.close()
 
 
-def workers(encoder_threads=True, pixels=0):
-    """Worker processes for a render: half the logical CPUs when the encoders need the rest, else all but one;
-    1 to 8, and at most 4 for frames bigger than 1440p (each worker holds a few full frames and each effect's own
-    buffers: at 4K about 0.9 GB with five snow clips, upright or turned (turned ones share one canvas:
-    sheet.Scratch), 1.4 GB at 200%, more with water on glass: 2 to 3 GB with five; rain lit by the scene keeps
-    its colours as full-size 8-bit maps: about 60 MB more a rain at 4K, 115 MB turned at 140%)."""
+WORKER_BYTES = (0.45e9, 0.17e9)  # a worker's memory with its ffmpeg decoder and encoder: so much, and so much more
+# a million pixels of the frame (measured 2026-11-02 at 1080p: 0.75 to 0.8 GB with one to seven effects)
+SPARE_BYTES = 1e9  # (left free for Windows, the page and the app)
+
+
+def free_memory():
+    """Bytes of memory free now (physical memory not in use), or None if it cannot be told."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class Status(ctypes.Structure):  # MEMORYSTATUSEX
+                _fields_ = [("length", ctypes.c_ulong), ("load", ctypes.c_ulong), ("total", ctypes.c_ulonglong),
+                            ("free", ctypes.c_ulonglong), ("total_page", ctypes.c_ulonglong),
+                            ("free_page", ctypes.c_ulonglong), ("total_virtual", ctypes.c_ulonglong),
+                            ("free_virtual", ctypes.c_ulonglong), ("free_extended", ctypes.c_ulonglong)]
+            status = Status()
+            status.length = ctypes.sizeof(Status)
+            return status.free if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)) else None
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError, AttributeError):
+        return None
+    return None
+
+
+def workers(pixels=0):
+    """Worker processes for a render: all the logical CPUs but one, 1 to 8, at most 4 for frames bigger than 1440p
+    (each worker holds a few full frames and each effect's own buffers: at 4K about 0.9 GB with five snow clips,
+    upright or turned (turned ones share one canvas: sheet.Scratch), 1.4 GB at 200%, more with water on glass: 2
+    to 3 GB with five; rain lit by the scene keeps its colours as full-size 8-bit maps: about 60 MB more a rain at
+    4K, 115 MB turned at 140%), and no more than the memory free now holds. Drawing the effects takes the time, not
+    the encoders: on 4 CPUs at 1080p (2026-11-02) seven effects made 3.9 frames a second with 2 workers, 5.6 with
+    3, 6.4 with 4; snow alone 14.4, 17.6, 18.2."""
     cpus = os.cpu_count() or 2
-    most = 4 if pixels > 2560 * 1440 else 8
-    return max(1, min(most, cpus // 2 if encoder_threads else cpus - 1))
+    count = max(1, min(4 if pixels > 2560 * 1440 else 8, cpus - 1))
+    free = free_memory()
+    if free is not None:
+        each = WORKER_BYTES[0] + WORKER_BYTES[1] * max(pixels, 1920 * 1080) / 1e6
+        count = max(1, min(count, int((free - SPARE_BYTES) // each)))
+    return count
 
 
 def _in_pieces(work, args, total, parts, progress=None, cancelled=None):
@@ -778,7 +812,7 @@ def fx_clip(folder, project, layer_id, cancelled=None, progress=None, processes=
     if effects.KINDS[layer["kind"]].AREA or effects.KINDS[layer["kind"]].MOVES:  # (the masks read once, here: every
         # piece is made with the same area)
         project = dict(project, _masks={n: _read(mask_path(folder, n)) for n in ("freeze", "fg", layer_id)})
-    count = max(1, min(processes or workers(False), total // 48))
+    count = max(1, min(processes or workers(), total // 48))
     work = os.path.join(folder, "render-" + secrets.token_hex(3))
     os.makedirs(work)
     ext = os.path.splitext(name)[1]

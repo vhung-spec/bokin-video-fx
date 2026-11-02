@@ -86,7 +86,11 @@ hiệu ứng. Cách dùng: `README.md`.
   Ctrl+S (`saveProject`: `readyToRender`) và dòng `#saveState` ("Đang lưu…", "Đã lưu lúc …", "Chưa lưu được").
 - `fx/library.py`: thư viện hiệu ứng dùng chung trong `%APPDATA%\Bokin\FX\library\<id>` (file gốc, ảnh nhỏ, bản nhẹ).
 - `fx/engine.py`: ghép một khung (video → vùng đứng yên → các clip theo track, mờ dần), kết xuất song song nhiều đoạn,
-  khung chính xác cho trang (`Looks`), clip xem nhanh của hiệu ứng tạo sẵn (`fx_clip`), bản nhẹ của video gốc.
+  khung chính xác cho trang (`Looks`), clip xem nhanh của hiệu ứng tạo sẵn (`fx_clip`), bản nhẹ của video gốc. Số tiến
+  trình (`workers()`, cả xuất video và clip xem nhanh; chủ yêu cầu 2026-11-02 "tối ưu lại code của toàn bộ app"):
+  mọi nhân trừ một, 1 tới 8 (trên 1440p tối đa 4), không quá RAM còn trống (`free_memory()`, `WORKER_BYTES` mỗi tiến
+  trình kể cả ffmpeg của nó, chừa `SPARE_BYTES`). Trước đó xuất video chỉ dùng nửa số nhân: vẽ hiệu ứng mới là phần
+  tốn, không phải x264 (đo 4 nhân, 1080p, 7 clip: 3,9 khung/giây với 2 tiến trình, 6,4 với 4).
 - `fx/effects.py`: phần chung của hiệu ứng tạo sẵn (`Canvas`, `Effect`, `Falling`), hạt sáng (`glow`: đã bỏ khỏi thẻ
   Tạo sẵn, chủ yêu cầu 2026-10-23; clip của dự án cũ vẫn chạy, CI còn dùng nó), và danh sách `KINDS`
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
@@ -587,6 +591,11 @@ hiệu ứng. Cách dùng: `README.md`.
   thôi bàn tay (`S.handKey`). Phím phóng (`zoomKey`) phóng quanh chuột khi chuột trên hình. Quanh khung là vùng tối
   (`#frame`: viền khung + lớp che); lớp của clip đang chọn tràn ra ngoài khung (`.spill`, `spill()`) nên thấy mờ ở
   đó, `#xform` kéo được ở đó; ngoài khung chỉ bấm trúng clip đang chọn. Dời hình không hỏi lại khung chính xác.
+- Trang nhẹ (2026-11-02): thước timeline vẽ vạch, số giây một lần mỗi khi cuộn / phóng / đổi cỡ / đổi độ dài
+  (`rulerMarks`, `rulerKey`), mỗi khung chỉ chép lại và vẽ đầu phát; cỡ thước theo `ResizeObserver`, vị trí cuộn theo
+  sự kiện cuộn (`rulerScroll`): đọc chúng mỗi khung ngay sau khi dời đầu phát làm trang dàn lại. Kéo thanh trượt thông
+  số không dựng lại timeline (timeline không hiện thông số nào). Danh sách dự án trong `/api/state` (trang hỏi mỗi
+  1,5 giây) chỉ đọc lại `project.json` đã đổi (`projects._SUMMARIES`, theo mtime, cỡ, inode).
 - Trình duyệt Chromium của Playwright không phát H.264. Edge và Chrome thì phát được (CI thử trên Edge).
 
 ## Quy tắc phải giữ
@@ -644,5 +653,6 @@ hiệu ứng. Cách dùng: `README.md`.
 ## Việc có thể làm sau
 
 - Tự nhận diện vùng: bấm vào vật để khoanh (SAM 2 hoặc MobileSAM, giấy phép Apache-2.0, chạy trên CPU vài giây).
-- Kết xuất nhanh hơn nữa (hiện khoảng 5 khung/giây cho 1080p có 7 clip trên máy 4 nhân).
+- Kết xuất nhanh hơn nữa (hiện khoảng 6 khung/giây cho 1080p có 7 clip trên máy 4 nhân; chim bồ câu, lửa lò sưởi,
+  lá rơi tốn nhất).
 - Keyframe cho thông số clip (độ đậm, vị trí thay đổi theo thời gian).

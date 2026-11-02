@@ -2912,23 +2912,44 @@ function clipHTML(c, r) {
     <span class="nm">${kindIcon(c.kind)}${esc(c.name)}</span><span class="sub">${esc(sub)}</span>
     <i class="h l"></i><i class="h r"></i></div>`;
 }
-// the ruler is drawn on a canvas, in the colours of the page's theme (CSS tokens, read once)
+// the ruler is drawn on a canvas, in the colours of the page's theme (CSS tokens, read once). Its marks are drawn
+// on a canvas of their own when the scroll, the zoom, the size or the length changes (rulerMarks), and copied:
+// while playing only the playhead moves. Its size and the timeline's scroll are kept as the page lays them out and
+// scrolls (rulerScroll): reading them each frame, just after the playhead moved, would make the page lay itself out.
 const RULER = (() => {
   const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
   return {beyond: v("--ruler-beyond") || "#0006", tick: v("--ruler-tick") || "#555", text: v("--ruler-text") || "#9a9a9a",
     seam: v("--ruler-seam") || "#3b6fa8", head: v("--playhead") || "#4f8cff", font: "11px " + (v("--font") || "system-ui, sans-serif")};
 })();
+const rulerMarks = document.createElement("canvas");
+let rulerSize = null, rulerKey = "", rulerScroll = 0;
+new ResizeObserver(() => { rulerSize = null; drawRuler(); }).observe(ruler);
 function drawRuler() {
-  const w = ruler.clientWidth, h = ruler.clientHeight, dpr = devicePixelRatio;
-  if (rulerCanvas.width !== Math.round(w * dpr) || rulerCanvas.height !== Math.round(h * dpr)) {
-    rulerCanvas.width = Math.round(w * dpr); rulerCanvas.height = Math.round(h * dpr);
+  if (!rulerSize) rulerSize = [ruler.clientWidth, ruler.clientHeight];
+  const [w, h] = rulerSize, dpr = devicePixelRatio, cw = Math.round(w * dpr), ch = Math.round(h * dpr);
+  if (rulerCanvas.width !== cw || rulerCanvas.height !== ch) {
+    rulerCanvas.width = rulerMarks.width = cw; rulerCanvas.height = rulerMarks.height = ch;
     rulerCanvas.style.width = w + "px"; rulerCanvas.style.height = h + "px";
+    rulerKey = "";
   }
   const g = rulerCanvas.getContext("2d");
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, cw, ch);
+  if (!S.project) return;
+  const pps = S.pps, sl = rulerScroll, f = fps(), dur = duration(), P = loopFrames() / f;
+  const key = [cw, ch, dpr, pps, sl, f, dur, P].join();
+  if (key !== rulerKey) { rulerKey = key; drawRulerMarks(rulerMarks.getContext("2d"), w, h, dpr, pps, sl, f, dur, P); }
+  g.drawImage(rulerMarks, 0, 0);
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // the playhead
+  const x = S.time * pps - sl;
+  g.fillStyle = RULER.head;
+  g.beginPath(); g.moveTo(x - 6, 0); g.lineTo(x + 6, 0); g.lineTo(x + 6, 10); g.lineTo(x, 16); g.lineTo(x - 6, 10); g.closePath(); g.fill();
+  g.fillRect(Math.round(x), 16, 1, h - 16);
+}
+function drawRulerMarks(g, w, h, dpr, pps, sl, f, dur, P) {  // what is past the end, the seconds, the loop seams
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
-  if (!S.project) return;
-  const pps = S.pps, sl = tlScroll.scrollLeft, f = fps(), dur = duration();
   // a step between labels that leaves room for them
   const steps = [1 / f, 2 / f, 5 / f, 10 / f, 0.5, 1, 2, 5, 10, 15, 30, 60];
   let major = steps.find(s => s * pps >= 70) || 60;
@@ -2945,22 +2966,15 @@ function drawRuler() {
     if (isMajor) g.fillText(major < 1 ? tc(s) : tc(s, false), x + 3, 12);
   }
   g.stroke();
-  // the loop seams
-  const P = loopFrames() / f;
   g.fillStyle = RULER.seam;
   for (let s = P; s < dur - 1e-6; s += P) { const x = s * pps - sl; if (x > -4 && x < w + 4) { g.beginPath(); g.moveTo(x - 4, h); g.lineTo(x + 4, h); g.lineTo(x, h - 6); g.fill(); } }
-  // the playhead
-  const x = S.time * pps - sl;
-  g.fillStyle = RULER.head;
-  g.beginPath(); g.moveTo(x - 6, 0); g.lineTo(x + 6, 0); g.lineTo(x + 6, 10); g.lineTo(x, 16); g.lineTo(x - 6, 10); g.closePath(); g.fill();
-  g.fillRect(Math.round(x), 16, 1, h - 16);
 }
 function followPlayhead() {
   if (!S.project) return;
   const x = S.time * S.pps, w = tlScroll.clientWidth, sl = tlScroll.scrollLeft;
   if (x < sl || x > sl + w - 20) tlScroll.scrollLeft = Math.max(0, x - (S.playing ? 20 : w / 3));
 }
-tlScroll.addEventListener("scroll", () => { tlHeads.scrollTop = tlScroll.scrollTop; drawRuler(); });
+tlScroll.addEventListener("scroll", () => { tlHeads.scrollTop = tlScroll.scrollTop; rulerScroll = tlScroll.scrollLeft; drawRuler(); });
 
 // ruler: move the playhead
 ruler.addEventListener("pointerdown", e => {
@@ -4380,7 +4394,7 @@ $("#ec").addEventListener("input", e => {
     if (c.kind === "chimney" && S.stack) drawStack();  // (how high its smoke goes)
     if (key === "reverse") { syncLayers(); pollSoon(); }  // another file plays: its own copy (asked for at once)
     else if (S.els[c.id]) styleLayer(c, S.els[c.id]);
-    applyTime(); invalidateExact(); scheduleSave(); renderTimeline(); showXform();
+    applyTime(); invalidateExact(); scheduleSave(); showXform();  // (the timeline shows none of the settings)
   }
 });
 $("#ec").addEventListener("change", e => {

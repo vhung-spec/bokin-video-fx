@@ -180,15 +180,28 @@ def summary(project):
             "length": project.get("length") or timeline.DEFAULT_LENGTH}
 
 
+_SUMMARIES = {}  # project.json's path: (its stamp, its summary). The page asks for the list every 1.5 s: a project is
+# read again only when its file is another (every save writes a new file: replace())
+
+
 def list_all():
-    out = []
+    out, seen = [], set()
     root = paths.projects_dir()
     for pid in os.listdir(root):
         if PROJECT_ID.match(pid):
+            path = os.path.join(root, pid, "project.json")
             try:
-                out.append(summary(load(pid)))
+                st = os.stat(path)
+                stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+                known = _SUMMARIES.get(path)
+                if not known or known[0] != stamp:
+                    known = _SUMMARIES[path] = (stamp, summary(load(pid)))
+                out.append(dict(known[1]))
+                seen.add(path)
             except (OSError, ValueError, KeyError, UserError):
                 continue
+    for path in [p for p in _SUMMARIES if p not in seen]:  # (deleted projects)
+        _SUMMARIES.pop(path, None)
     return sorted(out, key=lambda p: -p["updated"])
 
 

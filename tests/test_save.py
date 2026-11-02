@@ -54,6 +54,19 @@ class SaveAsCopy(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(b, again["video"]["file"])))
         self.assertEqual(projects.load(copy["id"])["id"], copy["id"])
 
+    def test_listed_as_saved(self):
+        # the list the page asks for every 1.5 s is kept, and read again for a project saved since (or gone)
+        pid = self.project["id"]
+        named = lambda: {p["id"]: p["name"] for p in projects.list_all()}
+        self.assertEqual(named()[pid], "Quán cà phê")
+        projects.apply(projects.load(pid), {"name": "Quán trà"})
+        self.assertEqual(named()[pid], "Quán trà")
+        copy = projects.copy(pid, "Bản 2")
+        self.assertEqual((named()[pid], named()[copy["id"]]), ("Quán trà", "Bản 2"))
+        projects.delete(pid)
+        self.assertNotIn(pid, named())
+        self.assertEqual(named()[copy["id"]], "Bản 2")
+
     def test_bad(self):
         with self.assertRaises(projects.UserError):
             projects.copy("../../x", "a")
