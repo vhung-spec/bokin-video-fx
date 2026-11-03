@@ -77,7 +77,15 @@ hình kích hoạt cũng có nút **Xem video hướng dẫn** (mở ở phần 
    cần đăng nhập; gửi khách đúng link này), tải file `BokinFX-Setup-<phiên bản>.exe`.
 2. Bấm đúp vào file để cài. Không cần quyền quản trị. Windows hiện bảng xanh "Windows đã bảo vệ máy tính của bạn"
    (bộ cài chưa có chữ ký số): bấm **Thông tin thêm** (More info) rồi **Vẫn chạy** (Run anyway).
-3. Mở **Bokin FX** từ menu Start hoặc biểu tượng ngoài màn hình. App mở trong một cửa sổ riêng (Edge hoặc Chrome).
+3. Trang **Select Destination Location** (chọn nơi cài): bộ cài gợi ý sẵn `D:\Bokin FX` (ổ khác ổ C; máy chỉ có ổ C
+   thì gợi ý ổ C). Muốn chỗ khác: bấm **Browse…**, chọn ổ / thư mục, bấm **OK**, rồi **Next**. Thư mục phải là nơi
+   bạn tự lưu file được (không chọn `Program Files`: bộ cài sẽ báo và cho chọn lại).
+4. Mở **Bokin FX** từ menu Start hoặc biểu tượng ngoài màn hình. App mở trong một cửa sổ riêng (Edge hoặc Chrome).
+
+**Dời app sang ổ khác** (ví dụ app đang ở ổ C): chạy lại bộ cài, ở trang chọn nơi cài chọn thư mục mới (ví dụ
+`D:\Bokin FX`), bấm **Next** tới hết. App chuyển sang chỗ mới, bản ở chỗ cũ tự xoá; biểu tượng ngoài màn hình và
+menu Start mở bản ở chỗ mới. Dự án, thư viện hiệu ứng, key và video đã xuất vẫn giữ nguyên. Bản cập nhật sau đó tự
+cài vào đúng chỗ đã chọn.
 
 App tự kiểm tra bản mới khi mở cửa sổ và mỗi 5 phút. Muốn kiểm tra ngay thì bấm vào dòng **phiên bản** ở góc
 dưới. Khi có bản mới, góc trên có nút **Cập nhật ngay**. Nếu không bấm, bản mới sẽ được cài lúc app tự đóng.

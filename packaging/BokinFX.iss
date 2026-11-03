@@ -1,7 +1,11 @@
 ; Inno Setup script for Bokin FX: dist\BokinFX\ (PyInstaller) -> BokinFX-Setup-<version>.exe
-; Per-user install, no admin rights: %LOCALAPPDATA%\Programs\Bokin FX, Start menu and desktop shortcuts, an entry
-; in Settings > Apps. Projects live in %APPDATA%\Bokin\FX and finished videos in Videos\Bokin FX, so updates and
-; uninstalls keep them.
+; Per-user install, no admin rights, in a folder the user chooses (the owner asked 2026-11-03: "khi cài đặt app có
+; thể chọn được nơi chứa app, không mặc định ở ổ C"): the first time Bokin FX on the first fixed drive other than
+; Windows' own that the user can write to (D:\Bokin FX), else %LOCALAPPDATA%\Programs\Bokin FX; then where it was
+; (updates from the app install there, silently); run by hand, setup offers that folder and another one may be
+; chosen: the app moves there (the old copy's files are removed). Start menu and desktop shortcuts, an entry in
+; Settings > Apps. Projects live in %APPDATA%\Bokin\FX and finished videos in Videos\Bokin FX, so updates, moves
+; and uninstalls keep them.
 ;   iscc /DAppVersion=1.0.1 packaging\BokinFX.iss
 #ifndef AppVersion
   #define AppVersion "1.0.0"
@@ -19,10 +23,11 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher=Bokin
-DefaultDirName={localappdata}\Programs\{#AppName}
+DefaultDirName={code:DefaultDir}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
-DisableDirPage=yes
+DisableDirPage=no
+UsePreviousAppDir=yes
 PrivilegesRequired=lowest
 OutputDir={#DistDir}
 OutputBaseFilename=BokinFX-Setup-{#AppVersion}
@@ -66,6 +71,86 @@ begin
   Result := ExpandConstant('{param:relaunch|0}') = '1';
 end;
 
+function GetDriveType(lpRootPathName: String): Cardinal;
+  external 'GetDriveTypeW@kernel32.dll stdcall';
+
+{ The folder offered the first time: Bokin FX on the first fixed drive other than Windows' own (D:, E: ...) that
+  this user can write to; else the user's own programs folder (on Windows' drive, as before). }
+function DefaultDir(Param: String): String;
+var
+  I: Integer;
+  Letters, Letter, Root, Probe, Win: String;
+begin
+  Result := ExpandConstant('{localappdata}\Programs\{#AppName}');
+  Win := Uppercase(Copy(ExpandConstant('{win}'), 1, 1));
+  Letters := 'DEFGHIJKLMNOPQRSTUVWXYZ';
+  for I := 1 to Length(Letters) do
+  begin
+    Letter := Copy(Letters, I, 1);
+    Root := Letter + ':\';
+    if (Letter <> Win) and (GetDriveType(Root) = 3) then  { DRIVE_FIXED: not a CD, not a USB stick }
+    begin
+      Probe := Root + 'bokin-fx-setup-probe';
+      if CreateDir(Probe) then
+      begin
+        RemoveDir(Probe);
+        Result := Root + '{#AppName}';
+        exit;
+      end;
+    end;
+  end;
+end;
+
+{ The folder chosen must be one this user can write to (no admin rights: not Program Files). }
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Dir, Probe: String;
+begin
+  Result := True;
+  if CurPageID = wpSelectDir then
+  begin
+    Dir := WizardDirValue;
+    Probe := AddBackslash(Dir) + 'bokin-fx-setup-probe.tmp';
+    if ForceDirectories(Dir) and SaveStringToFile(Probe, '', False) then
+      DeleteFile(Probe)
+    else
+    begin
+      MsgBox('Bokin FX cannot be installed in this folder: you cannot save files there without administrator ' +
+        'rights. Choose another folder, for example D:\{#AppName}.', mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
+
+{ Where the app was installed before, if it was somewhere else than the folder chosen now (it is moving). }
+function OldDir(): String;
+var
+  Old: String;
+begin
+  Result := '';
+  Old := RemoveBackslashUnlessRoot(WizardForm.PrevAppDir);
+  if (Old <> '') and (CompareText(Old, RemoveBackslashUnlessRoot(ExpandConstant('{app}'))) <> 0) and
+     FileExists(AddBackslash(Old) + '{#AppExe}') then
+    Result := Old;
+end;
+
+{ Moved: the old copy's own files go (the app, its libraries, its uninstaller; Windows' list of apps now names the
+  new folder), and its folder if nothing else is left in it. Projects and videos are elsewhere: they stay. }
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Old: String;
+begin
+  if CurStep <> ssPostInstall then
+    exit;
+  Old := OldDir();
+  if Old = '' then
+    exit;
+  DeleteFile(AddBackslash(Old) + '{#AppExe}');
+  DelTree(AddBackslash(Old) + '_internal', True, True, True);
+  DelTree(AddBackslash(Old) + 'unins*.*', False, True, False);
+  RemoveDir(Old);
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Code: Integer;
@@ -73,6 +158,8 @@ var
 begin
   Result := '';
   Installed := ExpandConstant('{app}\{#AppExe}');
+  if (not FileExists(Installed)) and (OldDir() <> '') then
+    Installed := AddBackslash(OldDir()) + '{#AppExe}';  { (moving: the copy running is the old one) }
   if FileExists(Installed) then
   begin
     if Exec(Installed, '--close', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 3) then

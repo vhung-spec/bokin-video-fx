@@ -555,7 +555,16 @@ hiệu ứng. Cách dùng: `README.md`.
 - `fx/jobs.py`: hai hàng đợi: xuất video, và chuẩn bị xem nhanh (bản nhẹ, clip hiệu ứng tạo sẵn).
 - `fx/updater.py`: tự cập nhật. `fx/selftest.py`: tự kiểm tra.
 - `packaging/`: PyInstaller (`BokinFX.spec`), Inno Setup (`BokinFX.iss`), icon, bài thử cài đặt, cập nhật, và giao
-  diện trên Edge (`ci_page_test.py`, dùng Playwright) trong CI.
+  diện trên Edge (`ci_page_test.py`, dùng Playwright) trong CI. Nơi cài chọn được (chủ yêu cầu 2026-11-03: "khi cài đặt
+  app có thể chọn được nơi chứa app, không mặc định ở ổ C"; `DisableDirPage=no`, vẫn cài cho một người, không cần
+  quyền quản trị): lần đầu gợi ý `Bokin FX` trên ổ cố định đầu tiên khác ổ Windows mà người dùng ghi được
+  (`DefaultDir`, `GetDriveType` = 3), không có thì `%LOCALAPPDATA%\Programs\Bokin FX` như cũ; thư mục chọn phải ghi được
+  (`NextButtonClick`); sau đó dùng chỗ cũ (`UsePreviousAppDir`: cập nhật từ app, `/VERYSILENT`, cài đúng chỗ đó). Chạy
+  tay mà chọn chỗ khác là dời app: bản cũ đóng trước (`PrepareToInstall` dùng exe ở chỗ cũ), rồi chỉ xoá file của app
+  ở chỗ cũ (`BokinFX.exe`, `_internal`, `unins*`) và thư mục nếu trống (`OldDir`, `CurStepChanged`; không `DelTree` cả
+  thư mục: người dùng có thể đã cài vào thư mục có thứ khác). Dữ liệu (`%APPDATA%\Bokin\FX`, Videos) không theo chỗ
+  cài. Bài thử CI (`ci_install_test.py`) tìm app theo `InstallLocation` trong danh sách app của Windows
+  (`HKCU\...\Uninstall\{AppId}_is1`), kiểm chỗ gợi ý lần đầu (`offered()`), cài đè cùng chỗ, rồi dời (`/DIR=`).
 - `brand/`: bộ logo chung của mọi app Bokin (hướng B, chủ chọn 2026-10-19; `brand/README.md`): ô màu riêng mỗi app, mã
   hai chữ màu đậm góc dưới trái, vòng lặp nhỏ góc trên phải (bỏ dưới 32 điểm ảnh). `make_icons.py` chỉ dùng Pillow và
   numpy: chữ là đường viền Be Vietnam Pro ExtraBold (OFL) trong `glyphs.json`, tô chẵn lẻ; `write_ico()` vẽ riêng
