@@ -589,18 +589,19 @@ def flicker(page, edge):
 
 
 def winter(page, shot, edge):
-    """Frost on the pane and string lights on a tree: frost over the whole picture (a transparent WebM, Normal); the
-    lights placed in a box (the white box on the picture, where the renderer puts it), light on black (H.264, Screen)
-    laid in that box; each alone, the live picture is the exact frame's (the lights' in Edge: H.264)."""
+    """Frost on the pane, drifting fog and string lights on a tree: frost and fog over the whole picture (transparent
+    WebMs, Normal); the lights placed in a box (the white box on the picture, where the renderer puts it), light on
+    black (H.264, Screen) laid in that box; each alone, the live picture is the exact frame's (the lights' in Edge:
+    H.264)."""
     from fx import effects as fx_effects
     page.click('.tab[data-bin="fx"]')
     page.evaluate("seek(3)")
     ids = {}
-    for kind in ("frost", "lights"):
+    for kind in ("frost", "fog", "lights"):
         page.dblclick(f'.tile[data-kind="{kind}"]')
         ids[kind] = page.evaluate(f"S.project.layers.find(l => l.kind === '{kind}').id")
         page.click("#fullBtn")
-    fid, lid = ids["frost"], ids["lights"]
+    fid, lid, gid = ids["frost"], ids["lights"], ids["fog"]
     page.evaluate(f"select('{lid}')")
     page.wait_for_timeout(300)
     vw, vh = page.evaluate("[info().w, info().h]")
@@ -613,7 +614,8 @@ def winter(page, shot, edge):
           str([ui, box, [x0, y0, x0 + w, y0 + h]]))
     page.select_option('#ec select[data-param="palette"]', "multi")
     page.wait_for_timeout(300)
-    others = page.evaluate(f"S.project.layers.filter(c => !['{fid}', '{lid}'].includes(c.id) && c.on !== false)"
+    others = page.evaluate(f"S.project.layers.filter(c => !['{fid}', '{lid}', '{gid}'].includes(c.id) && "
+                           "c.on !== false)"
                            ".map(c => c.id)")
 
     def switch(on):
@@ -622,7 +624,8 @@ def winter(page, shot, edge):
         page.wait_for_timeout(600)
     # (fine ice and tiny bulbs: a little apart in a compressed clip and in the JPEG of the exact frame, more than snow;
     # the bounds of the 3D check of a file clip)
-    for kind, cid, clip, blend in (("frost", fid, ".webm", "normal"), ("lights", lid, ".mp4", "screen")):
+    for kind, cid, clip, blend in (("frost", fid, ".webm", "normal"), ("fog", gid, ".webm", "normal"),
+                                   ("lights", lid, ".mp4", "screen")):
         switch([cid])
         plays = edge or clip == ".webm"
         page.wait_for_function(f"S.fx['{cid}'] && S.fx['{cid}'].ready && S.fx['{cid}'].shown === S.fx['{cid}'].want "
@@ -639,7 +642,7 @@ def winter(page, shot, edge):
         check(f"{kind}: its preview clip ({clip}, {blend}), the live picture as the exact frame",
               laid == [True, blend] and parity["soft luma mean"] < 4 and parity["rgb mean"] < 7,
               str([laid, parity]))
-    switch(others + [fid, lid])
+    switch(others + [fid, lid])  # (the fog off again: it would veil what follows)
     layouts = page.evaluate(f"""(() => {{ select('{lid}');
         return [...$('#ec select[data-param="layout"]').options].map(o => o.value); }})()""")
     check("string lights: round a tree, swags, a curtain or scattered (drawn by hand: Dây đèn tự vẽ)",
@@ -1739,7 +1742,7 @@ def run(page, folder, edge):
     page.click("#fullBtn")  # "Suốt video": over the whole video, looping by itself
     glass = page.evaluate("[...document.querySelectorAll('.tile[data-kind]')].map(t => t.dataset.kind)")
     check("the built-in effects offered",
-          glass == ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "leaves", "foliage",
+          glass == ["snow", "rain", "glass", "frost", "fog", "steam", "chimney", "candle", "leaves", "foliage",
                     "fireflies", "pigeons", "breath", "flicker", "lights", "garland"],  # (Hạt sáng and Lửa lò sưởi
           # no longer offered: an old clip still plays)
           str(glass))

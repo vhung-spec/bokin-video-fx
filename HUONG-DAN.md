@@ -34,7 +34,7 @@ Kéo đường kẻ giữa các vùng để đổi cỡ vùng. App nhớ cỡ đ
 1. Bấm **Video mới…** ở góc trên (hoặc kéo file video vào cửa sổ app). Thường là video loop 6 giây.
 2. Trên thanh Timeline, chọn **30 giây** hoặc **1 phút**.
 3. Thẻ **Thư viện**: bấm **Nhập file…** (hoặc kéo file vào) để thêm video hiệu ứng, ảnh PNG. Thẻ **Tạo sẵn**: hiệu ứng
-   app tự vẽ (tuyết, mưa, khói, lá rơi…).
+   app tự vẽ (tuyết, mưa, sương mù, khói, lá rơi…).
 4. Kéo hiệu ứng xuống một track trên timeline (hoặc bấm đúp vào nó: thêm tại đầu phát).
 5. Bấm vào clip trên timeline, chỉnh ở **Bảng chỉnh hiệu ứng** và kéo khung trắng trên hình.
 6. Bấm nút phát để xem. Xong thì bấm **Xuất video**. Video nằm trong thư mục **Videos\Bokin FX**.

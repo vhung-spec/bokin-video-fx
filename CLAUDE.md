@@ -99,9 +99,9 @@ hiệu ứng. Cách dùng: `README.md`.
   / `SCHEMA` (nguồn duy nhất của các thông số; trang đọc từ `/api/schema`; `group` = tiêu đề nhóm trên trang, `look` =
   kiểu có sẵn đặt nhiều thông số một lúc; `note` = hướng dẫn trên bảng chỉnh). `fx/snow.py`, `fx/rain.py`,
   `fx/leaves.py`, `fx/glass.py`, `fx/steam.py`, `fx/chimney.py`, `fx/candle.py`, `fx/hearth.py`, `fx/frost.py`,
-  `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`, `fx/pigeons.py`, `fx/breath.py`: tuyết, mưa, lá rơi, nước trên
-  kính, khói, khói ống khói, lửa nến, lửa lò sưởi (củi của nó: `fx/logs.py`, tường lò: `fx/firebox.py`), tuyết bám kính,
-  dây đèn, dây đèn tự vẽ, đom đóm, chim bồ câu, chó ngủ thở, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
+  `fx/lights.py`, `fx/garland.py`, `fx/fireflies.py`, `fx/pigeons.py`, `fx/breath.py`, `fx/fog.py`: tuyết, mưa, lá
+  rơi, nước trên kính, khói, khói ống khói, lửa nến, lửa lò sưởi (củi của nó: `fx/logs.py`, tường lò: `fx/firebox.py`),
+  tuyết bám kính, dây đèn, dây đèn tự vẽ, đom đóm, chim bồ câu, chó ngủ thở, sương mù bay, mỗi cái một file. Khói (`fx/steam.py`, mã loại vẫn là `steam`): "Kiểu khói" (`STYLES`: cốc cà phê / trà, nhang,
   nồi; và ống khói, chỉ dùng cho Khói ống khói: cột khói nghiêng theo gió, to dần thành cuộn, gió đưa gần mép khung hơn:
   `edge`, `side`; `preset` của kiểu đặt sẵn gió, lượng khói;
   hằng số riêng mỗi kiểu, thanh trượt dùng chung) và "Dáng khói" (`LOOKS`: chỉ đặt chuyển động, lượng khói). Vệt khói
@@ -489,6 +489,21 @@ hiệu ứng. Cách dùng: `README.md`.
   nhịp chậm (`SHIMMER_HZ`, số nguyên lần mỗi vòng); số ngẫu nhiên riêng (`[seed, 1103, 4]`): bông không dời chỗ. Kiểu
   "Tuyết rơi dày đặc" (`dense`, mật độ 170), "Tuyết rơi, vài hạt nhấp nháy nhẹ" (`shimmer`). Test: `test_denser_up_to_200`,
   `test_gentle_twinkles`.
+- Sương mù bay (`fx/fog.py`, mã loại `fog`, chủ yêu cầu 2026-11-03: "tôi cần hiệu ứng sương mù bay"): hiệu ứng vẽ đè
+  phủ cả hình (không lens: clip xem nhanh WebM trong suốt là chính xác), xoay được, `LIT` (màu sương = ánh sáng quanh
+  mỗi chỗ của bản đồ ánh sáng `effects.light`, `LIGHT_GAIN`, chút màu riêng `ROOM`: đêm thì tối, gần đèn sáng lên).
+  Độ phủ = `opacity` x (1 - exp(-độ sâu)); độ sâu là tổng ba lớp xa tới gần (`LAYERS`: phần, cỡ đám, tốc độ, cỡ tấm;
+  "Xa gần" `depth` là mũ của chúng). Mỗi lớp là nhiễu tuần hoàn trên một tấm (`snow.drifts`, đám rộng hơn cao, thêm
+  làn mảnh `WISPS`), lấy trên lưới `FINE` hàng mỗi chiều cao khung (giống nhau ở mọi cỡ; `grid()`: lưới là tích hàng và
+  cột, lấy mẫu theo cột rồi theo hàng), phóng lên bilinear. Trôi theo gió mà vẫn loop ở mọi tốc độ: hai bản của tấm,
+  mỗi bản trôi suốt một chu kỳ riêng (`cycle` giây theo "Cuộn, đổi hình", số nguyên chu kỳ mỗi vòng `k`), hiện rồi tắt
+  lần lượt (tam giác, lệch nửa chu kỳ), cộng chia căn tổng bình phương trọng số (độ đậm nhạt không đổi khi hoà); mỗi chu
+  kỳ một chỗ khác trên tấm (`cyc`). Trước đây thử cho tấm trôi số nguyên tấm mỗi vòng: gió chậm thì tấm phải nhỏ, hoa
+  văn lặp lại thấy rõ, nên bỏ. "Khe hở" (`patchy`) là chỗ cắt nhiễu (`cut`, chia trung bình phần còn lại `_cut_mean`: độ
+  dày trung bình không đổi). Dải sương: `top`, `bottom` (100: không mờ ở đáy), `soft` (mờ ra ngoài dải), mép lượn theo
+  chính sương; `lower` dày dần xuống dưới (cả dải vẫn chừng ấy sương). Kiểu (`LOOKS`): sát mặt đất (mặc định), dải
+  ngang, phủ cả cảnh, làn mỏng, sương sớm dày. Test: `tests/test_fog.py`; trang: bước `winter` (clip xem nhanh khớp
+  khung chính xác).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D

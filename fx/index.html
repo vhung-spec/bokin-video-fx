@@ -48,7 +48,7 @@
   --k-file: #6b52c8; --k-snow: #2c7299; --k-rain: #3d5fa8; --k-glass: #1a7375; --k-steam: #7d5f4a;
   --k-candle: #9f5417; --k-leaves: #4f7a32; --k-foliage: #2b7649; --k-glow: #9e4686; --k-base: #2c4a70;
   --k-frost: #5a6f86; --k-lights: #a3323f; --k-garland: #8c3a7c; --k-flicker: #9a6a12; --k-chimney: #5f5867;
-  --k-hearth: #ad3f17; --k-fireflies: #567318; --k-pigeons: #4b5a78; --k-breath: #94506a;
+  --k-hearth: #ad3f17; --k-fireflies: #567318; --k-pigeons: #4b5a78; --k-breath: #94506a; --k-fog: #55667a;
   --c-base: var(--k-base); --c-file: var(--k-file); --c-fx: var(--k-snow);   /* (old names) */
   --mix: #7257e6; --mix-line: #c2b4ff; --mix-band: rgba(185, 168, 255, .32); --mix-band-2: rgba(185, 168, 255, .1);
   --playhead: var(--accent);
@@ -548,6 +548,7 @@ header .prep .ic { color: var(--warn); }
 :is(.clip, .tile)[data-kind=foliage] { --k: var(--k-foliage); }
 :is(.clip, .tile)[data-kind=glow] { --k: var(--k-glow); }
 :is(.clip, .tile)[data-kind=frost] { --k: var(--k-frost); }
+:is(.clip, .tile)[data-kind=fog] { --k: var(--k-fog); }
 :is(.clip, .tile)[data-kind=lights] { --k: var(--k-lights); }
 :is(.clip, .tile)[data-kind=garland] { --k: var(--k-garland); }
 :is(.clip, .tile)[data-kind=chimney] { --k: var(--k-chimney); }
@@ -943,6 +944,7 @@ const ICONS = {
   leaves: '<path d="M4.5 15.5C4.5 8 9 4 16 4c0 7-4.2 11.5-11.5 11.5z"/><path d="M4.5 15.5l7-7"/>',
   foliage: '<path d="M6 14.5a3.1 3.1 0 0 1-1.3-5.9 3.5 3.5 0 0 1 5-4.3 3.6 3.6 0 0 1 6 2.3 3.1 3.1 0 0 1-.9 6 2.6 2.6 0 0 1-2.3 1.9z"/><path d="M10 14.5v3M8.5 17.5h3"/><path d="M7.5 10.2c.8-.7 1.7-.7 2.5 0M10.6 7.6c.8-.7 1.7-.7 2.5 0"/>',  // a bush, its leaves stirring
   glow: '<path d="M8.5 3c.5 3.3 1.8 4.7 5 5.3-3.2.6-4.5 2-5 5.2-.5-3.2-1.8-4.6-5-5.2 3.2-.6 4.5-2 5-5.3z"/><path d="M15 12c.2 1.4.8 2 2 2.2-1.2.2-1.8.8-2 2.3-.2-1.5-.8-2.1-2-2.3 1.2-.2 1.8-.8 2-2.2z"/>',
+  fog: '<path d="M3 7.5h9.5M5.5 10.5h11.5M2.5 13.5h10M8 16.5h8"/><path d="M14.5 7.5h2.5M15 13.5h2.5M3 16.5h2.5"/>',  // drifting bands of fog
   frost: '<rect x="3" y="3" width="14" height="14" rx="1.5"/><path d="M3.5 16.5l6.5-6.5M5.4 14.6v-2.1M5.4 14.6h2.1M7.3 12.7v-2M7.3 12.7h2M16.5 3.5l-3.6 3.6M14.7 5.3v1.8M14.7 5.3h-1.8"/>',  // ice ferns on a pane
   lights: '<path d="M2.5 6c2.2 2.2 5.3 2.2 7.5 0s5.3-2.2 7.5 0"/><path d="M6.2 7.6V9M13.8 4.4v1.4"/><path d="M6.2 9c-1.1 1.4-1.6 2.4-1.6 3.2a1.6 1.6 0 0 0 3.2 0c0-.8-.5-1.8-1.6-3.2zM13.8 5.8c-1.1 1.4-1.6 2.4-1.6 3.2a1.6 1.6 0 0 0 3.2 0c0-.8-.5-1.8-1.6-3.2z"/><path d="M6.2 15.4v1.4M3.8 14.3l-1 .7M8.6 14.3l1 .7"/>',  // a string of bulbs, one shining
   garland: '<path d="M2 4.5c2.6 3.4 5.4 3.4 8 0s5.4-3.4 8 0"/><path d="M6 7.4v1M14 7.4v1"/><circle cx="6" cy="10" r="1.3"/><circle cx="14" cy="10" r="1.3"/><path d="M8.6 12.6l2.2 2.2-5.4 5.4-2.9.6.6-2.9z"/>',  // a string of bulbs drawn with a pen
@@ -955,7 +957,7 @@ function icon(name, cls = "") {
   return `<svg class="ic ic-${name}${cls ? " " + cls : ""}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" ` +
     `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name] || ""}</svg>`;
 }
-const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", chimney: "chimney", candle: "candle", hearth: "hearth", fireflies: "fireflies", pigeons: "pigeon", breath: "dog", foliage: "foliage", frost: "frost", lights: "lights", garland: "garland", flicker: "flicker", file: "film"};
+const KIND_ICON = {snow: "snow", leaves: "leaves", rain: "rain", glow: "glow", glass: "glass", steam: "steam", chimney: "chimney", candle: "candle", hearth: "hearth", fireflies: "fireflies", pigeons: "pigeon", breath: "dog", foliage: "foliage", frost: "frost", fog: "fog", lights: "lights", garland: "garland", flicker: "flicker", file: "film"};
 function kindIcon(kind, cls) { return icon(KIND_ICON[kind] || "glow", cls); }  // (an effect with no drawing of its own: a sparkle)
 // the buttons of the page's own markup: data-icon names their icon (before their label, if they have one)
 for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.dataset.icon, el.textContent.trim() ? "lead" : ""));
@@ -963,7 +965,7 @@ for (const el of $$("[data-icon]")) el.insertAdjacentHTML("afterbegin", icon(el.
 function rangeP(v, min, max) { const k = (+v - min) / ((max - min) || 1); return `--p:${(100 * (k > 0 ? Math.min(k, 1) : 0)).toFixed(1)}%`; }
 function fillRange(r) { const a = +r.min || 0, b = r.max === "" ? 100 : +r.max; r.style.setProperty("--p", rangeP(r.value, a, b).slice(4)); }
 document.addEventListener("input", e => { if (e.target.type === "range") fillRange(e.target); }, true);
-const FX_KINDS = ["snow", "rain", "glass", "frost", "steam", "chimney", "candle", "leaves", "foliage", "fireflies",
+const FX_KINDS = ["snow", "rain", "glass", "frost", "fog", "steam", "chimney", "candle", "leaves", "foliage", "fireflies",
   "pigeons", "breath", "flicker", "lights", "garland"];  // the Tạo sẵn tab, in this order
 // (no longer offered, a clip of them in an older project still plays: Hạt sáng, "glow", the owner asked 2026-10-23;
 // Lửa lò sưởi, "hearth", 2026-11-02: "hãy bỏ hiệu ứng lò lửa")

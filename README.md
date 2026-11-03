@@ -13,8 +13,8 @@ Premiere Pro:
 - **Vùng cho từng clip**: mỗi clip có vùng riêng (tô bằng cọ hoặc khoanh), mép mềm chỉnh được. Phóng to hình để
   khoanh cho kỹ.
 - **Tiền cảnh**: tô những vật ở gần (khung cửa, cây, mái nhà). Clip bật "Bay ra sau tiền cảnh" sẽ bị chúng che.
-- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, khói (cà phê, trà, nhang, nồi), khói ống khói, lửa nến, lá rơi, lá
-  cây lay động, nhấp nháy vùng, tuyết bám kính, dây đèn. App tự vẽ, chỉnh được mật độ, cỡ, gió… (**Hạt sáng**, tức đom đóm /
+- **Hiệu ứng tạo sẵn**: tuyết, mưa, nước trên kính, sương mù bay, khói (cà phê, trà, nhang, nồi), khói ống khói, lửa
+  nến, lá rơi, lá cây lay động, nhấp nháy vùng, tuyết bám kính, dây đèn. App tự vẽ, chỉnh được mật độ, cỡ, gió… (**Hạt sáng**, tức đom đóm /
   bụi sáng, đã bỏ khỏi thẻ Tạo sẵn; clip Hạt sáng trong dự án cũ vẫn chạy như trước, không cần thì xoá clip đó.
   **Lửa lò sưởi** cũng đã bỏ khỏi thẻ Tạo sẵn từ 02/11/2026: clip Lửa lò sưởi trong dự án cũ vẫn chạy và chỉnh được như
   trước.)
@@ -59,6 +59,8 @@ Premiere Pro:
     biển hiệu quảng cáo, đèn neon (xem mục **Nhấp nháy vùng** bên dưới).
   - **Tuyết bám kính**: băng giá bám quanh viền ô kính (hoa băng như lông chim, sương muối li ti, kính mờ đục), tuyết
     đọng ở mép dưới, bông tuyết đậu lên kính rồi tan, băng lấp lánh (xem mục **Tuyết bám kính** bên dưới).
+  - **Sương mù bay**: sương trôi theo gió, cuộn lại rồi tan, sát mặt đất, ngang sườn núi, trên mặt hồ hay phủ cả cảnh
+    (xem mục **Sương mù bay** bên dưới).
   - **Dây đèn lấp lánh**: dây đèn nháy quấn quanh cây thông Noel, treo võng, rèm đèn (xem mục **Dây đèn lấp lánh**
     bên dưới).
   - **Dây đèn tự vẽ**: tự vẽ dây đèn nháy ở bất cứ chỗ nào trên hình: dọc mái nhà, quanh cửa sổ, lan can, cành cây (xem
@@ -535,6 +537,26 @@ chỗ trong đó như nhau, màu và hình giữ nguyên (không méo, không l�
    nháy mềm dần từ mép vào).
 
 Sau khi tô, app cần một lúc để làm bản xem nhanh; xong rồi thì lúc phát thấy đúng như video xuất ra.
+
+### Sương mù bay
+
+Sương mù trôi theo gió qua cảnh, từng đám cuộn lại, đổi hình rồi tan, như sương thật: đám ở xa nhỏ và trôi chậm, đám
+ở gần to và trôi nhanh hơn. Sương lấy ánh sáng của chính video: ban đêm sương tối, gần đèn thì sương sáng lên; ban
+ngày sương sáng theo bầu trời. Sương luôn lặp lại liền mạch.
+
+1. Bấm **Tạo sẵn** → **Sương mù bay**, kéo xuống một track, bấm **Suốt video**.
+2. Chọn **Kiểu sương**:
+   - **Sương sát mặt đất**: lớp sương dày ở dưới thấp, mỏng dần lên trên (sân, cánh đồng, đường làng).
+   - **Dải sương trôi ngang**: một dải sương ở giữa hình (ngang sườn núi, trên mặt hồ, quanh rặng cây).
+   - **Sương phủ cả cảnh**, **Làn sương mỏng bay qua**, **Sương sớm dày đặc**.
+3. Kéo **Mép trên lớp sương** và **Mép dưới lớp sương** cho sương nằm đúng chỗ (0 là đỉnh hình, 100 là đáy hình).
+   **Mép mềm**: mép lớp sương tan dần rộng hay hẹp. **Dày dần xuống dưới**: sương dày ở dưới hơn ở trên.
+4. Chỉnh thêm: **Độ dày sương**, **Đậm nhất** (chỗ sương dày nhất che cảnh tới đâu), **Khe hở** (trái: một màn sương
+   liền; phải: từng đám rời, giữa có chỗ trong), **Cỡ đám sương**, **Gió** (kéo sang trái: sương bay sang trái; sang
+   phải: bay sang phải; càng xa giữa bay càng nhanh; ở giữa: sương chỉ cuộn tại chỗ), **Cuộn, đổi hình**, **Xa gần**,
+   **Sáng theo cảnh** (0: sương đúng màu đã chọn), **Màu sương**.
+5. Muốn sương chỉ ở một chỗ: **Vẽ vùng** rồi tô chỗ đó. Muốn sương nằm sau nhà, cây phía trước: bấm **V1 Video gốc** →
+   **Vẽ tiền cảnh**, tô chúng, rồi chọn clip sương, tích **Bay ra sau tiền cảnh**.
 
 ### Tuyết bám kính
 

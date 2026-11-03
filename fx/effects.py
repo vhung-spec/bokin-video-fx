@@ -515,19 +515,19 @@ class Glow(Effect):
             canvas.light(ix + x0, iy + y0, spot, self.colour * level[i], mask)
 
 
-from . import (breath, candle, chimney, fireflies, flicker, foliage, frost, garland, glass, hearth, leaves,  # (here:
-               lights, pigeons, rain, snow, steam)  # they build on the classes above)
+from . import (breath, candle, chimney, fireflies, flicker, fog, foliage, frost, garland, glass, hearth,  # (here:
+               leaves, lights, pigeons, rain, snow, steam)  # they build on the classes above)
 
 SCHEMA = {"snow": snow.SCHEMA, "rain": rain.SCHEMA, "glass": glass.SCHEMA, "steam": steam.SCHEMA,
           "chimney": chimney.SCHEMA, "candle": candle.SCHEMA, "hearth": hearth.SCHEMA, "leaves": leaves.SCHEMA,
           "foliage": foliage.SCHEMA, "lights": lights.SCHEMA, "garland": garland.SCHEMA, "frost": frost.SCHEMA,
           "flicker": flicker.SCHEMA, "fireflies": fireflies.SCHEMA, "pigeons": pigeons.SCHEMA,
-          "breath": breath.SCHEMA, **SCHEMA}
+          "breath": breath.SCHEMA, "fog": fog.SCHEMA, **SCHEMA}
 KINDS = {"snow": snow.Snow, "leaves": leaves.Leaves, "rain": rain.Rain, "glow": Glow, "glass": glass.Glass,
          "steam": steam.Steam, "chimney": chimney.Chimney, "candle": candle.Candle, "hearth": hearth.Hearth,
          "foliage": foliage.Foliage, "lights": lights.Lights, "garland": garland.Garland, "frost": frost.Frost,
          "flicker": flicker.Flicker, "fireflies": fireflies.Fireflies, "pigeons": pigeons.Pigeons,
-         "breath": breath.Breath}
+         "breath": breath.Breath, "fog": fog.Fog}
 
 # Placed and turned like a file clip (Effect.TURNS): the same settings as a file clip's, under the same headings,
 # after the effect's own. A full-frame effect gets a place and a size (at 100 and in the middle: the frame itself, as
