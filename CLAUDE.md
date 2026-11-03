@@ -489,21 +489,26 @@ hiệu ứng. Cách dùng: `README.md`.
   nhịp chậm (`SHIMMER_HZ`, số nguyên lần mỗi vòng); số ngẫu nhiên riêng (`[seed, 1103, 4]`): bông không dời chỗ. Kiểu
   "Tuyết rơi dày đặc" (`dense`, mật độ 170), "Tuyết rơi, vài hạt nhấp nháy nhẹ" (`shimmer`). Test: `test_denser_up_to_200`,
   `test_gentle_twinkles`.
-- Sương mù bay (`fx/fog.py`, mã loại `fog`, chủ yêu cầu 2026-11-03: "tôi cần hiệu ứng sương mù bay"): hiệu ứng vẽ đè
-  phủ cả hình (không lens: clip xem nhanh WebM trong suốt là chính xác), xoay được, `LIT` (màu sương = ánh sáng quanh
-  mỗi chỗ của bản đồ ánh sáng `effects.light`, `LIGHT_GAIN`, chút màu riêng `ROOM`: đêm thì tối, gần đèn sáng lên).
-  Độ phủ = `opacity` x (1 - exp(-độ sâu)); độ sâu là tổng ba lớp xa tới gần (`LAYERS`: phần, cỡ đám, tốc độ, cỡ tấm;
-  "Xa gần" `depth` là mũ của chúng). Mỗi lớp là nhiễu tuần hoàn trên một tấm (`snow.drifts`, đám rộng hơn cao, thêm
-  làn mảnh `WISPS`), lấy trên lưới `FINE` hàng mỗi chiều cao khung (giống nhau ở mọi cỡ; `grid()`: lưới là tích hàng và
-  cột, lấy mẫu theo cột rồi theo hàng), phóng lên bilinear. Trôi theo gió mà vẫn loop ở mọi tốc độ: hai bản của tấm,
-  mỗi bản trôi suốt một chu kỳ riêng (`cycle` giây theo "Cuộn, đổi hình", số nguyên chu kỳ mỗi vòng `k`), hiện rồi tắt
-  lần lượt (tam giác, lệch nửa chu kỳ), cộng chia căn tổng bình phương trọng số (độ đậm nhạt không đổi khi hoà); mỗi chu
-  kỳ một chỗ khác trên tấm (`cyc`). Trước đây thử cho tấm trôi số nguyên tấm mỗi vòng: gió chậm thì tấm phải nhỏ, hoa
-  văn lặp lại thấy rõ, nên bỏ. "Khe hở" (`patchy`) là chỗ cắt nhiễu (`cut`, chia trung bình phần còn lại `_cut_mean`: độ
-  dày trung bình không đổi). Dải sương: `top`, `bottom` (100: không mờ ở đáy), `soft` (mờ ra ngoài dải), mép lượn theo
-  chính sương; `lower` dày dần xuống dưới (cả dải vẫn chừng ấy sương). Kiểu (`LOOKS`): sát mặt đất (mặc định), dải
-  ngang, phủ cả cảnh, làn mỏng, sương sớm dày. Test: `tests/test_fog.py`; trang: bước `winter` (clip xem nhanh khớp
-  khung chính xác).
+- Sương mù bay (`fx/fog.py`, mã loại `fog`, chủ yêu cầu 2026-11-03: "tôi cần hiệu ứng sương mù bay", rồi "đẹp hơn
+  nhìn thật hơn": `VERSION` 2): hiệu ứng vẽ đè phủ cả hình (không lens: clip xem nhanh WebM trong suốt là chính xác),
+  xoay được, `LIT` (màu sương = ánh sáng quanh mỗi chỗ của bản đồ ánh sáng `effects.light`, `LIGHT_GAIN`, chút màu
+  riêng `ROOM`: đêm thì tối, gần đèn sáng lên). Độ phủ = `opacity` x (1 - exp(-độ sâu)); độ sâu là tổng ba lớp xa tới
+  gần (`LAYERS`: phần, cỡ đám, tốc độ, dẹt bao nhiêu; "Xa gần" `depth` là mũ của cỡ và tốc độ). Mỗi lớp là hoa văn
+  fractal trên một tấm tuần hoàn (`fractal()`: phổ mũ, mỗi octave nhỏ nửa và mạnh `ROUGH` lần octave trước theo "Chi
+  tiết làn sương" `detail`, tới `OCTAVES` hay mịn nhất lưới còn thấy; rộng hơn cao), toạ độ bị một dòng mượt uốn
+  (domain warp: `flow`, cặp phần thực / ảo của một phổ; `WARP` theo "Cuộn, đổi hình": nhiều nữa là thành khói xoáy).
+  Dòng uốn trôi theo sương, chỉ xoay `TURN` mỗi vòng: xoay nhanh thì làn mảnh bị xáo mỗi khung (sôi lăn tăn: lỗi bản
+  đầu của bản 2, `test_no_jumps`). Lấy trên lưới `FINE` hàng mỗi chiều cao khung (giống nhau ở mọi cỡ), phóng lên
+  bilinear; `snow.sample` 18 lần mỗi khung (1080p khoảng 0,2 giây một khung). Trôi theo gió mà vẫn loop ở mọi tốc độ:
+  hai bản của tấm, mỗi bản trôi suốt một chu kỳ riêng (`CYCLE` giây theo "Cuộn, đổi hình", số nguyên chu kỳ mỗi vòng
+  `k`), hiện rồi tắt lần lượt (sin², lệch nửa chu kỳ), cộng chia căn tổng bình phương trọng số; mỗi chu kỳ một chỗ khác
+  trên tấm (`cyc`). (Thử cho tấm trôi số nguyên tấm mỗi vòng: gió chậm thì tấm phải nhỏ, hoa văn lặp lại thấy rõ.)
+  "Khe hở" (`patchy`) là chỗ cắt nhiễu, cắt mềm max(0, n + cut)^`SOFT_CUT` (làn mỏng tan dần, giữa các đám trong hẳn),
+  chia trung bình phần còn lại (`_soft_mean`). Có khối: chỗ có sương ngay phía trên thì tối đi tới `SHADE`
+  (`_shade`, ánh sáng từ trên, trong `SHADE_REACH`). Dải sương: `top`, `bottom` (100: không mờ ở đáy), `soft` (mờ ra
+  ngoài dải), mép lượn theo chính sương; `lower` dày dần xuống dưới (cả dải vẫn chừng ấy sương). Kiểu (`LOOKS`): sát
+  mặt đất (mặc định), dải ngang, phủ cả cảnh, làn mỏng, sương sớm dày. Test: `tests/test_fog.py`; trang: bước `winter`
+  (clip xem nhanh khớp khung chính xác).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D

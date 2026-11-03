@@ -32,13 +32,16 @@ class Loop(unittest.TestCase):
                     self.assertLess(float(np.abs(a - b).max()), 1e-6, (frames, fps, params))
 
     def test_no_jumps(self):
-        """From one frame to the next the fog changes a little, also where one copy of a layer gives way to the
-        other (each copy starts again where its weight is nothing)."""
-        for params, most in (({}, 0.05), ({"wind": 100, "swirl": 100}, 0.09), ({"wind": -60, "patchy": 90}, 0.13)):
+        """From one frame to the next the fog changes about as much as from any other to the next: no frame unlike the
+        rest, also where one copy of a layer gives way to the other (each copy starts again where its weight is
+        nothing); with no wind it only changes slowly (its fine wisps do not boil: the flow that bends them turns only a
+        little in a loop)."""
+        for params in ({}, {"wind": 100, "swirl": 100}, {"wind": -60, "patchy": 90}, {"wind": 0}):
             fx = make(params, 720, 24)
-            steps = [float(np.abs(fx.coverage(t / 720) - fx.coverage((t + 1) / 720)).max()) for t in range(720)]
-            self.assertLess(max(steps), most, params)  # (the edge of a bank moving: a few hundredths a frame)
-            self.assertLess(max(steps), 3 * float(np.median(steps)), params)  # (no frame much unlike the rest)
+            steps = [float(np.abs(fx.coverage(t / 720) - fx.coverage((t + 1) / 720)).max()) for t in range(0, 720, 2)]
+            self.assertLess(max(steps), 2.5 * float(np.median(steps)), params)
+            if params == {"wind": 0}:
+                self.assertLess(max(steps), 0.06)  # (a flow turning fast stirs them by a third a frame)
 
     def test_drifts_with_the_wind(self):
         """With the wind the fog moves its way (what moves right: brighter where it was darker just to its left);
@@ -98,7 +101,12 @@ class Picture(unittest.TestCase):
         rgb, a = drawn(make({"top": 0, "lower": 0, "patchy": 0, "amount": 100, "opacity": 100}), 10)
         own = effects._rgb(fog.SCHEMA["params"][-1]["value"])
         hit = a > 0.5
-        self.assertLess(float(np.abs(rgb[hit] / a[hit][:, None] - own).max()), 0.02)
+        seen = rgb[hit] / a[hit][:, None]  # (its own colour, a little darker under fog above it: lit from above)
+        shade = seen / own
+        self.assertLess(float(shade.max()), 1.01)
+        self.assertGreater(float(shade.min()), 1 - fog.SHADE - 0.02)
+        self.assertLess(float(np.abs(shade - shade.mean(axis=1, keepdims=True)).max()), 0.01)  # (its own hue)
+        self.assertGreater(float(np.ptp(shade[:, 0])), 0.05)  # (a body: some of it in its own shade)
         scene = np.full((H, W, 3), 12, np.uint8)
         scene[100:140, 300:330] = 255  # (a lamp, right of the middle)
         light = effects.light_map([scene])

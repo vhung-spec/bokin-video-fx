@@ -1,18 +1,24 @@
-"""Drifting fog ("Sương mù bay"; the owner asked 2026-11-03: "tôi cần hiệu ứng sương mù bay"): banks of fog that drift
-with the wind across the scene, billow and thin out, as a layer of fog over the picture (drawn over it: its preview
-clip is exactly what the video shows; see effects.py for how every effect loops).
+"""Drifting fog ("Sương mù bay"; the owner asked 2026-11-03: "tôi cần hiệu ứng sương mù bay", then "đẹp hơn nhìn thật
+hơn"): banks of fog that drift with the wind across the scene, curl, billow and thin out, as a layer of fog over the
+picture (drawn over it: its preview clip is exactly what the video shows; see effects.py for how every effect loops).
 
-The fog is a veil in the fog's colour whose coverage is 1 - exp(-depth), the way fog hides what is behind it and
-lights up in the light around it (lit by the scene: the light of the video around each place, as frost and rain are;
-fog near a lamp glows). Its depth is the sum of three layers, far to near: far ones small, faint and slow, near ones
-big and quicker (a camera looking into fog sees the near banks pass faster). Each layer is a smooth random pattern
-on a tile that wraps around (snow.drifts: wider blobs than tall, as fog lies) plus finer wisps on the same tile, seen
-as two copies: each drifts with the wind through a cycle of its own (seconds, "Cuộn, đổi hình": shorter cycles,
-quicker changes; whole cycles a loop, so frame P is frame 0 at any wind) and is laid in and out in turn, half a cycle
-apart, as varied all through (their sum over the root of their squared weights); every cycle shows another part of the
-tile. So the banks drift and change shape as fog does, and nothing repeats within the loop; with no wind they only
-billow in place. How patchy it is ("Khe hở") is where the pattern is cut: low, an even veil with thicker and thinner
-parts; high, separate wisps with clear air between them.
+The fog is a veil whose coverage is 1 - exp(-depth), the way fog hides what is behind it, in the light around it
+(lit by the scene: the light of the video around each place, as frost and rain are; fog near a lamp glows). Its depth
+is the sum of three layers, far to near: far ones smaller, flatter and slower, near ones big and quicker (a camera
+looking into fog sees the near banks pass faster). Each layer's pattern is fractal, as fog is: soft banks with ever
+finer wisps on them (fractal(): a random tile that wraps around, each octave half the size and "Chi tiết" times as
+strong, wider than tall: fog lies in layers), its coordinates bent by a smooth flow of their own (domain warping:
+tendrils, curls; "Cuộn, đổi hình" sets how much). The flow drifts with the fog and turns only a little in a loop:
+moved faster, it would stir the finest wisps from one frame to the next (they would boil). Lit from above, a bank is a
+little darker under fog above it (its underside, its inside: SHADE), so it has a body.
+
+It drifts and still loops: each layer is seen as two copies, each drifting with the wind through a cycle of its own
+(seconds, whole cycles a loop, so frame P is frame 0 at any wind) and laid in and out in turn, half a cycle apart
+(sin² windows), as varied all through (their sum over the root of their squared weights); every cycle shows another
+part of the tile. So the banks drift and change shape, and nothing repeats within the loop; with no wind they only
+curl in place. How patchy it is ("Khe hở") is where the pattern is cut, softly (to a power above 1: wisps thin out
+to nothing, no hard rim): low, an even veil with thicker and thinner parts; high, separate wisps with clear air
+between.
 
 It lies in a band of the frame (its top and bottom edges, each faded over "Mép mềm"; the top edge billows with the
 fog, it is not a straight line), denser toward the bottom if asked (ground fog): the looks are ground fog, a band of
@@ -20,7 +26,7 @@ fog across a valley or a lake, a veil over the whole scene, thin wisps blowing p
 painted area (and the foreground, "Bay ra sau tiền cảnh") limit it further, as for every effect.
 
 Worked out on a grid of FINE rows a frame height whatever the frame's size (the preview clip, the video and 4K show
-the same fog), then scaled up smoothly: fog has no sharp detail.
+the same fog), then scaled up smoothly.
 """
 import math
 
@@ -29,29 +35,37 @@ from PIL import Image
 
 from . import effects as _fx
 from .effects import Effect, _choice, _colour, _lerp, _num, _rgb
-from .snow import drifts
+from .snow import sample
 
-FINE = 270  # rows of the grid the fog is worked out on (a frame height)
-LAYERS = (  # far to near: share of the depth, blob size and speed (times the settings'), tile (times the blob)
-    (0.3, 0.55, 0.5, 2.0), (0.35, 1.0, 1.0, 3.0), (0.35, 1.7, 1.8, 4.5))
-WISPS = 0.35  # the finer wisps' share of a layer's pattern (blobs a third the size)
-TILE = 3.0  # a layer's tile is at least this wide (frame heights: wider than a 16:9 frame and a cycle's drift)
+FINE = 216  # rows of the grid the fog is worked out on (a frame height: 5 px of a 1080-line frame)
+LAYERS = (  # far to near: share of the depth, blob size, speed (times the settings'), how much wider than tall
+    (0.36, 0.6, 0.5, 2.6), (0.34, 1.0, 1.0, 2.0), (0.30, 1.6, 1.8, 1.5))
+TILE = 3.2  # a layer's tile is at least this wide (frame heights: wider than a 16:9 frame and a cycle's drift)
+OCTAVES = 4  # the finest wisps: an eighth of a bank (or as fine as the grid shows)
+ROUGH = (0.34, 0.56)  # each octave's strength, times the one before: "Chi tiết" 0 .. 100
+WARP = (0.04, 0.28)  # how far the flow bends the pattern ("Cuộn, đổi hình" 0 .. 100), blob sizes (more: smoke)
+TURN = 0.01  # how far the flow moves round once a loop (tiles: a little; faster, the finest wisps would boil)
+CYCLE = (18.0, 8.0)  # seconds a copy drifts before it gives way ("Cuộn, đổi hình" 0 .. 100)
+SOFT_CUT = 1.6  # the pattern is cut as max(0, n + cut) to this power ("Khe hở": a wisp thins out to nothing, no
+# hard rim, and clear air between the banks)
+SHADE = 0.32  # how much darker a bank is under fog above it (lit from above)
+SHADE_REACH = 0.06  # how far above (frame heights) the fog that shades a place is
 SPEED = (0.0, 0.12)  # how fast the fog drifts at "Gió" 0 and at 100, frame heights a second (the middle layer)
 LIGHT_GAIN = 1.15  # fog lit by the scene: the light around it, this much
 ROOM = 0.08  # and a share of its own colour (light scattered from all round: at night fog is dark but near lamps)
 
-DEFAULTS = {"amount": 55, "top": 52, "bottom": 100, "soft": 30, "lower": 50, "wind": 25, "swirl": 45, "size": 55,
-            "patchy": 45, "depth": 50, "lit": 70, "opacity": 90}
+DEFAULTS = {"amount": 55, "top": 52, "bottom": 100, "soft": 30, "lower": 50, "wind": 25, "swirl": 50, "size": 55,
+            "patchy": 45, "detail": 60, "depth": 50, "lit": 70, "opacity": 90}
 LOOKS = {  # the "Kiểu sương" presets ("ground" is the defaults)
     "ground": {},
-    "valley": {"amount": 60, "top": 40, "bottom": 66, "soft": 18, "lower": 20, "size": 60, "wind": 25, "swirl": 35,
-               "patchy": 40},
-    "veil": {"amount": 45, "top": 0, "bottom": 100, "soft": 20, "lower": 25, "size": 70, "wind": 15, "swirl": 35,
-             "patchy": 25},
-    "wisps": {"amount": 35, "top": 12, "bottom": 100, "soft": 20, "lower": 10, "size": 40, "wind": 45, "swirl": 55,
-              "patchy": 75},
-    "morning": {"amount": 85, "top": 0, "bottom": 100, "soft": 25, "lower": 40, "size": 70, "wind": 10, "swirl": 30,
-                "patchy": 20},
+    "valley": {"amount": 60, "top": 40, "bottom": 66, "soft": 18, "lower": 20, "size": 60, "wind": 25, "swirl": 40,
+               "patchy": 40, "detail": 55},
+    "veil": {"amount": 45, "top": 0, "bottom": 100, "soft": 20, "lower": 25, "size": 70, "wind": 15, "swirl": 40,
+             "patchy": 25, "detail": 45},
+    "wisps": {"amount": 30, "top": 12, "bottom": 100, "soft": 20, "lower": 10, "size": 40, "wind": 45, "swirl": 40,
+              "patchy": 60, "detail": 50, "opacity": 75},
+    "morning": {"amount": 85, "top": 0, "bottom": 100, "soft": 25, "lower": 40, "size": 70, "wind": 10, "swirl": 35,
+                "patchy": 20, "detail": 40},
 }
 
 SCHEMA = {
@@ -70,6 +84,7 @@ SCHEMA = {
         _num("opacity", "Đậm nhất (chỗ sương dày)", DEFAULTS["opacity"], group="Sương"),
         _num("patchy", "Khe hở (liền một màn ← → từng đám rời)", DEFAULTS["patchy"], group="Sương"),
         _num("size", "Cỡ đám sương", DEFAULTS["size"], group="Sương"),
+        _num("detail", "Chi tiết làn sương (mịn ← → nhiều làn nhỏ)", DEFAULTS["detail"], group="Sương"),
         _num("top", "Mép trên lớp sương (0: đỉnh hình)", DEFAULTS["top"], group="Chỗ có sương"),
         _num("bottom", "Mép dưới lớp sương (100: đáy hình)", DEFAULTS["bottom"], group="Chỗ có sương"),
         _num("soft", "Mép mềm", DEFAULTS["soft"], group="Chỗ có sương"),
@@ -86,29 +101,40 @@ def _smooth(x):
     return x * x * (3.0 - 2.0 * x)
 
 
-def grid(field, u, v):
-    """`field` (a tile that wraps around, rows along u) at every pair of u (1-D, tiles) and v (1-D): (len(v), len(u)),
-    bilinear (the grid is a product of its rows and columns: one pass along v, then along u)."""
-    n = field.shape[0]
-    v = np.asarray(v, np.float64) * n
-    j = np.floor(v)
-    fv = (v - j).astype(np.float32)
-    j0 = j.astype(np.int64) % n
-    cols = field[:, j0] * (1 - fv) + field[:, (j0 + 1) % n] * fv  # (n, len(v))
-    u = np.asarray(u, np.float64) * n
-    i = np.floor(u)
-    fu = (u - i).astype(np.float32)[:, None]
-    i0 = i.astype(np.int64) % n
-    return (cols[i0] * (1 - fu) + cols[(i0 + 1) % n] * fu).T
+def fractal(rng, n, cu, cv, rough, top, pair=False):
+    """A random pattern on an n x n tile that wraps around (rows along u), standard deviation 1: banks about 1/cu of
+    the tile along u and 1/cv along v, and finer detail below them, each octave half the size and `rough` times as
+    strong, down to `top` times smaller than a bank. pair: two such patterns, unlike each other (the real and the
+    imaginary part of one spectrum)."""
+    fu = np.fft.fftfreq(n) * n
+    fv = np.fft.fftfreq(n) * n if pair else np.fft.rfftfreq(n) * n
+    r = np.hypot(fu[:, None] / cu, fv[None, :] / cv)  # (in banks: 1 is a bank's size)
+    r4 = r ** 4
+    # each octave holds 4 times the waves of the one before: a wave's amplitude r^(log2(rough) - 1) makes an octave
+    # `rough` times the one before; nothing much bigger than a bank, nothing finer than `top`
+    amp = np.where(r > 0, np.maximum(r, 1e-9) ** (math.log2(rough) - 1.0), 0.0) * r4 / (1.0 + r4)
+    amp *= np.exp(-(r / top) ** 2)
+    spec = amp * np.exp(2j * math.pi * rng.random(amp.shape))
+    if pair:
+        field = np.fft.ifft2(spec)
+        out = []
+        for part in (field.real, field.imag):
+            out.append((part / max(float(part.std()), 1e-12)).astype(np.float32))
+        return out
+    field = np.fft.irfft2(spec, s=(n, n))
+    return (field / max(float(field.std()), 1e-12)).astype(np.float32)
 
 
-def _cut_mean(b):
-    """E[max(0, N + b)] of a standard normal N: how much is left on average where the pattern is cut at -b."""
-    return b * 0.5 * (1 + math.erf(b / math.sqrt(2))) + math.exp(-b * b / 2) / math.sqrt(2 * math.pi)
+def _soft_mean(b, k):
+    """E[max(0, N + b) ** k] of a standard normal N: how much is left on average where the pattern is cut, softly, at
+    -b."""
+    z = np.linspace(-8.0, 8.0, 4001)
+    p = np.exp(-z * z / 2) / math.sqrt(2 * math.pi)
+    return float((np.maximum(z + b, 0.0) ** k * p).sum() * (z[1] - z[0]))
 
 
 class Fog(Effect):
-    VERSION = 1
+    VERSION = 2  # (2: fractal wisps bent by a flow, a body lit from above)
     LIT = True
 
     def __init__(self, *a, light=None):
@@ -121,35 +147,34 @@ class Fog(Effect):
         self.gh = FINE
         self.gw = max(2, int(math.ceil(FINE * self.aspect)))
         # the grid's points, frame heights
-        self.gx = (np.arange(self.gw) + 0.5) / FINE
-        self.gy = (np.arange(self.gh) + 0.5) / FINE
+        self.gx = ((np.arange(self.gw) + 0.5) / FINE)[None, :]
+        self.gy = ((np.arange(self.gh) + 0.5) / FINE)[:, None]
         wind = p["wind"] / 100
         way = 1.0 if wind >= 0 else -1.0
         speed = _lerp(*SPEED, abs(wind))  # frame heights a second, the middle layer
         depth = p["depth"] / 100
-        size = _lerp(0.35, 1.3, p["size"] / 100)  # a blob's width, frame heights (the middle layer)
+        size = _lerp(0.35, 1.3, p["size"] / 100)  # a bank's width, frame heights (the middle layer)
         swirl = p["swirl"] / 100
-        self.layers = []
-        # each layer is two copies of its pattern, each drifting with the wind through a cycle of its own and laid
-        # in and out in turn (a triangle each, half a cycle apart): any pace loops (whole cycles a loop), and as one
-        # copy gives way to the other the banks change shape. Each cycle shows another part of the tile, so nothing
-        # repeats within the loop but the loop itself
-        cycle = _lerp(14.0, 6.0, swirl)  # seconds
+        rough = _lerp(*ROUGH, p.get("detail", DEFAULTS["detail"]) / 100)
+        cycle = _lerp(*CYCLE, swirl)  # seconds
         self.k = max(1, round(self.loop_s / cycle))
         cycle = self.loop_s / self.k
-        for share, big, fast, tile in LAYERS:
+        self.layers = []
+        for share, big, fast, flat in LAYERS:
             big, fast = big ** depth, fast ** depth  # ("Xa gần" 0: all alike)
             blob = size * big
-            L = max(TILE, tile * blob)  # its tile (frame heights): wider than the frame and the drift of a cycle
-            blobs = max(1.0, L / blob)
-            n = int(min(256, max(32, 2 ** math.ceil(math.log2(blobs * 10)))))
-            self.layers.append({"share": share, "L": L, "drift": way * speed * fast * cycle / L,  # (tiles a cycle)
-                                "base": drifts(rng, n, blobs * 0.6, blobs * 1.6),  # (wider than tall)
-                                "fine": drifts(rng, n, blobs * 1.8, blobs * 4.5),
-                                "lift": 0.04 * swirl * blob / L, "bob": float(rng.random()),
-                                "phase": rng.random(3)})
+            L = max(TILE, 3.0 * blob)  # its tile (frame heights)
+            cu, cv = L / blob, L / blob * flat  # (banks a tile, along and across: wider than tall)
+            finest = min(2.0 ** (OCTAVES - 1), L * FINE / 4 / cv)  # (nothing finer than the grid shows)
+            n = int(min(1024, max(64, 2 ** math.ceil(math.log2(2.6 * finest * cv)))))
+            self.layers.append({
+                "share": share, "L": L, "drift": way * speed * fast * cycle / L,  # (tiles a cycle)
+                "field": fractal(rng, n, cu, cv, rough, finest * 1.2),
+                "flow": fractal(rng, 128, cu * 0.6, cv * 0.6, 0.45, 1.2, pair=True),  # (smooth: banks' size)
+                "bend": _lerp(*WARP, swirl) * blob / L,  # (tiles)
+                "lift": 0.04 * swirl * blob / L, "phase": rng.random(4)})
         b = _lerp(1.4, -0.6, p["patchy"] / 100)  # (where the pattern is cut)
-        self.cut, self.cut_mean = b, _cut_mean(b)
+        self.cut, self.cut_mean = b, _soft_mean(b, SOFT_CUT)
         self.amount = _lerp(0.0, 2.6, (p["amount"] / 100) ** 1.2)
         self.most = p["opacity"] / 100
         self.top, self.bottom = p["top"] / 100, max(p["top"] / 100, p["bottom"] / 100)
@@ -157,40 +182,57 @@ class Fog(Effect):
         self.lower = p["lower"] / 100
         self._paint = None  # (the fog's colour at each pixel: made when first drawn)
 
+    def _pattern(self, lay, tau):
+        """A layer's pattern on the grid at loop phase tau (about a standard deviation of 1)."""
+        L, ph = lay["L"], lay["phase"]
+        bob = lay["lift"] * math.sin(2 * math.pi * (tau + ph[3]))
+        turn = 2 * math.pi * tau + 2 * math.pi * ph[2]
+        n, weights = 0.0, 0.0
+        for j in (0, 1):
+            q = self.k * tau + ph[2] + 0.5 * j
+            f = q - math.floor(q)  # (how far through its cycle this copy is)
+            w = math.sin(math.pi * f) ** 2
+            if w <= 1e-6:
+                continue
+            cyc = math.floor(q) % self.k  # (which cycle: another part of the tile each time)
+            u = self.gx / L - lay["drift"] * (f - 0.5) + ph[0] + 0.618034 * cyc + 0.31 * j
+            v = self.gy / L + ph[1] + 0.414214 * cyc + 0.53 * j + bob
+            u, v = np.broadcast_arrays(u, v)
+            # the flow that bends it (drifting with it; turning slowly, once a loop)
+            fu, fv = u + TURN * math.cos(turn), v + TURN * math.sin(turn)
+            du, dv = sample(lay["flow"][0], fu, fv), sample(lay["flow"][1], fu, fv)
+            n = n + w * sample(lay["field"], u + lay["bend"] * du, v + lay["bend"] * dv)
+            weights += w * w
+        return n / math.sqrt(weights)
+
     def depth_at(self, tau):
         """The fog's optical depth on the grid at loop phase tau."""
         total = np.zeros((self.gh, self.gw), np.float32)
-        y = self.gy[:, None].astype(np.float32)
+        y = self.gy.astype(np.float32)
+        ramp = np.clip((y - self.top) / max(self.bottom - self.top, 0.05), 0.0, 1.0)
+        heavier = (1 - self.lower) + self.lower * 2 * ramp  # (denser toward the bottom: as much in all)
         for lay in self.layers:
-            L, ph = lay["L"], lay["phase"]
-            bob = lay["lift"] * math.sin(2 * math.pi * (tau + lay["bob"]))
-            n, weights = 0.0, 0.0
-            for j in (0, 1):
-                q = self.k * tau + ph[2] + 0.5 * j
-                f = q - math.floor(q)  # (how far through its cycle this copy is)
-                w = 1.0 - abs(2.0 * f - 1.0)
-                if w <= 0:
-                    continue
-                cyc = math.floor(q) % self.k  # (which cycle: another part of the tile each time)
-                u = self.gx / L - lay["drift"] * (f - 0.5) + ph[0] + 0.618034 * cyc + 0.31 * j
-                v = self.gy / L + ph[1] + 0.414214 * cyc + 0.53 * j + bob
-                n = n + w * ((1 - WISPS) * grid(lay["base"], u, v) + WISPS * grid(lay["fine"], u, v))
-                weights += w * w
-            n = n / math.sqrt(weights)  # (as varied all through the crossfade: a standard deviation of about 1)
-            dens = np.maximum(n + self.cut, 0.0) / self.cut_mean
+            n = self._pattern(lay, tau).astype(np.float32)
+            dens = np.maximum(n + self.cut, 0.0) ** SOFT_CUT / self.cut_mean
             # where it lies: the band's edges, the top one billowing with the fog
             yy = y - 0.35 * self.soft * np.clip(n, -2.0, 2.0)
             band = _smooth((yy - (self.top - self.soft)) / self.soft) if self.top > 0 else 1.0
             if self.bottom < 1:
                 band = band * (1 - _smooth((yy - self.bottom) / self.soft))
-            ramp = np.clip((y - self.top) / max(self.bottom - self.top, 0.05), 0.0, 1.0)
-            heavier = (1 - self.lower) + self.lower * 2 * ramp  # (denser toward the bottom: as much in all)
             total += lay["share"] * dens * band * heavier
         return total * self.amount
 
     def coverage(self, tau):
         """How much the fog hides at each grid point (0..1)."""
         return (self.most * (1.0 - np.exp(-self.depth_at(tau)))).astype(np.float32)
+
+    def _shade(self, depth):
+        """How lit each grid point is (1 .. 1 - SHADE): less under fog above it (the light comes from above)."""
+        reach = max(1, round(SHADE_REACH * FINE))
+        c = np.cumsum(np.vstack([np.zeros((1, depth.shape[1]), np.float32), depth]), axis=0)
+        rows = np.arange(depth.shape[0])
+        above = (c[rows] - c[np.maximum(rows - reach, 0)]) / reach  # (the mean depth over the rows just above)
+        return (1.0 - SHADE * (1.0 - np.exp(-1.2 * above))).astype(np.float32)
 
     def _colours(self):
         """The fog's colour at each pixel (sRGB 0..1): its own, or lit by the light around it in the scene."""
@@ -207,13 +249,18 @@ class Fog(Effect):
     def release(self):
         self._paint = None
 
+    def _up(self, a):
+        """A grid's values at the frame's pixels, smoothly."""
+        return np.asarray(Image.fromarray(a, "F").resize((self.w, self.h), Image.Resampling.BILINEAR,
+                                                         box=(0, 0, self.w / self.h * FINE, FINE)), np.float32)
+
     def draw(self, t, canvas, mask):
         if self.amount <= 0 or self.most <= 0:
             return
-        cover = self.coverage(self.tau(t))
-        a = np.asarray(Image.fromarray(cover, "F").resize((self.w, self.h), Image.Resampling.BILINEAR,
-                                                          box=(0, 0, self.w / self.h * FINE, FINE)), np.float32)
-        a = np.clip(a, 0.0, 1.0)
+        depth = self.depth_at(self.tau(t))
+        cover = (self.most * (1.0 - np.exp(-depth))).astype(np.float32)
+        a = np.clip(self._up(cover), 0.0, 1.0)
+        lit = self._up(self._shade(depth) * cover)  # (the shade, times the coverage: premultiplied)
         if self._paint is None:
             self._paint = self._colours()
-        canvas.over_rgba(0, 0, self._paint * a[..., None], a, mask)
+        canvas.over_rgba(0, 0, self._paint * np.clip(lit, 0.0, 1.0)[..., None], a, mask)

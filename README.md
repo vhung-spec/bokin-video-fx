@@ -540,8 +540,9 @@ Sau khi tô, app cần một lúc để làm bản xem nhanh; xong rồi thì l�
 
 ### Sương mù bay
 
-Sương mù trôi theo gió qua cảnh, từng đám cuộn lại, đổi hình rồi tan, như sương thật: đám ở xa nhỏ và trôi chậm, đám
-ở gần to và trôi nhanh hơn. Sương lấy ánh sáng của chính video: ban đêm sương tối, gần đèn thì sương sáng lên; ban
+Sương mù trôi theo gió qua cảnh, từng đám cuộn lại, đổi hình rồi tan, như sương thật: đám to mềm, trên đó là những
+làn sương nhỏ hơn, nằm thành lớp ngang; đám nào cũng có khối (mặt trên sáng, phía dưới hơi tối hơn); đám ở xa nhỏ, dẹt
+và trôi chậm, đám ở gần to và trôi nhanh hơn. Sương lấy ánh sáng của chính video: ban đêm sương tối, gần đèn thì sương sáng lên; ban
 ngày sương sáng theo bầu trời. Sương luôn lặp lại liền mạch.
 
 1. Bấm **Tạo sẵn** → **Sương mù bay**, kéo xuống một track, bấm **Suốt video**.
@@ -552,7 +553,8 @@ ngày sương sáng theo bầu trời. Sương luôn lặp lại liền mạch.
 3. Kéo **Mép trên lớp sương** và **Mép dưới lớp sương** cho sương nằm đúng chỗ (0 là đỉnh hình, 100 là đáy hình).
    **Mép mềm**: mép lớp sương tan dần rộng hay hẹp. **Dày dần xuống dưới**: sương dày ở dưới hơn ở trên.
 4. Chỉnh thêm: **Độ dày sương**, **Đậm nhất** (chỗ sương dày nhất che cảnh tới đâu), **Khe hở** (trái: một màn sương
-   liền; phải: từng đám rời, giữa có chỗ trong), **Cỡ đám sương**, **Gió** (kéo sang trái: sương bay sang trái; sang
+   liền; phải: từng đám rời, giữa có chỗ trong), **Cỡ đám sương**, **Chi tiết làn sương** (trái: sương mịn, mềm;
+   phải: nhiều làn sương nhỏ trên từng đám), **Gió** (kéo sang trái: sương bay sang trái; sang
    phải: bay sang phải; càng xa giữa bay càng nhanh; ở giữa: sương chỉ cuộn tại chỗ), **Cuộn, đổi hình**, **Xa gần**,
    **Sáng theo cảnh** (0: sương đúng màu đã chọn), **Màu sương**.
 5. Muốn sương chỉ ở một chỗ: **Vẽ vùng** rồi tô chỗ đó. Muốn sương nằm sau nhà, cây phía trước: bấm **V1 Video gốc** →
