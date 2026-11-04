@@ -24,7 +24,8 @@ def drawn(fx, t, mask=None):
 class Loop(unittest.TestCase):
     def test_frame_p_is_frame_0(self):
         cases = [dict(fog.LOOKS[k], look=k) for k in fog.LOOKS] + [
-            MAX, {"wind": -100, "swirl": 0, "depth": 0}, {"wind": 0}, {"swirl": 100, "patchy": 100, "size": 0}]
+            MAX, {"wind": -100, "swirl": 0, "depth": 0}, {"wind": 0}, {"swirl": 100, "patchy": 100, "size": 0},
+            {"even": 100, "top": 0}]
         for frames, fps in ((240, 24), (150, 25), (90, 30), (1440, 24)):
             for params in cases:
                 fx = make(params, frames, fps)
@@ -82,6 +83,30 @@ class Picture(unittest.TestCase):
             clear.append(float((fx.coverage(0.3) < 0.02).mean()))
         self.assertLess(clear[0], 0.02)
         self.assertGreater(clear[1], 0.15)
+
+    def test_even(self):
+        """"Đều khắp khung": as much fog, its swings much smaller (no clear air between banks), yet still drifting."""
+        base = {"top": 0, "lower": 0, "patchy": 0, "amount": 40, "opacity": 60}
+        uneven, even = make({**base, "even": 0}), make({**base, "even": 100})
+        a, b = uneven.coverage(0.3), even.coverage(0.3)
+        self.assertLess(abs(float(b.mean()) - float(a.mean())), 0.1 * float(a.mean()))
+        self.assertLess(float(b.std() / b.mean()), 0.2 * float(a.std() / a.mean()))
+        self.assertGreater(float(b.min()), 0.8 * float(b.mean()))
+        self.assertGreater(float(np.abs(even.coverage(0.3 + 1 / 24) - b).max()), 0.0)
+
+    def test_haze_over_the_whole_frame(self):
+        """The light even haze look covers the whole frame, top to bottom, lightly; nowhere much lighter along the top
+        edge (fog above the frame shades it as fog in the frame does)."""
+        fx = make(dict(fog.LOOKS["haze"]))
+        c = fx.coverage(0.4)
+        rows = c.mean(axis=1)
+        self.assertGreater(float(c.min()), 0.15)
+        self.assertLess(float(c.max()), 0.6)
+        self.assertLess(float(np.ptp(rows)), 0.2 * float(rows.mean()))
+        for params in ({"top": 0, "lower": 0, "patchy": 0, "amount": 100}, dict(fog.LOOKS["haze"])):
+            fx = make(params)
+            shade = fx._shade(fx.depth_at(0.4)).mean(axis=1)
+            self.assertLess(abs(float(shade[:4].mean()) - float(shade[40:120].mean())), 0.02, params)
 
     def test_how_thick(self):
         thin, thick = (float(make({"amount": a, "top": 0}).coverage(0.2).mean()) for a in (20, 90))

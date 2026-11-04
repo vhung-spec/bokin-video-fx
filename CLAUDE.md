@@ -505,10 +505,14 @@ hiệu ứng. Cách dùng: `README.md`.
   trên tấm (`cyc`). (Thử cho tấm trôi số nguyên tấm mỗi vòng: gió chậm thì tấm phải nhỏ, hoa văn lặp lại thấy rõ.)
   "Khe hở" (`patchy`) là chỗ cắt nhiễu, cắt mềm max(0, n + cut)^`SOFT_CUT` (làn mỏng tan dần, giữa các đám trong hẳn),
   chia trung bình phần còn lại (`_soft_mean`). Có khối: chỗ có sương ngay phía trên thì tối đi tới `SHADE`
-  (`_shade`, ánh sáng từ trên, trong `SHADE_REACH`). Dải sương: `top`, `bottom` (100: không mờ ở đáy), `soft` (mờ ra
+  (`_shade`, ánh sáng từ trên, trong `SHADE_REACH`; trên mép khung coi như sương như hàng trên cùng: sương phủ cả khung
+  không sáng hơn ở mép trên; `SHADE` 0,12 từ `VERSION` 3, trước 0,32: ban ngày đám sương trước bầu trời thành khói
+  xám, tối hơn trời). "Đều khắp khung" (`even`, chủ yêu cầu 2026-11-04: "nhạt hơn, đều hơn, full khắp màn hình";
+  mặc định 0: clip cũ như cũ): độ dày mỗi lớp về gần trung bình (`EVEN` 0,9 ở 100: còn một phần mười, vẫn trôi, cuộn),
+  bớt cả độ tối của khối. Dải sương: `top`, `bottom` (100: không mờ ở đáy), `soft` (mờ ra
   ngoài dải), mép lượn theo chính sương; `lower` dày dần xuống dưới (cả dải vẫn chừng ấy sương). Kiểu (`LOOKS`): sát
-  mặt đất (mặc định), dải ngang, phủ cả cảnh, làn mỏng, sương sớm dày. Test: `tests/test_fog.py`; trang: bước `winter`
-  (clip xem nhanh khớp khung chính xác).
+  mặt đất (mặc định), dải ngang, phủ cả cảnh, làn mỏng, sương sớm dày, sương nhạt phủ đều khắp khung (`haze`).
+  Test: `tests/test_fog.py`; trang: bước `winter` (clip xem nhanh khớp khung chính xác).
 - Dây đèn lấp lánh (`fx/lights.py`, mã loại `lights`): hiệu ứng đặt một chỗ (`BOX` vuông), ánh sáng (Screen: clip xem
   nhanh H.264 nền đen), xoay được. Dây giăng một lần trong hộp: quấn quanh hình nón (xoắn ốc nhìn từ ngang giữa cây:
   `EYE`, `AWAY`; bóng phía sau cây mờ theo `back`), võng, rèm, rải đều; bóng cách đều theo chiều dài dây 3D

@@ -549,7 +549,7 @@ Sau khi tô, app cần một lúc để làm bản xem nhanh; xong rồi thì l�
 ### Sương mù bay
 
 Sương mù trôi theo gió qua cảnh, từng đám cuộn lại, đổi hình rồi tan, như sương thật: đám to mềm, trên đó là những
-làn sương nhỏ hơn, nằm thành lớp ngang; đám nào cũng có khối (mặt trên sáng, phía dưới hơi tối hơn); đám ở xa nhỏ, dẹt
+làn sương nhỏ hơn, nằm thành lớp ngang; đám nào cũng có khối (mặt trên sáng, phía dưới tối hơn một chút); đám ở xa nhỏ, dẹt
 và trôi chậm, đám ở gần to và trôi nhanh hơn. Sương lấy ánh sáng của chính video: ban đêm sương tối, gần đèn thì sương sáng lên; ban
 ngày sương sáng theo bầu trời. Sương luôn lặp lại liền mạch.
 
@@ -558,14 +558,19 @@ ngày sương sáng theo bầu trời. Sương luôn lặp lại liền mạch.
    - **Sương sát mặt đất**: lớp sương dày ở dưới thấp, mỏng dần lên trên (sân, cánh đồng, đường làng).
    - **Dải sương trôi ngang**: một dải sương ở giữa hình (ngang sườn núi, trên mặt hồ, quanh rặng cây).
    - **Sương phủ cả cảnh**, **Làn sương mỏng bay qua**, **Sương sớm dày đặc**.
+   - **Sương nhạt phủ đều khắp khung**: một lớp sương mỏng, đều, từ đỉnh tới đáy hình, vẫn trôi nhẹ theo gió.
 3. Kéo **Mép trên lớp sương** và **Mép dưới lớp sương** cho sương nằm đúng chỗ (0 là đỉnh hình, 100 là đáy hình).
    **Mép mềm**: mép lớp sương tan dần rộng hay hẹp. **Dày dần xuống dưới**: sương dày ở dưới hơn ở trên.
 4. Chỉnh thêm: **Độ dày sương**, **Đậm nhất** (chỗ sương dày nhất che cảnh tới đâu), **Khe hở** (trái: một màn sương
-   liền; phải: từng đám rời, giữa có chỗ trong), **Cỡ đám sương**, **Chi tiết làn sương** (trái: sương mịn, mềm;
+   liền; phải: từng đám rời, giữa có chỗ trong), **Đều khắp khung** (trái: từng đám dày mỏng; phải: đều như một
+   lớp), **Cỡ đám sương**, **Chi tiết làn sương** (trái: sương mịn, mềm;
    phải: nhiều làn sương nhỏ trên từng đám), **Gió** (kéo sang trái: sương bay sang trái; sang
    phải: bay sang phải; càng xa giữa bay càng nhanh; ở giữa: sương chỉ cuộn tại chỗ), **Cuộn, đổi hình**, **Xa gần**,
    **Sáng theo cảnh** (0: sương đúng màu đã chọn), **Màu sương**.
-5. Muốn sương chỉ ở một chỗ: **Vẽ vùng** rồi tô chỗ đó. Muốn sương nằm sau nhà, cây phía trước: bấm **V1 Video gốc** →
+5. Muốn sương **nhạt hơn**: kéo **Đậm nhất** (hoặc **Độ dày sương**) xuống. Muốn sương **đều hơn**: kéo **Đều khắp
+   khung** lên, **Khe hở** về 0. Muốn sương **phủ khắp màn hình**: **Mép trên** 0, **Mép dưới** 100, **Dày dần xuống
+   dưới** 0 (kiểu **Sương nhạt phủ đều khắp khung** đặt sẵn cả ba việc này).
+6. Muốn sương chỉ ở một chỗ: **Vẽ vùng** rồi tô chỗ đó. Muốn sương nằm sau nhà, cây phía trước: bấm **V1 Video gốc** →
    **Vẽ tiền cảnh**, tô chúng, rồi chọn clip sương, tích **Bay ra sau tiền cảnh**.
 
 ### Tuyết bám kính

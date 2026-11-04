@@ -18,12 +18,14 @@ It drifts and still loops: each layer is seen as two copies, each drifting with 
 part of the tile. So the banks drift and change shape, and nothing repeats within the loop; with no wind they only
 curl in place. How patchy it is ("Khe hở") is where the pattern is cut, softly (to a power above 1: wisps thin out
 to nothing, no hard rim): low, an even veil with thicker and thinner parts; high, separate wisps with clear air
-between.
+between. "Đều khắp khung" (the owner asked 2026-11-04: "nhạt hơn, đều hơn, full khắp màn hình") takes the swings of
+the pattern away (to a tenth at 100: as much fog in all, it still drifts and curls), and the shade with them.
 
 It lies in a band of the frame (its top and bottom edges, each faded over "Mép mềm"; the top edge billows with the
 fog, it is not a straight line), denser toward the bottom if asked (ground fog): the looks are ground fog, a band of
-fog across a valley or a lake, a veil over the whole scene, thin wisps blowing past, thick morning fog. The clip's
-painted area (and the foreground, "Bay ra sau tiền cảnh") limit it further, as for every effect.
+fog across a valley or a lake, a veil over the whole scene, thin wisps blowing past, thick morning fog, a light even
+haze over the whole frame. The clip's painted area (and the foreground, "Bay ra sau tiền cảnh") limit it further, as
+for every effect.
 
 Worked out on a grid of FINE rows a frame height whatever the frame's size (the preview clip, the video and 4K show
 the same fog), then scaled up smoothly.
@@ -48,14 +50,16 @@ TURN = 0.01  # how far the flow moves round once a loop (tiles: a little; faster
 CYCLE = (18.0, 8.0)  # seconds a copy drifts before it gives way ("Cuộn, đổi hình" 0 .. 100)
 SOFT_CUT = 1.6  # the pattern is cut as max(0, n + cut) to this power ("Khe hở": a wisp thins out to nothing, no
 # hard rim, and clear air between the banks)
-SHADE = 0.32  # how much darker a bank is under fog above it (lit from above)
+SHADE = 0.12  # how much darker a bank is under fog above it (lit from above; more, and in daylight the banks in
+# front of the sky read as grey smoke, darker than the sky behind them: 0.32 in version 2)
 SHADE_REACH = 0.06  # how far above (frame heights) the fog that shades a place is
+EVEN = 0.9  # "Đều khắp khung" 100 takes this much of the pattern's swings away (the rest: it still drifts, curls)
 SPEED = (0.0, 0.12)  # how fast the fog drifts at "Gió" 0 and at 100, frame heights a second (the middle layer)
 LIGHT_GAIN = 1.15  # fog lit by the scene: the light around it, this much
 ROOM = 0.08  # and a share of its own colour (light scattered from all round: at night fog is dark but near lamps)
 
 DEFAULTS = {"amount": 55, "top": 52, "bottom": 100, "soft": 30, "lower": 50, "wind": 25, "swirl": 50, "size": 55,
-            "patchy": 45, "detail": 60, "depth": 50, "lit": 70, "opacity": 90}
+            "patchy": 45, "even": 0, "detail": 60, "depth": 50, "lit": 70, "opacity": 90}
 LOOKS = {  # the "Kiểu sương" presets ("ground" is the defaults)
     "ground": {},
     "valley": {"amount": 60, "top": 40, "bottom": 66, "soft": 18, "lower": 20, "size": 60, "wind": 25, "swirl": 40,
@@ -66,23 +70,28 @@ LOOKS = {  # the "Kiểu sương" presets ("ground" is the defaults)
               "patchy": 60, "detail": 50, "opacity": 75},
     "morning": {"amount": 85, "top": 0, "bottom": 100, "soft": 25, "lower": 40, "size": 70, "wind": 10, "swirl": 35,
                 "patchy": 20, "detail": 40},
+    "haze": {"amount": 40, "opacity": 60, "top": 0, "bottom": 100, "soft": 20, "lower": 0, "size": 75, "wind": 25,
+             "swirl": 30, "patchy": 0, "even": 75, "detail": 35},
 }
 
 SCHEMA = {
     "label": "Sương mù bay",
     "note": "Sương mù trôi theo gió, cuộn lại rồi tan, phủ lên cảnh như sương thật (lấy ánh sáng của chính video: gần "
             "đèn thì sương sáng lên). (1) Bấm Suốt video. (2) Chọn Kiểu sương. (3) Kéo Mép trên, Mép dưới cho lớp "
-            "sương nằm đúng chỗ (sát mặt đất, ngang sườn núi, trên mặt hồ…). Muốn sương chỉ ở một chỗ: Vẽ vùng rồi tô "
-            "chỗ đó. Muốn sương ở sau nhà, cây phía trước: tô chúng vào Tiền cảnh rồi bật Bay ra sau tiền cảnh.",
+            "sương nằm đúng chỗ (sát mặt đất, ngang sườn núi, trên mặt hồ…). Muốn sương nhạt, đều, phủ khắp khung: "
+            "chọn kiểu Sương nhạt phủ đều khắp khung (nhạt hơn nữa: kéo Đậm nhất xuống). Muốn sương chỉ ở một chỗ: Vẽ "
+            "vùng rồi tô chỗ đó. Muốn sương ở sau nhà, cây phía trước: tô chúng vào Tiền cảnh rồi bật Bay ra sau "
+            "tiền cảnh.",
     "params": [
         _choice("look", "Kiểu sương", "ground",
                 [("ground", "Sương sát mặt đất"), ("valley", "Dải sương trôi ngang (núi, mặt hồ)"),
                  ("veil", "Sương phủ cả cảnh"), ("wisps", "Làn sương mỏng bay qua"),
-                 ("morning", "Sương sớm dày đặc")],
+                 ("morning", "Sương sớm dày đặc"), ("haze", "Sương nhạt phủ đều khắp khung")],
                 presets={k: {**DEFAULTS, **v} for k, v in LOOKS.items()}, group="Kiểu"),
         _num("amount", "Độ dày sương", DEFAULTS["amount"], group="Sương"),
         _num("opacity", "Đậm nhất (chỗ sương dày)", DEFAULTS["opacity"], group="Sương"),
         _num("patchy", "Khe hở (liền một màn ← → từng đám rời)", DEFAULTS["patchy"], group="Sương"),
+        _num("even", "Đều khắp khung (từng đám ← → đều như một lớp)", DEFAULTS["even"], group="Sương"),
         _num("size", "Cỡ đám sương", DEFAULTS["size"], group="Sương"),
         _num("detail", "Chi tiết làn sương (mịn ← → nhiều làn nhỏ)", DEFAULTS["detail"], group="Sương"),
         _num("top", "Mép trên lớp sương (0: đỉnh hình)", DEFAULTS["top"], group="Chỗ có sương"),
@@ -134,7 +143,7 @@ def _soft_mean(b, k):
 
 
 class Fog(Effect):
-    VERSION = 2  # (2: fractal wisps bent by a flow, a body lit from above)
+    VERSION = 3  # (2: fractal wisps bent by a flow, a body lit from above; 3: lighter shade, "Đều khắp khung")
     LIT = True
 
     def __init__(self, *a, light=None):
@@ -175,6 +184,8 @@ class Fog(Effect):
                 "lift": 0.04 * swirl * blob / L, "phase": rng.random(4)})
         b = _lerp(1.4, -0.6, p["patchy"] / 100)  # (where the pattern is cut)
         self.cut, self.cut_mean = b, _soft_mean(b, SOFT_CUT)
+        self.even = EVEN * p.get("even", 0) / 100  # (how much of the pattern's swings is taken away)
+        self.shade = SHADE * (1 - p.get("even", 0) / 100)  # (an even layer has no banks to shade one another)
         self.amount = _lerp(0.0, 2.6, (p["amount"] / 100) ** 1.2)
         self.most = p["opacity"] / 100
         self.top, self.bottom = p["top"] / 100, max(p["top"] / 100, p["bottom"] / 100)
@@ -214,6 +225,8 @@ class Fog(Effect):
         for lay in self.layers:
             n = self._pattern(lay, tau).astype(np.float32)
             dens = np.maximum(n + self.cut, 0.0) ** SOFT_CUT / self.cut_mean
+            if self.even:
+                dens = 1.0 + (dens - 1.0) * (1.0 - self.even)  # (as much fog in all, its swings smaller)
             # where it lies: the band's edges, the top one billowing with the fog
             yy = y - 0.35 * self.soft * np.clip(n, -2.0, 2.0)
             band = _smooth((yy - (self.top - self.soft)) / self.soft) if self.top > 0 else 1.0
@@ -227,12 +240,16 @@ class Fog(Effect):
         return (self.most * (1.0 - np.exp(-self.depth_at(tau)))).astype(np.float32)
 
     def _shade(self, depth):
-        """How lit each grid point is (1 .. 1 - SHADE): less under fog above it (the light comes from above)."""
+        """How lit each grid point is (1 .. 1 - SHADE): less under fog above it (the light comes from above). Above
+        the frame the fog goes on as in its top row (fog over the whole frame is not lighter along the top edge)."""
+        if not self.shade:
+            return np.ones(depth.shape, np.float32)
         reach = max(1, round(SHADE_REACH * FINE))
-        c = np.cumsum(np.vstack([np.zeros((1, depth.shape[1]), np.float32), depth]), axis=0)
+        c = np.cumsum(np.vstack([np.zeros((1, depth.shape[1]), np.float32), np.repeat(depth[:1], reach, axis=0),
+                                 depth]), axis=0)
         rows = np.arange(depth.shape[0])
-        above = (c[rows] - c[np.maximum(rows - reach, 0)]) / reach  # (the mean depth over the rows just above)
-        return (1.0 - SHADE * (1.0 - np.exp(-1.2 * above))).astype(np.float32)
+        above = (c[rows + reach] - c[rows]) / reach  # (the mean depth over the rows just above)
+        return (1.0 - self.shade * (1.0 - np.exp(-1.2 * above))).astype(np.float32)
 
     def _colours(self):
         """The fog's colour at each pixel (sRGB 0..1): its own, or lit by the light around it in the scene."""
