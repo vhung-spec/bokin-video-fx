@@ -569,7 +569,10 @@ hiệu ứng. Cách dùng: `README.md`.
   yên (`pic`); danh sách dự án, tên dự án, hộp Xuất video ghi ảnh (`summary.image`). Đổi video gốc sang ảnh: vùng
   đứng yên về "một khung" (`still.source`). Test: `tests/test_picture.py`, `test_picture_project` (server), selftest
   (`picture_checks`), trang (`picture_project`).
-- `fx/jobs.py`: hai hàng đợi: xuất video, và chuẩn bị xem nhanh (bản nhẹ, clip hiệu ứng tạo sẵn).
+- `fx/jobs.py`: hai hàng đợi: xuất video, và chuẩn bị xem nhanh (bản nhẹ, clip hiệu ứng tạo sẵn). Dự án đang mở làm
+  trước (`focus`: dự án vừa hỏi bản nhẹ hay clip xem nhanh; `_later`: việc của dự án khác quay lại cuối hàng khi dự án
+  mở còn việc chờ, không bị bỏ; bản nhẹ của thư viện và xuất video không chờ): đổi dự án không phải chờ việc còn lại
+  của dự án trước (CI lần 98: sau khi đổi V1, mọi clip xem nhanh của dự án trước làm lại, dự án ảnh chờ quá 3 phút).
 - `fx/updater.py`: tự cập nhật. `fx/selftest.py`: tự kiểm tra.
 - `packaging/`: PyInstaller (`BokinFX.spec`), Inno Setup (`BokinFX.iss`), icon, bài thử cài đặt, cập nhật, và giao
   diện trên Edge (`ci_page_test.py`, dùng Playwright) trong CI. Nơi cài chọn được (chủ yêu cầu 2026-11-03: "khi cài đặt

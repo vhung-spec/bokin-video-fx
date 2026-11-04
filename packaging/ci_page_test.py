@@ -2361,8 +2361,13 @@ def picture_project(page, shot, folder, edge):
     page.evaluate("seek(0)")
     page.dblclick('.tile[data-kind="snow"]')
     page.click("#fullBtn")
-    page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
-                           "return c && S.fx[c.id] && S.fx[c.id].ready && S.project.proxy; })()", timeout=180000)
+    try:  # (its light copy and snow's preview clip go before the work still queued for the project before)
+        page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
+                               "return c && S.fx[c.id] && S.fx[c.id].ready && S.project.proxy; })()", timeout=600000)
+    except Exception:
+        print("jobs:", page.evaluate("S.state.jobs.filter(j => j.state === 'queued' || j.state === 'running')"
+                                     ".map(j => [j.kind, j.project === S.project.id, j.state, j.progress])"), flush=True)
+        raise
     page.keyboard.press("Space")
     page.wait_for_timeout(1500)
     state = page.evaluate("({t: S.time, base: baseVid.readyState, cur: baseVid.currentTime})")

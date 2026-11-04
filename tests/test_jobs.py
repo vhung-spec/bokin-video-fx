@@ -37,6 +37,22 @@ class Queues(unittest.TestCase):
         self.assertTrue(waiting["cancel"] and running["cancel"])
         self.assertFalse(kept["cancel"] or other["cancel"] or job["cancel"])
 
+    def test_the_open_project_first(self):
+        """Switching projects, the preview work of the one open goes before what is still queued for the one before
+        (which waits its turn, it is not dropped); a library item's light copy and an export never wait."""
+        j = jobs.Jobs()
+        j.queues = {"export": queue.Queue(), "prep": queue.Queue()}  # nothing is run
+        before = fake(j, id="b", name="fx-b", layer="l1", project="q")
+        lib = fake(j, id="l", kind="libproxy", project=None, item="0123456789")
+        export = fake(j, id="e", kind="export", project="q")
+        mine = j.fx_clip("p", "l2", "fx-new", {"fx-new"})
+        self.assertEqual(j.focus, "p")
+        self.assertTrue(j._later(before))
+        self.assertFalse(before["cancel"])
+        self.assertFalse(j._later(lib) or j._later(export) or j._later(mine))
+        mine["state"] = "done"
+        self.assertFalse(j._later(before))  # (nothing of the open project waiting: its turn)
+
     def test_a_failed_light_copy_is_not_retried_at_once(self):
         j = jobs.Jobs()
         fake(j, id="c", kind="libproxy", item="0123456789", state="error", finished=time.time())

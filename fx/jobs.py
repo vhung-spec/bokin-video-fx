@@ -2,7 +2,9 @@
 
 - export: the project's video, its whole length (30 s or 1 min), into the output folder;
 - prep:   what the page's live preview plays: light copies of project videos and library videos, and preview
-          clips of built-in effects.
+          clips of built-in effects. The project open on the page goes first (`focus`: the last one that asked for
+          its light copy or a preview clip): switching projects, the one open is not kept waiting behind the work
+          still queued for the one before (which waits its turn, it is not dropped).
 """
 import os
 import queue
@@ -37,6 +39,7 @@ class Jobs:
         self.items = {}
         self.order = []
         self.lock = threading.Lock()
+        self.focus = None  # the project open on the page: its preview work first
         self.queues = {"export": queue.Queue(), "prep": queue.Queue()}
         for kind, q in self.queues.items():
             threading.Thread(target=self._work, args=(q,), daemon=True, name=f"fx-{kind}").start()
@@ -76,6 +79,7 @@ class Jobs:
     def project_proxy(self, pid):
         """The light copy of a project's video, unless it is there or being made."""
         project = projects.load(pid)
+        self.focus = pid
         if project.get("proxy") and os.path.exists(os.path.join(projects.folder(pid), project["proxy"])):
             return None
         source = project["video"]["file"]  # a job for a video since replaced is not this one's
@@ -100,6 +104,7 @@ class Jobs:
         """The preview clip `name` of built-in effect clip `lid`. Clips waiting or being made that no clip of the
         project wants any more (`wanted`: the names its clips need now: a clip moved again and again while it is lit by
         the light where it stands) are dropped."""
+        self.focus = pid
         with self.lock:
             for j in self.items.values():
                 if (j["kind"] == "fxclip" and j["project"] == pid and j["state"] in ("queued", "running")
@@ -125,11 +130,24 @@ class Jobs:
         with self.lock:
             return [{k: v for k, v in self.items[j].items() if k != "cancel"} for j in reversed(self.order)]
 
+    def _later(self, job):
+        """Whether a preview job of another project should wait while the project open has preview work queued
+        (it goes back in the queue, after that work)."""
+        focus = self.focus
+        if job["kind"] == "export" or job["project"] in (None, focus) or focus is None:
+            return False  # (a library item's light copy: any project may need it)
+        with self.lock:
+            return any(j["project"] == focus and j["state"] == "queued" and not j["cancel"] and j["kind"] != "export"
+                       for j in self.items.values())
+
     def _work(self, q):
         while True:
             job = q.get()
             if job["cancel"]:
                 job["state"], job["finished"] = "cancelled", time.time()
+                continue
+            if self._later(job):
+                q.put(job)
                 continue
             job["state"], job["started"] = "running", time.time()
             try:
