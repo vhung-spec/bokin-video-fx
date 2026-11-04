@@ -1,7 +1,7 @@
 """Projects: one video with its still areas, masks and timeline, kept in a folder of the data folder.
 
 projects/<id>/project.json   the settings (written whole, atomically)
-projects/<id>/input.<ext>    the video, as uploaded
+projects/<id>/input.<ext>    the video, as uploaded (or a picture, as a PNG of ours: video.still_info)
 projects/<id>/proxy.mp4      a light copy of it for the page's live preview (made in the background)
 projects/<id>/still.png      the original picture, fitted to the video's size (optional)
 projects/<id>/masks/*.png    masks painted on the page: freeze, fg, and one per clip
@@ -15,6 +15,7 @@ library item ("file": {"lib": id}).
 Everything that comes from the page is checked here: ids by pattern, numbers clamped, files read by our code
 only (never a path from the page).
 """
+import io
 import json
 import os
 import re
@@ -36,6 +37,11 @@ MASK_NAME = re.compile(r"^(freeze|fg|[a-z0-9]{4,16})$")
 INPUT_NAME = re.compile(r"^input(-[0-9a-f]{6})?\.[a-z0-9]{2,4}$")
 PROXY_NAME = re.compile(r"^proxy(-[0-9a-f]{6})?\.(mp4|webm)$")
 VIDEO_TYPES = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
+PICTURE_TYPES = overlay.IMAGE_TYPES  # a project may start from a picture too (a still video: video.still_info)
+BASE_TYPES = VIDEO_TYPES | PICTURE_TYPES
+BASE_HINT = "Hãy chọn một file video (mp4, mov, mkv, webm, avi) hoặc một ảnh (png, jpg, webp)."
+PICTURE_SIDE = 3840  # a bigger picture is made this big on its longer side (4K: what a video of it can be)
+PICTURE_LEAST = 64  # and a smaller one is refused
 MAX_LAYERS = 64  # clips
 MAX_TRACKS = 16  # an older version allowed 16 layers, and upgrade() makes each one a track
 MAX_FRAMES = 3600  # two and a half minutes at 24 fps: this app is for short loops
@@ -177,7 +183,7 @@ def mask_size(info):
 def summary(project):
     return {"id": project["id"], "name": project["name"], "updated": project.get("updated", 0),
             "seconds": project["video"]["seconds"], "w": project["video"]["w"], "h": project["video"]["h"],
-            "length": project.get("length") or timeline.DEFAULT_LENGTH}
+            "image": bool(project["video"].get("image")), "length": project.get("length") or timeline.DEFAULT_LENGTH}
 
 
 _SUMMARIES = {}  # project.json's path: (its stamp, its summary). The page asks for the list every 1.5 s: a project is
@@ -205,10 +211,59 @@ def list_all():
     return sorted(out, key=lambda p: -p["updated"])
 
 
+def _picture(upload):
+    """An uploaded picture as the project's video: a PNG of ours (upload + ".png") and its still video's info. Turned
+    as the camera meant, in sRGB, on black where it is see-through, at most PICTURE_SIDE on its longer side, with
+    even sides (H.264 4:2:0: an odd last row or column is left out)."""
+    try:
+        with overlay.open_picture(upload) as im:
+            if im.width * im.height > overlay.MAX_IMAGE_PIXELS:
+                raise UserError("Ảnh quá lớn (quá 40 triệu điểm ảnh).")
+            im.load()
+            try:
+                im = ImageOps.exif_transpose(im)
+            except Exception:  # noqa: BLE001 - broken EXIF: the picture as it is stored
+                im = im.copy()
+    except UserError:
+        raise
+    except Exception as e:  # noqa: BLE001 - any broken or unknown picture
+        raise UserError("Không đọc được ảnh này. Hãy chọn ảnh PNG, JPG hoặc WEBP.") from e
+    icc = im.info.get("icc_profile")
+    see_through = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+    mode, made = ("RGBA" if see_through else "RGB"), None
+    if icc:  # (a phone's Display P3, Adobe RGB, a CMYK print file...: the colours as meant, in the video's sRGB)
+        try:
+            from PIL import ImageCms
+            made = ImageCms.profileToProfile(im, io.BytesIO(icc), ImageCms.createProfile("sRGB"), outputMode=mode)
+        except Exception:  # noqa: BLE001 - a profile Pillow cannot use: the numbers as they are
+            made = None
+    im = made if made is not None else im.convert(mode)
+    if see_through:
+        flat = Image.new("RGB", im.size, (0, 0, 0))
+        flat.paste(im, mask=im.getchannel("A"))
+        im = flat
+    if min(im.size) < PICTURE_LEAST:
+        raise UserError(f"Ảnh quá nhỏ ({im.width}×{im.height}). Hãy chọn ảnh ít nhất {PICTURE_LEAST} điểm ảnh mỗi cạnh.")
+    k = min(1.0, PICTURE_SIDE / max(im.size))
+    w, h = int(im.width * k) // 2 * 2, int(im.height * k) // 2 * 2
+    if k < 1:
+        im = im.resize((w, h), Image.Resampling.LANCZOS)
+    elif (w, h) != im.size:
+        im = im.crop((0, 0, w, h))
+    out = upload + ".png"
+    im.save(out, compress_level=3)
+    return out, video.still_info(w, h)
+
+
 def _checked_video(upload, original_name):
+    """(the file to keep, its extension, what it is): the uploaded video, or a picture made a still video."""
     ext = os.path.splitext(original_name or "")[1].lower()
+    if ext in PICTURE_TYPES:
+        made, info = _picture(upload)
+        _remove(upload)
+        return made, ".png", info
     if ext not in VIDEO_TYPES:
-        raise UserError("Hãy chọn một file video (mp4, mov, mkv, webm, avi).")
+        raise UserError(BASE_HINT)
     info = video.probe(upload)
     fps = video.fps_value(info["fps"])
     if fps > MAX_FPS:
@@ -217,16 +272,19 @@ def _checked_video(upload, original_name):
     if info["frames"] > MAX_FRAMES:
         raise UserError(f"Video dài {info['seconds']:.0f} giây. Bokin FX dành cho video loop ngắn "
                         f"(tối đa {MAX_FRAMES // 24} giây ở 24 khung/giây).")
-    return ext, info
+    return upload, ext, info
 
 
 def create(upload, original_name):
-    """A new project from an uploaded video (`upload` is a file we wrote; it is moved into the project)."""
-    ext, info = _checked_video(upload, original_name)
+    """A new project from an uploaded video or picture (`upload` is a file we wrote; it is moved into the project)."""
+    upload, ext, info = _checked_video(upload, original_name)
     pid = secrets.token_hex(6)
     path = os.path.join(paths.projects_dir(), pid)
-    os.makedirs(os.path.join(path, "masks"))
-    shutil.move(upload, os.path.join(path, "input" + ext))
+    try:
+        os.makedirs(os.path.join(path, "masks"))
+        shutil.move(upload, os.path.join(path, "input" + ext))
+    finally:
+        _remove(upload)  # (a picture made a PNG of ours: not left behind if it could not be moved in)
     info["file"] = "input" + ext
     now = time.time()
     project = {"id": pid, "name": clean_name(original_name), "source_name": os.path.basename(original_name)[:200],
@@ -239,14 +297,18 @@ def create(upload, original_name):
 def replace_video(project, upload, original_name):
     """A new video for the project (V1), keeping its timeline, areas and clips: clip times stay the same in
     seconds, clips that ran to the end still do. The new file gets a new name (the old one may still be open for
-    reading on Windows; it goes in a later sweep). Returns (project, notes for the page)."""
-    ext, info = _checked_video(upload, original_name)
+    reading on Windows; it goes in a later sweep). A picture may replace a video, and the other way round.
+    Returns (project, notes for the page)."""
+    upload, ext, info = _checked_video(upload, original_name)
     with LOCK:
-        fresh = load(project["id"])
-        path = os.path.join(paths.projects_dir(), fresh["id"])
-        old = fresh["video"]
-        name = f"input-{secrets.token_hex(3)}{ext}"
-        shutil.move(upload, os.path.join(path, name))
+        try:
+            fresh = load(project["id"])
+            path = os.path.join(paths.projects_dir(), fresh["id"])
+            old = fresh["video"]
+            name = f"input-{secrets.token_hex(3)}{ext}"
+            shutil.move(upload, os.path.join(path, name))
+        finally:
+            _remove(upload)  # (as in create())
         info["file"] = name
         old_total, old_fps, new_fps = timeline.project_frames(fresh), video.fps_value(old["fps"]), video.fps_value(info["fps"])
         fresh["video"] = info
@@ -262,7 +324,12 @@ def replace_video(project, upload, original_name):
         if off:
             notes.append(f"{off} clip không còn chỗ trên track của nó nên đã được tắt. Hãy kiểm tra lại timeline.")
         fresh["still"]["frame"] = min(at(fresh["still"].get("frame", 0)), info["frames"] - 1)
-        if abs(new_total / new_fps - old_total / old_fps) > 0.5 or abs(info["seconds"] - old["seconds"]) > 0.05:
+        if info.get("image"):
+            if not old.get("image"):
+                notes.append(f"Video gốc giờ là một ảnh đứng yên: video xuất ra dài {new_total / new_fps:g} giây, "
+                             f"{info['fps']} khung/giây.")
+            fresh["still"]["source"] = "frame"  # (still areas show the picture itself: the page hides them)
+        elif abs(new_total / new_fps - old_total / old_fps) > 0.5 or abs(info["seconds"] - old["seconds"]) > 0.05:
             notes.append(f"Video mới có loop {info['seconds']:g} giây (video cũ {old['seconds']:g} giây): video xuất ra "
                          f"dài {new_total / new_fps:g} giây.")
         if info["h"] != old["h"]:  # soft edges are in pixels of the video: as soft, compared with the picture

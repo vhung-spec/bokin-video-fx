@@ -31,7 +31,8 @@ Kéo đường kẻ giữa các vùng để đổi cỡ vùng. App nhớ cỡ đ
 
 ## Làm một video, từng bước
 
-1. Bấm **Video mới…** ở góc trên (hoặc kéo file video vào cửa sổ app). Thường là video loop 6 giây.
+1. Bấm **Video mới…** ở góc trên (hoặc kéo file video vào cửa sổ app). Thường là video loop 6 giây. Chọn một ảnh
+   (png, jpg) cũng được: app làm ảnh thành video đứng yên 30 khung/giây rồi thêm hiệu ứng lên đó.
 2. Trên thanh Timeline, chọn **30 giây** hoặc **1 phút**.
 3. Thẻ **Thư viện**: bấm **Nhập file…** (hoặc kéo file vào) để thêm video hiệu ứng, ảnh PNG. Thẻ **Tạo sẵn**: hiệu ứng
    app tự vẽ (tuyết, mưa, sương mù, khói, lá rơi…).

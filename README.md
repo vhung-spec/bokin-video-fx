@@ -1,7 +1,7 @@
 # Bokin FX
 
-App thêm hiệu ứng vào video loop rồi xuất video **30 giây hoặc 1 phút**, vẫn loop liền mạch. Giao diện giống Adobe
-Premiere Pro:
+App thêm hiệu ứng vào video loop (hoặc vào một ảnh) rồi xuất video **30 giây hoặc 1 phút**, vẫn loop liền mạch. Giao
+diện giống Adobe Premiere Pro:
 
 - **Thư viện hiệu ứng**: nhập video hiệu ứng có sẵn (nền đen hoặc nền trong suốt) và ảnh PNG. Thư viện dùng chung cho
   mọi dự án.
@@ -130,6 +130,10 @@ xem nhanh chỉ nét bằng video trên trang (không hơn), nên khung càng nh
 ## Cách dùng
 
 1. **Mở video**: bấm **+ Video mới…** hoặc kéo file video vào màn hình. Thường là video loop 6 giây (1920×1080).
+   - **Bắt đầu từ một ảnh** (png, jpg, webp, bmp): bấm **+ Video mới…** rồi chọn ảnh, hoặc kéo ảnh vào màn hình. App
+     làm ảnh thành một video đứng yên, 30 khung/giây, đúng cỡ ảnh, rồi thêm hiệu ứng lên đó như với video. Ảnh xoay
+     theo máy chụp; ảnh to hơn 4K được thu nhỏ còn 3840 điểm ảnh ở cạnh dài; cạnh lẻ bỏ đi một hàng điểm ảnh (video
+     cần cạnh chẵn); chỗ trong suốt thành màu đen. Dự án từ ảnh không có **Vùng đứng yên** (cả hình đã đứng yên).
 2. **Chọn độ dài**: trên thanh Timeline, bấm **30 giây** hoặc **1 phút**.
 3. **Nhập hiệu ứng**: ở thẻ **Thư viện**, bấm **+ Nhập file…** (hoặc kéo file vào). Chọn video hiệu ứng hoặc ảnh PNG.
 4. **Thêm vào video**: kéo hiệu ứng từ Thư viện xuống một track trên timeline, hoặc bấm đúp vào hiệu ứng để thêm tại
@@ -165,7 +169,8 @@ xem nhanh chỉ nét bằng video trên trang (không hơn), nên khung càng nh
    - **Vùng**: bấm **Vẽ vùng** để tô chỗ hiệu ứng được hiện.
 6. **Vùng đứng yên và tiền cảnh**: bấm vào **V1 Video gốc** trên timeline, rồi bấm **Vẽ vùng đứng yên** hoặc
    **Vẽ tiền cảnh**.
-   - **Đổi video gốc**: bấm vào **V1 Video gốc** rồi **Đổi video gốc…**, hoặc kéo file video thả vào hàng V1.
+   - **Đổi video gốc**: bấm vào **V1 Video gốc** rồi **Đổi video gốc…**, hoặc kéo file video thả vào hàng V1. Đổi
+     bằng một ảnh cũng được (và ngược lại: dự án từ ảnh đổi sang video).
      Timeline, các clip và vùng đã vẽ được giữ nguyên (thời gian clip giữ theo giây). Clip nằm sau cuối video mới
      được dời lên trước. Ảnh gốc của vùng đứng yên được khớp lại theo cỡ video mới.
 7. **Xem**: bấm nút phát (nút tròn màu xanh dưới hình) hoặc phím cách. Dừng thì hình đứng yên đúng khung đang thấy.

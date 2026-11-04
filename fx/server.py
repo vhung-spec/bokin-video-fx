@@ -27,8 +27,8 @@ import bokin_license
 from . import colourmatch, effects, engine, guide, jobs, keys, library, licensing, overlay, paths, projects, timeline, video
 
 UPLOAD_LIMITS = {"video": 4 << 30, "replace": 4 << 30, "library": 4 << 30, "still": 200 << 20}
-UPLOAD_TYPES = {"video": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
-                "replace": (projects.VIDEO_TYPES, "Hãy chọn một file video (mp4, mov, mkv, webm, avi)."),
+UPLOAD_TYPES = {"video": (projects.BASE_TYPES, projects.BASE_HINT),  # (a video, or a picture: a still video)
+                "replace": (projects.BASE_TYPES, projects.BASE_HINT),
                 "still": (overlay.IMAGE_TYPES, "Hãy chọn ảnh PNG hoặc JPG."),
                 "library": (library.TYPES, "Hãy chọn video (mp4, mov, webm…) hoặc ảnh (png, jpg).")}
 MASK_LIMIT = 50 << 20

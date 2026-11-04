@@ -2341,7 +2341,46 @@ def run(page, folder, edge):
     copy_area(page, shot)
     save_project(page, shot)
     paste_elsewhere(page, lane_y, x_of)
+    picture_project(page, shot, folder, edge)
     check("no script errors on the page", not errors, "\n".join(errors[:10]))
+
+
+def picture_project(page, shot, folder, edge):
+    """A picture opened as a project (the app makes it a still video: video.still_info): its panel says so (no still
+    areas: the picture is still), an effect over it plays and exports at 30 frames a second."""
+    page.set_input_files("#fileVideo", upload(folder, "pattern.png", "Phòng khách.png", "image/png"))
+    page.wait_for_function("S.project && S.project.name === 'Phòng khách'", timeout=60000)
+    v = page.evaluate("S.project.video")
+    check("a picture opens as a project", v.get("image") and (v["w"], v["h"], v["fps"]) == (480, 320, "30"), str(v))
+    page.click(".clip.base >> nth=0")
+    panel = page.inner_text("#ec")
+    check("V1 of a picture: its panel, no still areas (the picture is still)", "Ảnh 480×320" in panel and
+          page.locator("#paintFreeze").count() == 0 and page.locator('#tools [data-paint="freeze"]').count() == 0,
+          panel.replace("\n", " | ")[:300])
+    page.click('.tab[data-bin="fx"]')
+    page.evaluate("seek(0)")
+    page.dblclick('.tile[data-kind="snow"]')
+    page.click("#fullBtn")
+    page.wait_for_function("(() => { const c = S.project.layers.find(l => l.kind === 'snow'); "
+                           "return c && S.fx[c.id] && S.fx[c.id].ready && S.project.proxy; })()", timeout=180000)
+    page.keyboard.press("Space")
+    page.wait_for_timeout(1500)
+    state = page.evaluate("({t: S.time, base: baseVid.readyState, cur: baseVid.currentTime})")
+    page.keyboard.press("Space")
+    if edge:
+        check("a picture project plays", state["base"] >= 2 and state["cur"] > 0 and state["t"] > 0.5, str(state))
+    shot("11-picture")
+    page.click("#exportBtn")
+    page.click("#mGo")
+    mine = "j => j.kind === 'export' && j.project === S.project.id"
+    page.wait_for_function(f"S.state && S.state.jobs.some(j => ({mine})(j) && j.state !== 'queued' "
+                           "&& j.state !== 'running')", timeout=600000)
+    job = page.evaluate(f"S.state.jobs.find({mine})")
+    check("a picture project exports", job["state"] == "done" and job["output"].startswith("Phòng khách"), str(job))
+    if job["state"] == "done":
+        info = video.probe(os.path.join(os.environ["BOKIN_FX_OUT"], job["output"]))
+        check("exported picture video: 30 s at 30 frames a second", (info["frames"], info["fps"], info["w"]) ==
+              (900, "30", 480), str(info))
 
 
 def match_and_copy(page, shot, lane_y, x_of):

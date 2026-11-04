@@ -748,7 +748,7 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
 <div class="app">
   <header>
     <div class="logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14.72" fill="#5AA2FF"/><path fill="#0B1C3D" fill-rule="evenodd" d="M9.5 55.8L9.5 35.0L24.3 35.0L24.3 39.2L14.4 39.2L14.4 44.2L23.0 44.2L23.0 48.2L14.4 48.2L14.4 55.8ZM26.2 55.8L30.6 48.4L26.2 40.9L31.2 40.9L33.8 45.5L36.5 40.9L41.5 40.9L36.9 48.4L41.5 55.8L36.5 55.8L33.8 51.2L31.2 55.8Z"/></svg>Bokin FX</div>
-    <button id="newBtn" data-icon="plus" title="Mở một video loop thành dự án mới">Video mới…</button>
+    <button id="newBtn" data-icon="plus" title="Mở một video loop hoặc một ảnh thành dự án mới">Video mới…</button>
     <span class="proj" id="projName"></span>
     <div class="savebox" id="saveBox"><button class="small" id="saveBtn" data-icon="save" data-tip="Lưu dự án ({save}). App cũng tự lưu mỗi lần bạn chỉnh">Lưu</button><button class="small icon" id="saveMore" data-icon="chevron" title="Lưu thành bản khác, đổi tên dự án"></button><span class="savestate" id="saveState"></span></div>
     <div class="grow"></div>
@@ -786,7 +786,7 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
         <div class="cursor" id="cursor"></div>
         <div class="labels"><div class="waiting" id="waiting"></div><div class="badge" id="badge"></div></div>
         <div class="drop" id="drop">
-          <div class="box"><b>Kéo video loop vào đây</b>hoặc bấm <b style="display:inline;font-size:inherit">+ Video mới…</b> ở trên.<br>Thường là video loop 6 giây (1920×1080, 24 khung/giây).<br>App làm ra video 30 giây hoặc 1 phút, vẫn loop liền mạch.</div>
+          <div class="box"><b>Kéo video loop hoặc ảnh vào đây</b>hoặc bấm <b style="display:inline;font-size:inherit">+ Video mới…</b> ở trên.<br>Thường là video loop 6 giây (1920×1080, 24 khung/giây), hoặc một ảnh (png, jpg).<br>App làm ra video 30 giây hoặc 1 phút, vẫn loop liền mạch.</div>
           <div class="recent" id="recent"></div>
         </div>
       </div>
@@ -854,8 +854,8 @@ footer .jobs { flex: 1; display: flex; align-items: center; gap: var(--s2); min-
   </div>
   <footer><div class="jobs" id="jobs"></div><button class="small" id="folderBtn" data-icon="folder" title="Mở thư mục chứa các video đã xuất">Mở thư mục video</button><span id="licChip" title="Bản quyền: bấm để xem Mã máy hoặc nhập key mới"></span><span id="ver" title="Bấm để kiểm tra bản mới"></span></footer>
 </div>
-<input type="file" id="fileVideo" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
-<input type="file" id="fileReplace" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v" hidden>
+<input type="file" id="fileVideo" accept="video/*,image/png,image/jpeg,image/webp,image/bmp,.mp4,.mov,.mkv,.webm,.avi,.m4v,.png,.jpg,.jpeg,.webp,.bmp" hidden>
+<input type="file" id="fileReplace" accept="video/*,image/png,image/jpeg,image/webp,image/bmp,.mp4,.mov,.mkv,.webm,.avi,.m4v,.png,.jpg,.jpeg,.webp,.bmp" hidden>
 <input type="file" id="fileStill" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden>
 <input type="file" id="fileLib" multiple accept="video/*,image/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.gif,.png,.jpg,.jpeg,.webp,.bmp" hidden>
 <div class="menu" id="menu"></div>
@@ -1201,11 +1201,16 @@ async function openProject(id) {
   } catch (e) { fail(e); }
 }
 
+// a project starts from a video loop, or from a picture (the app makes it a still video: video.still_info)
+function isVideo(f) { return /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(f.name); }
+function isPicture(f) { return /\.(png|jpe?g|webp|bmp)$/i.test(f.name); }
 async function newProjectFrom(file) {
   if (!file) return;
   try {
-    const p = await upload(`/api/upload?kind=video&name=${encodeURIComponent(file.name)}`, file, "Đang mở video");
-    toast(`Đã mở "${p.name}": ${p.video.w}×${p.video.h}, ${p.video.seconds} giây, ${p.video.frames} khung.`);
+    const pic = isPicture(file);
+    const p = await upload(`/api/upload?kind=video&name=${encodeURIComponent(file.name)}`, file, pic ? "Đang mở ảnh" : "Đang mở video");
+    toast(p.video.image ? `Đã mở ảnh "${p.name}": ${p.video.w}×${p.video.h}. Video xuất ra ${p.video.fps} khung/giây.`
+      : `Đã mở "${p.name}": ${p.video.w}×${p.video.h}, ${p.video.seconds} giây, ${p.video.frames} khung.`);
     await openProject(p.id);
     pollSoon();
   } catch (e) { fail(e); }
@@ -2499,7 +2504,7 @@ function renderTools() {  // the tool column at the right of the monitor: painti
       <button class="small wide" data-rotreset="1" ${turned(c) ? "" : "disabled"} title="Thẳng lại như lúc đầu">Đặt lại xoay</button>
       <p class="tip">Kéo nút tròn trên khung để xoay phẳng (giữ Shift: từng nấc 15°). Kéo nút 3D cạnh nút tròn để nghiêng, ví dụ cho mưa nằm đúng ô cửa nhìn chéo.</p>` : ""}` : "";
   el.innerHTML = `<h5>Vẽ vùng</h5>
-    <button class="wide" data-paint="freeze" title="Chỗ phải đứng yên tuyệt đối"><span style="color:${COLORS.freeze}">●</span> Vùng đứng yên</button>
+    ${info().image ? "" : `<button class="wide" data-paint="freeze" title="Chỗ phải đứng yên tuyệt đối"><span style="color:${COLORS.freeze}">●</span> Vùng đứng yên</button>`}
     <button class="wide" data-paint="fg" title="Vật ở gần: che các clip bay ra sau tiền cảnh"><span style="color:${COLORS.fg}">●</span> Tiền cảnh</button>
     <button class="wide" data-paint="clip" ${c ? "" : "disabled"} title="Chỗ clip đang chọn được hiện"><span style="color:${COLORS.area}">●</span> Vùng của clip đang chọn</button>
     ${c ? `<label class="check"><input type="checkbox" id="showArea" ${S.showArea ? "checked" : ""}> Hiện vùng của clip</label>` : '<p class="tip">Chọn một clip trên timeline để vẽ vùng của nó.</p>'}
@@ -4267,13 +4272,15 @@ function ownerClip(el) {  // the clip a control of the Effect Controls panel was
   return box ? clipById(box.dataset.for) : null;
 }
 function renderBaseControls(el) {
-  const p = S.project, st = p.still || {source: "frame", frame: 0}, v = info();
+  const p = S.project, st = p.still || {source: "frame", frame: 0}, v = info(), pic = !!v.image;
   $("#ecNote").textContent = "Video gốc (V1)";
   el.innerHTML = `<div class="title"><span>${icon("video")}</span><b>${esc(p.name)}</b></div>
-    <div class="file">${p.source_name ? `<b>${esc(p.source_name)}</b><br>` : ""}${v.w}×${v.h}, ${v.fps} khung/giây, loop ${v.seconds} giây (${v.frames} khung).<br>Video xuất ra: ${secLabel(duration())} = ${total() / loopFrames()} vòng loop.</div>
-    <div class="btns"><button class="small" id="replaceBtn" title="Hoặc kéo file video thả vào hàng V1 trên timeline">Đổi video gốc…</button></div>
-    <p class="note">Đổi video gốc thì timeline, các clip và vùng đã vẽ được giữ nguyên.</p>
-    <h4>Vùng đứng yên</h4>
+    <div class="file">${p.source_name ? `<b>${esc(p.source_name)}</b><br>` : ""}${pic
+      ? `Ảnh ${v.w}×${v.h}: hình đứng yên, chỉ hiệu ứng chuyển động.<br>Video xuất ra: ${secLabel(duration())}, ${v.fps} khung/giây.`
+      : `${v.w}×${v.h}, ${v.fps} khung/giây, loop ${v.seconds} giây (${v.frames} khung).<br>Video xuất ra: ${secLabel(duration())} = ${total() / loopFrames()} vòng loop.`}</div>
+    <div class="btns"><button class="small" id="replaceBtn" title="Hoặc kéo file video hay ảnh thả vào hàng V1 trên timeline">Đổi video gốc…</button></div>
+    <p class="note">Đổi video gốc (bằng một video hay một ảnh) thì timeline, các clip và vùng đã vẽ được giữ nguyên.</p>
+    ${pic ? "" : `<h4>Vùng đứng yên</h4>
     <p class="note">Tô những chỗ phải đứng yên tuyệt đối (tường, đồ vật bị rung…). Ở đó hình lấy y nguyên từ ảnh gốc, hoặc từ một khung của video.</p>
     <div class="btns"><button class="small ${S.paint === "freeze" ? "on" : ""}" id="paintFreeze">${icon("pencil", "lead")}Vẽ vùng đứng yên</button>${S.masks.freeze && !S.masks.freeze.empty ? '<button class="small" id="clearFreeze">Xoá vùng</button>' : ""}</div>
     <div class="row"><div class="lab"><span>Lấy hình đứng yên từ</span></div>
@@ -4281,7 +4288,7 @@ function renderBaseControls(el) {
     ${st.source === "image" ? "" : `<div class="row"><div class="lab"><span>Khung số</span><b>${st.frame + 1}</b></div><button class="small" id="useFrame">Dùng khung đang xem (<span id="useFrameN">${(curFrame() % loopFrames()) + 1}</span>)</button></div>`}
     <div class="btns"><button class="small" id="pickStill">Chọn ảnh gốc…</button></div>
     ${st.warning && st.source === "image" ? `<p class="warn">${icon("warn", "lead")}${esc(st.warning)}</p>` : ""}
-    ${slider("feather", "Độ mềm mép (điểm ảnh)", p.freeze.feather, 0, 200, 1, 'data-base="freeze"')}
+    ${slider("feather", "Độ mềm mép (điểm ảnh)", p.freeze.feather, 0, 200, 1, 'data-base="freeze"')}`}
     <h4>Tiền cảnh</h4>
     <p class="note">Tô những vật ở gần (khung cửa sổ, cây, mái nhà…). Clip nào bật "Bay ra sau tiền cảnh" sẽ bị chúng che.</p>
     <div class="btns"><button class="small ${S.paint === "fg" ? "on" : ""}" id="paintFg">${icon("pencil", "lead")}Vẽ tiền cảnh</button>${S.masks.fg && !S.masks.fg.empty ? '<button class="small" id="clearFg">Xoá vùng</button>' : ""}</div>
@@ -4450,10 +4457,10 @@ function renderBin() {
       <p class="bin-empty" style="padding-top:0">Hiệu ứng app tự vẽ: chỉnh mật độ, cỡ, tốc độ, gió… và luôn lặp lại liền mạch.</p>`;
   } else {
     tools.style.display = "flex";
-    tools.innerHTML = `<button class="small" id="newBtn2" title="Mở một video loop thành dự án mới">${icon("plus", "lead")}Video mới…</button><span style="color:var(--dim)">Các dự án đã mở</span>`;
+    tools.innerHTML = `<button class="small" id="newBtn2" title="Mở một video loop hoặc một ảnh thành dự án mới">${icon("plus", "lead")}Video mới…</button><span style="color:var(--dim)">Các dự án đã mở</span>`;
     const list = (S.state && S.state.projects) || [];
     body.innerHTML = `<div class="plist">${list.map(p => `<div class="item${S.project && S.project.id === p.id ? " cur" : ""}" data-open="${p.id}"><img src="/api/thumb?id=${p.id}" alt="">
-      <div class="txt"><div>${esc(p.name)}</div><small>${p.w}×${p.h} · loop ${p.seconds} giây · xuất ${p.length === 60 ? "1 phút" : "30 giây"}${p.updated ? ` · lưu ${when(p.updated * 1000)}` : ""}</small></div>
+      <div class="txt"><div>${esc(p.name)}</div><small>${p.w}×${p.h} · ${p.image ? "ảnh" : `loop ${p.seconds} giây`} · xuất ${p.length === 60 ? "1 phút" : "30 giây"}${p.updated ? ` · lưu ${when(p.updated * 1000)}` : ""}</small></div>
       <button class="small danger" data-del="${p.id}" title="Xoá dự án">Xoá</button></div>`).join("") || '<div class="bin-empty">Chưa có dự án nào.</div>'}</div>`;
   }
 }
@@ -4546,7 +4553,7 @@ function renderAll() {
   $("#transport").style.display = has ? "" : "none";  // no empty bar under the start screen
   $("#exportBtn").disabled = !has;
   $("#saveBox").classList.toggle("on", has);
-  $("#projName").innerHTML = has ? `<b id="projTitle" title="Bấm đúp để đổi tên">${esc(p.name)}</b> · ${p.video.w}×${p.video.h} · loop ${p.video.seconds} giây` : "";
+  $("#projName").innerHTML = has ? `<b id="projTitle" title="Bấm đúp để đổi tên">${esc(p.name)}</b> · ${p.video.w}×${p.video.h} · ${p.video.image ? "ảnh" : `loop ${p.video.seconds} giây`}` : "";
   $("#monName").textContent = has ? p.name : "";
   $("#monInfo").textContent = has ? `${p.video.w}×${p.video.h} · ${p.video.fps} khung/giây` : "";
   $("#tcDur").textContent = has ? tc(duration()) : "";
@@ -4579,8 +4586,8 @@ function exportDialog() {
   const box = $("#modalBox"), v = info();
   const outside = p.layers.filter(c => c.start >= total()).length;
   box.innerHTML = `<h3>Xuất video</h3>
-    <table><tr><td>Độ dài</td><td><b>${p.length === 60 ? "1 phút" : "30 giây"}</b> (${secLabel(duration())}, ${total() / loopFrames()} vòng loop)</td></tr>
-    <tr><td>Kích thước</td><td>${v.w}×${v.h}, ${v.fps} khung/giây, như video gốc</td></tr>
+    <table><tr><td>Độ dài</td><td><b>${p.length === 60 ? "1 phút" : "30 giây"}</b> (${secLabel(duration())}${v.image ? "" : `, ${total() / loopFrames()} vòng loop`})</td></tr>
+    <tr><td>Kích thước</td><td>${v.w}×${v.h}, ${v.fps} khung/giây, ${v.image ? "như ảnh gốc" : "như video gốc"}</td></tr>
     <tr><td>Định dạng</td><td>MP4 (H.264), không âm thanh, loop liền mạch</td></tr>
     <tr><td>Lưu vào</td><td>${esc((S.state && S.state.out_dir) || "Videos\\Bokin FX")}</td></tr></table>
     ${outside ? `<p style="color:var(--warn)">${icon("warn", "lead")}${outside} clip nằm ngoài độ dài video, sẽ không có trong video.</p>` : ""}
@@ -5252,8 +5259,8 @@ $("#fileLib").onchange = e => { const fs = [...e.target.files]; e.target.value =
 $("#fileReplace").onchange = e => { const f = e.target.files[0]; e.target.value = ""; replaceBase(f); };
 async function replaceBase(file) {  // a new video for V1; the timeline, clips and areas stay
   const p = S.project; if (!p || !file) return;
-  if (!/\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(file.name)) return toast("Hãy chọn một file video (mp4, mov…).", true);
-  if (!confirm(`Thay video gốc của dự án bằng "${file.name}"?\nTimeline, các clip và vùng đã vẽ được giữ nguyên.`)) return;
+  if (!isVideo(file) && !isPicture(file)) return toast("Hãy chọn một file video (mp4, mov…) hoặc một ảnh (png, jpg).", true);
+  if (!confirm(`Thay video gốc của dự án bằng ${isPicture(file) ? "ảnh" : ""} "${file.name}"?\nTimeline, các clip và vùng đã vẽ được giữ nguyên.`)) return;
   pause(); if (S.paint) exitPaint();
   if (!(await readyToRender())) return toast("Chưa đổi được video gốc: thay đổi mới nhất chưa lưu vào app. Hãy thử lại.", true, 7000);
   const box = $("#modalBox");
@@ -5284,8 +5291,7 @@ document.addEventListener("dragover", e => { e.preventDefault(); });
 document.addEventListener("drop", e => {
   e.preventDefault();
   const fs = [...e.dataTransfer.files]; if (!fs.length) return;
-  const isVideo = f => /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(f.name);
-  if (!S.project || e.target.closest("#drop")) { if (isVideo(fs[0])) newProjectFrom(fs[0]); else toast("Kéo vào đây một file video loop (mp4, mov…).", true); return; }
+  if (!S.project || e.target.closest("#drop")) { if (isVideo(fs[0]) || isPicture(fs[0])) newProjectFrom(fs[0]); else toast("Kéo vào đây một file video loop (mp4, mov…) hoặc một ảnh (png, jpg).", true); return; }
   S.bin = "lib"; renderBin(); importFiles(fs);
 });
 

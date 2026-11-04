@@ -4,6 +4,11 @@ probe() says what a video is; Frames reads its frames as RGB arrays; Encoder wri
 piece of it, rendered in parallel) and join() puts the pieces together without encoding them again; make_proxy()
 and ClipWriter make the light videos the page plays in its live preview.
 
+A project may start from a picture instead of a video (the owner asked 2026-11-04: "app có thể nhận cả dự án là
+ảnh"): its "video" is then a still one, still_info() (a PNG the project keeps, as a loop of IMAGE_SECONDS at
+IMAGE_FPS), and Frames, read_frame() and make_proxy() read the picture where they would decode a video, so the
+rest of the app treats it as any other video.
+
 Delivery format (the house standard): H.264 4:2:0, BT.709 limited range, the input's size and frame rate, no
 audio, and nothing in the file that names the tools. The stream is encoded into a temporary file, then copied
 into the delivered one without container or stream tags, and the SEI units in which x264 writes its version
@@ -16,6 +21,7 @@ import subprocess
 import tempfile
 
 import numpy as np
+from PIL import Image
 
 NO_WINDOW = {"creationflags": 0x08000000} if os.name == "nt" else {}  # CREATE_NO_WINDOW: no console per call
 CLEAN = ["-map_metadata", "-1", "-map_chapters", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact",
@@ -30,6 +36,8 @@ NTSC = {"23.98": "24000/1001", "23.976": "24000/1001", "29.97": "30000/1001", "4
         "59.94": "60000/1001", "119.88": "120000/1001"}
 HDR = {"smpte2084", "arib-std-b67", "bt2020", "bt2020-10", "bt2020-12"}  # PQ, HLG and BT.2020 primaries
 MAX_SIDE = 4096
+IMAGE_FPS = "30"  # a picture made a video: this many frames a second
+IMAGE_SECONDS = 30  # and a loop this long (a 30 s video is one loop of it, a minute two)
 
 
 class VideoError(Exception):
@@ -123,6 +131,46 @@ def probe(path, overlay=False):
             "decoder": ("libvpx-vp9" if codec == "vp9" else "libvpx") if vpx_alpha else None}
 
 
+def still_info(w, h, fps=IMAGE_FPS, seconds=IMAGE_SECONDS):
+    """What the still video of a picture is (probe() for a picture the project keeps as PNG)."""
+    frames = max(2, int(round(seconds * fps_value(fps))))
+    return {"image": True, "w": int(w), "h": int(h), "fps": str(fps), "frames": frames,
+            "seconds": round(frames / fps_value(fps), 3), "matrix": "bt709", "range": "tv", "codec": "png",
+            "pix": "rgb24", "alpha": False, "decoder": None}
+
+
+_stills = {}  # (path, stamp, size, part, alpha) -> the picture as it is read (the last few)
+
+
+def _still(path, size, src=None, alpha=False):
+    """A project's picture (its PNG) as one frame: the part `src` of it, at `size`, read-only like a decoded frame."""
+    try:
+        st = os.stat(path)
+    except OSError as e:
+        raise VideoError("Không đọc được ảnh của dự án.") from e
+    key = (path, st.st_mtime_ns, st.st_size, tuple(size), tuple(src) if src else None, alpha)
+    if key not in _stills:
+        try:
+            with Image.open(path, formats=["PNG"]) as im:
+                im = im.convert("RGBA" if alpha else "RGB")
+        except (OSError, ValueError, Image.DecompressionBombError) as e:
+            raise VideoError("Không đọc được ảnh của dự án.") from e
+        if src and tuple(src) != (0, 0, im.width, im.height):
+            im = im.crop(tuple(int(v) for v in src))
+        if im.size != tuple(size):
+            shrink = size[0] <= im.width and size[1] <= im.height
+            im = im.resize(tuple(size), Image.Resampling.BOX if shrink else Image.Resampling.BICUBIC)
+        arr = np.asarray(im, np.uint8)
+        arr.flags.writeable = False
+        try:
+            while len(_stills) >= 3:  # (the oldest; another thread may be at it too)
+                _stills.pop(next(iter(_stills)), None)
+        except (StopIteration, RuntimeError):
+            pass
+        _stills[key] = arr
+    return _stills[key]
+
+
 def _from_yuv(info, size, src=None):
     w, h = size
     sw, sh = (src[2] - src[0], src[3] - src[1]) if src else (info["w"], info["h"])  # the part read (a crop)
@@ -133,11 +181,19 @@ def _from_yuv(info, size, src=None):
 class Frames:
     """The frames of a video as RGB uint8 arrays (h, w, 3), or RGBA (h, w, 4) with `alpha`, scaled to `size`,
     from frame number `start` on (at most `count` of them; every `step`-th one), numbered in decoding order as
-    probe() counts them. Use it in a with-block, so ffmpeg is stopped when reading ends early."""
+    probe() counts them. Use it in a with-block, so ffmpeg is stopped when reading ends early. A picture
+    (still_info()) is read once and given as each of its frames."""
 
     def __init__(self, path, info, size=None, start=0, count=None, alpha=False, src=None, step=1):
         self.w, self.h = size or (info["w"], info["h"])
         self.depth = 4 if alpha else 3
+        self.proc = None
+        if info.get("image"):
+            self.still = _still(path, (self.w, self.h), src, alpha)
+            self.left = len(range(int(start), info["frames"], max(1, int(step))))
+            if count:
+                self.left = min(self.left, int(count))
+            return
         vf = ([f"select=gte(n\\,{int(start)})"] if start else [])
         if step > 1:
             vf.append(f"select=not(mod(n\\,{int(step)}))")
@@ -156,6 +212,10 @@ class Frames:
                                      **NO_WINDOW)
 
     def __iter__(self):
+        if self.proc is None:  # a picture
+            for _ in range(self.left):
+                yield self.still
+            return
         n = self.w * self.h * self.depth
         while True:
             buf = self.proc.stdout.read(n)
@@ -164,6 +224,8 @@ class Frames:
             yield np.frombuffer(buf, np.uint8).reshape(self.h, self.w, self.depth)
 
     def close(self):
+        if self.proc is None:
+            return
         if self.proc.poll() is None:
             self.proc.kill()
         self.proc.wait()
@@ -405,7 +467,16 @@ def make_proxy(src, info, dst, width=1280, alpha=None, keyint=12):
     # then mean the same frame by the same time (no frame doubled or dropped, uneven phone videos included)
     even = f"setpts=N/(({info['fps']})*TB)"
     timing = ["-fps_mode", "cfr", "-r", str(info["fps"])]  # every frame already sits on its slot: none doubled
-    if alpha:
+    if info.get("image"):  # a picture: the same frame, as many as its still video has (a key frame every second:
+        # the frames between are nothing, the copy stays small)
+        args = ["-y", "-loop", "1", "-framerate", str(info["fps"]), "-i", src, "-map", "0:v:0",
+                "-frames:v", str(info["frames"]),
+                "-vf", f"scale={w}:{h}:flags=area+accurate_rnd+full_chroma_int:out_color_matrix=bt709:out_range=tv,"
+                       f"format=yuv420p,{even}", *timing, "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
+                "-pix_fmt", "yuv420p", "-g", str(max(keyint, round(fps_value(info["fps"])))), *BT709,
+                "-movflags", "+faststart"]
+        alpha, out, tmp = False, os.path.splitext(dst)[0] + ".mp4", os.path.splitext(dst)[0] + ".part.mp4"
+    elif alpha:
         args += ["-vf", f"scale={w}:{h}:flags=area,format=yuva420p,{even}", *timing, "-c:v", "libvpx-vp9",
                  "-auto-alt-ref", "0", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "34",
                  "-row-mt", "1", "-g", str(keyint)]

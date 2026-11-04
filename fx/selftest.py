@@ -127,6 +127,32 @@ def periodic_checks():
             return
 
 
+def picture_checks(work):
+    """A project from a picture (a still video of it, read by our code and the bundled ffmpeg): its frames are the
+    picture, the light copy the page plays is a still video as long as the loop, a short export has its size."""
+    from PIL import Image
+    y, x = np.mgrid[0:H, 0:W] / W
+    arr = np.stack([110 + 90 * np.sin(6 * x + c) * np.cos(5 * y - c) for c in range(3)], 2).astype(np.uint8)
+    src = os.path.join(work, "picture.png")
+    Image.fromarray(arr).save(src)
+    project = projects.create(src, "selftest picture.png")
+    info, folder = project["video"], projects.folder(project["id"])
+    frame = video.read_frame(engine.input_path(folder, project), info, info["frames"] - 1)
+    check("picture project: a still video of the picture", info.get("image") and (info["w"], info["h"]) == (W, H)
+          and np.array_equal(frame, arr), str(info))
+    copy = video.probe(os.path.join(folder, engine.make_base_proxy(folder, project)))
+    check("picture project: light copy of the picture", (copy["frames"], copy["fps"]) == (info["frames"], info["fps"]),
+          str(copy))
+    project = projects.apply(projects.load(project["id"]), {"layers": [
+        {"id": "snowpp", "kind": "snow", "track": project["tracks"][0]["id"], "start": 0, "end": info["frames"],
+         "seed": 3}]})
+    out = os.path.join(work, "picture.mp4")
+    ok = engine.render(folder, project, out, size=(480, 270), preset="veryfast")  # (a whole loop: small, quick)
+    got = video.probe(out) if ok else {}
+    check("picture project: export", ok and (got["w"], got["h"], got["fps"], got["frames"]) ==
+          (480, 270, info["fps"], timeline.project_frames(project)), str(got))
+
+
 def server_checks(work):
     """The server: who may ask, the licence (the work refused until a key is activated, a key not from the seller
     refused), no path tricks. For the self-test only, a signing key made now stands in for the seller's (in this
@@ -311,6 +337,7 @@ def run():
 
         look = engine.Looks().frame(folder, project, 10, 640)
         check("single-frame look", look.shape == (360, 640, 3))
+        picture_checks(work)
         server_checks(work)
     except Exception:  # noqa: BLE001
         traceback.print_exc()

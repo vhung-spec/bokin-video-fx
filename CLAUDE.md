@@ -556,6 +556,19 @@ hiệu ứng. Cách dùng: `README.md`.
   lấy đúng tỉ lệ của video (`Effect(..., aspect)`): số hạt (lá) theo tỉ lệ, lệch một hạt là cả loạt lá dời chỗ.
 - `fx/video.py`: ffmpeg (bản đi kèm imageio-ffmpeg): đọc khung, ghi H.264, nối các đoạn bằng stream copy, bản nhẹ cho
   trình duyệt (H.264, hoặc VP9 WebM khi có nền trong suốt).
+- Dự án từ ảnh (chủ yêu cầu 2026-11-04: "app có thể nhận cả dự án là ảnh thay vì chỉ nhận mỗi video"): `Video mới…`,
+  `Đổi video gốc…` và kéo thả nhận cả ảnh (`projects.BASE_TYPES`, `PICTURE_TYPES` = `overlay.IMAGE_TYPES`; trang
+  `isPicture`). `projects._picture`: mở bằng `overlay.open_picture` (tối đa `overlay.MAX_IMAGE_PIXELS`), xoay theo
+  EXIF, đổi về sRGB theo ICC (ImageCms, không được thì giữ số), chỗ trong suốt thành đen, cạnh dài tối đa
+  `PICTURE_SIDE` 3840, cạnh lẻ bỏ một hàng (H.264 4:2:0), nhỏ hơn `PICTURE_LEAST` thì từ chối; lưu thành `input.png`
+  của mình. "Video" của dự án là video đứng yên `video.still_info` (`image`: True, `IMAGE_FPS` 30, loop
+  `IMAGE_SECONDS` 30 giây = 900 khung: 30 giây là một vòng, 1 phút hai vòng; trang không phải lặp bản nhẹ mỗi giây).
+  `video.Frames` / `read_frame` đọc ảnh (`_still`, Pillow, giữ vài ảnh vừa đọc, mảng chỉ đọc như khung giải mã) thay vì
+  ffmpeg; `make_proxy` làm bản nhẹ bằng `-loop 1` (khung chính mỗi giây). Mọi chỗ khác (xuất video, khung chính xác,
+  ánh sáng cảnh, clip xem nhanh `UNDER`, khớp màu) dùng y như video. Trang: bảng V1 ghi "Ảnh …", không có Vùng đứng
+  yên (`pic`); danh sách dự án, tên dự án, hộp Xuất video ghi ảnh (`summary.image`). Đổi video gốc sang ảnh: vùng
+  đứng yên về "một khung" (`still.source`). Test: `tests/test_picture.py`, `test_picture_project` (server), selftest
+  (`picture_checks`), trang (`picture_project`).
 - `fx/jobs.py`: hai hàng đợi: xuất video, và chuẩn bị xem nhanh (bản nhẹ, clip hiệu ứng tạo sẵn).
 - `fx/updater.py`: tự cập nhật. `fx/selftest.py`: tự kiểm tra.
 - `packaging/`: PyInstaller (`BokinFX.spec`), Inno Setup (`BokinFX.iss`), icon, bài thử cài đặt, cập nhật, và giao

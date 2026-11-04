@@ -232,6 +232,30 @@ class Server(unittest.TestCase):
         self.assertEqual(got.count(b"HTTP/1.1"), 1)
         self.assertFalse(self.app.quit.is_set())
 
+    def test_picture_project(self):
+        """A picture opened as a project (a still video of it: video.still_info): its frames to paint on, its
+        thumbnail, the light copy the page plays."""
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (161, 91), (40, 90, 160)).save(buf, "JPEG", quality=95)
+        name = urllib.parse.quote("Phòng khách.jpg")
+        code, body, _ = self.post(f"/api/upload?kind=video&name={name}", raw=buf.getvalue(),
+                                  headers={"Content-Type": "application/octet-stream"})
+        self.assertEqual(code, 200, body)
+        project = json.loads(body)
+        pid = project["id"]
+        self.assertTrue(project["video"]["image"])
+        self.assertEqual((project["video"]["w"], project["video"]["h"], project["video"]["fps"]), (160, 90, "30"))
+        self.assertEqual(request(self.base + f"/api/frame?id={pid}&t=500")[0], 200)
+        self.assertEqual(request(self.base + f"/api/thumb?id={pid}")[0], 200)
+        self.wait_for(lambda: json.loads(request(self.base + f"/api/project?id={pid}")[1])["proxy"])
+        code, body, _ = request(self.base + f"/media/base?id={pid}", headers={"Range": "bytes=0-99"})
+        self.assertEqual((code, len(body)), (206, 100))
+        listed = [p for p in json.loads(request(self.base + "/api/state")[1])["projects"] if p["id"] == pid]
+        self.assertTrue(listed and listed[0]["image"])
+        self.assertEqual(self.post("/api/delete", {"id": pid})[0], 200)
+
     def test_wrong_type_refused_before_upload(self):
         code, body, headers = self.post("/api/upload?kind=video&name=" + urllib.parse.quote("a" * 300 + ".exe"), raw=b"x" * 10,
                                         headers={"Content-Type": "application/octet-stream"})
